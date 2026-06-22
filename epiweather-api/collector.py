@@ -163,7 +163,7 @@ def collect_free_sources() -> dict:
     try:
         r = requests.get(
             "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi",
-            params={"db": "pubmed", "term": "ebola+2026", "retmax": 1, "retmode": "json"},
+            params={"db": "pubmed", "term": "ebola 2026", "retmax": 1, "retmode": "json"},
             headers=USER_AGENT, timeout=15,
         )
         r.raise_for_status()
