@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>역병예보 · 통합 관제센터</title>
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+:root{--bg:#050810;--bg2:#0a1018;--panel:rgba(14,22,35,.78);--panel2:#121925;--line:rgba(120,140,170,.14);--line2:rgba(120,140,170,.28);--txt:#e9eef5;--muted:#7c8aa0;--muted2:#566377;--accent:#f43f5e;--ok:#34d399;--cyan:#38bdf8;--amber:#fbbf24;--violet:#a78bfa;--pink:#f472b6;--kr:"Pretendard Variable",Pretendard,sans-serif;--disp:"Bricolage Grotesque",var(--kr);--mono:"JetBrains Mono",monospace;}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--txt);font-family:var(--kr);-webkit-font-smoothing:antialiased}
+body{min-height:100vh;position:relative;background:radial-gradient(1400px 800px at 75% -10%,rgba(244,63,94,.09),transparent 60%),radial-gradient(900px 600px at 5% 110%,rgba(167,139,250,.07),transparent 55%),var(--bg)}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.04;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+.wrap{position:relative;z-index:1;max-width:1320px;margin:0 auto;padding:clamp(14px,2.4vw,26px)}
+
+/* header */
+.top{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:14px}
+.brand{display:flex;align-items:center;gap:14px}
+.logo{width:42px;height:42px;border-radius:11px;background:radial-gradient(circle at 30% 30%,#1a2433,#0d1320);border:1px solid var(--line2);display:grid;place-items:center;position:relative;overflow:hidden}
+.logo::after{content:"";position:absolute;inset:0;background:conic-gradient(from 0deg,transparent 0deg,var(--accent) 30deg,transparent 60deg);animation:radar 3s linear infinite;opacity:.55}
+@keyframes radar{to{transform:rotate(360deg)}}
+.logo svg{width:22px;height:22px;position:relative;z-index:2}
+.brand h1{font-family:var(--disp);font-weight:800;font-size:clamp(20px,2.6vw,26px);letter-spacing:-.02em;line-height:1}
+.brand .sub{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.18em;margin-top:5px}
+.estate{text-align:right;font-family:var(--mono);font-size:10px}
+.estate .big{font-size:13px;color:var(--ok)}
+.estate .live{display:inline-flex;align-items:center;gap:6px;font-size:9px;letter-spacing:.14em;margin-top:4px;color:var(--ok)}
+.estate .live i{width:6px;height:6px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok);animation:blink 1.6s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+
+/* global scenario bar */
+.scenbar{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin:16px 0 18px;padding:14px 16px;background:var(--panel);border:1px solid var(--line);border-radius:14px;backdrop-filter:blur(14px)}
+.scenbar .lbl{font-family:var(--mono);font-size:9px;letter-spacing:.16em;color:var(--muted);text-transform:uppercase;margin-bottom:6px;display:block}
+.ctl{display:flex;flex-direction:column;gap:6px}
+.seg{display:flex;background:var(--bg2);border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.seg button{font-family:var(--kr);font-size:12px;font-weight:600;color:var(--muted);background:none;border:none;padding:8px 12px;cursor:pointer;transition:.18s;white-space:nowrap}
+.seg button.on{background:rgba(244,63,94,.16);color:var(--txt)}
+select{font-family:var(--kr);font-size:12.5px;color:var(--txt);background:var(--bg2);border:1px solid var(--line);border-radius:9px;padding:8px 11px;cursor:pointer}
+.scenbar .summary{margin-left:auto;text-align:right;font-family:var(--mono);font-size:11px;color:var(--muted)}
+.scenbar .summary b{color:var(--ok);font-size:14px;display:block}
+
+/* main layout: sidebar + content */
+.shell{display:grid;grid-template-columns:240px 1fr;gap:18px}
+@media(max-width:900px){.shell{grid-template-columns:1fr}}
+.sidebar{display:flex;flex-direction:column;gap:6px;position:sticky;top:14px;align-self:start;max-height:calc(100vh - 30px);overflow-y:auto;padding-right:4px}
+@media(max-width:900px){.sidebar{position:relative;flex-direction:row;flex-wrap:wrap;max-height:none;overflow-x:auto}}
+.sidebar::-webkit-scrollbar{width:6px}.sidebar::-webkit-scrollbar-thumb{background:var(--line2);border-radius:3px}
+
+.stagebtn{display:flex;align-items:center;gap:11px;padding:12px 13px;background:var(--panel);border:1px solid var(--line);border-radius:12px;cursor:pointer;transition:.22s;text-align:left;width:100%;color:var(--muted);position:relative}
+.stagebtn:hover{border-color:var(--line2);color:var(--txt)}
+.stagebtn .sn{width:28px;height:28px;border-radius:8px;background:var(--bg2);border:1px solid var(--line2);display:grid;place-items:center;font-family:var(--mono);font-weight:700;font-size:12px;flex:none;color:var(--muted)}
+.stagebtn .stt{font-family:var(--disp);font-weight:700;font-size:13px;color:var(--txt);line-height:1.15}
+.stagebtn .sd{font-family:var(--mono);font-size:8.5px;color:var(--muted);margin-top:2px;letter-spacing:.06em}
+.stagebtn .stat{font-family:var(--mono);font-size:10px;margin-left:auto;flex:none;text-align:right;white-space:nowrap}
+.stagebtn .stat b{display:block;font-size:12px;color:var(--ok)}
+.stagebtn.on{background:linear-gradient(135deg,rgba(244,63,94,.14),rgba(14,22,35,.6));border-color:var(--accent);color:var(--txt)}
+.stagebtn.on .sn{background:var(--accent);border-color:var(--accent);color:#fff}
+.stagebtn::before{content:"";position:absolute;left:0;top:50%;transform:translateY(-50%);width:3px;height:0;background:var(--accent);border-radius:0 2px 2px 0;transition:.25s}
+.stagebtn.on::before{height:60%}
+
+.sidefoot{margin-top:6px;padding:12px;background:var(--panel);border:1px solid var(--line);border-radius:12px;font-family:var(--mono);font-size:10px;color:var(--muted2);line-height:1.6}
+.sidefoot b{color:var(--ok)}
+
+/* content panels */
+.content{min-width:0}
+.panel{display:none;animation:fade .25s}
+.panel.on{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1}}
+.ptitle{font-family:var(--disp);font-weight:800;font-size:clamp(18px,2.3vw,24px);letter-spacing:-.02em;line-height:1.15;margin-bottom:4px}
+.psub{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.04em;margin-bottom:18px;line-height:1.6}
+.psub em{color:var(--violet);font-style:normal;font-weight:600}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:clamp(14px,2vw,20px);backdrop-filter:blur(14px)}
+.card+.card{margin-top:14px}
+.card-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:10px;flex-wrap:wrap}
+.card-h .lbl{font-family:var(--mono);font-size:10px;letter-spacing:.18em;color:var(--muted);text-transform:uppercase}
+.card-h .meta{font-family:var(--mono);font-size:11px;color:var(--muted2)}
+.grid2{display:grid;grid-template-columns:1.4fr 1fr;gap:14px}
+@media(max-width:760px){.grid2{grid-template-columns:1fr}}
+
+.btn{font-family:var(--mono);font-size:11px;color:var(--txt);background:rgba(255,255,255,.05);border:1px solid var(--line2);border-radius:9px;padding:9px 12px;cursor:pointer}
+.btn:hover{background:rgba(255,255,255,.1)}
+.btn.danger{background:rgba(244,63,94,.14);border-color:var(--accent)}
+.btn.preset.on{background:rgba(52,211,153,.16);border-color:var(--ok);color:var(--txt)}
+
+/* === STAGE 0: PATIENT ZERO === */
+.heatwrap{background:linear-gradient(180deg,#070b14,#0a1018);border-radius:11px;padding:8px;border:1px solid var(--line);position:relative;overflow:hidden}
+.heat{display:grid;grid-template-columns:repeat(10,1fr);grid-template-rows:repeat(10,1fr);gap:2px;aspect-ratio:1}
+.cell{position:relative;border-radius:3px;transition:all .4s;cursor:pointer}
+.cell:hover{transform:scale(1.15);z-index:5;outline:1px solid var(--txt)}
+.cell.cand{outline:2px solid var(--accent);box-shadow:0 0 10px var(--accent)}
+.cell.top1::before{content:"◎";position:absolute;inset:0;display:grid;place-items:center;color:#fff;font-size:13px;text-shadow:0 0 6px #000;font-weight:bold;animation:cpulse 1.5s infinite}
+@keyframes cpulse{0%,100%{opacity:1}50%{opacity:.4}}
+.channels{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.ch{display:flex;align-items:center;gap:9px;padding:7px 10px;background:rgba(255,255,255,.025);border:1px solid var(--line);border-radius:8px}
+.ch .ci{font-size:14px;flex:none}.ch .cn{font-size:11px;flex:1}.ch .cn small{display:block;font-family:var(--mono);font-size:8px;color:var(--muted2)}
+.ch .cb{width:60px;height:4px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden;flex:none}.ch .cb i{display:block;height:100%;border-radius:2px}
+.ch .cz{font-family:var(--mono);font-size:10.5px;width:42px;text-align:right;flex:none}
+.candlist{display:flex;flex-direction:column;gap:7px}
+.candrow{display:flex;align-items:center;gap:10px;padding:9px 11px;background:rgba(255,255,255,.025);border:1px solid var(--line);border-radius:10px;cursor:pointer}
+.candrow.sel{border-color:var(--accent);background:rgba(244,63,94,.08)}
+.candrow .rk{font-family:var(--mono);font-weight:700;width:22px;text-align:center;flex:none;color:var(--accent)}
+.candrow .nm{flex:1;font-size:12px;font-weight:600}.candrow .nm small{display:block;font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:1px}
+.candrow .pv{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--accent);width:50px;text-align:right;flex:none}
+
+/* === STAGE 1: CIVIC === */
+.civichero{padding:16px;border-radius:13px;background:linear-gradient(135deg,rgba(167,139,250,.10),rgba(18,25,37,.5));border:1px solid var(--line2);display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.civichero .t{flex:1;min-width:260px;font-family:var(--disp);font-weight:800;font-size:16px;line-height:1.3}
+.civichero .t b{color:var(--violet)}
+.civichero .lead{font-family:var(--mono);font-weight:700;font-size:34px;color:var(--violet);text-align:right}
+.civichero .lead small{display:block;font-size:9.5px;color:var(--muted);letter-spacing:.14em;margin-top:2px}
+.srclist{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+.srcrow{display:flex;align-items:center;gap:11px;padding:10px 12px;background:rgba(255,255,255,.025);border:1px solid var(--line);border-radius:10px;cursor:pointer}
+.srcrow.off{opacity:.35}.srcrow .ic{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;flex:none;font-size:15px}
+.srcrow .nm{flex:1}.srcrow .nm .n{font-size:12.5px;font-weight:700}.srcrow .nm .s{font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:1px}
+.srcrow .ld{font-family:var(--mono);font-weight:700;text-align:right;flex:none}.srcrow .ld .v{font-size:16px;color:var(--violet)}.srcrow .ld .vs{font-size:8.5px;color:var(--muted)}
+
+/* === STAGE 2: GLOBAL === */
+#world{width:100%;height:auto;display:block;background:linear-gradient(180deg,#0a1018,#0b1220);border-radius:10px}
+.entry{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.entry .en{font-size:12px;flex:none;width:100px}.entry .en small{display:block;font-family:var(--mono);font-size:8.5px;color:var(--muted2)}
+.entry .eb{flex:1;height:7px;background:rgba(255,255,255,.06);border-radius:4px;overflow:hidden}.entry .eb i{display:block;height:100%;border-radius:4px}
+.entry .ep{font-family:var(--mono);font-size:11px;width:70px;text-align:right;flex:none}.entry .ep b{font-size:14px}
+
+/* === STAGE 3: DOMESTIC === */
+.kmap{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;aspect-ratio:6/7.4}
+.tile{position:relative;border-radius:9px;border:1px solid rgba(255,255,255,.06);display:flex;flex-direction:column;justify-content:space-between;padding:6px 7px;cursor:pointer;transition:background-color .55s,transform .2s;overflow:hidden}
+.tile:hover{transform:scale(1.05);z-index:5}.tile.sel{box-shadow:0 0 0 2px var(--txt) inset}
+.tile .nm{font-size:11px;font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.6)}
+.tile .rk{font-family:var(--mono);font-size:12px;font-weight:700;color:#fff;align-self:flex-end;text-shadow:0 1px 4px rgba(0,0,0,.55)}
+.tile .org{position:absolute;top:4px;left:5px;font-size:10px}
+.timeline{margin-top:14px}
+.tl-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.weeklbl{font-family:var(--mono);font-size:11.5px}.weeklbl b{color:var(--accent)}
+.playbtn{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:10.5px;color:var(--txt);background:rgba(244,63,94,.12);border:1px solid var(--accent);border-radius:7px;padding:6px 11px;cursor:pointer}
+.track{position:relative;height:28px;display:flex;align-items:center}
+.track .bar{position:absolute;left:0;right:0;height:3px;background:var(--line2);border-radius:3px}
+.track .fill{position:absolute;left:0;height:3px;border-radius:3px;background:linear-gradient(90deg,#1d9b8a,#eab308,var(--accent));transition:width .4s}
+.knot{position:absolute;top:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;cursor:pointer}
+.knot .kd{width:11px;height:11px;border-radius:50%;background:var(--bg2);border:2px solid var(--muted2)}.knot.on .kd{border-color:var(--txt);background:var(--accent)}
+.knot .lab{font-family:var(--mono);font-size:8.5px;color:var(--muted);margin-top:6px;white-space:nowrap}.knot.on .lab{color:var(--txt)}
+
+/* === STAGE 4: NETWORK === */
+#net{width:100%;height:auto;display:block}
+.fitem{display:flex;align-items:center;gap:10px;padding:9px 11px;background:rgba(255,255,255,.02);border:1px solid var(--line);border-radius:10px}
+.fitem.origin{border-color:var(--accent);background:rgba(244,63,94,.08)}
+.fbar{width:3px;align-self:stretch;border-radius:3px;flex:none}
+.fitem .fnm{font-size:12px;font-weight:600;flex:1}.fitem .fnm small{display:block;font-family:var(--mono);font-size:9.5px;color:var(--muted);font-weight:400;margin-top:1px}
+.fitem .flead{font-family:var(--mono);font-size:10px;text-align:right}.fitem .flead b{font-size:14px;display:block}
+
+/* === STAGE 5: DEFENSE === */
+#defchart{width:100%;height:auto;display:block}
+.lever{margin-bottom:13px}.lever .lh{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+.lever .ln{font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:7px}.lever .ln small{font-family:var(--mono);font-size:8.5px;color:var(--muted2);font-weight:400}
+.lever .lv{font-family:var(--mono);font-size:11.5px;color:var(--ok)}
+.lever input{width:100%;accent-color:var(--ok);cursor:pointer}
+.outcomes{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px}
+.oc{border-radius:12px;padding:11px;border:1px solid var(--line);background:rgba(255,255,255,.025)}
+.oc .ok{font-size:10.5px;color:var(--muted);display:flex;align-items:center;gap:5px}
+.oc .ov{font-family:var(--mono);font-weight:700;font-size:19px;margin-top:5px}.oc .ov small{font-size:10px;font-weight:400;color:var(--muted)}
+.oc .od{font-family:var(--mono);font-size:9px;margin-top:2px;color:var(--muted2)}
+.saved{grid-column:1/-1;border-radius:13px;padding:14px 16px;background:linear-gradient(135deg,rgba(52,211,153,.14),rgba(18,25,37,.4));border:1px solid var(--ok);display:flex;align-items:center;gap:12px}
+.saved .si{font-size:26px;flex:none}.saved .st .big{font-family:var(--disp);font-weight:800;font-size:23px;color:var(--ok);line-height:1}.saved .st .sd{font-size:11.5px;color:var(--muted);margin-top:4px;line-height:1.5}
+
+/* === STAGE 6: AI === */
+.ai-out{font-size:13px;line-height:1.7;white-space:pre-wrap;color:#dfe6ef}
+.ai-empty{color:var(--muted2);font-family:var(--mono);font-size:11.5px;text-align:center;padding:18px 0;line-height:1.6}
+.ai-load{display:flex;align-items:center;gap:10px;color:var(--muted);font-family:var(--mono);font-size:11.5px;padding:10px 0}
+.spin{width:14px;height:14px;border:2px solid var(--line2);border-top-color:var(--accent);border-radius:50%;animation:sp .8s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
+.ai-err{color:#fca5a5;font-size:11.5px;line-height:1.6;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.4);border-radius:10px;padding:11px 13px}
+
+.note{margin-top:20px;font-size:10.5px;color:var(--muted2);line-height:1.7;border-top:1px solid var(--line);padding-top:14px}.note b{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="brand">
+      <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#f43f5e" stroke-width="1.8"><circle cx="12" cy="12" r="2"/><circle cx="12" cy="12" r="6" opacity=".5"/><circle cx="12" cy="12" r="10" opacity=".25"/></svg></div>
+      <div><h1>역병예보 <span style="font-family:var(--mono);font-size:11px;color:var(--accent);vertical-align:middle">COMMAND</span></h1><div class="sub">7단계 통합 관제센터 · 환자 0명 → 생명 살리기까지</div></div>
+    </div>
+    <div class="estate"><div class="big" id="estate">엔진 가동</div><div class="live"><i></i><span id="esub">7단계 동시 추론</span></div></div>
+  </div>
+
+  <!-- shared scenario -->
+  <div class="scenbar">
+    <div class="ctl"><span class="lbl">해외 발원지</span><select id="origin"></select></div>
+    <div class="ctl"><span class="lbl">위협 강도</span><div class="seg" id="threat"><button data-s="flu" class="on">계절 R₀2.2</button><button data-s="novel">신종 R₀2.8</button><button data-s="severe">고위험 R₀3.4</button></div></div>
+    <div class="ctl"><span class="lbl">대응 수준</span><div style="display:flex;gap:5px"><button class="btn preset" data-p="none">무대응</button><button class="btn preset" data-p="mild">중간</button><button class="btn preset on" data-p="strong">강력</button></div></div>
+    <div class="summary"><b id="summSaved">—</b>구한 생명</div>
+  </div>
+
+  <div class="shell">
+    <!-- sidebar -->
+    <div class="sidebar" id="sidebar"></div>
+
+    <!-- content -->
+    <div class="content" id="content">
+      <!-- STAGE 0: PATIENT ZERO -->
+      <div class="panel on" id="p0">
+        <div class="ptitle">최초 발원지 추적</div>
+        <div class="psub">스컹크웍스가 벽 너머 <em>심장박동</em>을 잡았듯이, 진단 0명 시점에 격자 단위 발원지를 추론합니다. 6채널 약신호를 <em>피셔 결합</em>으로 증폭.</div>
+        <div class="grid2">
+          <div class="card">
+            <div class="card-h"><span class="lbl">격자 후방확률 · 10×10</span><span class="meta" id="z_hmeta"></span></div>
+            <div class="heatwrap"><div class="heat" id="z_heat"></div></div>
+            <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:8px;align-items:center"><span>낮음</span><span style="height:7px;flex:1;margin:0 12px;border-radius:3px;background:linear-gradient(90deg,#1a2433,#38bdf8,#fbbf24,#f43f5e)"></span><span>발원 의심</span></div>
+          </div>
+          <div class="card">
+            <div class="card-h"><span class="lbl">발원 후보 TOP 5</span></div>
+            <div class="candlist" id="z_cand"></div>
+            <div style="font-family:var(--mono);font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.16em;margin:12px 0 8px">선택 격자 · 6채널 약신호</div>
+            <div class="channels" id="z_ch"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STAGE 1: CIVIC -->
+      <div class="panel" id="p1">
+        <div class="ptitle">민간 우선 신호망</div>
+        <div class="psub">코로나의 교훈 — 정부 발표는 너무 늦었다. <em>합리적으로 검증된</em> 시민·민간 신호 5종이 정부보다 평균 14일 먼저 잡는다.</div>
+        <div class="card">
+          <div class="civichero">
+            <div class="t">시민·민간 신호 융합 — <b>정부 D-0보다 먼저</b></div>
+            <div class="lead"><span id="c_lead">+14</span>일<small>정부 대비 선행</small></div>
+          </div>
+          <div class="srclist" id="c_list"></div>
+        </div>
+      </div>
+
+      <!-- STAGE 2: GLOBAL -->
+      <div class="panel" id="p2">
+        <div class="ptitle">글로벌 유입 감지</div>
+        <div class="psub">한국은 발생국이 아니라 <em>유입 대비국</em>. 해외 발원지에서 항공망 타고 한국 도착 시점·관문을 예측.</div>
+        <div class="card">
+          <div class="card-h"><span class="lbl">글로벌 항공망 지도</span><span class="meta" id="g_mapmeta"></span></div>
+          <svg id="world" viewBox="0 0 1000 400" preserveAspectRatio="xMidYMid meet"></svg>
+        </div>
+        <div class="grid2">
+          <div class="card"><div class="card-h"><span class="lbl">유입 위험 추론</span></div>
+            <div class="outcomes" id="g_metrics"></div>
+          </div>
+          <div class="card"><div class="card-h"><span class="lbl">입국 관문별 도착</span></div><div id="g_entry"></div></div>
+        </div>
+      </div>
+
+      <!-- STAGE 3: DOMESTIC -->
+      <div class="panel" id="p3">
+        <div class="ptitle">국내 확산 예보</div>
+        <div class="psub">유입 관문(인천)에서 시작된 확산을 전국 지도로. <em>▶ 재생</em>하면 수도권→전국 파동.</div>
+        <div class="grid2">
+          <div class="card"><div class="card-h"><span class="lbl">전국 위험도</span><span class="meta" id="d_mapmeta"></span></div>
+            <div class="kmap" id="d_kmap"></div>
+            <div class="timeline"><div class="tl-head"><div class="weeklbl" id="d_weeklbl"></div><div class="playbtn" id="d_play"><span id="d_playicon">▶</span> 재생</div></div><div class="track" id="d_track"></div></div>
+          </div>
+          <div class="card"><div class="card-h"><span class="lbl">지역 추론</span><span class="meta" id="d_detmeta"></span></div><div id="d_detail"></div></div>
+        </div>
+      </div>
+
+      <!-- STAGE 4: NETWORK -->
+      <div class="panel" id="p4">
+        <div class="ptitle">다지역 도착 예측</div>
+        <div class="psub">이동량 네트워크 위에서 발원지에서 각 지역으로 <em>병원체가 도착·확산할 시점</em>을 메타개체군 모델로 역추론.</div>
+        <div class="card">
+          <div class="card-h"><span class="lbl">확산 도착 네트워크</span><span class="meta" id="n_meta"></span></div>
+          <div class="grid2"><svg id="net" viewBox="0 0 420 340" style="width:100%;height:auto;overflow:visible"></svg>
+            <div id="n_arr" style="display:flex;flex-direction:column;gap:7px"></div></div>
+        </div>
+      </div>
+
+      <!-- STAGE 5: DEFENSE -->
+      <div class="panel" id="p5">
+        <div class="ptitle">방어 시뮬레이션</div>
+        <div class="psub">개입 6개 레버를 조절하면 SEIR 엔진이 무대응 대비 <em>몇 명을 살리는지</em> 실시간 계산.</div>
+        <div class="grid2">
+          <div class="card">
+            <div class="card-h"><span class="lbl">감염 곡선</span><div class="playbtn" id="x_play"><span id="x_playicon">▶</span> 200일 재생</div></div>
+            <svg id="defchart" viewBox="0 0 720 280"></svg>
+          </div>
+          <div class="card"><div class="card-h"><span class="lbl">방역 개입 레버</span></div><div id="x_levers"></div></div>
+        </div>
+        <div class="card"><div class="card-h"><span class="lbl">방어 성과</span><span class="meta" id="x_ocmeta"></span></div><div class="outcomes" id="x_outcomes"></div></div>
+      </div>
+
+      <!-- STAGE 6: AI -->
+      <div class="panel" id="p6">
+        <div class="ptitle">AI 통합 역학 추론</div>
+        <div class="psub">7단계 전체 상황(발원지·민간신호·유입·확산·방어)을 근거로 Claude가 통합 대응 정책을 추론.</div>
+        <div class="card">
+          <div class="card-h"><span class="lbl">통합 상황 요약</span></div>
+          <div id="ai_summary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px"></div>
+        </div>
+        <div class="card">
+          <div class="card-h"><span class="lbl">🧠 AI 정책 추론</span><button class="btn danger" id="aibtn">AI 추론 실행</button></div>
+          <div id="aibox"><div class="ai-empty">7단계 전체 신호·예측·대응 효과를 근거로<br>Claude가 통합 정책 권고를 추론합니다.</div></div>
+        </div>
+      </div>
+
+      <div class="note"><b>※ 통합 관제센터</b> — 7단계는 하나의 시나리오(상단 발원지·위협·대응)를 공유합니다. 어느 하나를 바꾸면 7단계가 동시에 갱신되며, 좌측 사이드바로 단계를 이동합니다. 핵심 인사이트: <b>가장 앞단(발원지 추적)에서 잡는 시간이 가장 많은 생명을 살립니다.</b> 데이터는 시뮬레이션이며 모든 수치는 엔진이 직접 계산합니다.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+
+/* ============= SHARED STATE ============= */
+const THREAT={flu:{R0:2.2,cfr:0.010,nm:'계절 유행'},novel:{R0:2.8,cfr:0.018,nm:'신종 감염병'},severe:{R0:3.4,cfr:0.028,nm:'고위험 신종'}};
+const PRESETS={none:{quar:0,dist:0,vax:0,vaxsp:0,anti:0,vuln:0},mild:{quar:.15,dist:.18,vax:.35,vaxsp:.005,anti:.3,vuln:.4},strong:{quar:.30,dist:.32,vax:.55,vaxsp:.008,anti:.55,vuln:.7}};
+let ST={origin:'WUH',threat:'novel',lev:{...PRESETS.strong},stage:0,week:0,reg:'IC',seed:42,zsel:null,civicOn:{citi:true,sewer:true,otc:true,kit:true,lab:true}};
+
+/* ============= STAGE 0: PATIENT ZERO ============= */
+function erf(x){const a1=.254829592,a2=-.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=.3275911;const s=x<0?-1:1;x=Math.abs(x);const t=1/(1+p*x);return s*(1-(((((a5*t+a4)*t)+a3)*t+a2)*t+a1)*t*Math.exp(-x*x));}
+function pZ(z){return Math.max(.0005,1-.5*(1+erf(z/Math.SQRT2)));}
+function chiCdf(x,k){if(x<=0)return 0;let s=0,t=Math.exp(-x/2);for(let i=0;i<k/2;i++){s+=t;t*=x/(2*(i+1));}return 1-s;}
+function combineP(zs){const ps=zs.map(z=>pZ(Math.max(0,z)));const chi=-2*ps.reduce((s,p)=>s+Math.log(p),0);return 1-chiCdf(chi,2*ps.length);}
+let SD=42;function rnd(){SD=(SD*1103515245+12345)&0x7fffffff;return SD/0x7fffffff;}
+function gauss(){return Math.sqrt(-2*Math.log(rnd()+1e-9))*Math.cos(2*Math.PI*rnd());}
+const CH=[{nm:'검색·SNS',ic:'🔍',col:'#a78bfa'},{nm:'OTC 판매',ic:'💊',col:'#fbbf24'},{nm:'하수 신호',ic:'🚰',col:'#38bdf8'},{nm:'동물 예찰',ic:'🐦',col:'#f472b6'},{nm:'이동 변화',ic:'🚇',col:'#34d399'},{nm:'1339 통화',ic:'📞',col:'#fb923c'}];
+let PZ=null;
+function genPZ(){SD=ST.seed*31+ST.origin.charCodeAt(0);const oR=1+Math.floor(rnd()*8),oC=1+Math.floor(rnd()*8);const cells=[];for(let r=0;r<10;r++)for(let c=0;c<10;c++){const d=Math.sqrt((r-oR)**2+(c-oC)**2);const boost=Math.exp(-d*d/2);const zs=[];for(let i=0;i<6;i++){zs.push(boost*(.9+rnd()*.7)+gauss()*.85);}cells.push({r,c,zs,p:combineP(zs)});}
+  const tot=cells.reduce((s,c)=>s+Math.exp(Math.max(0,-Math.log(Math.max(c.p,1e-9)))),0);cells.forEach(c=>c.prob=Math.exp(Math.max(0,-Math.log(Math.max(c.p,1e-9))))/tot);
+  const cands=[...cells].sort((a,b)=>b.prob-a.prob).slice(0,5);PZ={oR,oC,cells,cands,top:cands[0]};if(!ST.zsel)ST.zsel=cands[0];}
+function renderPZ(){if(!PZ)return;const maxP=Math.max(...PZ.cells.map(c=>c.prob),.01);const heat=document.getElementById('z_heat');heat.innerHTML='';
+  PZ.cells.forEach(c=>{const t=Math.min(1,c.prob/maxP);let col;if(t<.2)col=`rgba(26,36,51,${.4+t*1.5})`;else if(t<.5){const k=(t-.2)/.3;col=`rgb(${26+k*30|0},${36+k*153|0},${51+k*200|0})`;}else if(t<.8){const k=(t-.5)/.3;col=`rgb(${56+k*195|0},${189-k*10|0},${251-k*214|0})`;}else{const k=(t-.8)/.2;col=`rgb(${251-k*7|0},${179-k*116|0},${37+k*57|0})`;}
+    const d=document.createElement('div');d.className='cell'+(PZ.cands.includes(c)?' cand':'')+(PZ.top===c?' top1':'');d.style.background=col;d.onclick=()=>{ST.zsel=c;renderPZ();};heat.appendChild(d);});
+  document.getElementById('z_hmeta').textContent=`최고확률 ${(PZ.top.prob*100).toFixed(1)}% · 6채널 결합`;
+  document.getElementById('z_cand').innerHTML=PZ.cands.map((c,i)=>`<div class="candrow ${c===ST.zsel?'sel':''}" onclick="window.__pickZ(${c.r},${c.c})"><div class="rk">#${i+1}</div><div class="nm">격자(${c.r},${c.c})<small>${i===0?'최우선 발원 후보':'대안'}</small></div><div class="pv">${(c.prob*100).toFixed(1)}%</div></div>`).join('');
+  if(ST.zsel){document.getElementById('z_ch').innerHTML=ST.zsel.zs.map((z,i)=>{const ch=CH[i];const pct=clamp((z+1)/4*100,3,100);const col=z>2?'#ef4444':z>1?'#fbbf24':z>0?ch.col:'#566377';return `<div class="ch"><span class="ci">${ch.ic}</span><span class="cn">${ch.nm}</span><span class="cb"><i style="width:${pct}%;background:${col}"></i></span><span class="cz" style="color:${col}">${z>=0?'+':''}${z.toFixed(2)}σ</span></div>`;}).join('');}}
+window.__pickZ=(r,c)=>{ST.zsel=PZ.cells.find(x=>x.r===r&&x.c===c);renderPZ();};
+
+/* ============= STAGE 1: CIVIC ============= */
+const CIVIC=[{id:'citi',nm:'시민 자가증상',sub:'CITIZEN',ic:'🤒',col:'#a78bfa',lead:14,q:.55,v:.85},{id:'sewer',nm:'하수 역학',sub:'WASTEWATER',ic:'🚰',col:'#38bdf8',lead:11,q:.92,v:.72},{id:'otc',nm:'약국 OTC',sub:'PHARMACY',ic:'💊',col:'#fbbf24',lead:8,q:.78,v:.95},{id:'kit',nm:'민간 진단키트',sub:'KIT',ic:'🧪',col:'#f472b6',lead:6,q:.81,v:.60},{id:'lab',nm:'민간 검사소',sub:'LAB',ic:'🔬',col:'#34d399',lead:5,q:.95,v:.45}];
+function renderCivic(){const active=CIVIC.filter(s=>ST.civicOn[s.id]);const lead=active.length?Math.max(...active.map(s=>s.lead)):0;
+  document.getElementById('c_lead').textContent='+'+lead;
+  document.getElementById('c_list').innerHTML=CIVIC.map(s=>{const off=!ST.civicOn[s.id];return `<div class="srcrow ${off?'off':''}" onclick="window.__t('${s.id}')"><div class="ic" style="background:${s.col}22;color:${s.col}">${s.ic}</div><div class="nm"><div class="n">${s.nm}</div><div class="s">${s.sub} · 품질 ${(s.q*100|0)} · 볼륨 ${(s.v*100|0)}</div></div><div class="ld"><div class="v">D−${s.lead}</div><div class="vs">선행</div></div></div>`;}).join('')+`<div class="srcrow" style="border-color:rgba(239,68,68,.4);opacity:.7"><div class="ic" style="background:rgba(239,68,68,.15);color:#ef4444">🏛</div><div class="nm"><div class="n">정부 공식 발표</div><div class="s">GOV · 기준선</div></div><div class="ld"><div class="v" style="color:#ef4444">D-0</div><div class="vs">기준</div></div></div>`;}
+window.__t=id=>{ST.civicOn[id]=!ST.civicOn[id];renderCivic();updateSidebar();};
+
+/* ============= STAGE 2: GLOBAL ============= */
+const VW=1000,VH=400;function proj(lon,lat){return{x:(lon+180)/360*VW,y:(90-lat)/180*(VH-20)+10};}
+const KRP={lon:127,lat:37};
+const CITY=[{id:'WUH',nm:'우한',lon:114.3,lat:30.6,er:.85,pax:.55,hrs:5,note:'인수공통·고밀도'},{id:'JKT',nm:'자카르타',lon:106.8,lat:-6.2,er:.70,pax:.45,hrs:7,note:'가금·열대'},{id:'BKK',nm:'방콕',lon:100.5,lat:13.7,er:.55,pax:.80,hrs:6,note:'관광허브·고여객'},{id:'HAN',nm:'하노이',lon:105.8,lat:21.0,er:.60,pax:.65,hrs:5,note:'가금·접경'},{id:'DAC',nm:'다카',lon:90.4,lat:23.8,er:.65,pax:.25,hrs:7,note:'니파위험'},{id:'FIH',nm:'킨샤사',lon:15.3,lat:-4.3,er:.90,pax:.05,hrs:20,note:'출혈열·취약'},{id:'LOS',nm:'라고스',lon:3.4,lat:6.5,er:.80,pax:.08,hrs:18,note:'인수공통'},{id:'MEX',nm:'멕시코시티',lon:-99.1,lat:19.4,er:.60,pax:.12,hrs:14,note:'신종플루 전례'}];
+const CM={};CITY.forEach(c=>CM[c.id]=c);
+const ENTRY=[{id:'ICN',nm:'인천국제공항',eng:'ICN·수도권',base:.82},{id:'GMP',nm:'김포·기타',eng:'GMP',base:.06},{id:'PUS',nm:'부산',eng:'PUS·영남',base:.08},{id:'CJU',nm:'제주',eng:'CJU',base:.04}];
+const origSel=document.getElementById('origin');CITY.forEach(c=>{const o=document.createElement('option');o.value=c.id;o.textContent=c.nm;origSel.appendChild(o);});
+function importDay(c,novel){const r=novel?.20:.16,p0=.00006,cap=.4,dp=c.pax*4200,lh=c.hrs<10?1:.68;let cum=0;for(let d=0;d<150;d++){const prev=Math.min(cap,p0*Math.exp(r*d));cum+=prev*dp*lh;if(cum>=1)return d;}return -1;}
+let GLOB=null;
+function computeGlobal(){const c=CM[ST.origin],novel=ST.threat!=='flu';const arrival=importDay(c,novel);const risk=Math.round(clamp(c.er*38+c.pax*52+(novel?8:0),5,99));const lead=Math.round(6+c.er*8+(novel?4:0));
+  const seAsia=['BKK','HAN','JKT','DAC'].includes(c.id);const dist=ENTRY.map(e=>{let w=e.base;if(e.id==='PUS'&&seAsia)w+=.05;if(e.id==='CJU'&&seAsia)w+=.03;if(e.id==='ICN'&&!seAsia)w+=.06;return{e,w};});const sw=dist.reduce((a,x)=>a+x.w,0);dist.forEach(x=>x.w/=sw);
+  GLOB={c,novel,arrival,risk,detectLead:lead,dist};}
+function arc(x1,y1,x2,y2,l){const mx=(x1+x2)/2,my=(y1+y2)/2-l;return`M${x1} ${y1} Q${mx} ${my} ${x2} ${y2}`;}
+function renderGlobal(){const kr=proj(KRP.lon,KRP.lat);let svg='';
+  for(let lon=-150;lon<=150;lon+=30){const p=proj(lon,0);svg+=`<line x1="${p.x}" y1="0" x2="${p.x}" y2="${VH}" stroke="rgba(120,140,170,.05)"/>`;}
+  for(let lat=-60;lat<=60;lat+=30){const p=proj(0,lat);svg+=`<line x1="0" y1="${p.y}" x2="${VW}" y2="${p.y}" stroke="rgba(120,140,170,.05)"/>`;}
+  CITY.forEach(c=>{const a=proj(c.lon,c.lat);const lift=Math.abs(a.x-kr.x)*0.18+30;const w=0.4+c.pax*2.6;const col=c.id===ST.origin?'rgba(244,63,94,.85)':'rgba(120,140,170,.18)';svg+=`<path d="${arc(a.x,a.y,kr.x,kr.y,lift)}" fill="none" stroke="${col}" stroke-width="${c.id===ST.origin?w+0.6:w}"/>`;if(c.id===ST.origin)svg+=`<circle r="4" fill="#fff"><animateMotion dur="2.4s" repeatCount="indefinite" path="${arc(a.x,a.y,kr.x,kr.y,lift)}"/></circle>`;});
+  CITY.forEach(c=>{const a=proj(c.lon,c.lat);const isO=c.id===ST.origin;let col,rad=5;if(isO){col='#f43f5e';rad=8;svg+=`<circle cx="${a.x}" cy="${a.y}" r="14" fill="none" stroke="#f43f5e" stroke-width="1.5" opacity=".5"><animate attributeName="r" values="8;18;8" dur="2s" repeatCount="indefinite"/><animate attributeName="opacity" values=".6;0;.6" dur="2s" repeatCount="indefinite"/></circle>`;}else col=c.er>=.75?'#fbbf24':'#2a3647';svg+=`<circle cx="${a.x}" cy="${a.y}" r="${rad}" fill="${col}" stroke="#0a0e14" stroke-width="1.5"/><text x="${a.x}" y="${a.y-rad-3}" fill="${isO?'#fff':'var(--muted)'}" font-size="${isO?11:9}" font-weight="${isO?700:400}" text-anchor="middle">${c.nm}</text>`;});
+  svg+=`<circle cx="${kr.x}" cy="${kr.y}" r="9" fill="#38bdf8" stroke="#0a0e14" stroke-width="2"/><text x="${kr.x}" y="${kr.y+20}" fill="#38bdf8" font-size="11" font-weight="700" text-anchor="middle">한국 ◎</text>`;
+  document.getElementById('world').innerHTML=svg;
+  document.getElementById('g_mapmeta').textContent=GLOB.c.nm+' 발원';
+  const col=GLOB.risk<40?'#34d399':GLOB.risk<60?'#eab308':GLOB.risk<80?'#f97316':'#ef4444';
+  document.getElementById('g_metrics').innerHTML=`<div class="oc"><div class="ok">✈ 한국 첫 유입</div><div class="ov" style="color:${col}">D+${GLOB.arrival}</div><div class="od">발원지 기준</div></div><div class="oc"><div class="ok">🌐 유입 위험지수</div><div class="ov" style="color:${col}">${GLOB.risk}</div><div class="od">출현×여객</div></div><div class="oc"><div class="ok">🟢 WHO 선행</div><div class="ov" style="color:var(--ok)">D−${GLOB.detectLead}</div><div class="od">조기탐지</div></div><div class="oc"><div class="ok">🏷 발원 특성</div><div class="ov" style="font-size:12px">${GLOB.c.note}</div><div class="od">출현 ${(GLOB.c.er*100|0)}</div></div>`;
+  const sorted=[...GLOB.dist].sort((a,b)=>b.w-a.w);
+  document.getElementById('g_entry').innerHTML=sorted.map((x,i)=>{const day=GLOB.arrival+Math.round(i*1.5);const pct=Math.round(x.w*100);const col=i===0?'#f43f5e':i===1?'#fb923c':'#38bdf8';return `<div class="entry"><div class="en">${x.e.nm}<small>${x.e.eng}</small></div><div class="eb"><i style="width:${pct}%;background:${col}"></i></div><div class="ep" style="color:${col}"><b>${pct}%</b>D+${day}</div></div>`;}).join('');}
+
+/* ============= STAGE 3+4: DOMESTIC + NETWORK ============= */
+const R=[{id:'IC',nm:'인천',c:2,r:1,x:120,y:60,pop:3.0,eld:16},{id:'SU',nm:'서울',c:3,r:1,x:175,y:48,pop:9.4,eld:18},{id:'GG',nm:'경기',c:4,r:1,x:205,y:98,pop:13.6,eld:15},{id:'GW',nm:'강원',c:5,r:1,x:285,y:65,pop:1.5,eld:24},{id:'CN',nm:'충남',c:2,r:2,x:135,y:150,pop:2.1,eld:21},{id:'CB',nm:'충북',c:4,r:2,x:235,y:135,pop:1.6,eld:20},{id:'DG',nm:'대구',c:5,r:3,x:295,y:190,pop:2.4,eld:19},{id:'JB',nm:'전북',c:2,r:3,x:150,y:215,pop:1.8,eld:23},{id:'GN',nm:'경남',c:4,r:4,x:265,y:245,pop:3.3,eld:19},{id:'JN',nm:'전남',c:2,r:5,x:155,y:280,pop:1.8,eld:26},{id:'BS',nm:'부산',c:5,r:5,x:320,y:265,pop:3.3,eld:22},{id:'JJ',nm:'제주',c:3,r:7,x:135,y:320,pop:.67,eld:17}];
+const RG={};R.forEach(x=>RG[x.id]=x);
+const MOB={IC:{SU:.9,GG:.8,CN:.4,JJ:.5,BS:.4,DG:.3,CB:.3},SU:{IC:.9,GG:.95,CN:.5,DG:.5,BS:.5,JJ:.4,GW:.5,CB:.5},GG:{SU:.95,IC:.8,CN:.6,DG:.5,BS:.4,JJ:.3,GW:.6,CB:.6},GW:{SU:.5,GG:.6,CB:.4,DG:.3},CN:{GG:.6,SU:.5,IC:.4,JB:.5,CB:.5,DG:.3},CB:{GG:.6,SU:.5,CN:.5,DG:.5,GW:.4},DG:{SU:.5,GG:.5,BS:.7,CB:.5,GN:.6,CN:.3},JB:{CN:.5,GN:.5,JN:.6,GG:.3},GN:{DG:.6,BS:.7,JB:.5,JN:.4,SU:.4},JN:{JB:.6,GN:.4,JJ:.4,SU:.3},BS:{DG:.7,GN:.7,SU:.5,JJ:.45,GG:.4},JJ:{IC:.5,SU:.4,BS:.45,JN:.4,GG:.3}};
+let DOM=null;
+function computeDomestic(){const sp=THREAT[ST.threat];const beta=clamp(0.12+(sp.R0-2.2)*0.07,0.12,0.24);const origin='IC';let cur={};R.forEach(x=>cur[x.id]=x.id===origin?.015:.0002);const I={};R.forEach(x=>I[x.id]={});const arr={};R.forEach(x=>arr[x.id]=null);const seedStart=104;
+  for(let d=0;d<160;d++){R.forEach(x=>{I[x.id][d]=cur[x.id];if(arr[x.id]===null&&cur[x.id]>=.25)arr[x.id]=d-seedStart;});
+    if(d>=seedStart){const nx={};R.forEach(x=>{let f=beta*cur[x.id]*(1-cur[x.id]);const m=MOB[x.id]||{};Object.keys(m).forEach(j=>f+=.05*beta*m[j]*cur[j]*(1-cur[x.id]));nx[x.id]=clamp(cur[x.id]+f,0,1);});cur=nx;}}
+  const today=119;const riskWeek={};R.forEach(x=>{const a=[];for(let w=0;w<5;w++){const dd=Math.min(159,today+w*7);a.push(Math.round(clamp(8+x.eld*0.3+(I[x.id][dd]||0)*135,3,99)));}riskWeek[x.id]=a;});
+  DOM={origin,I,arr,riskWeek};}
+const STOPS=[[0,[30,58,95]],[25,[29,155,138]],[50,[234,179,8]],[75,[249,115,22]],[100,[214,40,40]]];
+function rgbAt(v){v=clamp(v,0,100);for(let i=0;i<4;i++){const[a,ca]=STOPS[i],[b,cb]=STOPS[i+1];if(v<=b){const k=(v-a)/(b-a);return ca.map((c,j)=>Math.round(c+(cb[j]-c)*k));}}return STOPS[4][1];}
+function color(v){const c=rgbAt(v);return`rgb(${c[0]},${c[1]},${c[2]})`;}
+function statusOf(v){return v<20?'안정':v<40?'관심':v<60?'주의':v<80?'경계':'심각';}
+let tiles={};
+function buildKMap(){const kmap=document.getElementById('d_kmap');kmap.innerHTML='';tiles={};R.forEach(reg=>{const t=document.createElement('div');t.className='tile';t.style.gridColumn=reg.c;t.style.gridRow=reg.r;t.innerHTML=`<span class="nm">${reg.nm}</span><span class="rk"></span>`;t.onclick=()=>{ST.reg=reg.id;renderDetail();markSel();};kmap.appendChild(t);tiles[reg.id]=t;});}
+function markSel(){R.forEach(reg=>tiles[reg.id]&&tiles[reg.id].classList.toggle('sel',reg.id===ST.reg));}
+function paintKMap(){R.forEach(reg=>{const v=DOM.riskWeek[reg.id][ST.week];const t=tiles[reg.id];if(!t)return;t.style.background=color(v);t.querySelector('.rk').textContent=v;let org=t.querySelector('.org');if(reg.id===DOM.origin){if(!org){org=document.createElement('span');org.className='org';org.textContent='◎';t.appendChild(org);}}else if(org)org.remove();});markSel();document.getElementById('d_mapmeta').textContent=(ST.week===0?'현재':'+'+ST.week+'주');}
+function buildDTrack(){const track=document.getElementById('d_track');track.innerHTML='<div class="bar"></div><div class="fill" id="d_fill"></div>';for(let t=0;t<5;t++){const k=document.createElement('div');k.className='knot'+(t===ST.week?' on':'');k.style.left=(t/4*100)+'%';k.innerHTML=`<div class="kd"></div><div class="lab">${t===0?'현재':'+'+t+'주'}</div>`;k.onclick=()=>{dStop();ST.week=t;renderDomTime();};track.appendChild(k);}updDTrack();}
+function updDTrack(){const f=document.getElementById('d_fill');if(f)f.style.width=(ST.week/4*100)+'%';document.querySelectorAll('#d_track .knot').forEach((k,i)=>k.classList.toggle('on',i===ST.week));}
+function renderDomTime(){updDTrack();paintKMap();renderDetail();document.getElementById('d_weeklbl').innerHTML=(ST.week===0?'<b>현재</b>':`<b>+${ST.week}주</b>`);}
+let dTimer=null;document.getElementById('d_play').onclick=()=>dTimer?dStop():dStart();
+function dStart(){document.getElementById('d_playicon').textContent='⏸';if(ST.week>=4)ST.week=0;dTimer=setInterval(()=>{ST.week++;if(ST.week>4){ST.week=4;renderDomTime();dStop();return;}renderDomTime();},900);renderDomTime();}
+function dStop(){document.getElementById('d_playicon').textContent='▶';clearInterval(dTimer);dTimer=null;}
+function renderDetail(){const reg=RG[ST.reg];const v=DOM.riskWeek[reg.id][ST.week];const base=Math.round(8+reg.eld*0.3);const delta=v-base;document.getElementById('d_detmeta').textContent=reg.nm;
+  document.getElementById('d_detail').innerHTML=`<div class="outcomes"><div class="oc"><div class="ok">📍 ${reg.nm}</div><div class="ov" style="color:${color(v)}">${v}<small>/100</small></div><div class="od">${statusOf(v)} · 베이스라인 +${delta}</div></div><div class="oc"><div class="ok">🛡 65세+</div><div class="ov">${reg.eld}<small>%</small></div><div class="od">취약가중</div></div></div>`;}
+function renderNet(){let svg='';const drawn=new Set();R.forEach(a=>{const m=MOB[a.id]||{};Object.keys(m).forEach(bid=>{const key=[a.id,bid].sort().join('-');if(drawn.has(key))return;drawn.add(key);const b=RG[bid];const w=m[bid];svg+=`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="rgba(120,140,170,${.05+w*.14})" stroke-width="${.5+w*1.8}"/>`;});});
+  const maxD=35;R.forEach(reg=>{const isO=reg.id===DOM.origin;const d=DOM.arr[reg.id];let col,rad=10,glow='';if(isO){col='#f43f5e';rad=13;glow=`<circle cx="${reg.x}" cy="${reg.y}" r="19" fill="none" stroke="#f43f5e" stroke-width="1.5" opacity=".5"><animate attributeName="r" values="13;23;13" dur="2s" repeatCount="indefinite"/><animate attributeName="opacity" values=".6;0;.6" dur="2s" repeatCount="indefinite"/></circle>`;}else if(d==null||d<0||d>maxD)col='#2a3647';else{const k=clamp(d/maxD,0,1);col=`rgb(${244-k*60|0},${63+k*100|0},${94+k*60|0})`;}svg+=glow+`<circle cx="${reg.x}" cy="${reg.y}" r="${rad}" fill="${col}" stroke="#0a0e14" stroke-width="2"/><text x="${reg.x}" y="${reg.y+4}" fill="#fff" font-size="9" font-weight="700" text-anchor="middle">${reg.nm}</text>`;if(!isO&&d!=null&&d>=0&&d<=maxD)svg+=`<text x="${reg.x}" y="${reg.y+rad+10}" fill="${col}" font-size="8.5" font-family="var(--mono)" text-anchor="middle">D+${d}</text>`;});
+  document.getElementById('net').innerHTML=svg;
+  const arr=R.map(reg=>({reg,d:DOM.arr[reg.id],o:reg.id===DOM.origin})).filter(a=>a.o||(a.d!=null&&a.d>=0&&a.d<=maxD)).sort((a,b)=>{if(a.o)return -1;if(b.o)return 1;return a.d-b.d;});const maxd=Math.max(...arr.filter(a=>!a.o).map(a=>a.d),1);
+  document.getElementById('n_meta').textContent=DOM.origin+' 발원 · '+(arr.length-1)+'개 지역';
+  document.getElementById('n_arr').innerHTML=arr.slice(0,7).map(a=>{if(a.o)return `<div class="fitem origin"><div class="fbar" style="background:#f43f5e"></div><div class="fnm">${a.reg.nm} <small>유입 관문</small></div><div class="flead" style="color:#f43f5e"><b>D+0</b>발원</div></div>`;const k=a.d/maxd;const col=`rgb(${244-k*60|0},${63+k*100|0},${94+k*60|0})`;return `<div class="fitem"><div class="fbar" style="background:${col}"></div><div class="fnm">${a.reg.nm} <small>도착 예측</small></div><div class="flead" style="color:${col}"><b>D+${a.d}</b>도착</div></div>`;}).join('');}
+
+/* ============= STAGE 5: DEFENSE ============= */
+const N=5e6,HOSP_CAP=12000;
+function simulate(lev,threat,days=200){const sp=THREAT[threat];let s=N-21,e=20,i=1,d=0;const sig=1/4,gam=1/7,hosp=.08,iv=21;let peak=0,pday=0,ofd=0;const I=[];
+  for(let t=0;t<days;t++){const ramp=clamp((t-iv)/14,0,1);const npi=(lev.quar+lev.dist)*ramp;const vax=Math.min(lev.vax,Math.max(0,(t-iv))*lev.vaxsp);const ve=lev.vuln*ramp*.25;
+    let Reff=sp.R0*(1-clamp(npi,0,.85))*(1-vax*.85)*(1-ve*.3);const beta=Reff*gam;const nE=beta*s*i/N,nI=sig*e,nR=gam*i;const ecfr=sp.cfr*(1-lev.anti*.4*ramp)*(1-ve);
+    s-=nE;e+=nE-nI;i+=nI-nR;d+=nR*ecfr;s=Math.max(0,s);e=Math.max(0,e);i=Math.max(0,i);I.push(i);if(i>peak){peak=i;pday=t;}if(i*hosp>HOSP_CAP)ofd++;}
+  return {I,peak,pday,deaths:d,ofd};}
+function currentRt(){const sp=THREAT[ST.threat],l=ST.lev;return sp.R0*(1-clamp(l.quar+l.dist,0,.85))*(1-l.vax*.85)*(1-l.vuln*.25*.3);}
+let DEF=null,DEF0=null;
+function computeDefense(){DEF=simulate(ST.lev,ST.threat);DEF0=simulate(PRESETS.none,ST.threat);}
+const LEVERS=[{k:'quar',nm:'입국 검역',ic:'✈️',sub:'유입 차단',max:.5},{k:'dist',nm:'거리두기',ic:'🧑‍🤝‍🧑',sub:'접촉 감소',max:.6},{k:'vax',nm:'백신 목표',ic:'💉',sub:'커버리지',max:.85},{k:'vaxsp',nm:'백신 속도',ic:'⏩',sub:'일일 증가',max:.015},{k:'anti',nm:'치료제',ic:'💊',sub:'치명률↓',max:.8},{k:'vuln',nm:'취약보호',ic:'🛡',sub:'고위험군',max:.9}];
+function renderLevers(){document.getElementById('x_levers').innerHTML=LEVERS.map(L=>{const v=ST.lev[L.k];const disp=L.k==='vaxsp'?(v*1000).toFixed(1)+'‰':Math.round(v*100)+'%';return `<div class="lever"><div class="lh"><span class="ln">${L.ic} ${L.nm} <small>${L.sub}</small></span><span class="lv">${disp}</span></div><input type="range" min="0" max="${L.max}" step="${L.max/100}" value="${v}" oninput="window.__lev('${L.k}',this.value)"></div>`;}).join('');}
+window.__lev=(k,v)=>{ST.lev[k]=parseFloat(v);document.querySelectorAll('.preset').forEach(b=>b.classList.remove('on'));recompute(true);};
+let animDay=200,xTimer=null;
+function renderDefChart(){const W=720,H=280,padL=8,padR=8,padT=12,padB=22;const days=DEF.I.length;const x=t=>padL+t/(days-1)*(W-padL-padR);const maxV=Math.max(DEF0.peak,...DEF.I)*1.06;const y=v=>H-padB-(v/maxV)*(H-padT-padB);const upTo=Math.min(animDay,days-1);const line=(arr,n)=>arr.slice(0,n+1).map((v,i)=>(i?'L':'M')+x(i).toFixed(1)+' '+y(v).toFixed(1)).join(' ');
+  let svg=`<line x1="${padL}" y1="${y(0)}" x2="${W-padR}" y2="${y(0)}" stroke="rgba(255,255,255,.06)"/>`;
+  svg+=`<line x1="${padL}" y1="${y(HOSP_CAP/0.08)}" x2="${W-padR}" y2="${y(HOSP_CAP/0.08)}" stroke="#fbbf24" stroke-width="1.2" stroke-dasharray="2 3" opacity=".7"/><text x="${W-padR}" y="${y(HOSP_CAP/0.08)-4}" fill="#fbbf24" font-size="8.5" font-family="var(--mono)" text-anchor="end">의료 한계</text>`;
+  svg+=`<path d="${line(DEF0.I,days-1)} L${x(days-1)} ${y(0)} L${x(0)} ${y(0)} Z" fill="rgba(239,68,68,.07)"/><path d="${line(DEF0.I,days-1)}" fill="none" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="5 4" opacity=".8"/>`;
+  svg+=`<path d="${line(DEF.I,upTo)} L${x(upTo)} ${y(0)} L${x(0)} ${y(0)} Z" fill="rgba(52,211,153,.12)"/><path d="${line(DEF.I,upTo)}" fill="none" stroke="#34d399" stroke-width="2.4"/>`;
+  if(animDay>=days-1)svg+=`<circle cx="${x(DEF0.pday)}" cy="${y(DEF0.peak)}" r="4" fill="#ef4444"/><text x="${x(DEF0.pday)}" y="${y(DEF0.peak)-7}" fill="#ef4444" font-size="9" font-family="var(--mono)" text-anchor="middle">무대응 정점</text>`;
+  svg+=`<line x1="${x(upTo)}" y1="${padT}" x2="${x(upTo)}" y2="${H-padB}" stroke="rgba(255,255,255,.2)" stroke-dasharray="2 2"/><text x="${x(upTo)}" y="${H-7}" fill="var(--muted)" font-size="9" font-family="var(--mono)" text-anchor="middle">D+${upTo}</text>`;
+  document.getElementById('defchart').innerHTML=svg;}
+document.getElementById('x_play').onclick=()=>{if(xTimer){clearInterval(xTimer);xTimer=null;document.getElementById('x_playicon').textContent='▶';animDay=200;renderDefChart();return;}animDay=0;document.getElementById('x_playicon').textContent='⏸';xTimer=setInterval(()=>{animDay+=4;if(animDay>=200){animDay=200;renderDefChart();clearInterval(xTimer);xTimer=null;document.getElementById('x_playicon').textContent='▶';return;}renderDefChart();},55);};
+function renderDefOutcomes(){const saved=Math.max(0,Math.round(DEF0.deaths-DEF.deaths));const savedPct=DEF0.deaths>0?Math.round(saved/DEF0.deaths*100):0;const rt=currentRt();const suppressed=rt<1;
+  document.getElementById('x_ocmeta').textContent=THREAT[ST.threat].nm+' · 200일';
+  document.getElementById('x_outcomes').innerHTML=`<div class="saved"><span class="si">🛡️</span><div class="st"><div class="big">${saved.toLocaleString()}명</div><div class="sd">무대응 대비 구한 생명 (사망 ${savedPct}%↓) · ${suppressed?'<b style="color:var(--ok)">Rt&lt;1 차단</b>':'억제 중'}</div></div></div>
+    <div class="oc"><div class="ok">📉 정점 감염</div><div class="ov" style="color:#34d399">${Math.round(DEF.peak).toLocaleString()}<small>명</small></div><div class="od" style="color:var(--muted2)">무대응 ${Math.round(DEF0.peak).toLocaleString()}</div></div>
+    <div class="oc"><div class="ok">⚰️ 누적 사망</div><div class="ov" style="color:${DEF.deaths<DEF0.deaths*0.3?'#34d399':'#fb923c'}">${Math.round(DEF.deaths).toLocaleString()}</div><div class="od">무대응 ${Math.round(DEF0.deaths).toLocaleString()}</div></div>
+    <div class="oc"><div class="ok">🏥 병상 초과</div><div class="ov" style="color:${DEF.ofd===0?'#34d399':DEF.ofd<20?'#fb923c':'#ef4444'}">${DEF.ofd}<small>일</small></div><div class="od">무대응 ${DEF0.ofd}일</div></div>
+    <div class="oc"><div class="ok">📈 실효 Rt</div><div class="ov" style="color:${rt<1?'#34d399':rt<1.5?'#fbbf24':'#ef4444'}">${rt.toFixed(2)}</div><div class="od">${rt<1?'차단':'>1 확대'}</div></div>`;}
+
+/* ============= STAGE 6: AI ============= */
+function renderAISummary(){const sp=THREAT[ST.threat];const civicLead=Math.max(...CIVIC.filter(s=>ST.civicOn[s.id]).map(s=>s.lead),0);const saved=Math.max(0,Math.round(DEF0.deaths-DEF.deaths));
+  document.getElementById('ai_summary').innerHTML=`
+    <div class="oc"><div class="ok">🎯 발원지 추적</div><div class="ov" style="font-size:14px">격자(${PZ.top.r},${PZ.top.c})</div><div class="od">${(PZ.top.prob*100).toFixed(1)}% 확률</div></div>
+    <div class="oc"><div class="ok">🧑‍🤝‍🧑 민간 선행</div><div class="ov" style="font-size:14px;color:var(--violet)">D−${civicLead}일</div><div class="od">정부 대비</div></div>
+    <div class="oc"><div class="ok">✈ 한국 유입</div><div class="ov" style="font-size:14px">D+${GLOB.arrival}</div><div class="od">${GLOB.c.nm}발</div></div>
+    <div class="oc"><div class="ok">⚠ 위협</div><div class="ov" style="font-size:14px">${sp.nm}</div><div class="od">R₀ ${sp.R0}</div></div>
+    <div class="oc"><div class="ok">🛡 방어 효과</div><div class="ov" style="font-size:14px;color:var(--ok)">${saved.toLocaleString()}명</div><div class="od">구한 생명</div></div>
+    <div class="oc"><div class="ok">📈 Rt</div><div class="ov" style="font-size:14px;color:${currentRt()<1?'var(--ok)':'#fb923c'}">${currentRt().toFixed(2)}</div><div class="od">${currentRt()<1?'차단':'억제'}</div></div>`;}
+document.getElementById('aibtn').onclick=async()=>{const box=document.getElementById('aibox');box.innerHTML=`<div class="ai-load"><div class="spin"></div>Claude가 7단계 통합 추론 중…</div>`;
+  const sp=THREAT[ST.threat];const civicLead=Math.max(...CIVIC.filter(s=>ST.civicOn[s.id]).map(s=>s.lead),0);const saved=Math.max(0,Math.round(DEF0.deaths-DEF.deaths));
+  const payload={발원지_격자추적:`(${PZ.top.r},${PZ.top.c}) ${(PZ.top.prob*100).toFixed(1)}%`,민간신호_정부대비선행:'D−'+civicLead+'일',해외발원:GLOB.c.nm,발원특성:GLOB.c.note,한국유입예측:'D+'+GLOB.arrival,WHO대비선행:'D−'+GLOB.detectLead,위협:sp.nm,R0:sp.R0,개입:{검역:Math.round(ST.lev.quar*100)+'%',거리두기:Math.round(ST.lev.dist*100)+'%',백신:Math.round(ST.lev.vax*100)+'%',치료제:Math.round(ST.lev.anti*100)+'%',취약보호:Math.round(ST.lev.vuln*100)+'%'},실효Rt:Number(currentRt().toFixed(2)),예측사망:Math.round(DEF.deaths),구한생명:saved};
+  const prompt=`너는 신중한 감염병 방역 정책 전문가다. 통합 관제센터가 7단계(발원지 추적·민간 신호·해외 유입·국내 확산·방어 시뮬레이션)를 분석했다. 이 데이터로 추론하라.\n\n${JSON.stringify(payload,null,2)}\n\n각 2~3문장 이내, 불확실성 명시, 과장 없이 한국어로:\n1) 통합 평가: 가장 앞단 신호(발원지·민간)부터 방어까지 종합 위협 수준은?\n2) 가장 결정적 개입: 어느 단계에 자원을 집중해야 가장 많은 생명을 살리나?\n3) 취약계층(어린이·노약자) 보호 우선 조치는?\n4) 방역당국 즉시 의사결정 3가지(우선순위대로).\n제목 없이 1~4 번호로만.`;
+  try{const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1100,messages:[{role:"user",content:prompt}]})});if(!res.ok)throw new Error('API 오류 ('+res.status+')');const data=await res.json();const text=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n').trim();box.innerHTML='<div class="ai-out"></div>';box.querySelector('.ai-out').textContent=text||'응답 없음.';}catch(e){box.innerHTML=`<div class="ai-err"><b>AI 추론 호출 실패.</b><br>${e.message}<br><br>claude.ai 아티팩트 환경에서 동작합니다. 7단계 엔진은 정상 작동합니다.</div>`;}};
+
+/* ============= SIDEBAR ============= */
+const STAGES=[{id:0,nm:'발원지 추적',sub:'PATIENT ZERO',ic:'🎯'},{id:1,nm:'민간 신호',sub:'CIVIC FIRST',ic:'🧑‍🤝‍🧑'},{id:2,nm:'글로벌 유입',sub:'GLOBAL',ic:'🌐'},{id:3,nm:'국내 확산',sub:'DOMESTIC',ic:'🗺'},{id:4,nm:'도착 예측',sub:'NETWORK',ic:'🕸'},{id:5,nm:'방어 대응',sub:'DEFENSE',ic:'🛡'},{id:6,nm:'AI 추론',sub:'AI POLICY',ic:'🧠'}];
+function updateSidebar(){const civicLead=Math.max(...CIVIC.filter(s=>ST.civicOn[s.id]).map(s=>s.lead),0);const saved=PZ&&GLOB&&DEF&&DEF0?Math.max(0,Math.round(DEF0.deaths-DEF.deaths)):0;
+  const stats={0:PZ?(PZ.top.prob*100).toFixed(0)+'%':'—',1:'D−'+civicLead,2:'D+'+(GLOB?GLOB.arrival:'—'),3:'+4주',4:'전국',5:saved>=1000?(saved/1000).toFixed(0)+'k':saved.toLocaleString(),6:'7단계'};
+  const sub=document.getElementById('sidebar');sub.innerHTML=STAGES.map(s=>`<button class="stagebtn ${s.id===ST.stage?'on':''}" data-st="${s.id}"><div class="sn">${s.id}</div><div><div class="stt">${s.ic} ${s.nm}</div><div class="sd">${s.sub}</div></div><div class="stat"><b>${stats[s.id]}</b>${s.id===0?'확률':s.id===1?'선행':s.id===2?'유입':s.id===5?'살림':''}</div></button>`).join('')+`<div class="sidefoot"><b>통합 시나리오</b><br>${CM[ST.origin].nm}발 ${THREAT[ST.threat].nm}<br>구한 생명 <b>${saved.toLocaleString()}명</b></div>`;
+  document.querySelectorAll('.stagebtn').forEach(b=>b.onclick=()=>setStage(+b.dataset.st));}
+function setStage(n){ST.stage=n;document.querySelectorAll('.stagebtn').forEach((b,i)=>b.classList.toggle('on',i===n));['p0','p1','p2','p3','p4','p5','p6'].forEach((id,i)=>document.getElementById(id).classList.toggle('on',i===n));}
+
+/* ============= ORCHESTRATE ============= */
+function recompute(defOnly){if(!defOnly){genPZ();computeGlobal();computeDomestic();}computeDefense();
+  if(!defOnly){renderPZ();renderCivic();renderGlobal();paintKMap();renderDetail();renderNet();renderDomTime();}
+  renderLevers();animDay=200;renderDefChart();renderDefOutcomes();renderAISummary();updateSidebar();
+  const saved=Math.max(0,Math.round(DEF0.deaths-DEF.deaths));document.getElementById('summSaved').textContent=saved.toLocaleString()+'명';
+  const rt=currentRt();document.getElementById('estate').textContent=rt<1?'✓ 방어 우세':rt<1.5?'⚠ 억제':'⚠ 확산 위험';document.getElementById('estate').style.color=rt<1?'var(--ok)':rt<1.5?'#fbbf24':'#ef4444';
+  document.getElementById('aibox').innerHTML='<div class="ai-empty">7단계 전체 신호·예측·대응 효과를 근거로<br>Claude가 통합 정책 권고를 추론합니다.</div>';}
+origSel.value=ST.origin;origSel.onchange=()=>{ST.origin=origSel.value;recompute();};
+document.querySelectorAll('#threat button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#threat button').forEach(x=>x.classList.remove('on'));b.classList.add('on');ST.threat=b.dataset.s;recompute();});
+document.querySelectorAll('.preset').forEach(b=>b.onclick=()=>{document.querySelectorAll('.preset').forEach(x=>x.classList.remove('on'));b.classList.add('on');ST.lev={...PRESETS[b.dataset.p]};recompute(true);});
+
+buildKMap();buildDTrack();recompute();
+</script>
+</body>
+</html>

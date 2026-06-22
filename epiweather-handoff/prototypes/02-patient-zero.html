@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>역병예보 · 최초 발원지 추적기</title>
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+:root{--bg:#050810;--bg2:#0a1018;--panel:rgba(14,22,35,.78);--line:rgba(120,140,170,.14);--line2:rgba(120,140,170,.28);--txt:#e9eef5;--muted:#7c8aa0;--muted2:#566377;--hot:#f43f5e;--warm:#fbbf24;--cool:#38bdf8;--scan:#34d399;--violet:#a78bfa;--kr:"Pretendard Variable",Pretendard,sans-serif;--disp:"Bricolage Grotesque",var(--kr);--mono:"JetBrains Mono",monospace;}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--txt);font-family:var(--kr);-webkit-font-smoothing:antialiased}
+body{min-height:100vh;position:relative;background:radial-gradient(1400px 800px at 75% -10%,rgba(244,63,94,.10),transparent 60%),radial-gradient(900px 600px at 5% 110%,rgba(52,211,153,.08),transparent 55%),var(--bg)}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.04;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+.wrap{position:relative;z-index:1;max-width:1240px;margin:0 auto;padding:clamp(16px,3vw,30px)}
+.top{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:16px}
+.brand{display:flex;align-items:center;gap:14px}
+.logo{width:42px;height:42px;border-radius:11px;background:radial-gradient(circle at 30% 30%,#1a2433,#0d1320);border:1px solid var(--line2);display:grid;place-items:center;position:relative;overflow:hidden}
+.logo::after{content:"";position:absolute;inset:0;background:conic-gradient(from 0deg,transparent 0deg,var(--hot) 30deg,transparent 60deg);animation:radar 3s linear infinite;opacity:.6}
+@keyframes radar{to{transform:rotate(360deg)}}
+.logo svg{width:22px;height:22px;position:relative;z-index:2}
+.brand h1{font-family:var(--disp);font-weight:800;font-size:clamp(20px,3.4vw,28px);letter-spacing:-.02em;line-height:1}
+.brand .sub{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.18em;margin-top:5px}
+.estate{text-align:right;font-family:var(--mono);font-size:10px}
+.estate .big{font-size:13px;color:var(--hot)}
+.estate .live{display:inline-flex;align-items:center;gap:6px;font-size:9px;color:var(--hot);letter-spacing:.14em;margin-top:5px}
+.estate .live i{width:6px;height:6px;border-radius:50%;background:var(--hot);box-shadow:0 0 8px var(--hot);animation:pulse 1.4s infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.4)}}
+
+/* hero — Skunk Works analogy */
+.hero{margin:18px 0 18px;padding:22px 24px;border-radius:18px;background:linear-gradient(135deg,rgba(244,63,94,.10),rgba(167,139,250,.06),rgba(14,22,35,.6));border:1px solid var(--line2);position:relative;overflow:hidden}
+.hero::before{content:"";position:absolute;inset:-50% -10% auto auto;width:300px;height:300px;background:radial-gradient(circle,rgba(244,63,94,.18),transparent 70%);pointer-events:none}
+.hero .t{font-family:var(--disp);font-weight:800;font-size:clamp(20px,2.8vw,28px);letter-spacing:-.02em;line-height:1.2;position:relative}
+.hero .t b{color:var(--hot)}
+.hero .d{color:var(--muted);font-size:13.5px;margin-top:10px;line-height:1.6;max-width:780px;position:relative}
+.hero .d em{color:var(--violet);font-style:normal;font-weight:600}
+
+/* controls */
+.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px}
+.ctl{display:flex;flex-direction:column;gap:6px}
+.ctl label{font-family:var(--mono);font-size:9px;letter-spacing:.16em;color:var(--muted);text-transform:uppercase}
+.seg{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{font-family:var(--kr);font-size:12.5px;font-weight:600;color:var(--muted);background:none;border:none;padding:9px 13px;cursor:pointer;transition:.18s;white-space:nowrap}
+.seg button.on{background:rgba(244,63,94,.16);color:var(--txt)}
+.btn{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--txt);background:rgba(255,255,255,.05);border:1px solid var(--line2);border-radius:10px;padding:10px 13px;cursor:pointer;transition:.2s}
+.btn:hover{background:rgba(255,255,255,.1)}
+.btn.scan{background:rgba(244,63,94,.16);border-color:var(--hot)}
+
+.grid2{display:grid;grid-template-columns:1.4fr 1fr;gap:18px}
+@media(max-width:900px){.grid2{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:clamp(16px,2.2vw,22px);backdrop-filter:blur(14px)}
+.card-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px;flex-wrap:wrap}
+.card-h .lbl{font-family:var(--mono);font-size:10px;letter-spacing:.18em;color:var(--muted);text-transform:uppercase}
+.card-h .meta{font-family:var(--mono);font-size:11px;color:var(--muted2)}
+.sectitle{font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;color:var(--muted);text-transform:uppercase;margin:16px 0 10px}
+
+/* grid heatmap */
+.heatwrap{position:relative;background:linear-gradient(180deg,#070b14,#0a1018);border-radius:13px;padding:10px;border:1px solid var(--line);overflow:hidden}
+.heatwrap::before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent 0,transparent 25px,rgba(120,140,170,.04) 25px,rgba(120,140,170,.04) 26px),repeating-linear-gradient(90deg,transparent 0,transparent 25px,rgba(120,140,170,.04) 25px,rgba(120,140,170,.04) 26px);pointer-events:none}
+.heat{display:grid;grid-template-columns:repeat(10,1fr);grid-template-rows:repeat(10,1fr);gap:2px;aspect-ratio:1;position:relative;z-index:1}
+.cell{position:relative;border-radius:3px;transition:all .5s cubic-bezier(.4,0,.2,1);cursor:pointer;overflow:hidden}
+.cell:hover{transform:scale(1.15);z-index:5;outline:1px solid var(--txt)}
+.cell.cand{outline:2px solid var(--hot);box-shadow:0 0 12px var(--hot)}
+.cell.cand::after{content:"";position:absolute;inset:-4px;border:2px solid var(--hot);border-radius:6px;animation:candpulse 1.6s infinite;pointer-events:none}
+.cell.top1::before{content:"◎";position:absolute;inset:0;display:grid;place-items:center;color:#fff;font-size:14px;text-shadow:0 0 6px #000;font-weight:bold;animation:candpulse 1.6s infinite}
+@keyframes candpulse{0%,100%{opacity:1}50%{opacity:.35}}
+.scanline{position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--scan),transparent);box-shadow:0 0 10px var(--scan);top:0;z-index:3;pointer-events:none;animation:scanmove 3s linear infinite;display:none}
+.scanline.go{display:block}
+@keyframes scanmove{0%{top:0%}100%{top:100%}}
+
+/* channel signals (per selected cell) */
+.channels{display:flex;flex-direction:column;gap:7px;margin-top:4px}
+.ch{display:flex;align-items:center;gap:10px;padding:8px 10px;background:rgba(255,255,255,.025);border:1px solid var(--line);border-radius:9px}
+.ch .ci{font-size:16px;flex:none}
+.ch .cn{font-size:11.5px;flex:1}
+.ch .cn small{display:block;font-family:var(--mono);font-size:8.5px;color:var(--muted2);margin-top:1px}
+.ch .cb{flex:1;height:4px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden;max-width:90px}
+.ch .cb i{display:block;height:100%;border-radius:3px}
+.ch .cz{font-family:var(--mono);font-size:11px;width:46px;text-align:right;flex:none}
+
+/* candidates list */
+.candlist{display:flex;flex-direction:column;gap:8px}
+.candrow{display:flex;align-items:center;gap:11px;padding:10px 12px;background:rgba(255,255,255,.025);border:1px solid var(--line);border-radius:11px;cursor:pointer;transition:.2s}
+.candrow:hover{border-color:var(--line2)}
+.candrow.sel{border-color:var(--hot);background:rgba(244,63,94,.08)}
+.candrow .rk{font-family:var(--mono);font-weight:700;width:24px;flex:none;text-align:center}
+.candrow .nm{flex:1;font-size:13px;font-weight:600}
+.candrow .nm small{display:block;font-family:var(--mono);font-size:9.5px;color:var(--muted);margin-top:2px}
+.candrow .pb{flex:none;width:60px;height:5px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden}
+.candrow .pb i{display:block;height:100%;border-radius:3px;background:var(--hot)}
+.candrow .pv{font-family:var(--mono);font-size:14px;font-weight:700;width:48px;text-align:right;flex:none;color:var(--hot)}
+
+/* time backcast chart */
+.backwrap{margin-top:8px}
+#backchart{width:100%;height:160px;display:block}
+.ci-bar{font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-top:6px;line-height:1.6}
+.ci-bar b{color:var(--violet)}
+
+/* fusion gauge */
+.fusion{display:flex;align-items:center;gap:16px;padding:14px;border-radius:13px;background:linear-gradient(135deg,rgba(244,63,94,.08),rgba(167,139,250,.06));border:1px solid var(--line2)}
+.fusion .g{position:relative;width:80px;height:80px;flex:none}
+.fusion .g svg{transform:rotate(-90deg)}
+.fusion .g .v{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--mono);font-weight:700;font-size:22px;color:var(--hot)}
+.fusion .ft{flex:1}
+.fusion .ft b{font-family:var(--disp);font-size:15px}
+.fusion .ft p{color:var(--muted);font-size:11.5px;margin-top:5px;line-height:1.5}
+
+/* method explainer */
+.method{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.mstep{flex:1;min-width:130px;padding:11px 12px;border-radius:11px;background:rgba(255,255,255,.025);border:1px solid var(--line)}
+.mstep .mn{font-size:11.5px;font-weight:700;display:flex;align-items:center;gap:7px;margin-bottom:5px}
+.mstep .md{font-family:var(--mono);font-size:9.5px;color:var(--muted);line-height:1.55}
+.mstep .ms{font-family:var(--mono);font-size:9px;color:var(--violet);margin-top:5px}
+
+.note{margin-top:22px;font-size:11px;color:var(--muted2);line-height:1.7;border-top:1px solid var(--line);padding-top:16px}
+.note b{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="brand">
+      <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#f43f5e" stroke-width="1.8"><circle cx="12" cy="12" r="2"/><circle cx="12" cy="12" r="6" opacity=".5"/><circle cx="12" cy="12" r="10" opacity=".25"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></div>
+      <div><h1>역병예보 <span style="font-family:var(--mono);font-size:11px;color:var(--hot);vertical-align:middle">PATIENT-ZERO</span></h1><div class="sub">최초 발원지 추적기 · 환자 0명일 때 잡는다</div></div>
+    </div>
+    <div class="estate"><div class="big" id="estate">스캐닝 대기</div><div class="live"><i></i><span id="esub">10×10 격자 · 6채널</span></div></div>
+  </div>
+
+  <div class="hero">
+    <div class="t">스컹크웍스가 벽 너머의 <b>심장박동</b>을 잡았듯이,<br>우리는 진단 0명 시점의 <b>최초 발원지</b>를 잡는다.</div>
+    <div class="d">단일 채널 신호는 <em>z &lt; 2</em>로 통계적 의미가 없습니다. 하지만 한 격자에서 6개 채널이 동시에 살짝씩 오르면 — <em>피셔 결합</em>으로 노이즈를 누르고 진짜 신호만 증폭됩니다. 환자가 한 명도 진단되기 전, 의사가 의심하기 전, 정부가 발표하기 전 — 가장 빠른 시점에 발원 격자와 발원 시점을 베이지안 역추론으로 좁힙니다.</div>
+  </div>
+
+  <div class="controls">
+    <div class="ctl"><label>탐지 모드</label>
+      <div class="seg" id="mode"><button data-m="multi" class="on">다채널 결합</button><button data-m="single">단일 채널만</button></div></div>
+    <div class="ctl"><label>채널 수</label>
+      <div class="seg" id="nchan"><button data-n="3">3채널</button><button data-n="6" class="on">6채널</button></div></div>
+    <button class="btn scan" id="scan">📡 스캔 실행</button>
+    <button class="btn" id="newrun">↻ 새 시나리오</button>
+  </div>
+
+  <div class="grid2">
+    <!-- HEATMAP -->
+    <div class="card">
+      <div class="card-h"><span class="lbl">격자 후방확률 히트맵 · 10×10</span><span class="meta" id="hmeta"></span></div>
+      <div class="heatwrap">
+        <div class="scanline" id="scanline"></div>
+        <div class="heat" id="heat"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:8px;align-items:center">
+        <span>낮음 (잡음)</span>
+        <span style="height:8px;flex:1;margin:0 14px;border-radius:4px;background:linear-gradient(90deg,#1a2433,#38bdf8,#fbbf24,#f43f5e)"></span>
+        <span>높음 (발원 의심)</span>
+      </div>
+      <div style="font-family:var(--mono);font-size:10.5px;color:var(--muted);line-height:1.6;margin-top:10px">격자를 클릭하면 6채널 신호를 확인할 수 있어요. <b style="color:var(--hot)">◎ 표시</b>가 최우선 후보.</div>
+    </div>
+
+    <!-- TOP CANDIDATES + CHANNELS -->
+    <div class="card">
+      <div class="card-h"><span class="lbl">발원 후보 격자 TOP 5</span><span class="meta" id="cmeta"></span></div>
+      <div class="candlist" id="candlist"></div>
+      <div class="sectitle">선택 격자 · 6채널 약신호 분해</div>
+      <div class="channels" id="channels"></div>
+    </div>
+  </div>
+
+  <!-- TIME BACKCAST -->
+  <div class="card" style="margin-top:18px">
+    <div class="card-h"><span class="lbl">발원 시점 역추론 · 베이지안 백캐스트</span><span class="meta" id="bmeta"></span></div>
+    <div class="backwrap"><svg id="backchart" viewBox="0 0 720 160" preserveAspectRatio="none"></svg></div>
+    <div class="ci-bar" id="cibar"></div>
+  </div>
+
+  <!-- FUSION + METHOD -->
+  <div class="card" style="margin-top:18px">
+    <div class="card-h"><span class="lbl">통합 신뢰도 · 스컹크웍스 원리</span></div>
+    <div class="fusion">
+      <div class="g"><svg width="80" height="80"><circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="7"/><circle id="fcirc" cx="40" cy="40" r="34" fill="none" stroke="#f43f5e" stroke-width="7" stroke-linecap="round" stroke-dasharray="213" stroke-dashoffset="60" style="transition:.6s"/></svg><div class="v" id="fval">73%</div></div>
+      <div class="ft"><b>발원지 식별 확신도</b><p>단일 채널 z-평균이 1.4(통계적 무의미)인데, 6채널 동시 결합으로 73% 후방확률에 도달했습니다. 이게 노이즈 속 약한 일관 신호를 증폭하는 스컹크웍스 원리예요.</p></div>
+    </div>
+    <div class="sectitle">추론 방법론 · 검증 가능한 통계</div>
+    <div class="method">
+      <div class="mstep"><div class="mn">🔬 약한 신호 융합</div><div class="md">개별 채널 z를 일방향 p로 변환 후 피셔 결합. χ² 분포 자유도 2k.</div><div class="ms">Fisher's Method (1925)</div></div>
+      <div class="mstep"><div class="mn">📡 공간 클러스터링</div><div class="md">각 격자의 결합 p를 후방확률로 정규화. 이웃 격자 자기상관 보정.</div><div class="ms">Spatial Scan Statistic</div></div>
+      <div class="mstep"><div class="mn">⏪ 시점 역추론</div><div class="md">현재 누적량 + 추정 r로 t₀ 베이지안 추정. MC 샘플링 95% CI.</div><div class="ms">Bayesian Backcasting</div></div>
+      <div class="mstep"><div class="mn">🛡 익명·집계만</div><div class="md">개인 신호 사용 안 함. 격자 단위 집계 통계만. 차등 프라이버시 적용.</div><div class="ms">Differential Privacy</div></div>
+    </div>
+  </div>
+
+  <div class="note"><b>※ 가장 앞단의 가장 앞단</b> — BlueDot은 첫 환자가 진단된 후의 뉴스를 잡았습니다. 시민 신호망은 첫 증상자가 나온 후를 잡습니다. 이 화면은 그보다 더 앞 — <b>환자가 한 명도 진단되지 않은 시점에 격자 단위로 발원지·시점을 추론</b>합니다. 약한 신호를 통계적으로 증폭하는 스컹크웍스 방식입니다. 다채널 결합 모드와 단일 채널 모드를 비교해 보세요 — 왜 결합이 결정적인지 즉시 보입니다. 데이터는 시뮬레이션이며 모든 확률·신뢰구간은 모델이 직접 계산합니다.</div>
+</div>
+
+<script>
+/* ===================== utils ===================== */
+function erf(x){const a1=0.254829592,a2=-0.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=0.3275911;const s=x<0?-1:1;x=Math.abs(x);const t=1/(1+p*x);const y=1-(((((a5*t+a4)*t)+a3)*t+a2)*t+a1)*t*Math.exp(-x*x);return s*y;}
+function pFromZ(z){return Math.max(0.0005,1-0.5*(1+erf(z/Math.SQRT2)));}
+function chiCdf(x,k){if(x<=0)return 0;let s=0,t=Math.exp(-x/2);for(let i=0;i<k/2;i++){s+=t;t*=x/(2*(i+1));}return 1-s;}
+function combineP(zs){const ps=zs.map(z=>pFromZ(Math.max(0,z)));const chi=-2*ps.reduce((s,p)=>s+Math.log(p),0);return 1-chiCdf(chi,2*ps.length);}
+
+let SD=42;function rnd(){SD=(SD*1103515245+12345)&0x7fffffff;return SD/0x7fffffff;}
+function gauss(){return Math.sqrt(-2*Math.log(rnd()+1e-9))*Math.cos(2*Math.PI*rnd());}
+
+const CH=[
+ {id:'search',nm:'검색·SNS',sub:'WEB SIGNAL',ic:'🔍',col:'#a78bfa'},
+ {id:'otc',   nm:'OTC 판매',sub:'PHARMACY',ic:'💊',col:'#fbbf24'},
+ {id:'sewer', nm:'하수 신호',sub:'WASTEWATER',ic:'🚰',col:'#38bdf8'},
+ {id:'animal',nm:'동물 예찰',sub:'ANIMAL HEALTH',ic:'🐦',col:'#f472b6'},
+ {id:'mobil', nm:'이동 변화',sub:'MOBILITY',ic:'🚇',col:'#34d399'},
+ {id:'call',  nm:'1339 통화',sub:'CALL DELTA',ic:'📞',col:'#fb923c'},
+];
+
+const GRID_N=10;
+let ST={mode:'multi',nchan:6,seed:42};
+let DATA=null,SEL=null;
+
+/* ===================== scenario generator ===================== */
+function generate(){
+  SD=ST.seed;
+  // pick true origin grid (somewhere not on edge)
+  const oR=1+Math.floor(rnd()*8), oC=1+Math.floor(rnd()*8);
+  const cells=[];
+  for(let r=0;r<GRID_N;r++)for(let c=0;c<GRID_N;c++){
+    const dist=Math.sqrt((r-oR)**2+(c-oC)**2);
+    // weak signal near origin: each channel z ~ 0.8..1.6 at origin, decays with distance
+    const localBoost=Math.exp(-dist*dist/(2*1.0*1.0)); // sigma=1 grid
+    const zs=CH.map(()=>{
+      const noise=gauss()*0.85;
+      const signal=localBoost*(0.9+rnd()*0.7);
+      return Number((signal+noise).toFixed(2));
+    });
+    cells.push({r,c,zs,localBoost});
+  }
+  // current obs for time backcast
+  const currentDay=30, growth=0.18+rnd()*0.04, currentN=30+Math.round(rnd()*40);
+  const trueStart=8+Math.floor(rnd()*4);
+  DATA={oR,oC,cells,currentDay,growth,currentN,trueStart};
+  computeAll();
+  SEL=DATA.candidates[0];
+}
+
+function computeAll(){
+  const useN=ST.nchan;
+  DATA.cells.forEach(c=>{
+    const zs=c.zs.slice(0,useN);
+    c.zsActive=zs;
+    if(ST.mode==='single'){
+      // worst-case "single channel only": use max single z's p (no combination)
+      const maxZ=Math.max(...zs);
+      c.p=pFromZ(maxZ);
+    }else{
+      c.p=combineP(zs);
+    }
+    c.score=Math.max(0,-Math.log(Math.max(c.p,1e-9)));
+  });
+  const tot=DATA.cells.reduce((s,c)=>s+Math.exp(c.score),0);
+  DATA.cells.forEach(c=>c.prob=Math.exp(c.score)/tot);
+  DATA.candidates=[...DATA.cells].sort((a,b)=>b.prob-a.prob).slice(0,5);
+  // hit: is top1 the true origin (within 1 grid)?
+  const top=DATA.candidates[0];
+  const dist=Math.sqrt((top.r-DATA.oR)**2+(top.c-DATA.oC)**2);
+  DATA.hit=dist<=1.5;
+  DATA.confidence=top.prob;
+}
+
+/* ===================== render heatmap ===================== */
+function colorFromProb(p){
+  // 0..maxP mapped to dark→cyan→amber→hot
+  const maxP=Math.max(...DATA.cells.map(c=>c.prob),0.01);
+  const t=Math.min(1,p/maxP);
+  if(t<0.2)return `rgba(26,36,51,${0.4+t*1.5})`;
+  if(t<0.5){const k=(t-0.2)/0.3;return `rgb(${Math.round(26+k*30)},${Math.round(36+k*153)},${Math.round(51+k*200)})`;}
+  if(t<0.8){const k=(t-0.5)/0.3;return `rgb(${Math.round(56+k*195)},${Math.round(189-k*10)},${Math.round(251-k*214)})`;}
+  const k=(t-0.8)/0.2;return `rgb(${Math.round(251-k*7)},${Math.round(179-k*116)},${Math.round(37+k*57)})`;
+}
+function renderHeat(){
+  const heat=document.getElementById('heat');
+  heat.innerHTML='';
+  DATA.cells.forEach((c,i)=>{
+    const d=document.createElement('div');
+    d.className='cell'+(DATA.candidates.includes(c)?' cand':'')+(DATA.candidates[0]===c?' top1':'');
+    d.style.background=colorFromProb(c.prob);
+    d.style.animationDelay=(i*0.005)+'s';
+    d.title=`(${c.r},${c.c}) p=${c.prob.toFixed(3)}`;
+    d.onclick=()=>{SEL=c;renderRight();};
+    heat.appendChild(d);
+  });
+  document.getElementById('hmeta').textContent=`최고확률 ${(DATA.confidence*100).toFixed(1)}% · ${DATA.hit?'✓ 발원 격자 포착':'△ 인근 격자 후보'}`;
+}
+
+/* ===================== right panel ===================== */
+function renderRight(){
+  // candidates list
+  const cl=document.getElementById('candlist');
+  cl.innerHTML=DATA.candidates.map((c,i)=>{
+    const sel=c===SEL?' sel':'';
+    const isTrue=Math.sqrt((c.r-DATA.oR)**2+(c.c-DATA.oC)**2)<=1.5;
+    const w=Math.round(c.prob*100);
+    return `<div class="candrow${sel}" onclick="window.__pick(${c.r},${c.c})"><div class="rk">#${i+1}</div><div class="nm">격자 (${c.r}, ${c.c}) ${isTrue?'<span style="color:var(--hot)">◉</span>':''}<small>${i===0?'최우선 발원 후보':'대안 후보'}</small></div><div class="pb"><i style="width:${w}%"></i></div><div class="pv">${c.prob>=0.001?(c.prob*100).toFixed(1)+'%':'<0.1%'}</div></div>`;
+  }).join('');
+  document.getElementById('cmeta').textContent=DATA.candidates.length+'곳 후보';
+  // channels for SEL
+  if(SEL){
+    const chs=document.getElementById('channels');
+    const zs=SEL.zsActive;
+    chs.innerHTML=zs.map((z,i)=>{
+      const ch=CH[i];const pct=Math.max(3,Math.min(100,(z+1)/4*100));
+      const col=z>2?'#ef4444':z>1?'#fbbf24':z>0?ch.col:'#566377';
+      return `<div class="ch"><span class="ci">${ch.ic}</span><span class="cn">${ch.nm}<small>${ch.sub}</small></span><span class="cb"><i style="width:${pct}%;background:${col}"></i></span><span class="cz" style="color:${col}">${z>=0?'+':''}${z.toFixed(2)}σ</span></div>`;
+    }).join('');
+  }
+  // fusion gauge
+  const conf=DATA.confidence;
+  document.getElementById('fval').textContent=Math.round(conf*100)+'%';
+  document.getElementById('fcirc').setAttribute('stroke-dashoffset',213*(1-conf));
+  // backcast
+  renderBackcast();
+}
+window.__pick=(r,c)=>{SEL=DATA.cells.find(x=>x.r===r&&x.c===c);renderRight();};
+
+/* ===================== time backcast ===================== */
+function backcast(){
+  const samples=[];
+  for(let i=0;i<3000;i++){
+    const r=DATA.growth+(rnd()-0.5)*0.04;
+    const N=DATA.currentN*(0.85+rnd()*0.3);
+    const t0=DATA.currentDay-Math.log(Math.max(2,N))/Math.max(0.05,r);
+    samples.push(t0);
+  }
+  samples.sort((a,b)=>a-b);
+  return {median:samples[1500],lo:samples[75],hi:samples[2925],samples};
+}
+function renderBackcast(){
+  const b=backcast();
+  const W=720,H=160,pad=10;
+  const xMin=0,xMax=35;
+  const x=t=>pad+(t-xMin)/(xMax-xMin)*(W-2*pad);
+  // histogram
+  const bins=new Array(36).fill(0);
+  b.samples.forEach(s=>{const i=Math.max(0,Math.min(35,Math.round(s)));bins[i]++;});
+  const maxB=Math.max(...bins);
+  let svg=`<line x1="${pad}" y1="${H-22}" x2="${W-pad}" y2="${H-22}" stroke="rgba(255,255,255,.15)"/>`;
+  // CI band
+  svg+=`<rect x="${x(b.lo)}" y="20" width="${x(b.hi)-x(b.lo)}" height="${H-42}" fill="rgba(167,139,250,.12)" stroke="rgba(167,139,250,.4)" stroke-dasharray="3 3"/>`;
+  // bars
+  bins.forEach((cnt,i)=>{if(cnt===0)return;const h=(cnt/maxB)*(H-50);const xx=x(i)-8;svg+=`<rect x="${xx}" y="${H-22-h}" width="14" height="${h}" fill="rgba(244,63,94,.55)" rx="2"/>`;});
+  // median line
+  svg+=`<line x1="${x(b.median)}" y1="6" x2="${x(b.median)}" y2="${H-22}" stroke="#f43f5e" stroke-width="2"/>`;
+  svg+=`<text x="${x(b.median)}" y="16" fill="#f43f5e" font-size="10" font-family="monospace" text-anchor="middle">중앙값 D-${(DATA.currentDay-b.median).toFixed(0)}</text>`;
+  // today line
+  svg+=`<line x1="${x(DATA.currentDay)}" y1="6" x2="${x(DATA.currentDay)}" y2="${H-22}" stroke="rgba(255,255,255,.5)" stroke-dasharray="2 2"/>`;
+  svg+=`<text x="${x(DATA.currentDay)}" y="16" fill="var(--muted)" font-size="10" font-family="monospace" text-anchor="middle">오늘</text>`;
+  // axis
+  [0,7,14,21,28,35].forEach(d=>{svg+=`<text x="${x(d)}" y="${H-6}" fill="var(--muted2)" font-size="9" font-family="monospace" text-anchor="middle">day ${d}</text>`;});
+  document.getElementById('backchart').innerHTML=svg;
+  const lead=DATA.currentDay-b.median;
+  document.getElementById('cibar').innerHTML=`발원 시점 추론: <b>day ${b.median.toFixed(1)}</b> · 95% 신뢰구간 [day ${b.lo.toFixed(1)} ~ day ${b.hi.toFixed(1)}] · <b>오늘로부터 ${lead.toFixed(0)}일 전</b>에 첫 발원 추정`;
+  document.getElementById('bmeta').textContent=`현재 day${DATA.currentDay} · 누적 ${DATA.currentN}례 · 추정 r=${DATA.growth.toFixed(2)}`;
+}
+
+/* ===================== scan animation ===================== */
+const scanBtn=document.getElementById('scan');
+scanBtn.onclick=()=>{
+  document.getElementById('scanline').classList.add('go');
+  document.getElementById('estate').textContent='스캐닝 중';
+  setTimeout(()=>{document.getElementById('scanline').classList.remove('go');document.getElementById('estate').textContent=DATA.hit?'✓ 발원 격자 식별':'△ 후보 좁힘 진행';},3200);
+};
+
+document.getElementById('newrun').onclick=()=>{ST.seed=Math.floor(Math.random()*1e6);generate();renderAll();};
+document.querySelectorAll('#mode button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#mode button').forEach(x=>x.classList.remove('on'));b.classList.add('on');ST.mode=b.dataset.m;computeAll();renderAll();});
+document.querySelectorAll('#nchan button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#nchan button').forEach(x=>x.classList.remove('on'));b.classList.add('on');ST.nchan=+b.dataset.n;computeAll();renderAll();});
+
+function renderAll(){renderHeat();renderRight();}
+generate();renderAll();
+</script>
+</body>
+</html>

@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>역병예보 · 방어 관제센터</title>
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+:root{--bg:#070a10;--bg2:#0c111b;--panel:rgba(18,25,37,.72);--panel2:#121925;--line:rgba(120,140,170,.14);--line2:rgba(120,140,170,.28);--txt:#e9eef5;--muted:#7c8aa0;--muted2:#566377;--accent:#f43f5e;--ok:#34d399;--cyan:#38bdf8;--amber:#fbbf24;--violet:#a78bfa;--kr:"Pretendard Variable",Pretendard,sans-serif;--disp:"Bricolage Grotesque",var(--kr);--mono:"JetBrains Mono",monospace;}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--txt);font-family:var(--kr);-webkit-font-smoothing:antialiased}
+body{min-height:100vh;position:relative;background:radial-gradient(1200px 700px at 80% -10%,rgba(52,211,153,.08),transparent 60%),radial-gradient(900px 600px at 5% 110%,rgba(244,63,94,.08),transparent 55%),var(--bg)}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.035;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+.wrap{position:relative;z-index:1;max-width:1240px;margin:0 auto;padding:clamp(16px,3vw,32px)}
+.top{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:18px}
+.brand{display:flex;align-items:center;gap:14px}
+.logo{width:42px;height:42px;border-radius:11px;background:linear-gradient(145deg,#1a2433,#0d1320);border:1px solid var(--line2);display:grid;place-items:center;position:relative;overflow:hidden}
+.logo::after{content:"";position:absolute;width:150%;height:2px;background:var(--ok);top:50%;left:-25%;box-shadow:0 0 12px var(--ok);animation:scan 3s linear infinite}
+@keyframes scan{0%{transform:translateY(-16px)}100%{transform:translateY(16px)}}
+.logo svg{width:22px;height:22px;position:relative;z-index:2}
+.brand h1{font-family:var(--disp);font-weight:800;font-size:clamp(19px,3.3vw,27px);letter-spacing:-.02em;line-height:1}
+.brand .sub{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.20em;margin-top:5px}
+.estate{text-align:right;font-family:var(--mono);font-size:10px}
+.estate .big{font-size:13px}
+.estate .live{display:inline-flex;align-items:center;gap:6px;font-size:9px;color:var(--ok);letter-spacing:.14em;margin-top:5px}
+.estate .live i{width:6px;height:6px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok);animation:blink 1.6s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+.scenbar{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin:18px 0}
+.ctl{display:flex;flex-direction:column;gap:6px}
+.ctl label{font-family:var(--mono);font-size:9px;letter-spacing:.16em;color:var(--muted);text-transform:uppercase}
+.seg{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{font-family:var(--kr);font-size:12.5px;font-weight:600;color:var(--muted);background:none;border:none;padding:9px 13px;cursor:pointer;transition:.18s;white-space:nowrap}
+.seg button.on{background:rgba(244,63,94,.16);color:var(--txt)}
+.btn{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--txt);background:rgba(255,255,255,.05);border:1px solid var(--line2);border-radius:10px;padding:10px 13px;cursor:pointer;transition:.2s}
+.btn:hover{background:rgba(255,255,255,.1)}
+.btn.danger{background:rgba(244,63,94,.14);border-color:var(--accent)}
+.btn.preset{font-family:var(--kr);font-weight:600}
+.btn.preset.on{background:rgba(52,211,153,.16);border-color:var(--ok);color:var(--txt)}
+.grid{display:grid;grid-template-columns:1.5fr 1fr;gap:18px}
+@media(max-width:900px){.grid{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:clamp(16px,2.2vw,22px);backdrop-filter:blur(14px)}
+.card-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px;flex-wrap:wrap}
+.card-h .lbl{font-family:var(--mono);font-size:10px;letter-spacing:.20em;color:var(--muted);text-transform:uppercase}
+.card-h .meta{font-family:var(--mono);font-size:11px;color:var(--muted2)}
+.chartwrap{position:relative}
+#chart{width:100%;height:auto;display:block;overflow:visible}
+.chartlegend{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-family:var(--mono);font-size:10px;color:var(--muted)}
+.chartlegend span{display:flex;align-items:center;gap:6px}
+.chartlegend i{width:16px;height:0;border-top-width:2px;border-top-style:solid;display:inline-block}
+/* levers */
+.lever{margin-bottom:15px}
+.lever .lh{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px}
+.lever .ln{font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px}
+.lever .ln small{font-family:var(--mono);font-size:9px;color:var(--muted2);font-weight:400}
+.lever .lv{font-family:var(--mono);font-size:12px;color:var(--ok)}
+.lever input[type=range]{width:100%;accent-color:var(--ok);cursor:pointer}
+.lever .ld{font-family:var(--mono);font-size:9px;color:var(--muted2);margin-top:3px}
+/* outcome metrics */
+.outcomes{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:4px}
+.oc{border-radius:13px;padding:13px;border:1px solid var(--line);background:rgba(255,255,255,.025)}
+.oc .ok{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:5px}
+.oc .ov{font-family:var(--mono);font-weight:700;font-size:23px;margin-top:6px}
+.oc .ov small{font-size:11px;font-weight:400;color:var(--muted)}
+.oc .od{font-family:var(--mono);font-size:9.5px;margin-top:3px}
+.saved{grid-column:1/-1;border-radius:14px;padding:16px 18px;background:linear-gradient(135deg,rgba(52,211,153,.14),rgba(18,25,37,.4));border:1px solid var(--ok);display:flex;align-items:center;gap:14px}
+.saved .si{font-size:30px;flex:none}
+.saved .st{flex:1}
+.saved .st .big{font-family:var(--disp);font-weight:800;font-size:26px;color:var(--ok);line-height:1}
+.saved .st .sd{font-size:12px;color:var(--muted);margin-top:5px;line-height:1.5}
+/* Rt bar */
+.rtbar{margin-top:16px}
+.rttrack{height:30px;border-radius:8px;background:linear-gradient(90deg,#34d399 0%,#34d399 38%,#eab308 45%,#f97316 60%,#ef4444 100%);position:relative;border:1px solid var(--line)}
+.rtmark{position:absolute;top:-4px;width:3px;height:38px;background:#fff;box-shadow:0 0 8px #fff;transition:left .5s}
+.rtmark::after{content:attr(data-v);position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-family:var(--mono);font-size:11px;color:#fff;white-space:nowrap}
+.rtline{position:absolute;top:-4px;width:2px;height:38px;background:rgba(255,255,255,.4)}
+.rtline::after{content:'R=1';position:absolute;bottom:-16px;left:50%;transform:translateX(-50%);font-family:var(--mono);font-size:8px;color:var(--muted)}
+.rtends{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:20px}
+/* resource allocation */
+.alloc{display:flex;flex-direction:column;gap:9px}
+.al{display:flex;align-items:center;gap:11px}
+.al .an{font-size:12.5px;flex:none;width:96px}.al .an small{display:block;font-family:var(--mono);font-size:8.5px;color:var(--muted2)}
+.al .ab{flex:1;height:8px;background:rgba(255,255,255,.06);border-radius:5px;overflow:hidden}.al .ab i{display:block;height:100%;border-radius:5px;transition:width .5s}
+.al .av{font-family:var(--mono);font-size:11px;width:78px;text-align:right;flex:none}
+.playbtn{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;color:var(--txt);background:rgba(52,211,153,.12);border:1px solid var(--ok);border-radius:8px;padding:7px 13px;cursor:pointer}
+.ai-out{font-size:13px;line-height:1.7;white-space:pre-wrap;color:#dfe6ef}
+.ai-empty{color:var(--muted2);font-family:var(--mono);font-size:12px;text-align:center;padding:16px 0;line-height:1.7}
+.ai-load{display:flex;align-items:center;gap:10px;color:var(--muted);font-family:var(--mono);font-size:12px;padding:10px 0}
+.spin{width:15px;height:15px;border:2px solid var(--line2);border-top-color:var(--ok);border-radius:50%;animation:sp .8s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
+.ai-err{color:#fca5a5;font-size:12px;line-height:1.6;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.4);border-radius:11px;padding:12px 14px}
+.note{margin-top:22px;font-size:11px;color:var(--muted2);line-height:1.7;border-top:1px solid var(--line);padding-top:16px}.note b{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="brand">
+      <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="1.8"><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg></div>
+      <div><h1>역병예보 <span style="font-family:var(--mono);font-size:11px;color:var(--ok);vertical-align:middle">DEFENSE</span></h1><div class="sub">방어 관제센터 · 개입 시뮬레이션 · 방역당국용</div></div>
+    </div>
+    <div class="estate"><div class="big" id="estate" style="color:var(--ok)">방어 시뮬레이터</div><div class="live"><i></i><span id="esub">개입 효과 실시간 계산</span></div></div>
+  </div>
+
+  <div class="scenbar">
+    <div class="ctl"><label>위협 시나리오</label>
+      <div class="seg" id="scenario"><button data-s="flu" class="on">계절 유행 R₀2.2</button><button data-s="novel">신종 R₀2.8</button><button data-s="severe">고위험 R₀3.4</button></div></div>
+    <div class="ctl"><label>대응 프리셋</label>
+      <div style="display:flex;gap:6px"><button class="btn preset" data-p="none">무대응</button><button class="btn preset" data-p="mild">중간</button><button class="btn preset on" data-p="strong">강력</button></div></div>
+    <button class="btn danger" id="play2">▶ 200일 시뮬레이션 재생</button>
+  </div>
+
+  <div class="grid">
+    <div class="card chartwrap">
+      <div class="card-h"><span class="lbl">감염 곡선 · 무대응 vs 현재 개입</span><span class="meta" id="chartmeta"></span></div>
+      <svg id="chart" viewBox="0 0 760 320"></svg>
+      <div class="chartlegend">
+        <span><i style="border-color:#ef4444;border-top-style:dashed"></i>무대응(방치)</span>
+        <span><i style="border-color:#34d399"></i>현재 개입</span>
+        <span><i style="border-color:#fbbf24;border-top-style:dotted"></i>의료 수용한계</span>
+      </div>
+      <div class="rtbar">
+        <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;color:var(--muted);margin-bottom:24px;text-transform:uppercase">실효 감염재생산수 (개입 후 Rt)</div>
+        <div class="rttrack"><div class="rtline" style="left:38%"></div><div class="rtmark" id="rtmark" data-v="" style="left:50%"></div></div>
+        <div class="rtends"><span>0 (소멸)</span><span>1 (억제선)</span><span>R₀ (무대응)</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><span class="lbl">방역 개입 레버 · 조절</span><span class="meta">방역당국</span></div>
+      <div id="levers"></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:18px">
+    <div class="card-h"><span class="lbl">방어 성과 · 무대응 대비</span><span class="meta" id="ocmeta"></span></div>
+    <div class="outcomes" id="outcomes"></div>
+  </div>
+
+  <div class="grid" style="margin-top:18px">
+    <div class="card">
+      <div class="card-h"><span class="lbl">자원 선제 배치 · 시점별 소요</span><span class="meta">취약계층 우선</span></div>
+      <div class="alloc" id="alloc"></div>
+    </div>
+    <div class="card">
+      <div class="card-h"><span class="lbl">🧠 AI 대응 정책 추론</span><button class="btn danger" id="aibtn">AI 추론</button></div>
+      <div id="aibox"><div class="ai-empty">현재 개입 구성과 예측 결과를 근거로<br>Claude가 최적 대응 정책을 추론합니다.</div></div>
+    </div>
+  </div>
+
+  <div class="note"><b>※ 감지를 넘어 방어로</b> — BlueDot류가 '어디서·언제'를 감지한다면, 이 화면은 <b>'무엇을 하면 몇 명을 살리나'</b>에 답합니다. SEIR 역학모델 위에서 방역당국의 개입(입국검역·거리두기·백신·치료제·취약계층 보호)이 실효재생산수 Rt를 낮추고, 무대응 대비 정점·사망·병상부족을 얼마나 줄이는지 실시간 계산합니다. <b>Rt를 1 아래로 누르면 유행은 확산 전에 차단</b>됩니다(곡선 자체가 사라짐 — 가장 강한 방어). 데이터는 시뮬레이션이며 모든 수치는 모델이 직접 계산합니다.</div>
+</div>
+
+<script>
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+
+const SCEN={flu:{R0:2.2,cfr:0.010,nm:'계절 유행'},novel:{R0:2.8,cfr:0.018,nm:'신종 감염병'},severe:{R0:3.4,cfr:0.028,nm:'고위험 신종'}};
+const N=5_000_000, HOSP_CAP=12000; // 권역 의료 수용한계(중증병상 등가)
+const PRESETS={
+  none:{quar:0,dist:0,vax:0,vaxsp:0,anti:0,vuln:0},
+  mild:{quar:.15,dist:.18,vax:.35,vaxsp:.005,anti:.3,vuln:.4},
+  strong:{quar:.30,dist:.32,vax:.55,vaxsp:.008,anti:.55,vuln:.7},
+};
+let S={scen:'flu', lev:{...PRESETS.strong}};
+
+const LEVERS=[
+ {k:'quar',nm:'입국 검역·격리',ic:'✈️',sub:'유입 차단·접촉감소',max:.5},
+ {k:'dist',nm:'사회적 거리두기',ic:'🧑‍🤝‍🧑',sub:'접촉률 감소',max:.6},
+ {k:'vax', nm:'백신 접종 목표율',ic:'💉',sub:'최종 접종 커버리지',max:.85},
+ {k:'vaxsp',nm:'백신 접종 속도',ic:'⏩',sub:'일일 접종률 증가',max:.015},
+ {k:'anti',nm:'치료제 보급',ic:'💊',sub:'치명률 감소',max:.8},
+ {k:'vuln',nm:'취약계층 우선보호',ic:'🛡',sub:'고위험군 차단',max:.9},
+];
+
+/* ===== SEIR + interventions ===== */
+function simulate(lev, scen, days=200){
+  const sp=SCEN[scen];
+  let s=N-20-1,e=20,i=1,rc=0,d=0;
+  const sigma=1/4, gamma=1/7, hospRate=0.08, interv=21;
+  const I=[],D=[],H=[],RT=[];
+  let peakI=0,peakDay=0,peakHosp=0,overflowDays=0;
+  for(let t=0;t<days;t++){
+    const ramp=clamp((t-interv)/14,0,1);
+    const npi=(lev.quar+lev.dist)*ramp;                       // 접촉 감소 합
+    const vaxCov=Math.min(lev.vax, Math.max(0,(t-interv))*lev.vaxsp);
+    const vulnEff=lev.vuln*ramp*0.25;                          // 취약계층 보호의 추가 전파/치명 감소
+    let Reff=sp.R0*(1-clamp(npi,0,0.85))*(1-vaxCov*0.85)*(1-vulnEff*0.3);
+    const beta=Reff*gamma;
+    const newE=beta*s*i/N, newI=sigma*e, newR=gamma*i;
+    const effCfr=sp.cfr*(1-lev.anti*0.4*ramp)*(1-vulnEff);     // 치료제+취약보호 치명률 감소
+    const newD=newR*effCfr;
+    s-=newE;e+=newE-newI;i+=newI-newR;rc+=newR-newD;d+=newD;
+    s=Math.max(0,s);e=Math.max(0,e);i=Math.max(0,i);
+    const hosp=i*hospRate;
+    I.push(i);D.push(d);H.push(hosp);RT.push(Reff*s/N);
+    if(i>peakI){peakI=i;peakDay=t;}
+    if(hosp>peakHosp)peakHosp=hosp;
+    if(hosp>HOSP_CAP)overflowDays++;
+  }
+  return {I,D,H,RT,peakI,peakDay,peakHosp,deaths:d,overflowDays,RtEff:RT[Math.min(30,days-1)]>0?SCEN[scen].R0*(1-clamp((lev.quar+lev.dist),0,.85)):0};
+}
+
+function currentRt(){
+  const sp=SCEN[S.scen];const l=S.lev;
+  return sp.R0*(1-clamp(l.quar+l.dist,0,0.85))*(1-l.vax*0.85)*(1-l.vuln*0.25*0.3);
+}
+
+/* ===== levers UI ===== */
+function renderLevers(){
+  document.getElementById('levers').innerHTML=LEVERS.map(L=>{
+    const v=S.lev[L.k];const pct=L.k==='vaxsp'?Math.round(v/L.max*100):Math.round(v/L.max*100);
+    const disp=L.k==='vaxsp'?(v*1000).toFixed(1)+'‰/일':Math.round(v*100)+'%';
+    return `<div class="lever"><div class="lh"><span class="ln">${L.ic} ${L.nm} <small>${L.sub}</small></span><span class="lv">${disp}</span></div>
+      <input type="range" min="0" max="${L.max}" step="${L.max/100}" value="${v}" oninput="window.__lev('${L.k}',this.value)">
+      </div>`;
+  }).join('');
+}
+window.__lev=(k,v)=>{S.lev[k]=parseFloat(v);document.querySelectorAll('.preset').forEach(b=>b.classList.remove('on'));recompute();};
+
+/* ===== chart ===== */
+let RES=null, RES0=null, animDay=200;
+function renderChart(){
+  const W=760,H=320,padL=8,padR=8,padT=14,padB=24;
+  const days=RES.I.length;
+  const x=t=>padL+t/(days-1)*(W-padL-padR);
+  const maxV=Math.max(RES0.peakI, ...RES.I)*1.06;
+  const y=v=>H-padB-(v/maxV)*(H-padT-padB);
+  const upTo=Math.min(animDay,days-1);
+  const line=(arr,n)=>arr.slice(0,n+1).map((v,i)=>(i?'L':'M')+x(i).toFixed(1)+' '+y(v).toFixed(1)).join(' ');
+  let svg=`<line x1="${padL}" y1="${y(0)}" x2="${W-padR}" y2="${y(0)}" stroke="rgba(255,255,255,.06)"/>`;
+  // hospital capacity line
+  svg+=`<line x1="${padL}" y1="${y(HOSP_CAP/0.08)}" x2="${W-padR}" y2="${y(HOSP_CAP/0.08)}" stroke="#fbbf24" stroke-width="1.2" stroke-dasharray="2 3" opacity=".7"/><text x="${W-padR}" y="${y(HOSP_CAP/0.08)-5}" fill="#fbbf24" font-size="9" font-family="var(--mono)" text-anchor="end">의료 수용한계</text>`;
+  // no-action filled
+  svg+=`<path d="${line(RES0.I,days-1)} L${x(days-1)} ${y(0)} L${x(0)} ${y(0)} Z" fill="rgba(239,68,68,.07)"/>`;
+  svg+=`<path d="${line(RES0.I,days-1)}" fill="none" stroke="#ef4444" stroke-width="1.6" stroke-dasharray="5 4" opacity=".8"/>`;
+  // intervention filled + line (animated)
+  svg+=`<path d="${line(RES.I,upTo)} L${x(upTo)} ${y(0)} L${x(0)} ${y(0)} Z" fill="rgba(52,211,153,.12)"/>`;
+  svg+=`<path d="${line(RES.I,upTo)}" fill="none" stroke="#34d399" stroke-width="2.6"/>`;
+  // peak markers
+  if(animDay>=days-1){
+    svg+=`<circle cx="${x(RES0.peakDay)}" cy="${y(RES0.peakI)}" r="4" fill="#ef4444"/><text x="${x(RES0.peakDay)}" y="${y(RES0.peakI)-8}" fill="#ef4444" font-size="9" font-family="var(--mono)" text-anchor="middle">무대응 정점</text>`;
+    if(RES.peakI>50)svg+=`<circle cx="${x(RES.peakDay)}" cy="${y(RES.peakI)}" r="4" fill="#34d399"/>`;
+  }
+  // today marker
+  svg+=`<line x1="${x(upTo)}" y1="${padT}" x2="${x(upTo)}" y2="${H-padB}" stroke="rgba(255,255,255,.2)" stroke-dasharray="2 2"/><text x="${x(upTo)}" y="${H-8}" fill="var(--muted)" font-size="9" font-family="var(--mono)" text-anchor="middle">D+${upTo}</text>`;
+  document.getElementById('chart').innerHTML=svg;
+  document.getElementById('chartmeta').textContent=SCEN[S.scen].nm+' · R₀ '+SCEN[S.scen].R0;
+}
+
+/* ===== outcomes ===== */
+function renderOutcomes(){
+  const saved=Math.max(0,Math.round(RES0.deaths-RES.deaths));
+  const savedPct=RES0.deaths>0?Math.round(saved/RES0.deaths*100):0;
+  const rt=currentRt();
+  const suppressed=rt<1;
+  const peakDelay=RES.peakI>50?(RES.peakDay-RES0.peakDay):null;
+  document.getElementById('ocmeta').textContent='시뮬레이션 200일';
+  document.getElementById('outcomes').innerHTML=`
+    <div class="saved"><span class="si">🛡️</span><div class="st"><div class="big">${saved.toLocaleString()}명</div><div class="sd">무대응 대비 구한 생명 (사망 ${savedPct}% 감소) · ${suppressed?'<b style="color:var(--ok)">Rt&lt;1 — 유행 확산 전 차단</b>':'유행 억제 진행'}</div></div></div>
+    <div class="oc"><div class="ok">📉 정점 감염 규모</div><div class="ov" style="color:#34d399">${Math.round(RES.peakI).toLocaleString()}<small>명</small></div><div class="od" style="color:var(--muted2)">무대응 ${Math.round(RES0.peakI).toLocaleString()}명 (${Math.round((1-RES.peakI/RES0.peakI)*100)}%↓)</div></div>
+    <div class="oc"><div class="ok">⚰️ 누적 사망</div><div class="ov" style="color:${RES.deaths<RES0.deaths*0.3?'#34d399':'#fb923c'}">${Math.round(RES.deaths).toLocaleString()}<small>명</small></div><div class="od" style="color:var(--muted2)">무대응 ${Math.round(RES0.deaths).toLocaleString()}명</div></div>
+    <div class="oc"><div class="ok">🏥 병상 초과 기간</div><div class="ov" style="color:${RES.overflowDays===0?'#34d399':RES.overflowDays<20?'#fb923c':'#ef4444'}">${RES.overflowDays}<small>일</small></div><div class="od" style="color:var(--muted2)">무대응 ${RES0.overflowDays}일 초과</div></div>
+    <div class="oc"><div class="ok">${peakDelay!=null&&peakDelay>0?'⏱ 정점 지연':'🚫 유행 차단'}</div><div class="ov" style="color:#34d399">${peakDelay!=null&&peakDelay>0?'+'+peakDelay+'일':suppressed?'차단':'—'}</div><div class="od" style="color:var(--muted2)">${peakDelay!=null&&peakDelay>0?'의료대응 준비시간':'Rt를 1 아래로'}</div></div>`;
+  // Rt marker position (0..R0 mapped to 0..100%)
+  const R0=SCEN[S.scen].R0;
+  const pos=clamp(rt/R0*100,2,98);
+  const mk=document.getElementById('rtmark');mk.style.left=pos+'%';mk.setAttribute('data-v','Rt '+rt.toFixed(2));
+  mk.style.background=rt<1?'#34d399':rt<1.5?'#fbbf24':'#ef4444';mk.style.boxShadow='0 0 8px '+(rt<1?'#34d399':rt<1.5?'#fbbf24':'#ef4444');
+}
+
+/* ===== resource allocation ===== */
+function renderAlloc(){
+  // 자원 소요는 정점 감염 규모에 비례, 취약계층 보호 레버가 높을수록 취약층 우선 배분
+  const peak=RES.peakI;
+  const vials=Math.round(N*S.lev.vax/1000);     // 백신 천명분 단위
+  const beds=Math.round(RES.peakHosp);
+  const anti=Math.round(peak*0.3/100);          // 치료제 코스(백명분)
+  const staff=Math.round(beds*0.6);
+  const items=[
+    {nm:'백신',sub:'천 명분',v:vials,max:N*0.85/1000,col:'#38bdf8',unit:'k'},
+    {nm:'중증 병상',sub:'정점 동시',v:beds,max:HOSP_CAP*2.2,col:beds>HOSP_CAP?'#ef4444':'#34d399',unit:'床'},
+    {nm:'치료제',sub:'백 명분',v:anti,max:N*0.05/100,col:'#a78bfa',unit:'백'},
+    {nm:'의료 인력',sub:'추가 배치',v:staff,max:HOSP_CAP*1.3,col:'#fbbf24',unit:'명'},
+  ];
+  document.getElementById('alloc').innerHTML=items.map(it=>{
+    const pct=clamp(it.v/it.max*100,3,100);
+    return `<div class="al"><div class="an">${it.nm}<small>${it.sub}</small></div><div class="ab"><i style="width:${pct}%;background:${it.col}"></i></div><div class="av" style="color:${it.col}">${it.v.toLocaleString()}${it.unit}</div></div>`;
+  }).join('') + `<div style="font-family:var(--mono);font-size:9.5px;color:var(--muted2);margin-top:6px;line-height:1.6">취약계층 우선보호 ${Math.round(S.lev.vuln*100)}% 적용 → 어린이·노약자 밀집지역에 백신·병상 우선 배분</div>`;
+}
+
+/* ===== AI ===== */
+document.getElementById('aibtn').onclick=async()=>{const box=document.getElementById('aibox');box.innerHTML=`<div class="ai-load"><div class="spin"></div>Claude가 대응 정책을 추론하는 중…</div>`;
+  const sp=SCEN[S.scen];const saved=Math.max(0,Math.round(RES0.deaths-RES.deaths));const rt=currentRt();
+  const payload={위협:sp.nm,R0:sp.R0,현재개입:{입국검역:Math.round(S.lev.quar*100)+'%',거리두기:Math.round(S.lev.dist*100)+'%',백신목표:Math.round(S.lev.vax*100)+'%',치료제:Math.round(S.lev.anti*100)+'%',취약계층보호:Math.round(S.lev.vuln*100)+'%'},실효Rt:Number(rt.toFixed(2)),예측정점감염:Math.round(RES.peakI),예측사망:Math.round(RES.deaths),무대응대비_구한생명:saved,병상초과일:RES.overflowDays};
+  const prompt=`너는 신중한 감염병 방역 정책 전문가다. 방역당국(질병청·지자체)의 방어 시뮬레이터가 현재 개입 구성과 예측 결과를 계산했다. 이 데이터로 추론하라.\n\n${JSON.stringify(payload,null,2)}\n\n각 2~3문장 이내, 불확실성 명시, 과장 없이 한국어로:\n1) 현재 개입 구성 평가: Rt와 사망 예측을 볼 때 충분한가, 부족한가?\n2) 가장 효과적으로 보강할 1~2개 개입은? (비용·실현성 고려)\n3) 취약계층(어린이·노약자) 보호를 위한 우선 조치는?\n4) 방역당국이 지금 내려야 할 의사결정 3가지(우선순위대로).\n제목 없이 1~4 번호로만.`;
+  try{const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,messages:[{role:"user",content:prompt}]})});if(!res.ok)throw new Error('API 오류 ('+res.status+')');const data=await res.json();const text=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n').trim();box.innerHTML='<div class="ai-out"></div>';box.querySelector('.ai-out').textContent=text||'응답 없음.';}catch(e){box.innerHTML=`<div class="ai-err"><b>AI 추론 호출 실패.</b><br>${e.message}<br><br>claude.ai 아티팩트 환경에서 동작합니다. 방어 시뮬레이터(곡선·성과·자원)는 정상 작동합니다.</div>`;}};
+
+/* ===== play ===== */
+let timer=null;
+document.getElementById('play2').onclick=()=>{
+  if(timer){clearInterval(timer);timer=null;document.getElementById('play2').textContent='▶ 200일 시뮬레이션 재생';animDay=200;renderChart();return;}
+  animDay=0;document.getElementById('play2').textContent='⏸ 정지';
+  timer=setInterval(()=>{animDay+=4;if(animDay>=200){animDay=200;renderChart();clearInterval(timer);timer=null;document.getElementById('play2').textContent='▶ 200일 시뮬레이션 재생';return;}renderChart();},60);
+};
+
+/* ===== orchestrate ===== */
+function recompute(){
+  RES=simulate(S.lev,S.scen);
+  RES0=simulate(PRESETS.none,S.scen);
+  renderLevers();renderChart();renderOutcomes();renderAlloc();
+  const rt=currentRt();
+  document.getElementById('estate').textContent=rt<1?'✓ 유행 차단 가능':rt<1.5?'⚠ 억제 진행':'⚠ 확산 위험';
+  document.getElementById('estate').style.color=rt<1?'var(--ok)':rt<1.5?'#fbbf24':'#ef4444';
+}
+document.querySelectorAll('#scenario button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#scenario button').forEach(x=>x.classList.remove('on'));b.classList.add('on');S.scen=b.dataset.s;animDay=200;recompute();document.getElementById('aibox').innerHTML='<div class="ai-empty">시나리오 변경됨. AI 추론을 다시 실행하세요.</div>';});
+document.querySelectorAll('.preset').forEach(b=>b.onclick=()=>{document.querySelectorAll('.preset').forEach(x=>x.classList.remove('on'));b.classList.add('on');S.lev={...PRESETS[b.dataset.p]};animDay=200;recompute();});
+recompute();
+</script>
+</body>
+</html>

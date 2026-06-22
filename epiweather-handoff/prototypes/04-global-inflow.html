@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>역병예보 · 글로벌 유입 감시</title>
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+:root{--bg:#070a10;--bg2:#0c111b;--panel:rgba(18,25,37,.72);--panel2:#121925;--line:rgba(120,140,170,.14);--line2:rgba(120,140,170,.28);--txt:#e9eef5;--muted:#7c8aa0;--muted2:#566377;--accent:#f43f5e;--ok:#34d399;--cyan:#38bdf8;--amber:#fbbf24;--violet:#a78bfa;--kr:"Pretendard Variable",Pretendard,sans-serif;--disp:"Bricolage Grotesque",var(--kr);--mono:"JetBrains Mono",monospace;}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--txt);font-family:var(--kr);-webkit-font-smoothing:antialiased}
+body{min-height:100vh;position:relative;background:radial-gradient(1200px 700px at 80% -10%,rgba(244,63,94,.10),transparent 60%),radial-gradient(900px 600px at 5% 110%,rgba(56,189,248,.08),transparent 55%),var(--bg)}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.035;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+.wrap{position:relative;z-index:1;max-width:1240px;margin:0 auto;padding:clamp(16px,3vw,32px)}
+.top{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:18px}
+.brand{display:flex;align-items:center;gap:14px}
+.logo{width:42px;height:42px;border-radius:11px;background:linear-gradient(145deg,#1a2433,#0d1320);border:1px solid var(--line2);display:grid;place-items:center;position:relative;overflow:hidden}
+.logo::after{content:"";position:absolute;width:150%;height:2px;background:var(--accent);top:50%;left:-25%;box-shadow:0 0 12px var(--accent);animation:scan 3s linear infinite}
+@keyframes scan{0%{transform:translateY(-16px)}100%{transform:translateY(16px)}}
+.logo svg{width:22px;height:22px;position:relative;z-index:2}
+.brand h1{font-family:var(--disp);font-weight:800;font-size:clamp(19px,3.3vw,27px);letter-spacing:-.02em;line-height:1}
+.brand .sub{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.22em;margin-top:5px}
+.estate{text-align:right;font-family:var(--mono);font-size:10px}
+.estate .big{font-size:13px}
+.estate .live{display:inline-flex;align-items:center;gap:6px;font-size:9px;color:var(--ok);letter-spacing:.16em;margin-top:5px}
+.estate .live i{width:6px;height:6px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok);animation:blink 1.6s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin:18px 0}
+.ctl{display:flex;flex-direction:column;gap:6px}
+.ctl label{font-family:var(--mono);font-size:9px;letter-spacing:.16em;color:var(--muted);text-transform:uppercase}
+select{font-family:var(--kr);font-size:13px;color:var(--txt);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:9px 12px;cursor:pointer}
+.seg{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{font-family:var(--kr);font-size:12.5px;font-weight:600;color:var(--muted);background:none;border:none;padding:9px 13px;cursor:pointer;transition:.18s;white-space:nowrap}
+.seg button.on{background:rgba(244,63,94,.16);color:var(--txt)}
+.seg button:hover{color:var(--txt)}
+.btn{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--txt);background:rgba(255,255,255,.05);border:1px solid var(--line2);border-radius:10px;padding:10px 13px;cursor:pointer;transition:.2s}
+.btn:hover{background:rgba(255,255,255,.1)}
+.btn.danger{background:rgba(244,63,94,.14);border-color:var(--accent)}
+.btn.danger:hover{background:rgba(244,63,94,.26)}
+/* map */
+.mapcard{margin-top:6px;padding:0;overflow:hidden;background:var(--panel);border:1px solid var(--line);border-radius:18px}
+.maphd{display:flex;justify-content:space-between;align-items:center;padding:16px 20px 10px;flex-wrap:wrap;gap:8px}
+.maphd .lbl{font-family:var(--mono);font-size:10px;letter-spacing:.20em;color:var(--muted);text-transform:uppercase}
+.maphd .meta{font-family:var(--mono);font-size:11px;color:var(--muted2)}
+#world{width:100%;height:auto;display:block;background:linear-gradient(180deg,#0a1018,#0b1220)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;padding:10px 20px 16px;font-family:var(--mono);font-size:10px;color:var(--muted)}
+.legend span{display:flex;align-items:center;gap:6px}
+.dotc{width:9px;height:9px;border-radius:50%;display:inline-block}
+/* grid */
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px}
+@media(max-width:880px){.grid{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:clamp(16px,2.2vw,22px);backdrop-filter:blur(14px)}
+.card-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px;flex-wrap:wrap}
+.card-h .lbl{font-family:var(--mono);font-size:10px;letter-spacing:.20em;color:var(--muted);text-transform:uppercase}
+.card-h .meta{font-family:var(--mono);font-size:11px;color:var(--muted2)}
+.verdict{border-radius:13px;padding:14px 16px;margin-bottom:14px;border:1px solid}
+.verdict .vt{font-family:var(--disp);font-weight:800;font-size:17px;display:flex;align-items:center;gap:9px}
+.verdict .vd{font-size:12.5px;color:var(--muted);margin-top:6px;line-height:1.55}
+.metrics{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.metric{background:rgba(255,255,255,.025);border:1px solid var(--line);border-radius:11px;padding:12px}
+.metric .mk{font-size:10.5px;color:var(--muted);display:flex;align-items:center;gap:5px}
+.metric .mv{font-family:var(--mono);font-weight:700;font-size:20px;margin-top:5px}
+.metric .mv small{font-size:10px;font-weight:400;color:var(--muted)}
+.metric .md{font-family:var(--mono);font-size:9px;margin-top:3px;color:var(--muted2)}
+.sectitle{font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;color:var(--muted);text-transform:uppercase;margin:16px 0 10px}
+/* entry points */
+.entry{display:flex;align-items:center;gap:11px;margin-bottom:9px}
+.entry .en{font-size:12.5px;flex:none;width:104px}.entry .en small{display:block;font-family:var(--mono);font-size:8.5px;color:var(--muted2)}
+.entry .eb{flex:1;height:8px;background:rgba(255,255,255,.06);border-radius:5px;overflow:hidden}.entry .eb i{display:block;height:100%;border-radius:5px;transition:width .6s}
+.entry .ep{font-family:var(--mono);font-size:11px;width:74px;text-align:right;flex:none}.entry .ep b{font-size:14px}
+/* feed */
+.feed{display:flex;flex-direction:column;gap:9px}
+.fitem{display:flex;align-items:center;gap:11px;padding:11px 13px;background:rgba(255,255,255,.02);border:1px solid var(--line);border-radius:11px;cursor:pointer;transition:.2s}
+.fitem:hover{border-color:var(--line2)}
+.fitem.sel{border-color:var(--accent);background:rgba(244,63,94,.08)}
+.fbar{width:3px;align-self:stretch;border-radius:3px;flex:none}
+.fitem .fnm{font-size:13px;font-weight:600;flex:1}.fitem .fnm small{display:block;font-family:var(--mono);font-size:10px;color:var(--muted);font-weight:400;margin-top:2px}
+.fitem .flead{font-family:var(--mono);font-size:10.5px;text-align:right;color:var(--ok)}.fitem .flead b{font-size:15px;display:block}
+/* handoff */
+.handoff{margin-top:18px;border-radius:14px;padding:16px 18px;background:linear-gradient(135deg,rgba(56,189,248,.08),rgba(18,25,37,.4));border:1px solid var(--line2);display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.handoff .hi{font-size:26px;flex:none}
+.handoff .ht{flex:1;min-width:200px}
+.handoff .ht b{font-family:var(--disp);font-size:15px}
+.handoff .ht p{color:var(--muted);font-size:12px;line-height:1.5;margin-top:4px}
+.stage{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:10px;color:var(--muted);flex-wrap:wrap}
+.stage span{border:1px solid var(--line2);border-radius:7px;padding:6px 10px}
+.stage span.act{border-color:var(--accent);color:var(--txt);background:rgba(244,63,94,.12)}
+.stage .ar{color:var(--muted2)}
+.ai-out{font-size:13px;line-height:1.7;white-space:pre-wrap;color:#dfe6ef}
+.ai-empty{color:var(--muted2);font-family:var(--mono);font-size:12px;text-align:center;padding:16px 0;line-height:1.7}
+.ai-load{display:flex;align-items:center;gap:10px;color:var(--muted);font-family:var(--mono);font-size:12px;padding:10px 0}
+.spin{width:15px;height:15px;border:2px solid var(--line2);border-top-color:var(--accent);border-radius:50%;animation:sp .8s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
+.ai-err{color:#fca5a5;font-size:12px;line-height:1.6;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.4);border-radius:11px;padding:12px 14px}
+.note{margin-top:22px;font-size:11px;color:var(--muted2);line-height:1.7;border-top:1px solid var(--line);padding-top:16px}.note b{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="brand">
+      <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#f43f5e" stroke-width="1.8"><path d="M2 12h20M12 2a15 15 0 010 20M12 2a15 15 0 000 20"/><circle cx="12" cy="12" r="10"/></svg></div>
+      <div><h1>역병예보 <span style="font-family:var(--mono);font-size:11px;color:var(--accent);vertical-align:middle">GLOBAL</span></h1><div class="sub">해외 발원 → 국제 항공망 → 국내 유입 예측</div></div>
+    </div>
+    <div class="estate"><div class="big" id="estate" style="color:var(--ok)">글로벌 감시 가동</div><div class="live"><i></i><span id="esub">해외 신호 추적중</span></div></div>
+  </div>
+
+  <div class="controls">
+    <div class="ctl"><label>해외 발원지</label><select id="origin"></select></div>
+    <div class="ctl"><label>시나리오</label>
+      <div class="seg" id="scenario"><button data-s="known" class="on">알려진 유행</button><button data-s="novel">신종 출현</button></div></div>
+    <button class="btn danger" id="trace">✈ 유입 경로 추적</button>
+  </div>
+
+  <div class="mapcard">
+    <div class="maphd"><span class="lbl">글로벌 위협 지도 · 한국행 항공망</span><span class="meta" id="mapmeta"></span></div>
+    <svg id="world" viewBox="0 0 1000 460" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="legend">
+      <span><i class="dotc" style="background:#f43f5e;box-shadow:0 0 8px #f43f5e"></i>활성 발원지</span>
+      <span><i class="dotc" style="background:#fbbf24"></i>고위험 출현지</span>
+      <span><i class="dotc" style="background:#2a3647"></i>감시 대상</span>
+      <span><i class="dotc" style="background:#38bdf8"></i>한국(입국 관문)</span>
+      <span style="color:var(--muted2)">━ 선 굵기 = 한국행 여객량</span>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="card-h"><span class="lbl">유입 위험 추론</span><span class="meta" id="impmeta"></span></div>
+      <div id="impbody"></div>
+    </div>
+    <div class="card">
+      <div class="card-h"><span class="lbl">해외 이상신호 피드 · WHO 공식 선행</span><span class="meta" id="feedmeta"></span></div>
+      <div class="feed" id="feed"></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:18px">
+    <div class="card-h"><span class="lbl">한국 입국 관문별 유입 예측</span><span class="meta" id="entrymeta"></span></div>
+    <div id="entrybody"></div>
+    <div class="handoff">
+      <span class="hi">🔗</span>
+      <div class="ht"><b>2단 모델 — 유입 이후 국내 확산으로 연결</b><p id="handofftxt">해외에서 유입된 병원체가 입국 관문에 도착하면, 국내 확산 모델(역병예보 통합 버전)이 이어받아 전국 확산을 예측합니다.</p>
+        <div class="stage" style="margin-top:8px"><span class="act" id="st1">① 해외 발원</span><span class="ar">→</span><span class="act" id="st2">② 항공 유입</span><span class="ar">→</span><span id="st3">③ 관문 도착</span><span class="ar">→</span><span id="st4">④ 국내 확산</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:18px">
+    <div class="card-h"><span class="lbl">🧠 AI 역학 추론 · 유입 대응</span><button class="btn danger" id="aibtn">AI 추론 실행</button></div>
+    <div id="aibox"><div class="ai-empty">발원지·유입 경로·도착 예측을 근거로 Claude가 국경 검역·유입 차단 대응을 추론합니다.</div></div>
+  </div>
+
+  <div class="note"><b>※ 핵심 — 한국은 '발생국'이 아니라 '유입 대비국'</b> · 신종 감염병은 대개 해외(인수공통 스필오버·감시 취약지)에서 먼저 발생합니다. 이 화면은 해외 발원을 다국어 뉴스·국제 동물예찰로 조기 감지하고, <b>항공 여객 네트워크로 한국 도착 시점·관문을 예측</b>합니다(BlueDot이 우한 발병을 WHO보다 9일 먼저 잡고 항공 데이터로 확산을 예측한 방식). 도착 후엔 국내 확산 모델로 이어집니다. 데이터는 시뮬레이션이며 유입위험·도착일은 출현위험 × 여객량 × 비행거리로 엔진이 계산합니다.</div>
+</div>
+
+<script>
+/* ===== utils ===== */
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+/* equirectangular projection on 1000x460 (lon -180..180, lat 90..-90) */
+const VW=1000,VH=460;
+function proj(lon,lat){return {x:(lon+180)/360*VW, y:(90-lat)/180*VH};}
+
+/* ===== cities (overseas origins) + Korea ===== */
+const KR={nm:'한국',lon:127.0,lat:37.0};
+const CITY=[
+ {id:'WUH',nm:'우한',lon:114.3,lat:30.6,er:.85,pax:.55,hrs:5,note:'인수공통·고밀도'},
+ {id:'JKT',nm:'자카르타',lon:106.8,lat:-6.2,er:.70,pax:.45,hrs:7,note:'가금·습윤열대'},
+ {id:'BKK',nm:'방콕',lon:100.5,lat:13.7,er:.55,pax:.80,hrs:6,note:'관광 허브·고여객'},
+ {id:'HAN',nm:'하노이',lon:105.8,lat:21.0,er:.60,pax:.65,hrs:5,note:'가금·접경'},
+ {id:'DAC',nm:'다카',lon:90.4,lat:23.8,er:.65,pax:.25,hrs:7,note:'고밀도·니파위험'},
+ {id:'FIH',nm:'킨샤사',lon:15.3,lat:-4.3,er:.90,pax:.05,hrs:20,note:'출혈열·감시취약'},
+ {id:'LOS',nm:'라고스',lon:3.4,lat:6.5,er:.80,pax:.08,hrs:18,note:'인수공통·감시취약'},
+ {id:'CAI',nm:'카이로',lon:31.2,lat:30.0,er:.55,pax:.20,hrs:13,note:'환승 거점'},
+ {id:'RUH',nm:'리야드',lon:46.7,lat:24.7,er:.50,pax:.30,hrs:11,note:'MERS·낙타'},
+ {id:'MEX',nm:'멕시코시티',lon:-99.1,lat:19.4,er:.60,pax:.12,hrs:14,note:'신종플루 전례'},
+];
+const CM={};CITY.forEach(c=>CM[c.id]=c);
+/* Korea entry ports with share of inbound from each city type */
+const ENTRY=[
+ {id:'ICN',nm:'인천국제공항',eng:'ICN · 수도권',base:.82},
+ {id:'GMP',nm:'김포·기타공항',eng:'GMP 등',base:.06},
+ {id:'PUS',nm:'부산(김해)',eng:'PUS · 영남',base:.08},
+ {id:'CJU',nm:'제주국제공항',eng:'CJU',base:.04},
+];
+
+const originSel=document.getElementById('origin');
+CITY.forEach(c=>{const o=document.createElement('option');o.value=c.id;o.textContent=c.nm;originSel.appendChild(o);});
+
+let S={origin:'WUH',scenario:'known'};
+let R=null;
+
+/* ===== importation model (engine) ===== */
+function computeImport(){
+  const c=CM[S.origin], novel=S.scenario==='novel';
+  const r=novel?.20:.16, p0=0.00006, cap=.4;
+  const dailyPax=c.pax*4200, longHaul=c.hrs<10?1:0.68;
+  /* arrival: cumulative expected imported infections >= 1 */
+  let cum=0, arrival=-1;
+  const curve=[];
+  for(let d=0;d<150;d++){
+    const prev=Math.min(cap,p0*Math.exp(r*d));
+    const imp=prev*dailyPax*longHaul;
+    cum+=imp; curve.push(cum);
+    if(arrival<0&&cum>=1)arrival=d;
+  }
+  /* import risk index 0-100 */
+  const risk=Math.round(clamp(c.er*38+c.pax*52+ (novel?8:0),5,99));
+  /* foreign detection lead vs WHO official */
+  const detectLead=Math.round(6 + c.er*8 + (novel?4:0)); // days our signal beats WHO
+  /* doubling at origin */
+  const dbl=Math.log(2)/r;
+  /* entry distribution: long-haul/ME routes shift slightly to ICN; SE-Asia adds PUS/CJU */
+  const seAsia=['BKK','HAN','JKT','DAC'].includes(c.id);
+  const dist=ENTRY.map(e=>{let w=e.base;if(e.id==='PUS'&&seAsia)w+=.05;if(e.id==='CJU'&&seAsia)w+=.03;if(e.id==='ICN'&&!seAsia)w+=.06;return {e,w};});
+  const sw=dist.reduce((a,x)=>a+x.w,0);dist.forEach(x=>x.w/=sw);
+  R={c,novel,arrival,risk,detectLead,dbl,r,dist,curve};
+}
+
+/* ===== world map ===== */
+function arc(x1,y1,x2,y2,lift){const mx=(x1+x2)/2,my=(y1+y2)/2-lift;return `M${x1} ${y1} Q${mx} ${my} ${x2} ${y2}`;}
+function renderMap(){
+  const krp=proj(KR.lon,KR.lat);let svg='';
+  /* subtle graticule */
+  for(let lon=-150;lon<=150;lon+=30){const p=proj(lon,0);svg+=`<line x1="${p.x}" y1="0" x2="${p.x}" y2="${VH}" stroke="rgba(120,140,170,.05)"/>`;}
+  for(let lat=-60;lat<=60;lat+=30){const p=proj(0,lat);svg+=`<line x1="0" y1="${p.y}" x2="${VW}" y2="${p.y}" stroke="rgba(120,140,170,.05)"/>`;}
+  /* flight arcs from each city to Korea (width=pax) */
+  CITY.forEach(c=>{const a=proj(c.lon,c.lat);const active=c.id===S.origin&&R&&R.novel!==undefined;
+    const lift=Math.abs(a.x-krp.x)*0.18+30;
+    const w=0.4+c.pax*2.6;
+    const col=c.id===S.origin?'rgba(244,63,94,.85)':'rgba(120,140,170,.18)';
+    svg+=`<path d="${arc(a.x,a.y,krp.x,krp.y,lift)}" fill="none" stroke="${col}" stroke-width="${c.id===S.origin?w+0.6:w}"/>`;
+    if(c.id===S.origin){
+      /* animated pulse traveling along arc */
+      svg+=`<circle r="4" fill="#fff"><animateMotion dur="2.4s" repeatCount="indefinite" path="${arc(a.x,a.y,krp.x,krp.y,lift)}"/></circle>`;
+    }
+  });
+  /* city nodes */
+  CITY.forEach(c=>{const a=proj(c.lon,c.lat);const isO=c.id===S.origin;
+    let col,rad=5;
+    if(isO){col='#f43f5e';rad=8;svg+=`<circle cx="${a.x}" cy="${a.y}" r="14" fill="none" stroke="#f43f5e" stroke-width="1.5" opacity=".5"><animate attributeName="r" values="8;18;8" dur="2s" repeatCount="indefinite"/><animate attributeName="opacity" values=".6;0;.6" dur="2s" repeatCount="indefinite"/></circle>`;}
+    else col=c.er>=.75?'#fbbf24':'#2a3647';
+    svg+=`<circle cx="${a.x}" cy="${a.y}" r="${rad}" fill="${col}" stroke="#0a0e14" stroke-width="1.5"/>`;
+    svg+=`<text x="${a.x}" y="${a.y-rad-4}" fill="${isO?'#fff':'var(--muted)'}" font-size="${isO?12:10}" font-weight="${isO?700:400}" text-anchor="middle" font-family="var(--kr)">${c.nm}</text>`;
+  });
+  /* Korea node */
+  svg+=`<circle cx="${krp.x}" cy="${krp.y}" r="9" fill="#38bdf8" stroke="#0a0e14" stroke-width="2"/><text x="${krp.x}" y="${krp.y+22}" fill="#38bdf8" font-size="12" font-weight="700" text-anchor="middle">한국 ◎</text>`;
+  document.getElementById('world').innerHTML=svg;
+  document.getElementById('mapmeta').textContent=R?`${R.c.nm} 발원 · 한국행 여객지수 ${Math.round(R.c.pax*100)}`:'';
+}
+
+/* ===== panels ===== */
+function renderImport(){
+  const c=R.c;
+  const lv=R.risk;const lvc=lv<40?'#34d399':lv<60?'#eab308':lv<80?'#f97316':'#ef4444';
+  let vcls,vi,vt,vd;
+  if(R.risk>=70){vcls=['rgba(239,68,68,.12)','#ef4444','#ef4444'];vi='⚠️';vt='높은 유입 위험';vd=`${c.nm}의 출현 위험과 한국행 여객량이 모두 높아, 빠른 국내 유입이 예상됩니다. 검역 강화·입국 모니터링 즉시 권고.`;}
+  else if(R.risk>=45){vcls=['rgba(251,146,60,.12)','#fb923c','#fb923c'];vi='🟠';vt='중간 유입 위험';vd=`${c.nm}발 유입 가능성이 유의합니다. 해당 노선 입국자 발열감시·표적 검역을 준비하세요.`;}
+  else{vcls=['rgba(52,211,153,.10)','rgba(52,211,153,.5)','var(--ok)'];vi='🟢';vt='낮은 유입 위험';vd=`${c.nm}의 한국행 직접 여객이 적어 유입 속도는 느리나, 환승 경로 감시는 유지합니다.`;}
+  document.getElementById('impmeta').textContent=c.nm+' → 한국';
+  document.getElementById('impbody').innerHTML=`<div class="verdict" style="background:${vcls[0]};border-color:${vcls[1]}"><div class="vt" style="color:${vcls[2]}">${vi} ${vt}</div><div class="vd">${vd}</div></div>
+   <div class="metrics">
+     <div class="metric"><div class="mk">✈ 한국 첫 유입 예측</div><div class="mv" style="color:${lvc}">D+${R.arrival>=0?R.arrival:'—'}</div><div class="md">발원지 발병 기준</div></div>
+     <div class="metric"><div class="mk">🌐 유입 위험지수</div><div class="mv" style="color:${lvc}">${R.risk}</div><div class="md">출현위험×여객량</div></div>
+     <div class="metric"><div class="mk">🟢 WHO 공식 선행</div><div class="mv" style="color:var(--ok)">D−${R.detectLead}</div><div class="md">해외신호 조기탐지</div></div>
+     <div class="metric"><div class="mk">⏱ 발원지 배가시간</div><div class="mv">${R.dbl.toFixed(1)}<small>일</small></div><div class="md">현지 확산 속도</div></div>
+   </div>
+   <div class="sectitle">발원지 특성 · ${c.nm}</div>
+   <div style="font-family:var(--mono);font-size:11px;color:var(--muted);line-height:1.7">출현위험 ${Math.round(c.er*100)} · 한국행여객 ${Math.round(c.pax*100)} · 비행 ${c.hrs}h · ${c.note}</div>`;
+}
+
+function renderEntry(){
+  document.getElementById('entrymeta').textContent=R.arrival>=0?`첫 유입 D+${R.arrival}`:'';
+  const sorted=[...R.dist].sort((a,b)=>b.w-a.w);
+  document.getElementById('entrybody').innerHTML=sorted.map((x,i)=>{
+    const day=R.arrival>=0?R.arrival+Math.round(i*1.5):'—';
+    const pct=Math.round(x.w*100);const col=i===0?'#f43f5e':i===1?'#fb923c':'#38bdf8';
+    return `<div class="entry"><div class="en">${x.e.nm}<small>${x.e.eng}</small></div><div class="eb"><i style="width:${pct}%;background:${col}"></i></div><div class="ep" style="color:${col}"><b>${pct}%</b>D+${day}</div></div>`;
+  }).join('');
+}
+
+function renderFeed(){
+  /* foreign anomaly signals: order cities by detect lead & risk */
+  const items=CITY.map(c=>{const lead=Math.round(6+c.er*8+(S.scenario==='novel'&&c.id===S.origin?4:0));const risk=Math.round(c.er*38+c.pax*52);return {c,lead,risk};}).sort((a,b)=>b.risk-a.risk).slice(0,6);
+  document.getElementById('feedmeta').textContent=items.length+'개 감시중';
+  document.getElementById('feed').innerHTML=items.map(it=>{const sel=it.c.id===S.origin?' sel':'';const col=it.risk<40?'#34d399':it.risk<60?'#eab308':it.risk<80?'#f97316':'#ef4444';
+    return `<div class="fitem${sel}" onclick="window.__pick('${it.c.id}')"><div class="fbar" style="background:${col}"></div><div class="fnm">${it.c.nm} <small>${it.c.note} · 유입위험 ${it.risk}</small></div><div class="flead">WHO공식<b>D−${it.lead}</b>선행</div></div>`;}).join('');
+}
+window.__pick=id=>{S.origin=id;originSel.value=id;run();};
+
+/* ===== AI ===== */
+document.getElementById('aibtn').onclick=async()=>{const box=document.getElementById('aibox');box.innerHTML=`<div class="ai-load"><div class="spin"></div>Claude가 유입 대응을 추론하는 중…</div>`;
+  const c=R.c;const top=[...R.dist].sort((a,b)=>b.w-a.w).slice(0,2).map(x=>x.e.nm+'('+Math.round(x.w*100)+'%)');
+  const payload={해외발원지:c.nm,발원지특성:c.note,출현위험:Math.round(c.er*100),한국행여객지수:Math.round(c.pax*100),비행시간h:c.hrs,시나리오:S.scenario==='novel'?'신종 출현':'알려진 유행',한국첫유입예측일:R.arrival,유입위험지수:R.risk,WHO공식대비선행탐지일:R.detectLead,주요입국관문:top};
+  const prompt=`너는 신중한 감염병 역학·검역 전문가다. 해외에서 발생한 감염병의 한국 유입 위험을 조기경보 엔진이 분석했다. 이 데이터로 추론하라.\n\n${JSON.stringify(payload,null,2)}\n\n각 2~3문장 이내, 불확실성 명시, 과장 없이 한국어로:\n1) 평가: 이 발원지/특성에서 한국 유입 위험을 어떻게 보는가?\n2) 국경 대응: 입국 관문(공항·항만)에서 즉시 취할 검역·감시 조치는?\n3) 유입 후 대비: 국내 도착 시 취약집단 보호 우선순위는?\n4) 즉시 대응 3가지(우선순위대로).\n제목 없이 1~4 번호로만.`;
+  try{const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,messages:[{role:"user",content:prompt}]})});if(!res.ok)throw new Error('API 오류 ('+res.status+')');const data=await res.json();const text=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n').trim();box.innerHTML='<div class="ai-out"></div>';box.querySelector('.ai-out').textContent=text||'응답 없음.';}catch(e){box.innerHTML=`<div class="ai-err"><b>AI 추론 호출 실패.</b><br>${e.message}<br><br>claude.ai 아티팩트 환경에서 동작합니다. 유입 추론 엔진(지도·지표)은 정상 작동합니다.</div>`;}};
+
+/* ===== trace animation ===== */
+document.getElementById('trace').onclick=()=>{
+  ['st3','st4'].forEach((id,i)=>{const el=document.getElementById(id);el.classList.remove('act');setTimeout(()=>el.classList.add('act'),600+i*700);});
+  document.getElementById('estate').textContent='⚠ 유입 경로 추적중';document.getElementById('estate').style.color='#ef4444';
+  setTimeout(()=>{document.getElementById('handofftxt').innerHTML=`<b style="color:var(--txt)">${R.c.nm}</b>발 병원체가 <b style="color:var(--txt)">D+${R.arrival}</b>에 <b style="color:var(--txt)">${[...R.dist].sort((a,b)=>b.w-a.w)[0].e.nm}</b>으로 첫 유입 예측. 이후 국내 확산 모델이 이어받아 전국 확산을 예측합니다.`;},1400);
+};
+
+/* ===== orchestrate ===== */
+function run(){computeImport();renderMap();renderImport();renderEntry();renderFeed();
+  ['st3','st4'].forEach(id=>document.getElementById(id).classList.remove('act'));
+  document.getElementById('handofftxt').innerHTML='해외에서 유입된 병원체가 입국 관문에 도착하면, 국내 확산 모델(역병예보 통합 버전)이 이어받아 전국 확산을 예측합니다.';
+  document.getElementById('aibox').innerHTML='<div class="ai-empty">발원지·유입 경로·도착 예측을 근거로 Claude가 국경 검역·유입 차단 대응을 추론합니다.</div>';
+  document.getElementById('estate').textContent='글로벌 감시 가동';document.getElementById('estate').style.color='var(--ok)';
+}
+document.querySelectorAll('#scenario button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#scenario button').forEach(x=>x.classList.remove('on'));b.classList.add('on');S.scenario=b.dataset.s;run();});
+originSel.onchange=()=>{S.origin=originSel.value;run();};
+run();
+</script>
+</body>
+</html>

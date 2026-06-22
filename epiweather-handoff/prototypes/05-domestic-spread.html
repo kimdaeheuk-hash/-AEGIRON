@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>역병예보 · UNIFIED</title>
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+:root{--bg:#070a10;--bg2:#0c111b;--panel:rgba(18,25,37,.72);--panel2:#121925;--line:rgba(120,140,170,.14);--line2:rgba(120,140,170,.28);--txt:#e9eef5;--muted:#7c8aa0;--muted2:#566377;--accent:#f43f5e;--ok:#34d399;--cyan:#38bdf8;--amber:#fbbf24;--violet:#a78bfa;--kr:"Pretendard Variable",Pretendard,sans-serif;--disp:"Bricolage Grotesque",var(--kr);--mono:"JetBrains Mono",monospace;}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--txt);font-family:var(--kr);-webkit-font-smoothing:antialiased}
+body{min-height:100vh;position:relative;background:radial-gradient(1200px 700px at 80% -10%,rgba(244,63,94,.10),transparent 60%),radial-gradient(900px 600px at 5% 110%,rgba(56,189,248,.07),transparent 55%),var(--bg)}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.035;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+.wrap{position:relative;z-index:1;max-width:1240px;margin:0 auto;padding:clamp(16px,3vw,32px)}
+.top{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:18px}
+.brand{display:flex;align-items:center;gap:14px}
+.logo{width:42px;height:42px;border-radius:11px;background:linear-gradient(145deg,#1a2433,#0d1320);border:1px solid var(--line2);display:grid;place-items:center;position:relative;overflow:hidden}
+.logo::after{content:"";position:absolute;width:150%;height:2px;background:var(--accent);top:50%;left:-25%;box-shadow:0 0 12px var(--accent);animation:scan 3s linear infinite}
+@keyframes scan{0%{transform:translateY(-16px)}100%{transform:translateY(16px)}}
+.logo svg{width:22px;height:22px;position:relative;z-index:2}
+.brand h1{font-family:var(--disp);font-weight:800;font-size:clamp(20px,3.4vw,28px);letter-spacing:-.02em;line-height:1}
+.brand .sub{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.24em;margin-top:5px}
+.estate{text-align:right;font-family:var(--mono);font-size:10px;letter-spacing:.12em}
+.estate .big{font-size:13px}
+.estate .live{display:inline-flex;align-items:center;gap:6px;font-size:9px;color:var(--ok);letter-spacing:.18em;margin-top:5px}
+.estate .live i{width:6px;height:6px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok);animation:blink 1.6s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+/* controls */
+.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin:18px 0}
+.ctl{display:flex;flex-direction:column;gap:6px}
+.ctl label{font-family:var(--mono);font-size:9px;letter-spacing:.16em;color:var(--muted);text-transform:uppercase}
+.seg{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{font-family:var(--kr);font-size:12.5px;font-weight:600;color:var(--muted);background:none;border:none;padding:9px 13px;cursor:pointer;transition:.18s;white-space:nowrap}
+.seg button.on{background:rgba(244,63,94,.16);color:var(--txt)}
+.seg button:hover{color:var(--txt)}
+select{font-family:var(--kr);font-size:13px;color:var(--txt);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:9px 12px;cursor:pointer}
+.btn{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--txt);background:rgba(255,255,255,.05);border:1px solid var(--line2);border-radius:10px;padding:10px 13px;cursor:pointer;transition:.2s}
+.btn:hover{background:rgba(255,255,255,.1)}
+.btn.on{background:rgba(244,63,94,.18);border-color:var(--accent)}
+.btn.danger{background:rgba(244,63,94,.14);border-color:var(--accent)}
+/* sources strip */
+.sources{display:flex;gap:9px;margin:6px 0 0;flex-wrap:wrap}
+.src{flex:1;min-width:120px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;cursor:pointer;transition:.2s}
+.src.off{opacity:.4}
+.src .sh{display:flex;justify-content:space-between;align-items:center}
+.src .snm{font-size:12px;font-weight:700}
+.src .seng{font-family:var(--mono);font-size:8px;color:var(--muted);letter-spacing:.1em;margin-top:1px}
+.src .tog{width:28px;height:15px;border-radius:9px;background:var(--line2);position:relative;flex:none;transition:.2s}
+.src.on .tog{background:var(--accent)}
+.src .tog::after{content:"";position:absolute;width:11px;height:11px;border-radius:50%;background:#fff;top:2px;left:2px;transition:.2s}
+.src.on .tog::after{left:15px}
+.src .lead{font-family:var(--mono);font-size:9px;color:var(--ok);margin-top:7px}
+.src .lead.zero{color:var(--muted2)}
+.fuse{flex:none;min-width:140px;background:linear-gradient(160deg,rgba(244,63,94,.12),rgba(18,25,37,.6));border:1px solid var(--accent);border-radius:12px;padding:10px 13px;display:flex;flex-direction:column;justify-content:center}
+.fuse .fl{font-family:var(--mono);font-size:8.5px;letter-spacing:.16em;color:var(--muted);text-transform:uppercase}
+.fuse .fv{font-family:var(--mono);font-weight:700;font-size:26px;line-height:1.1;margin-top:2px}
+.fuse .fd{font-size:10px;color:var(--muted);margin-top:2px}
+/* grid */
+.grid{display:grid;grid-template-columns:1.4fr 1fr;gap:18px;margin-top:18px}
+@media(max-width:900px){.grid{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:clamp(16px,2.2vw,22px);backdrop-filter:blur(14px);position:relative}
+.card-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px;flex-wrap:wrap}
+.card-h .lbl{font-family:var(--mono);font-size:10px;letter-spacing:.20em;color:var(--muted);text-transform:uppercase}
+.card-h .meta{font-family:var(--mono);font-size:11px;color:var(--muted2)}
+.maparea{grid-row:span 2}
+.kmap{display:grid;grid-template-columns:repeat(6,1fr);gap:7px;aspect-ratio:6/7.4;margin-top:6px}
+.tile{position:relative;border-radius:10px;border:1px solid rgba(255,255,255,.06);display:flex;flex-direction:column;justify-content:space-between;padding:7px 8px;cursor:pointer;transition:background-color .55s cubic-bezier(.4,0,.2,1),transform .2s,box-shadow .25s;opacity:0;transform:scale(.6);overflow:hidden}
+.tile.in{opacity:1;transform:scale(1)}
+.tile:hover{transform:scale(1.05);z-index:5;box-shadow:0 10px 30px -8px rgba(0,0,0,.6)}
+.tile.sel{box-shadow:0 0 0 2px var(--txt) inset,0 0 22px -4px rgba(255,255,255,.35);z-index:6}
+.tile .nm{font-size:12px;font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.6);line-height:1}
+.tile .rk{font-family:var(--mono);font-size:13px;font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.55);align-self:flex-end}
+.tile.alarm::after{content:"";position:absolute;inset:0;border-radius:10px;border:2px solid #fff;opacity:0;animation:ring 1.8s ease-out infinite}
+@keyframes ring{0%{opacity:.9;transform:scale(.85)}100%{opacity:0;transform:scale(1.12)}}
+.tile .alm{position:absolute;top:5px;right:6px;width:7px;height:7px;border-radius:50%;background:#fff;box-shadow:0 0 9px #fff;animation:blink 1.2s infinite}
+.tile .vb{position:absolute;bottom:6px;left:7px;font-size:11px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))}
+.tile .org{position:absolute;top:5px;left:6px;font-size:10px}
+.timeline{margin-top:18px}
+.tl-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.weeklbl{font-family:var(--mono);font-size:12px}.weeklbl b{color:var(--accent);font-weight:700}
+.playbtn{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--txt);background:rgba(244,63,94,.12);border:1px solid var(--accent);border-radius:8px;padding:7px 13px;cursor:pointer}
+.playbtn:hover{background:rgba(244,63,94,.22)}
+.track{position:relative;height:34px;display:flex;align-items:center}
+.track .bar{position:absolute;left:0;right:0;height:4px;background:var(--line2);border-radius:3px}
+.track .fill{position:absolute;left:0;height:4px;border-radius:3px;background:linear-gradient(90deg,#1d9b8a,#eab308,var(--accent));transition:width .4s}
+.knot{position:absolute;top:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;cursor:pointer}
+.knot .d{width:13px;height:13px;border-radius:50%;background:var(--bg2);border:2px solid var(--muted2);transition:.2s}
+.knot.on .d{border-color:var(--txt);background:var(--accent);box-shadow:0 0 12px var(--accent)}
+.knot .lab{font-family:var(--mono);font-size:9.5px;color:var(--muted);margin-top:8px;white-space:nowrap}
+.knot.on .lab{color:var(--txt)}
+.legend{display:flex;flex-direction:column;margin-top:16px}
+.legend .scale{display:flex;height:9px;border-radius:5px;overflow:hidden}.legend .scale i{flex:1}
+.legend .ends{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:6px}
+/* detail */
+.natindex{display:flex;align-items:center;gap:16px}
+.gauge{position:relative;width:88px;height:88px;flex:none}.gauge svg{transform:rotate(-90deg)}
+.gauge .val{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--mono);font-weight:700;font-size:23px}
+.nat-meta .stat{font-family:var(--disp);font-weight:800;font-size:16px}.nat-meta .desc{color:var(--muted);font-size:12px;margin-top:5px;line-height:1.5;max-width:220px}
+.det-name{font-family:var(--disp);font-weight:800;font-size:21px;letter-spacing:-.02em;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.det-name .badge{font-family:var(--mono);font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px}
+.det-sub{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:4px}
+.metrics{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:14px}
+.metric{background:rgba(255,255,255,.025);border:1px solid var(--line);border-radius:11px;padding:11px}
+.metric .mk{font-size:10.5px;color:var(--muted);display:flex;align-items:center;gap:5px}
+.metric .mv{font-family:var(--mono);font-weight:700;font-size:19px;margin-top:5px}
+.metric .mv small{font-size:10px;font-weight:400;color:var(--muted)}
+.metric .md{font-family:var(--mono);font-size:9px;margin-top:3px;color:var(--muted2)}
+.sectitle{font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;color:var(--muted);text-transform:uppercase;margin:16px 0 10px}
+.streams{display:flex;flex-direction:column;gap:8px}
+.stream{display:flex;align-items:center;gap:10px}
+.stream .snm{font-size:11.5px;flex:none;width:84px}.stream .snm small{display:block;font-family:var(--mono);font-size:8px;color:var(--muted2)}
+.stream .sbar{flex:1;height:7px;background:rgba(255,255,255,.06);border-radius:5px;overflow:hidden}.stream .sbar i{display:block;height:100%;border-radius:5px;transition:width .5s}
+.stream .sz{font-family:var(--mono);font-size:10.5px;width:48px;text-align:right;flex:none}
+/* network + emergence + b2b cards reuse */
+.verdict{border-radius:13px;padding:13px 15px;margin-bottom:14px;border:1px solid}
+.verdict .vt{font-family:var(--disp);font-weight:800;font-size:16px;display:flex;align-items:center;gap:9px}
+.verdict .vd{font-size:12px;color:var(--muted);margin-top:5px;line-height:1.5}
+.netwrap{display:grid;grid-template-columns:1.05fr 1fr;gap:18px;align-items:start}
+@media(max-width:760px){.netwrap{grid-template-columns:1fr}}
+.arrlist{display:flex;flex-direction:column;gap:7px}
+.arr{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.025);border:1px solid var(--line);border-radius:10px;padding:9px 11px}
+.arr .an{font-size:12.5px;font-weight:700;flex:none;width:40px}
+.arr .ab{flex:1;height:6px;background:rgba(255,255,255,.07);border-radius:4px;overflow:hidden}.arr .ab i{display:block;height:100%;border-radius:4px;transition:width .5s}
+.arr .ad{font-family:var(--mono);font-size:10.5px;text-align:right;flex:none;width:92px}.arr .ad b{display:block;font-size:14px}
+.arr.origin{border-color:var(--accent);background:rgba(244,63,94,.10)}
+.emg-cols{display:grid;grid-template-columns:1fr 1fr;gap:20px}@media(max-width:680px){.emg-cols{grid-template-columns:1fr}}
+.factor{margin-bottom:12px}
+.factor .fh{display:flex;justify-content:space-between;font-size:12px}.factor .fh .fn{display:flex;align-items:center;gap:6px}
+.factor .ft{height:7px;background:rgba(255,255,255,.06);border-radius:4px;overflow:hidden;margin-top:5px}.factor .ff{height:100%;border-radius:4px;transition:width .6s}
+.synalert{margin-top:14px;border-radius:12px;padding:12px 14px;display:flex;gap:10px;font-size:12px;line-height:1.5}.synalert .si{font-size:18px;flex:none}
+.feed{display:grid;grid-template-columns:1fr 1fr;gap:9px}@media(max-width:620px){.feed{grid-template-columns:1fr}}
+.fitem{display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(255,255,255,.02);border:1px solid var(--line);border-radius:11px;cursor:pointer}
+.fitem:hover{border-color:var(--line2)}
+.fbar{width:3px;align-self:stretch;border-radius:3px;flex:none}
+.fitem .fnm{font-size:12.5px;font-weight:600;flex:1}.fitem .fnm small{display:block;font-family:var(--mono);font-size:9.5px;color:var(--muted);font-weight:400;margin-top:2px}
+.fitem .flead{font-family:var(--mono);font-size:10.5px;text-align:right;color:var(--ok)}.fitem .flead b{font-size:15px;display:block}
+.empty{color:var(--muted2);font-size:12.5px;text-align:center;padding:22px 0;font-family:var(--mono);grid-column:1/-1}
+.ai-out{font-size:13px;line-height:1.7;white-space:pre-wrap;color:#dfe6ef}
+.ai-empty{color:var(--muted2);font-family:var(--mono);font-size:12px;text-align:center;padding:16px 0;line-height:1.7}
+.ai-load{display:flex;align-items:center;gap:10px;color:var(--muted);font-family:var(--mono);font-size:12px;padding:10px 0}
+.spin{width:15px;height:15px;border:2px solid var(--line2);border-top-color:var(--accent);border-radius:50%;animation:sp .8s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
+.ai-err{color:#fca5a5;font-size:12px;line-height:1.6;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.4);border-radius:11px;padding:12px 14px}
+.note{margin-top:22px;font-size:11px;color:var(--muted2);line-height:1.7;border-top:1px solid var(--line);padding-top:16px}.note b{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="brand">
+      <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#f43f5e" stroke-width="1.8"><path d="M3 12h3l2-7 4 14 3-9 2 2h4"/></svg></div>
+      <div><h1>역병예보 <span style="font-family:var(--mono);font-size:11px;color:var(--accent);vertical-align:middle">UNIFIED</span></h1><div class="sub">MAP × LIVE INFERENCE ENGINE</div></div>
+    </div>
+    <div class="estate"><div class="big" id="estate" style="color:var(--ok)">엔진 가동</div><div class="live"><i></i><span id="esub">추론 중…</span></div></div>
+  </div>
+
+  <div class="controls">
+    <div class="ctl"><label>발원 지역</label><select id="origin"></select></div>
+    <div class="ctl"><label>시나리오</label>
+      <div class="seg" id="scenario">
+        <button data-s="normal" class="on">평상</button>
+        <button data-s="known">알려진 유행</button>
+        <button data-s="novel">신종 출현</button>
+      </div></div>
+    <div class="ctl"><label>레이어</label>
+      <button class="btn" id="vulnbtn">🛡 취약계층</button></div>
+    <button class="btn" id="regen">↻ 재생성</button>
+  </div>
+
+  <div class="sources" id="sources"></div>
+
+  <div class="grid">
+    <div class="card maparea">
+      <div class="card-h"><span class="lbl">전국 위험도 · 엔진 실시간 추론</span><span class="meta" id="mapmeta"></span></div>
+      <div class="kmap" id="kmap"></div>
+      <div class="timeline">
+        <div class="tl-head"><div class="weeklbl" id="weeklbl"></div><div class="playbtn" id="play"><span id="playicon">▶</span> 확산 예보 재생</div></div>
+        <div class="track" id="track"></div>
+      </div>
+      <div class="legend"><div class="scale" id="scale"></div><div class="ends"><span>안정 0</span><span>주의 50</span><span>심각 100</span></div></div>
+    </div>
+
+    <div class="card" id="detail"></div>
+
+    <div class="card">
+      <div class="card-h"><span class="lbl">발원지 추론 결과 · Farrington</span><span class="meta" id="infmeta"></span></div>
+      <div id="infbody"></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:18px">
+    <div class="card-h"><span class="lbl">🕸 다지역 확산 추론 · 도착 예측</span><span class="meta" id="netmeta"></span></div>
+    <div class="netwrap"><svg id="net" viewBox="0 0 420 360" style="width:100%;height:auto;overflow:visible"></svg>
+      <div><div style="font-family:var(--mono);font-size:10px;color:var(--muted);line-height:1.6;margin-bottom:12px">이동량 네트워크 위에서 발원지로부터 각 지역까지 <b style="color:var(--txt)">확산 임계 도착 시점(D+N)</b>을 메타개체군 모델로 추론합니다.</div><div class="arrlist" id="arrlist"></div></div></div>
+  </div>
+
+  <div class="card" style="margin-top:18px">
+    <div class="card-h"><span class="lbl">신종 출현 추론 · DISEASE X WATCH</span><span class="meta" id="emgmeta"></span></div>
+    <div id="emgbody"></div>
+  </div>
+
+  <div class="card" style="margin-top:18px">
+    <div class="card-h"><span class="lbl">이상 신호 피드 · 공식 보고 선행 탐지</span><span class="meta" id="feedmeta"></span></div>
+    <div class="feed" id="feed"></div>
+  </div>
+
+  <div class="card" style="margin-top:18px">
+    <div class="card-h"><span class="lbl">🧠 AI 역학 추론 레이어 · CLAUDE</span><button class="btn danger" id="aibtn">AI 추론 실행</button></div>
+    <div id="aibox"><div class="ai-empty">엔진이 계산한 신호·확산 예측을 근거로 Claude가 독립 역학 추론을 수행합니다.</div></div>
+  </div>
+
+  <div class="note"><b>※ 통합 완성형</b> — 지도(앞단)와 추론 엔진(뒷단)이 한 몸입니다. 발원지에서 시작된 유행이 이동량 네트워크로 전국에 퍼지는 것을 엔진이 시뮬레이션하고, 지역별 신호를 <b>Farrington 이상탐지</b>로 잡아 그 결과가 지도 색·위험지수·확산 도착예측·경보로 동시에 표시됩니다. 데이터는 합성이나 모든 수치는 엔진이 직접 계산합니다. "확산 예보 재생"으로 4주 확산을, "신종 출현"으로 동물 예찰 선행탐지를 확인하세요. 실제 서비스는 질병청 IDBP·하수·농림부 동물예찰 데이터를 동일 엔진에 연결합니다.</div>
+</div>
+
+<script>
+/* ===== utils ===== */
+function rng(s){return function(){s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function gauss(r){return Math.sqrt(-2*Math.log(r()+1e-9))*Math.cos(2*Math.PI*r());}
+function mean(a){return a.length?a.reduce((x,y)=>x+y,0)/a.length:0;}
+function std(a){const m=mean(a);return Math.sqrt(mean(a.map(x=>(x-m)*(x-m))));}
+function clamp(v,lo,hi){return Math.max(lo,Math.min(hi,v));}
+function regress(xs,ys){const n=xs.length,mx=mean(xs),my=mean(ys);let nu=0,de=0;for(let i=0;i<n;i++){nu+=(xs[i]-mx)*(ys[i]-my);de+=(xs[i]-mx)**2;}const b=de?nu/de:0;return{b,a:my-b*mx};}
+
+/* ===== regions + network ===== */
+const R=[
+ {id:'IC',nm:'인천',c:2,r:1,x:120,y:70,pop:3.0,eld:16,animalExp:.4,density:.7,border:.95},
+ {id:'SU',nm:'서울',c:3,r:1,x:175,y:55,pop:9.4,eld:18,animalExp:.2,density:.95,border:.7},
+ {id:'GG',nm:'경기',c:4,r:1,x:205,y:108,pop:13.6,eld:15,animalExp:.6,density:.88,border:.6},
+ {id:'GW',nm:'강원',c:5,r:1,x:285,y:75,pop:1.5,eld:24,animalExp:.7,density:.3,border:.35},
+ {id:'CN',nm:'충남',c:2,r:2,x:135,y:165,pop:2.1,eld:21,animalExp:.9,density:.45,border:.4},
+ {id:'CB',nm:'충북',c:4,r:2,x:235,y:150,pop:1.6,eld:20,animalExp:.75,density:.4,border:.3},
+ {id:'DG',nm:'대구',c:5,r:3,x:295,y:205,pop:2.4,eld:19,animalExp:.35,density:.8,border:.4},
+ {id:'JB',nm:'전북',c:2,r:3,x:150,y:235,pop:1.8,eld:23,animalExp:.85,density:.4,border:.35},
+ {id:'GN',nm:'경남',c:4,r:4,x:265,y:265,pop:3.3,eld:19,animalExp:.65,density:.6,border:.55},
+ {id:'JN',nm:'전남',c:2,r:5,x:155,y:300,pop:1.8,eld:26,animalExp:.95,density:.35,border:.45},
+ {id:'BS',nm:'부산',c:5,r:5,x:320,y:285,pop:3.3,eld:22,animalExp:.3,density:.8,border:.9},
+ {id:'JJ',nm:'제주',c:3,r:7,x:135,y:345,pop:.67,eld:17,animalExp:.5,density:.45,border:.85},
+];
+const RM={};R.forEach(x=>RM[x.id]=x);
+const MOB={
+ IC:{SU:.9,GG:.8,CN:.4,JJ:.5,BS:.4,DG:.3,CB:.3},SU:{IC:.9,GG:.95,CN:.5,DG:.5,BS:.5,JJ:.4,GW:.5,CB:.5},
+ GG:{SU:.95,IC:.8,CN:.6,DG:.5,BS:.4,JJ:.3,GW:.6,CB:.6},GW:{SU:.5,GG:.6,CB:.4,DG:.3},
+ CN:{GG:.6,SU:.5,IC:.4,JB:.5,CB:.5,DG:.3},CB:{GG:.6,SU:.5,CN:.5,DG:.5,GW:.4},
+ DG:{SU:.5,GG:.5,BS:.7,CB:.5,GN:.6,CN:.3},JB:{CN:.5,GN:.5,JN:.6,GG:.3},
+ GN:{DG:.6,BS:.7,JB:.5,JN:.4,SU:.4},JN:{JB:.6,GN:.4,JJ:.4,SU:.3},
+ BS:{DG:.7,GN:.7,SU:.5,JJ:.45,GG:.4},JJ:{IC:.5,SU:.4,BS:.45,JN:.4,GG:.3},
+};
+const originSel=document.getElementById('origin');
+R.forEach(r=>{const o=document.createElement('option');o.value=r.id;o.textContent=r.nm;originSel.appendChild(o);});
+
+/* ===== data sources ===== */
+const SRC=[{id:'air',nm:'항공·이동',eng:'MOBILITY',lead:9},{id:'web',nm:'검색·SNS',eng:'WEB',lead:7},{id:'waste',nm:'하수 역학',eng:'WASTEWATER',lead:10},{id:'ehr',nm:'의료·응급실',eng:'CLINICAL',lead:3},{id:'animal',nm:'동물 예찰',eng:'ANIMAL',lead:12},{id:'kdca',nm:'질병청 신고',eng:'OFFICIAL',lead:0}];
+SRC.forEach(s=>s.on=true);
+
+let S={origin:'IC',scenario:'normal',seed:12345,week:0,vuln:false};
+let SIM=null,playing=false,timer=null,curReg='IC';
+const HIST=120,TRAIN_A=8,TRAIN_B=72;
+
+/* ===== epidemic simulation across network (ground truth) ===== */
+function simulate(){
+  const r=rng(S.seed+S.origin.charCodeAt(0)*97+S.scenario.length*31);
+  const hasOut=S.scenario!=='normal', novel=S.scenario==='novel';
+  const beta=novel?.20:.16, seedStart=104+Math.floor(r()*5);
+  /* infection level per region per day (0..1) via metapopulation SI */
+  const I={};R.forEach(x=>I[x.id]={});
+  let cur={};R.forEach(x=>cur[x.id]=x.id===S.origin?.015:.0002);
+  const arrivalDay={};R.forEach(x=>arrivalDay[x.id]=null);
+  for(let d=0;d<HIST+35;d++){
+    R.forEach(x=>{I[x.id][d]=cur[x.id];if(arrivalDay[x.id]===null&&cur[x.id]>=.25)arrivalDay[x.id]=d-seedStart;});
+    if(hasOut&&d>=seedStart){
+      const nx={};R.forEach(x=>{let f=beta*cur[x.id]*(1-cur[x.id]);const m=MOB[x.id]||{};Object.keys(m).forEach(j=>f+=.05*beta*m[j]*cur[j]*(1-cur[x.id]));nx[x.id]=clamp(cur[x.id]+f,0,1);});cur=nx;
+    }
+  }
+  /* per-region signal streams derived from infection level */
+  const streams={};
+  R.forEach(x=>{
+    const st={official:[],waste:[],search:[],ehr:[],animal:[]};
+    const animalActive=novel;
+    for(let d=0;d<HIST;d++){
+      const trend=d*.05;const base=42+14*Math.sin((d+18)/HIST*Math.PI*1.6)+trend;
+      const wk=(d%7===0||d%7===6)?-6:0;
+      const infl=(dd)=>{dd=Math.max(0,Math.min(HIST+34,dd));return I[x.id][dd]||0;};
+      st.official.push(Math.max(0,Math.round(base+wk+gauss(r)*5+infl(d)*150)));
+      st.waste.push(Math.max(0,Math.round(36+9*Math.sin((d+18)/HIST*Math.PI*1.6)+trend*.8+gauss(r)*6+infl(d+10)*160)));
+      st.search.push(Math.max(0,Math.round(46+gauss(r)*8+infl(d+7)*175)));
+      st.ehr.push(Math.max(0,Math.round(base*.9+gauss(r)*6+infl(d+3)*140)));
+      st.animal.push(Math.max(0,Math.round(8+gauss(r)*3+(animalActive?infl(d+12)*x.animalExp*120:0))));
+    }
+    streams[x.id]=st;
+  });
+  SIM={I,arrivalDay,streams,seedStart,novel,hasOut,beta};
+  computeAll();
+}
+
+/* ===== Farrington detector ===== */
+function farThr(arr){const thr=arr.map(()=>0),zz=arr.map(()=>0);const win=45;
+  for(let t=0;t<arr.length;t++){const lo=Math.max(0,t-win),ri=[],rv=[];for(let i=lo;i<t;i++){ri.push(i);rv.push(arr[i]);}
+    if(rv.length<10){thr[t]=Infinity;zz[t]=0;continue;}
+    const ly=rv.map(v=>Math.log(Math.max(1,v)));const {a,b}=regress(ri,ly);const useT=Math.abs(b)>.004;
+    const fit=i=>Math.exp(a+(useT?b:0)*i+(useT?0:(mean(ly)-a-b*mean(ri))));
+    const mu=Math.max(1,useT?fit(t):Math.exp(mean(ly)));
+    let chi=0;ri.forEach((i,k)=>{const f=useT?fit(i):Math.exp(mean(ly));chi+=((rv[k]-f)**2)/Math.max(1,f);});
+    const phi=Math.max(1,chi/Math.max(1,rv.length-2));const z=2.58;
+    thr[t]=mu*Math.pow(1+(2/3)*z*Math.sqrt(phi*mu)/mu,1.5);zz[t]=(arr[t]-mu)/Math.sqrt(phi*mu);
+  }return{thr,z:zz};}
+function firstExceed(arr,thr,from){for(let i=from;i<arr.length;i++)if(arr[i]>thr[i])return i;return -1;}
+function logSlope(a){const y=a.map(v=>Math.log(Math.max(1,v)));return regress([...Array(y.length).keys()],y).b;}
+
+/* ===== compute per-region engine results ===== */
+let ENG={};
+function activeLeadKeys(){const map={waste:'waste',search:'search',animal:'animal'};return Object.keys(map).filter(k=>{const sid={waste:'waste',search:'web',animal:'animal'}[k];const s=SRC.find(z=>z.id===sid);return s&&s.on;});}
+function computeAll(){
+  ENG={};const today=HIST-1;
+  R.forEach(x=>{
+    const st=SIM.streams[x.id];
+    const dOffD=farThr(st.official);
+    const dWaste=farThr(st.waste),dSearch=farThr(st.search),dAnimal=farThr(st.animal);
+    const exOff=firstExceed(st.official,dOffD.thr,TRAIN_B);
+    const leadEx=[];if(SRC.find(s=>s.id==='waste').on)leadEx.push(firstExceed(st.waste,dWaste.thr,TRAIN_B));if(SRC.find(s=>s.id==='web').on)leadEx.push(firstExceed(st.search,dSearch.thr,TRAIN_B));if(SRC.find(s=>s.id==='animal').on&&SIM.novel)leadEx.push(firstExceed(st.animal,dAnimal.thr,TRAIN_B));
+    const leads=leadEx.filter(v=>v>=0);const dLead=leads.length?Math.min(...leads):-1;
+    const lead=(dLead>=0&&exOff>=0)?(exOff-dLead):null;
+    const recent=st.official.slice(today-11,today+1);const slope=logSlope(recent);const Rt=Math.exp(slope*5);const dbl=slope>1e-4?Math.log(2)/slope:null;
+    const z={official:dOffD.z[today],waste:dWaste.z[today],search:dSearch.z[today],animal:dAnimal.z[today]};
+    /* risk score per week from infection level */
+    const riskWeek=[];for(let w=0;w<5;w++){const d=Math.min(HIST+34,today+w*7);const inf=SIM.I[x.id][d]||0;const baseR=8+x.eld*0.3;riskWeek.push(Math.round(clamp(baseR+inf*135+(z.official>2?6:0),3,99)));}
+    const baseLine=Math.round(8+x.eld*0.3);
+    const animalHot=z.animal>3&&SIM.novel;
+    ENG[x.id]={exOff,dLead,lead,Rt,dbl,z,riskWeek,baseLine,animalHot,thrOff:dOffD.thr,stOff:st.official};
+  });
+  /* engine state */
+  const anyHot=R.some(x=>ENG[x.id].z.official>3||ENG[x.id].animalHot);
+  document.getElementById('estate').textContent=anyHot?'⚠ 이상 탐지':'✓ 정상 추론';
+  document.getElementById('estate').style.color=anyHot?'#ef4444':'var(--ok)';
+}
+
+/* ===== color ===== */
+const STOPS=[[0,[30,58,95]],[25,[29,155,138]],[50,[234,179,8]],[75,[249,115,22]],[100,[214,40,40]]];
+function rgbAt(v){v=clamp(v,0,100);for(let i=0;i<4;i++){const[a,ca]=STOPS[i],[b,cb]=STOPS[i+1];if(v<=b){const k=(v-a)/(b-a);return ca.map((c,j)=>Math.round(c+(cb[j]-c)*k));}}return STOPS[4][1];}
+function color(v){const c=rgbAt(v);return`rgb(${c[0]},${c[1]},${c[2]})`;}
+function statusOf(v){return v<20?'안정':v<40?'관심':v<60?'주의':v<80?'경계':'심각';}
+function statusCol(v){return v<20?'#22d3ee':v<40?'#a3e635':v<60?'#eab308':v<80?'#f97316':'#ef4444';}
+function vulnFactor(id){return 1+(RM[id].eld-15)/40;}
+
+/* ===== sources ===== */
+const sourcesEl=document.getElementById('sources');
+function renderSources(){sourcesEl.innerHTML='';SRC.forEach(s=>{const el=document.createElement('div');el.className='src '+(s.on?'on':'off');
+  el.innerHTML=`<div class="sh"><div><div class="snm">${s.nm}</div><div class="seng">${s.eng}</div></div><div class="tog"></div></div><div class="lead ${s.lead===0?'zero':''}">${s.lead===0?'공식 기준선':'공식보고 −'+s.lead+'일'}</div>`;
+  el.onclick=()=>{s.on=!s.on;computeAll();renderSources();renderAllViews();};sourcesEl.appendChild(el);});
+  const n=SRC.filter(s=>s.on).length;const conf=Math.round(clamp(40+ (n/6)*55,40,98));
+  const f=document.createElement('div');f.className='fuse';f.innerHTML=`<div class="fl">융합 신뢰도</div><div class="fv" style="color:${conf>80?'var(--ok)':'#eab308'}">${conf}%</div><div class="fd">${n}/6 소스</div>`;sourcesEl.appendChild(f);}
+
+/* ===== map ===== */
+const kmap=document.getElementById('kmap');let tiles={};
+function buildMap(){kmap.innerHTML='';tiles={};R.forEach((reg,i)=>{const t=document.createElement('div');t.className='tile';t.style.gridColumn=reg.c;t.style.gridRow=reg.r;
+  t.innerHTML=`<span class="nm">${reg.nm}</span><span class="rk"></span>`;t.onclick=()=>{curReg=reg.id;renderDetail();renderInf();renderEmergence();markSel();};kmap.appendChild(t);tiles[reg.id]=t;setTimeout(()=>t.classList.add('in'),50+i*38);});}
+function markSel(){R.forEach(reg=>tiles[reg.id].classList.toggle('sel',reg.id===curReg));}
+function paintMap(){R.forEach(reg=>{const e=ENG[reg.id];const raw=e.riskWeek[S.week];const v=S.vuln?Math.min(99,Math.round(raw*vulnFactor(reg.id))):raw;const t=tiles[reg.id];
+  t.style.background=color(v);t.querySelector('.rk').textContent=v;
+  const an=(raw-e.baseLine)>22;t.classList.toggle('alarm',an);
+  let alm=t.querySelector('.alm');if(an&&!alm){alm=document.createElement('span');alm.className='alm';t.appendChild(alm);}if(!an&&alm)alm.remove();
+  let org=t.querySelector('.org');if(reg.id===S.origin&&SIM.hasOut){if(!org){org=document.createElement('span');org.className='org';org.textContent='◎';t.appendChild(org);}}else if(org)org.remove();
+  let vb=t.querySelector('.vb');if(S.vuln&&reg.eld>=22){if(!vb){vb=document.createElement('span');vb.className='vb';vb.textContent='🧓';t.appendChild(vb);}}else if(vb)vb.remove();
+});markSel();
+  document.getElementById('mapmeta').textContent=(S.vuln?'취약 가중 · ':'')+(S.week===0?'현재':'+'+S.week+'주');}
+
+/* ===== timeline ===== */
+const track=document.getElementById('track');
+function buildTrack(){track.innerHTML='<div class="bar"></div><div class="fill" id="fill"></div>';for(let t=0;t<5;t++){const k=document.createElement('div');k.className='knot'+(t===S.week?' on':'');k.style.left=(t/4*100)+'%';k.innerHTML=`<div class="d"></div><div class="lab">${t===0?'현재':'+'+t+'주'}</div>`;k.onclick=()=>{stop();S.week=t;renderTime();};track.appendChild(k);}updTrack();}
+function updTrack(){document.getElementById('fill').style.width=(S.week/4*100)+'%';track.querySelectorAll('.knot').forEach((k,i)=>k.classList.toggle('on',i===S.week));}
+function renderTime(){updTrack();paintMap();renderDetail();renderFeed();document.getElementById('weeklbl').innerHTML=(S.week===0?'<b>현재</b> · 실시간 추론':`<b>+${S.week}주</b> · 확산 예보`);}
+const playBtn=document.getElementById('play'),playIcon=document.getElementById('playicon');
+playBtn.onclick=()=>playing?stop():start();
+function start(){playing=true;playIcon.textContent='⏸';playBtn.childNodes[1].textContent=' 정지';if(S.week>=4)S.week=0;timer=setInterval(()=>{S.week++;if(S.week>4){S.week=4;renderTime();stop();return;}renderTime();},1050);renderTime();}
+function stop(){playing=false;playIcon.textContent='▶';playBtn.childNodes[1].textContent=' 확산 예보 재생';clearInterval(timer);}
+
+/* ===== national index ===== */
+function natRisk(w){let s=0,p=0;R.forEach(x=>{const e=ENG[x.id];const raw=e.riskWeek[w];const v=S.vuln?raw*vulnFactor(x.id):raw;s+=v*x.pop;p+=x.pop;});return Math.round(s/p);}
+
+/* ===== detail ===== */
+const detail=document.getElementById('detail');
+function renderDetail(){const reg=RM[curReg],e=ENG[reg.id];const raw=e.riskWeek[S.week];const v=S.vuln?Math.min(99,Math.round(raw*vulnFactor(reg.id))):raw;const nat=natRisk(S.week);const circ=2*Math.PI*40,off=circ*(1-nat/100);
+  const series=e.riskWeek;const W=230,H=58,mx=4;const px=i=>mx+i*(W-2*mx)/4,py=v=>H-4-(v/100)*(H-9);
+  detail.innerHTML=`<div class="natindex"><div class="gauge"><svg width="88" height="88"><circle cx="44" cy="44" r="40" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="7"/><circle cx="44" cy="44" r="40" fill="none" stroke="${color(nat)}" stroke-width="7" stroke-linecap="round" stroke-dasharray="${circ}" stroke-dashoffset="${off}" style="transition:.6s"/></svg><div class="val" style="color:${color(nat)}">${nat}</div></div>
+   <div class="nat-meta"><div class="stat">전국 위험지수 · <span style="color:${statusCol(nat)}">${statusOf(nat)}</span></div><div class="desc">인구가중 · ${S.week===0?'현재':'+'+S.week+'주 후 예보'}${S.vuln?' · 취약 가중':''}</div></div></div>
+   <div style="border-top:1px solid var(--line);margin:15px 0 13px"></div>
+   <div class="det-name">${reg.nm} <span class="badge" style="background:${statusCol(v)}22;color:${statusCol(v)}">${statusOf(v)} ${v}</span></div>
+   <div class="det-sub">${reg.nm} · 65세+ ${reg.eld}%${reg.id===S.origin&&SIM.hasOut?' · ◎ 발원지':''}</div>
+   <div class="metrics">
+     <div class="metric"><div class="mk">📈 Rt</div><div class="mv" style="color:${e.Rt>=1.3?'#ef4444':e.Rt>=1?'#fb923c':'var(--ok)'}">${e.Rt.toFixed(2)}</div><div class="md">${e.Rt>=1?'확대(>1)':'감소(<1)'}</div></div>
+     <div class="metric"><div class="mk">🟢 선행 리드</div><div class="mv" style="color:var(--ok)">${e.lead!=null?'D−'+e.lead:'—'}</div><div class="md">공식 대비</div></div>
+     <div class="metric"><div class="mk">⏱ 배가시간</div><div class="mv">${e.dbl?e.dbl.toFixed(1):'—'}<small>일</small></div><div class="md">2배 소요</div></div>
+     <div class="metric"><div class="mk">🐦 동물 이상</div><div class="mv" style="color:${e.z.animal>3?'#ef4444':'var(--txt)'}">${e.z.animal>=0?'+':''}${e.z.animal.toFixed(1)}<small>σ</small></div><div class="md">스필오버</div></div>
+   </div>
+   <div class="sectitle">위험도 추이 (현재→+4주)</div>
+   <svg width="100%" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="overflow:visible">
+     <path d="${series.map((y,i)=>(i?'L':'M')+px(i)+' '+py(y)).join(' ')}" fill="none" stroke="${color(series[S.week])}" stroke-width="2.5"/>
+     ${series.map((y,i)=>`<circle cx="${px(i)}" cy="${py(y)}" r="${i===S.week?4:2.5}" fill="${i===S.week?'#fff':color(y)}"/>`).join('')}
+   </svg>
+   <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:3px"><span>현재</span><span>+1</span><span>+2</span><span>+3</span><span>+4주</span></div>`;}
+
+/* ===== inference panel ===== */
+function renderInf(){const reg=RM[curReg],e=ENG[reg.id];
+  const anomalous=e.z.official>3||e.animalHot||e.lead!=null;
+  let verdict,vc,vi,vd;
+  if(!anomalous){verdict='정상 감시 중';vc=['rgba(52,211,153,.10)','rgba(52,211,153,.5)','var(--ok)'];vi='🟢';vd='Farrington 임계 기준 초과 없음. 베이스라인 정상 범위.';}
+  else if(e.animalHot){verdict='신종(원인 미상) 의심';vc=['rgba(239,68,68,.12)','#ef4444','#ef4444'];vi='⚠️';vd='계절 질환으로 설명 안 되는 급증이 동물 예찰과 동반 상승. 인수공통 스필오버 가능성 — 즉시 역학 검증 권고.';}
+  else{verdict='알려진 유행 · 확산 경계';vc=['rgba(251,146,60,.12)','#fb923c','#fb923c'];vi='🟠';vd='베이스라인 대비 유의한 이상 급증 감지. 확산 단계 진입.';}
+  const labels={waste:['하수','−10d'],search:['검색·SNS','−7d'],animal:['동물 예찰','−12d'],official:['공식 확진','0d']};
+  document.getElementById('infmeta').textContent=reg.nm;
+  document.getElementById('infbody').innerHTML=`<div class="verdict" style="background:${vc[0]};border-color:${vc[1]}"><div class="vt" style="color:${vc[2]}">${vi} ${verdict}</div><div class="vd">${vd}</div></div>
+   <div class="sectitle">신호별 이상도 (Farrington z)</div><div class="streams">${['waste','search','animal','official'].map(k=>{const z=e.z[k];const pct=clamp((z+1)/7*100,3,100);const col=z>3?'#ef4444':z>2?'#fb923c':z>1?'#fbbf24':'#34d399';const dim=(k==='animal'&&!SIM.novel)?.3:1;return `<div class="stream" style="opacity:${dim}"><div class="snm">${labels[k][0]}<small>${labels[k][1]}</small></div><div class="sbar"><i style="width:${pct}%;background:${col}"></i></div><div class="sz" style="color:${col}">${z>=0?'+':''}${z.toFixed(1)}σ</div></div>`;}).join('')}</div>`;}
+
+/* ===== network ===== */
+function renderNetwork(){const W=420,H=360;let svg='';const drawn=new Set();
+  R.forEach(a=>{const m=MOB[a.id]||{};Object.keys(m).forEach(bid=>{const key=[a.id,bid].sort().join('-');if(drawn.has(key))return;drawn.add(key);const b=RM[bid];const w=m[bid];svg+=`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="rgba(120,140,170,${.05+w*.14})" stroke-width="${.5+w*1.8}"/>`;});});
+  const maxD=35;
+  R.forEach(reg=>{const isO=reg.id===S.origin&&SIM.hasOut;const d=SIM.hasOut?SIM.arrivalDay[reg.id]:null;let col,rad=11,glow='';
+    if(isO){col='#f43f5e';rad=14;glow=`<circle cx="${reg.x}" cy="${reg.y}" r="20" fill="none" stroke="#f43f5e" stroke-width="1.5" opacity=".5"><animate attributeName="r" values="14;24;14" dur="2s" repeatCount="indefinite"/><animate attributeName="opacity" values=".6;0;.6" dur="2s" repeatCount="indefinite"/></circle>`;}
+    else if(d==null||d<0||d>maxD){col='#2a3647';}else{const k=clamp(d/maxD,0,1);col=`rgb(${Math.round(244-k*60)},${Math.round(63+k*100)},${Math.round(94+k*60)})`;}
+    svg+=glow+`<circle cx="${reg.x}" cy="${reg.y}" r="${rad}" fill="${col}" stroke="#0a0e14" stroke-width="2"/><text x="${reg.x}" y="${reg.y+4}" fill="#fff" font-size="9.5" font-weight="700" text-anchor="middle">${reg.nm}</text>`;
+    if(!isO&&d!=null&&d>=0&&d<=maxD)svg+=`<text x="${reg.x}" y="${reg.y+rad+11}" fill="${col}" font-size="9" font-family="var(--mono)" text-anchor="middle">D+${d}</text>`;});
+  document.getElementById('net').innerHTML=svg;
+  if(!SIM.hasOut){document.getElementById('arrlist').innerHTML='<div style="font-family:var(--mono);font-size:12px;color:var(--muted2);padding:14px 0;text-align:center">평상 — 확산 신호 없음</div>';document.getElementById('netmeta').textContent='—';return;}
+  const arr=R.map(reg=>({reg,d:SIM.arrivalDay[reg.id],origin:reg.id===S.origin})).filter(a=>a.origin||(a.d!=null&&a.d>=0&&a.d<=maxD)).sort((a,b)=>{if(a.origin)return -1;if(b.origin)return 1;return a.d-b.d;});
+  const maxd=Math.max(...arr.filter(a=>!a.origin).map(a=>a.d),1);
+  document.getElementById('netmeta').textContent=S.origin+' 발원 · '+(arr.length-1)+'개 지역 확산';
+  document.getElementById('arrlist').innerHTML=arr.slice(0,8).map(a=>{if(a.origin)return `<div class="arr origin"><div class="an">${a.reg.nm}</div><div class="ab"><i style="width:100%;background:#f43f5e"></i></div><div class="ad" style="color:#f43f5e"><b>발원지</b>D+0</div></div>`;const k=a.d/maxd;const col=`rgb(${Math.round(244-k*60)},${Math.round(63+k*100)},${Math.round(94+k*60)})`;return `<div class="arr"><div class="an">${a.reg.nm}</div><div class="ab"><i style="width:${100-k*75}%;background:${col}"></i></div><div class="ad" style="color:${col}"><b>D+${a.d}</b>도착 예측</div></div>`;}).join('');}
+
+/* ===== emergence ===== */
+function renderEmergence(){const reg=RM[curReg],e=ENG[reg.id];const synd=clamp(Math.round((e.z.search*8+e.z.waste*6)+(SIM.novel?reg.animalExp*30:0)+8),4,96);
+  const idx=Math.round(reg.animalExp*30+reg.density*18+reg.border*22+synd*.3);const nat=Math.round(mean(R.map(x=>RM[x.id].animalExp*30+RM[x.id].density*18+RM[x.id].border*22)));
+  document.getElementById('emgmeta').textContent=reg.nm+' · 전국 출현지수 '+nat;
+  const circ=2*Math.PI*36,offc=circ*(1-clamp(idx,0,100)/100);
+  const factors=[{k:'동물 숙주·스필오버',v:Math.round(reg.animalExp*100),ic:'🐦',col:'#f59e0b'},{k:'기후·매개체',v:Math.round(45+reg.border*20),ic:'🌡️',col:'#fb7185'},{k:'인구밀집·이동',v:Math.round(reg.density*100),ic:'🚇',col:'#38bdf8'},{k:'국경·검역 유입',v:Math.round(reg.border*100),ic:'✈️',col:'#a78bfa'},{k:'증후군 이상(미상)',v:synd,ic:'❓',col:synd>55?'#ef4444':'#94a3b8'}];
+  const modes=[{ic:'💨',n:'공기·비말',p:Math.round(clamp(45+reg.density*45,0,95)),col:'#38bdf8'},{ic:'🐄',n:'인수공통·동물',p:Math.round(clamp(reg.animalExp*90,0,96)),col:'#f59e0b'},{ic:'🦟',n:'매개체(모기)',p:Math.round(clamp((45+reg.border*20)*.82,0,92)),col:'#fb7185'},{ic:'🤝',n:'접촉·환경',p:Math.round(clamp(35+reg.density*25,0,85)),col:'#a3e635'}].sort((a,b)=>b.p-a.p);
+  const hot=synd>55;
+  document.getElementById('emgbody').innerHTML=`<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:14px"><div style="position:relative;width:80px;height:80px;flex:none"><svg width="80" height="80" style="transform:rotate(-90deg)"><circle cx="40" cy="40" r="36" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="6"/><circle cx="40" cy="40" r="36" fill="none" stroke="${color(idx)}" stroke-width="6" stroke-linecap="round" stroke-dasharray="${circ}" stroke-dashoffset="${offc}" style="transition:.6s"/></svg><div style="position:absolute;inset:0;display:grid;place-items:center;font-family:var(--mono);font-weight:700;font-size:20px;color:${color(idx)}">${idx}</div></div>
+   <div style="flex:1;min-width:200px"><div style="font-family:var(--disp);font-weight:800;font-size:16px">다음 질병(Disease X) 출현 추론 · ${reg.nm}</div><div style="color:var(--muted);font-size:12px;line-height:1.5;margin-top:5px;max-width:440px">아직 <b style="color:var(--txt)">이름 없는 다음 병원체</b>의 출현·증폭 위험을 동물·기후·이동·유입·증후군 신호로 역추론합니다. 출현은 못 막아도 먼저 추론하면 확산은 막습니다.</div></div></div>
+   <div class="emg-cols"><div><div class="sectitle">출현 위험 요인</div>${factors.map(f=>`<div class="factor"><div class="fh"><span class="fn">${f.ic} ${f.k}</span><span style="font-family:var(--mono);color:${f.col}">${f.v}</span></div><div class="ft"><div class="ff" style="width:${f.v}%;background:${f.col}"></div></div></div>`).join('')}</div>
+   <div><div class="sectitle">예상 전파 양식</div>${modes.map(m=>`<div style="display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;padding:8px 11px;margin-bottom:8px"><span style="font-size:16px">${m.ic}</span><span style="flex:1;font-size:12px">${m.n}</span><span style="width:60px;height:6px;background:rgba(255,255,255,.07);border-radius:4px;overflow:hidden"><i style="display:block;height:100%;width:${m.p}%;background:${m.col}"></i></span><span style="font-family:var(--mono);font-size:11px;width:30px;text-align:right;color:${m.col}">${m.p}</span></div>`).join('')}</div></div>
+   <div class="synalert" style="background:${hot?'rgba(239,68,68,.12)':'rgba(52,211,153,.08)'};border:1px solid ${hot?'#ef4444':'rgba(52,211,153,.5)'}"><span class="si">${hot?'⚠️':'🟢'}</span><div>${hot?`<b style="color:#ef4444">원인 미상 증상 클러스터 탐지 — 질병명 미상</b><br>${reg.nm}에서 알려진 질환으로 설명 안 되는 이상 신호. 역학 검증 권고. BlueDot이 COVID 명명 전 우한 폐렴을 9일 먼저 잡은 방식입니다.`:`<b style="color:var(--ok)">원인 미상 클러스터 신호 낮음</b><br>${reg.nm} 정상 감시 범위. 증후군 감시는 질병명 확정 전부터 24시간 가동됩니다.`}</div></div>`;}
+
+/* ===== feed ===== */
+function renderFeed(){const an=R.map(reg=>{const e=ENG[reg.id];const raw=e.riskWeek[S.week];return{reg,v:raw,delta:raw-e.baseLine,lead:e.lead};}).filter(x=>x.delta>16).sort((a,b)=>b.delta-a.delta).slice(0,6);
+  document.getElementById('feedmeta').textContent=an.length+'건 탐지';
+  if(!an.length){document.getElementById('feed').innerHTML='<div class="empty">현재 이상 신호 없음 · 전 지역 정상범위</div>';return;}
+  document.getElementById('feed').innerHTML=an.map(x=>{const lead=x.lead!=null?x.lead:Math.round(x.delta/6+3);return `<div class="fitem" onclick="window.__sel('${x.reg.id}')"><div class="fbar" style="background:${color(x.v)}"></div><div class="fnm">${x.reg.nm} <small>위험도 ${x.v} · 베이스라인 +${x.delta}</small></div><div class="flead">공식보고<b>D−${lead}</b>선행</div></div>`;}).join('');}
+window.__sel=id=>{curReg=id;renderDetail();renderInf();renderEmergence();markSel();};
+
+/* ===== AI ===== */
+document.getElementById('aibtn').onclick=async()=>{const box=document.getElementById('aibox');box.innerHTML=`<div class="ai-load"><div class="spin"></div>Claude가 엔진 신호·확산 예측 기반 역학 추론 중…</div>`;
+  const reg=RM[curReg],e=ENG[reg.id];const nextArr=R.filter(x=>x.id!==S.origin&&SIM.hasOut&&SIM.arrivalDay[x.id]!=null&&SIM.arrivalDay[x.id]>=0&&SIM.arrivalDay[x.id]<=35).sort((a,b)=>SIM.arrivalDay[a.id]-SIM.arrivalDay[b.id]).slice(0,3).map(x=>x.nm+'(D+'+SIM.arrivalDay[x.id]+')');
+  const payload={지역:reg.nm,'65세이상%':reg.eld,발원지여부:reg.id===S.origin,Rt:Number(e.Rt.toFixed(2)),배가시간일:e.dbl?Number(e.dbl.toFixed(1)):null,공식대비선행탐지일:e.lead,동물예찰이상시그마:Number(e.z.animal.toFixed(1)),하수:Number(e.z.waste.toFixed(1)),검색SNS:Number(e.z.search.toFixed(1)),확산도착예측:nextArr,인구밀집:reg.density,해외유입:reg.border};
+  const prompt=`너는 신중한 감염병 역학 전문가다. 조기경보 엔진 탐지 신호다(질병명 미상). 이 신호만으로 추론하라.\n\n${JSON.stringify(payload,null,2)}\n\n각 2~3문장 이내, 불확실성 명시, 과장 없이 한국어로:\n1) 평가: 알려진 계절질환 유행인가 신종 가능성인가? 근거는?\n2) 전파 양식 추론(공기/인수공통/매개체/접촉)?\n3) 확산 도착 예측 지역 선제 대응?\n4) 최우선 보호 취약집단 + 즉시 대응 3가지.\n제목 없이 1~4 번호로만.`;
+  try{const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,messages:[{role:"user",content:prompt}]})});if(!res.ok)throw new Error('API 오류 ('+res.status+')');const data=await res.json();const text=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n').trim();box.innerHTML='<div class="ai-out"></div>';box.querySelector('.ai-out').textContent=text||'응답 없음.';}catch(e){box.innerHTML=`<div class="ai-err"><b>AI 추론 호출 실패.</b><br>${e.message}<br><br>claude.ai 아티팩트 환경에서 동작합니다. 통계 엔진은 정상 작동합니다.</div>`;}};
+
+/* ===== orchestrate ===== */
+const scaleEl=document.getElementById('scale');for(let i=0;i<=100;i+=4){const s=document.createElement('i');s.style.background=color(i);scaleEl.appendChild(s);}
+function renderAllViews(){paintMap();renderDetail();renderInf();renderEmergence();renderNetwork();renderFeed();}
+function fullRun(){simulate();buildMap();buildTrack();renderSources();S.week=0;renderTime();renderInf();renderEmergence();renderNetwork();document.getElementById('esub').textContent=SIM.hasOut?'이상 패턴 추적중':'정상 추론중';}
+document.querySelectorAll('#scenario button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#scenario button').forEach(x=>x.classList.remove('on'));b.classList.add('on');S.scenario=b.dataset.s;curReg=S.origin;fullRun();document.getElementById('aibox').innerHTML='<div class="ai-empty">시나리오 변경됨. AI 추론을 다시 실행하세요.</div>';});
+originSel.onchange=()=>{S.origin=originSel.value;curReg=S.origin;fullRun();};
+document.getElementById('vulnbtn').onclick=()=>{S.vuln=!S.vuln;document.getElementById('vulnbtn').classList.toggle('on',S.vuln);paintMap();renderDetail();};
+document.getElementById('regen').onclick=()=>{S.seed=Math.floor(Math.random()*1e6);fullRun();};
+fullRun();
+</script>
+</body>
+</html>

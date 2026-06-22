@@ -1,0 +1,51 @@
+@import "tailwindcss";
+
+:root {
+  --bg:     #050810;
+  --bg2:    #0a1018;
+  --panel:  rgba(14,22,35,.78);
+  --panel2: #121925;
+  --line:   rgba(120,140,170,.14);
+  --line2:  rgba(120,140,170,.28);
+  --txt:    #e9eef5;
+  --muted:  #7c8aa0;
+  --muted2: #566377;
+  --accent: #f43f5e;
+  --ok:     #34d399;
+  --cyan:   #38bdf8;
+  --amber:  #fbbf24;
+  --violet: #a78bfa;
+  --pink:   #f472b6;
+  --kr:     "Pretendard Variable", Pretendard, sans-serif;
+  --disp:   "Bricolage Grotesque", var(--kr);
+  --mono:   "JetBrains Mono", monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--bg);
+  color: var(--txt);
+  font-family: var(--kr);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+body {
+  background:
+    radial-gradient(1400px 800px at 75% -10%, rgba(244,63,94,.09), transparent 60%),
+    radial-gradient(900px 600px at 5% 110%, rgba(167,139,250,.07), transparent 55%),
+    var(--bg);
+}
+
+body::before {
+  content: "";
+  position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: .04;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+@keyframes radar  { to { transform: rotate(360deg); } }
+@keyframes blink  { 0%,100%{opacity:1} 50%{opacity:.25} }
+@keyframes fade   { from{opacity:0;transform:translateY(6px)} to{opacity:1} }
+@keyframes cpulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+@keyframes sp     { to{transform:rotate(360deg)} }
