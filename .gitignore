@@ -25,7 +25,7 @@ yarn-error.log*
 epiweather-api/data/*.jsonl
 epiweather-api/data/*.log
 epiweather-api/data/error_log.txt
-epiweather-handoff/engine/output/*
+# engine/output/*.json은 PoC 백테스트 증거 산출물이라 추적함 (제외하지 않음)
 
 # misc
 .DS_Store

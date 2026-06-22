@@ -1,0 +1,32 @@
+{
+  "period": [
+    "2026-02-01",
+    "2026-06-22"
+  ],
+  "who_pheic_date": "2026-05-16",
+  "outbreak_reported_date": "2026-05-01",
+  "theorized_onset": "2026-02-01",
+  "results": [
+    {
+      "lang": "en",
+      "title": "Ebola virus disease",
+      "label": "영어 일반 문서(전세계 관심도)",
+      "baseline_daily": 182.5,
+      "anomaly_date": "2026-05-15",
+      "lead_days_vs_pheic": 1,
+      "peak_daily": 3647
+    },
+    {
+      "lang": "fr",
+      "title": "Maladie à virus Ebola",
+      "label": "프랑스어 일반 문서(DRC 공용어)",
+      "baseline_daily": 41.1,
+      "anomaly_date": "2026-05-11",
+      "lead_days_vs_pheic": 5,
+      "peak_daily": 3415
+    }
+  ],
+  "pubmed_mentions": 16,
+  "data_source": "Wikimedia REST API 실시간 호출 + PubMed E-utilities (합성 데이터 없음)",
+  "caveat": "이론상 최초감염(2월)과 신호 감지 사이 공백 있음 — 'WHO 공식선언 대비' 선행성만 검증됨"
+}

@@ -1,0 +1,154 @@
+{
+  "period": [
+    "2021-09-06",
+    "2025-04-28"
+  ],
+  "n_weeks_aligned": 191,
+  "seasons": [
+    {
+      "name": "2021-2022",
+      "onset_week_index": 11,
+      "season_length_weeks": 47
+    },
+    {
+      "name": "2022-2023",
+      "onset_week_index": 17,
+      "season_length_weeks": 53
+    },
+    {
+      "name": "2023-2024",
+      "onset_week_index": 16,
+      "season_length_weeks": 52
+    },
+    {
+      "name": "2024-2025",
+      "onset_week_index": 15,
+      "season_length_weeks": 39
+    }
+  ],
+  "results": {
+    "farrington": {
+      "detection_rate": 0.75,
+      "mean_lead_weeks": 0.6666666666666666,
+      "median_lead_weeks": 0.0,
+      "total_false_alarms": 0,
+      "seasons": [
+        {
+          "season": "2021-2022",
+          "official_onset_week": 11,
+          "detected_at_week": null,
+          "lead_weeks": null,
+          "detected": false,
+          "false_alarms": 0
+        },
+        {
+          "season": "2022-2023",
+          "official_onset_week": 17,
+          "detected_at_week": 17,
+          "lead_weeks": 0,
+          "detected": true,
+          "false_alarms": 0
+        },
+        {
+          "season": "2023-2024",
+          "official_onset_week": 16,
+          "detected_at_week": 14,
+          "lead_weeks": 2,
+          "detected": true,
+          "false_alarms": 0
+        },
+        {
+          "season": "2024-2025",
+          "official_onset_week": 15,
+          "detected_at_week": 15,
+          "lead_weeks": 0,
+          "detected": true,
+          "false_alarms": 0
+        }
+      ]
+    },
+    "zscore": {
+      "detection_rate": 1.0,
+      "mean_lead_weeks": 1.25,
+      "median_lead_weeks": 2.0,
+      "total_false_alarms": 1,
+      "seasons": [
+        {
+          "season": "2021-2022",
+          "official_onset_week": 11,
+          "detected_at_week": 9,
+          "lead_weeks": 2,
+          "detected": true,
+          "false_alarms": 0
+        },
+        {
+          "season": "2022-2023",
+          "official_onset_week": 17,
+          "detected_at_week": 14,
+          "lead_weeks": 3,
+          "detected": true,
+          "false_alarms": 1
+        },
+        {
+          "season": "2023-2024",
+          "official_onset_week": 16,
+          "detected_at_week": 14,
+          "lead_weeks": 2,
+          "detected": true,
+          "false_alarms": 0
+        },
+        {
+          "season": "2024-2025",
+          "official_onset_week": 15,
+          "detected_at_week": 17,
+          "lead_weeks": -2,
+          "detected": true,
+          "false_alarms": 0
+        }
+      ]
+    },
+    "ewma": {
+      "detection_rate": 1.0,
+      "mean_lead_weeks": 5.25,
+      "median_lead_weeks": 5.0,
+      "total_false_alarms": 4,
+      "seasons": [
+        {
+          "season": "2021-2022",
+          "official_onset_week": 11,
+          "detected_at_week": 9,
+          "lead_weeks": 2,
+          "detected": true,
+          "false_alarms": 0
+        },
+        {
+          "season": "2022-2023",
+          "official_onset_week": 17,
+          "detected_at_week": 8,
+          "lead_weeks": 9,
+          "detected": true,
+          "false_alarms": 2
+        },
+        {
+          "season": "2023-2024",
+          "official_onset_week": 16,
+          "detected_at_week": 8,
+          "lead_weeks": 8,
+          "detected": true,
+          "false_alarms": 2
+        },
+        {
+          "season": "2024-2025",
+          "official_onset_week": 15,
+          "detected_at_week": 13,
+          "lead_weeks": 2,
+          "detected": true,
+          "false_alarms": 0
+        }
+      ]
+    }
+  },
+  "ili_data_source": "KDCA 공공데이터포털 인플루엔자 표본감시 Open API (apis.data.go.kr/1790387/flu/flu) — 실시간 호출",
+  "search_data_source": "네이버 데이터랩 API 실시간 호출 (다년치, 2년 단위 분할 요청)",
+  "caveat": "방법(Farrington/zscore/EWMA)에 따라 평균 리드타임이 크게 다름 — 헛경보가 적은 Farrington이 가장 보수적·신뢰도 높은 추정. EWMA의 긴 리드타임은 헛경보 증가와 트레이드오프이므로 '선행 N주'를 단일 숫자로 단정하면 안 됨."
+}

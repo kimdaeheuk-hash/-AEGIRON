@@ -1,0 +1,39 @@
+{
+  "period": [
+    "2019-12-01",
+    "2020-03-15"
+  ],
+  "first_case_date": "2020-01-20",
+  "daegu_outbreak_date": "2020-02-18",
+  "results": [
+    {
+      "keyword_group": "우한폐렴",
+      "date_5pct": "2020-01-20",
+      "date_20pct": "2020-01-21",
+      "lead_days_vs_first_case": 0,
+      "lead_days_vs_daegu": 28,
+      "peak_ratio": 42.06357,
+      "reliable": true
+    },
+    {
+      "keyword_group": "코로나19",
+      "date_5pct": "2020-01-09",
+      "date_20pct": "2020-02-13",
+      "lead_days_vs_first_case": 11,
+      "lead_days_vs_daegu": 5,
+      "peak_ratio": 100,
+      "reliable": true
+    },
+    {
+      "keyword_group": "마스크",
+      "date_5pct": "2020-01-27",
+      "date_20pct": "2020-01-28",
+      "lead_days_vs_first_case": -7,
+      "lead_days_vs_daegu": 21,
+      "peak_ratio": 0.11646,
+      "reliable": false
+    }
+  ],
+  "case_data_source": "Our World in Data / JHU CSSE 일별 집계 (원천: 한국 질병관리청 공식 발표) — 실시간 API 호출",
+  "search_data_source": "네이버 데이터랩 API 실시간 호출"
+}

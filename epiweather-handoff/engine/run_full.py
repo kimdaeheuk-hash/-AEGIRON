@@ -9,6 +9,7 @@
 4) 종합 리포트
 """
 import sys, os
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 import numpy as np
@@ -83,6 +84,8 @@ def main():
 
     print_report(reports, "검색어로 탐지 → ILI 유행 onset 대비 리드타임", unit="주")
     detail_table(reports, "farrington", unit="주")
+    detail_table(reports, "zscore", unit="주")
+    detail_table(reports, "ewma", unit="주")
 
     far = reports["farrington"]
     print("\n" + "=" * 64)
@@ -92,6 +95,43 @@ def main():
     if ml is not None:
         print(f"   평균 선행 리드타임: {ml:+.1f}주  (탐지율 {far.detection_rate*100:.0f}%)")
     print("=" * 64)
+    print(" 주의: 방법별로 결과가 다름 — Farrington(보수적, 헛경보 적음)이 가장 신뢰도 높은")
+    print(" 기준이며, EWMA가 보여주는 더 긴 리드타임은 헛경보가 그만큼 늘어난 트레이드오프임.")
+
+    # 결과 저장 (covid/ebola 백테스트와 동일한 패턴)
+    import json
+    out_dir = os.path.join(os.path.dirname(__file__), "output")
+    os.makedirs(out_dir, exist_ok=True)
+    out_path = os.path.join(out_dir, "flu_backtest_result.json")
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump({
+            "period": [str(df["date"].min().date()), str(df["date"].max().date())],
+            "n_weeks_aligned": len(df),
+            "seasons": [
+                {"name": s["name"], "onset_week_index": s["onset"], "season_length_weeks": len(s["signals"]["official"])}
+                for s in seasons
+            ],
+            "results": {
+                m: {
+                    "detection_rate": rep.detection_rate,
+                    "mean_lead_weeks": rep.mean_lead,
+                    "median_lead_weeks": rep.median_lead,
+                    "total_false_alarms": rep.total_false_alarms,
+                    "seasons": [
+                        {"season": sc.season, "official_onset_week": sc.official_onset,
+                         "detected_at_week": sc.detected_at, "lead_weeks": sc.lead_time_days,
+                         "detected": sc.detected, "false_alarms": sc.false_alarms}
+                        for sc in rep.scores
+                    ],
+                } for m, rep in reports.items()
+            },
+            "ili_data_source": "KDCA 공공데이터포털 인플루엔자 표본감시 Open API (apis.data.go.kr/1790387/flu/flu) — 실시간 호출",
+            "search_data_source": "네이버 데이터랩 API 실시간 호출 (다년치, 2년 단위 분할 요청)",
+            "caveat": "방법(Farrington/zscore/EWMA)에 따라 평균 리드타임이 크게 다름 — 헛경보가 적은"
+                      " Farrington이 가장 보수적·신뢰도 높은 추정. EWMA의 긴 리드타임은 헛경보 증가와"
+                      " 트레이드오프이므로 '선행 N주'를 단일 숫자로 단정하면 안 됨.",
+        }, f, ensure_ascii=False, indent=2)
+    print(f"\n 결과 저장: {out_path}")
 
 
 if __name__ == "__main__":
