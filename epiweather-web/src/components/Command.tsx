@@ -173,9 +173,9 @@ export default function Command() {
       </div>
 
       {/* 메인 레이아웃 */}
-      <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr', gap: 18 }}>
+      <div className="shell">
         {/* 사이드바 */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, position: 'sticky', top: 14, alignSelf: 'start', maxHeight: 'calc(100vh - 30px)', overflowY: 'auto', paddingRight: 4 }}>
+        <div className="sidenav" style={{ display: 'flex', flexDirection: 'column', gap: 6, position: 'sticky', top: 14, alignSelf: 'start', maxHeight: 'calc(100vh - 30px)', overflowY: 'auto', paddingRight: 4 }}>
           {STAGES.map(s => (
             <button key={s.id}
               onClick={() => setStage(s.id)}
@@ -238,6 +238,11 @@ export default function Command() {
         .card-h { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 10px; flex-wrap: wrap; }
         .lbl { font-family: var(--mono); font-size: 10px; letter-spacing: .18em; color: var(--muted); text-transform: uppercase; }
         .grid2 { display: grid; grid-template-columns: 1.4fr 1fr; gap: 14px; }
+        .shell { display: grid; grid-template-columns: 240px 1fr; gap: 18px; }
+        @media(max-width:760px) {
+          .shell { grid-template-columns: 1fr; }
+          .sidenav { position: static !important; max-height: none !important; overflow-y: visible !important; }
+        }
         .oc { border-radius: 12px; padding: 11px; border: 1px solid var(--line); background: rgba(255,255,255,.025); }
         .ok { font-size: 10.5px; color: var(--muted); display: flex; align-items: center; gap: 5px; }
         .ov { font-family: var(--mono); font-weight: 700; font-size: 19px; margin-top: 5px; }
