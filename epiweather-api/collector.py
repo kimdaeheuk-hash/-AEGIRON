@@ -153,9 +153,15 @@ def collect_free_sources() -> dict:
             f"en.wikipedia/all-access/all-agents/2026_Central_Africa_Ebola_epidemic/daily/{start_s}/{end_s}",
             headers=USER_AGENT, timeout=15,
         )
-        r.raise_for_status()
-        result["wiki_ebola_daily"] = sum(i["views"] for i in r.json().get("items", []))
-        log(f"  Wikipedia 에볼라: {result['wiki_ebola_daily']}회/일")
+        if r.status_code == 404:
+            # 위키미디어 페이지뷰 집계는 보통 전날치가 다음날 정오 전후까지 늦게
+            # 올라옴 — 그 전까지의 404는 정상적인 지연이라 에러로 기록하지 않음.
+            result["wiki_ebola_daily"] = None
+            log("  Wikipedia 에볼라: 아직 집계 안 됨 (정상 지연, 404)")
+        else:
+            r.raise_for_status()
+            result["wiki_ebola_daily"] = sum(i["views"] for i in r.json().get("items", []))
+            log(f"  Wikipedia 에볼라: {result['wiki_ebola_daily']}회/일")
     except Exception as e:
         result["wiki_ebola_daily"] = None
         log_error("Wikipedia_Ebola", e)
