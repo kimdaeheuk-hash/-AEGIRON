@@ -3,7 +3,7 @@
 Windows 작업 스케줄러 등에서 무인 실행되는 스크립트. input() 없음 — 끝까지 실행 후 자동 종료.
 
 실행 모드:
-  python collector.py free   → 무료 소스만 (KDCA·네이버·WHO AFRO·WHO PAHO·CDC NWSS·CDC EID·Wikipedia·PubMed·Polymarket)
+  python collector.py free   → 무료 소스만 (KDCA·네이버·WHO AFRO·WHO PAHO·CDC NWSS·CDC EID·CIDRAP·Wikipedia·PubMed·Polymarket)
   python collector.py ai     → AI 갭필링 (Perplexity·Tavily·Claude, 비용 발생)
   python collector.py full   → 전부 다 (하루 1회 권장)
 
@@ -54,6 +54,16 @@ KDCA_WATCH_DISEASES = [
     "마버그열", "신종인플루엔자", "신종감염병증후군", "콜레라", "홍역", "페스트",
 ]
 
+# CIDRAP(미네소타대 감염병연구정책센터) — 공중보건 학계에서 WHO·CDC도 참고하는
+# 전문가 큐레이션 매체. 질병별 RSS를 직접 운영해서 ProMED 유료화 이후 가장 쓸만한
+# "전문가가 먼저 의심한다" 류 신호. 2026-06-24 라이브 확인.
+CIDRAP_FEEDS = [
+    ("ebola", "에볼라", "https://www.cidrap.umn.edu/news/64/rss"),
+    ("mers", "MERS", "https://www.cidrap.umn.edu/news/84/rss"),
+    ("avian_flu", "조류인플루엔자", "https://www.cidrap.umn.edu/news/49/rss"),
+    ("cholera", "콜레라", "https://www.cidrap.umn.edu/news/58/rss"),
+]
+
 # Polymarket 팬데믹 예측시장 — 군중 베팅 가격이 곧 확률 추정치라 LLM 합성 없이
 # 그대로 신호로 씀. slug는 폴리마켓 이벤트 URL의 마지막 경로.
 POLYMARKET_WATCHLIST = [
@@ -89,6 +99,19 @@ def fetch_kdca_weekly(api_key: str, weeks_back: int = 4) -> dict[str, dict[str, 
         if name not in KDCA_WATCH_DISEASES or it["period"] not in recent_weeks:
             continue
         out.setdefault(name, {})[it["period"]] = int(it["resultVal"])
+    return out
+
+
+def fetch_cidrap() -> dict[str, int | None]:
+    """CIDRAP 질병별 RSS 건수. 피드 하나가 죽어도 나머지는 계속 수집."""
+    out: dict[str, int | None] = {}
+    for slug, label, url in CIDRAP_FEEDS:
+        try:
+            r = requests.get(url, headers=USER_AGENT, timeout=15)
+            r.raise_for_status()
+            out[slug] = r.text.count("<item>")
+        except Exception:
+            out[slug] = None
     return out
 
 
@@ -274,6 +297,15 @@ def collect_free_sources() -> dict:
     except Exception as e:
         result["cdc_eid_items"] = None
         log_error("CDC_EID", e)
+
+    try:
+        result["cidrap"] = fetch_cidrap()
+        labels = {slug: label for slug, label, _ in CIDRAP_FEEDS}
+        summary = ", ".join(f"{labels[k]}={v}건" for k, v in result["cidrap"].items())
+        log(f"  CIDRAP(미네소타대): {summary}")
+    except Exception as e:
+        result["cidrap"] = None
+        log_error("CIDRAP", e)
 
     try:
         end_s = dt.date.today().strftime("%Y%m%d00")
