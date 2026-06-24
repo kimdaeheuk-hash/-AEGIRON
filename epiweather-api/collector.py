@@ -4,7 +4,7 @@ Windows 작업 스케줄러 등에서 무인 실행되는 스크립트. input() 
 
 실행 모드:
   python collector.py free   → 무료 소스만 (KDCA·네이버·WHO AFRO·WHO PAHO·CDC NWSS·CDC EID·
-                                CIDRAP·홍콩CHP·일본IDWR·Wikipedia·PubMed·Polymarket)
+                                CIDRAP·홍콩CHP·일본IDWR·브라질InfoDengue·Wikipedia·PubMed·Polymarket)
   python collector.py ai     → AI 갭필링 (Perplexity·Tavily·Claude, 비용 발생)
   python collector.py full   → 전부 다 (하루 1회 권장)
 
@@ -80,6 +80,14 @@ POLYMARKET_WATCHLIST = [
     ("ebola-case-in-the-us-by-june-30", "에볼라 미국 유입"),
     ("new-coronavirus-pandemic-in-2026", "코로나 변종 재유행"),
     ("measles-cases-in-us-in-2026", "홍역 미국 확산"),
+]
+
+# 브라질 InfoDengue(UFMG·Fiocruz 대학 연구진 공동개발) — 도시별 댕기열을
+# 자체 나우캐스팅 모델로 Rt·경보단계까지 계산해서 제공하는 연구급 API.
+# IBGE 도시코드: 상파울루 3550308, 리우데자네이루 3304557.
+INFODENGUE_CITIES = [
+    (3550308, "상파울루"),
+    (3304557, "리우데자네이루"),
 ]
 
 
@@ -166,6 +174,42 @@ def fetch_japan_idwr() -> dict | None:
         except Exception:
             continue
     return None
+
+
+def fetch_infodengue() -> dict[str, dict | None]:
+    """브라질 InfoDengue — 도시별 댕기열 Rt·경보단계·추정확진자(최근 4주 중 최신).
+    한 도시 실패해도 나머지는 계속 수집."""
+    year = dt.date.today().year
+    cur_week = dt.date.today().isocalendar()[1]
+    out: dict[str, dict | None] = {}
+    for geocode, label in INFODENGUE_CITIES:
+        try:
+            r = requests.get(
+                "https://info.dengue.mat.br/api/alertcity",
+                params={
+                    "geocode": geocode, "disease": "dengue", "format": "json",
+                    "ew_start": max(1, cur_week - 4), "ew_end": cur_week,
+                    "ey_start": year, "ey_end": year,
+                },
+                headers=USER_AGENT, timeout=15,
+            )
+            r.raise_for_status()
+            rows = r.json()
+            if not rows:
+                out[label] = None
+                continue
+            latest = rows[0]  # 최신순 정렬
+            out[label] = {
+                "week": latest["SE"],
+                "casos": latest["casos"],
+                "casos_estimados": latest["casos_est"],
+                "rt": latest["Rt"],
+                "nivel": latest["nivel"],
+                "inc_per_100k": latest["p_inc100k"],
+            }
+        except Exception:
+            out[label] = None
+    return out
 
 
 def fetch_polymarket_odds() -> dict[str, dict]:
@@ -380,6 +424,17 @@ def collect_free_sources() -> dict:
     except Exception as e:
         result["japan_idwr"] = None
         log_error("Japan_IDWR", e)
+
+    try:
+        result["infodengue"] = fetch_infodengue()
+        summary = ", ".join(
+            f"{label}=Rt{v['rt']:.2f}(경보{v['nivel']})" if v else f"{label}=실패"
+            for label, v in result["infodengue"].items()
+        )
+        log(f"  InfoDengue(브라질): {summary}")
+    except Exception as e:
+        result["infodengue"] = None
+        log_error("InfoDengue", e)
 
     try:
         end_s = dt.date.today().strftime("%Y%m%d00")
