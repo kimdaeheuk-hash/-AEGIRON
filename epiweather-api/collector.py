@@ -3,7 +3,7 @@
 Windows 작업 스케줄러 등에서 무인 실행되는 스크립트. input() 없음 — 끝까지 실행 후 자동 종료.
 
 실행 모드:
-  python collector.py free   → 무료 소스만 (KDCA·네이버·WHO AFRO·WHO PAHO·Wikipedia·PubMed·Polymarket)
+  python collector.py free   → 무료 소스만 (KDCA·네이버·WHO AFRO·WHO PAHO·CDC NWSS·CDC EID·Wikipedia·PubMed·Polymarket)
   python collector.py ai     → AI 갭필링 (Perplexity·Tavily·Claude, 비용 발생)
   python collector.py full   → 전부 다 (하루 1회 권장)
 
@@ -234,6 +234,46 @@ def collect_free_sources() -> dict:
     except Exception as e:
         result["who_paho_items"] = None
         log_error("WHO_PAHO", e)
+
+    try:
+        # 원래 쓰려던 percentile 지표 데이터셋(2ew6-ywp6)은 2025-09-12 보관 처리되어
+        # 더 안 올라옴 — CDC가 안내한 대체 원시샘플 데이터셋(j9g8-acpt)으로 서버단
+        # 집계(최신일 보고 사이트 수·평균 SARS-CoV-2 농도) 조회.
+        latest = requests.get(
+            "https://data.cdc.gov/resource/j9g8-acpt.json",
+            params={"$select": "sample_collect_date", "$order": "sample_collect_date DESC", "$limit": 1},
+            headers=USER_AGENT, timeout=15,
+        )
+        latest.raise_for_status()
+        latest_date = latest.json()[0]["sample_collect_date"][:10]
+
+        agg = requests.get(
+            "https://data.cdc.gov/resource/j9g8-acpt.json",
+            params={"$select": "count(*) as n, avg(pcr_target_avg_conc) as avg_conc",
+                    "$where": f"sample_collect_date='{latest_date}'"},
+            headers=USER_AGENT, timeout=15,
+        )
+        agg.raise_for_status()
+        row = agg.json()[0]
+        result["cdc_nwss"] = {
+            "date": latest_date,
+            "site_count": int(row["n"]),
+            "mean_concentration": round(float(row["avg_conc"]), 1) if row.get("avg_conc") else None,
+        }
+        log(f"  CDC NWSS(하수): {latest_date} 기준 {result['cdc_nwss']['site_count']}개 사이트, "
+            f"평균농도 {result['cdc_nwss']['mean_concentration']}")
+    except Exception as e:
+        result["cdc_nwss"] = None
+        log_error("CDC_NWSS", e)
+
+    try:
+        r = requests.get("https://wwwnc.cdc.gov/eid/rss/ahead-of-print.xml", headers=USER_AGENT, timeout=15)
+        r.raise_for_status()
+        result["cdc_eid_items"] = r.text.count("<item>")
+        log(f"  CDC EID 저널: {result['cdc_eid_items']}건")
+    except Exception as e:
+        result["cdc_eid_items"] = None
+        log_error("CDC_EID", e)
 
     try:
         end_s = dt.date.today().strftime("%Y%m%d00")
