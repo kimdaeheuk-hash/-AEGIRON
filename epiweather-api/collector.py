@@ -3,7 +3,7 @@
 Windows 작업 스케줄러 등에서 무인 실행되는 스크립트. input() 없음 — 끝까지 실행 후 자동 종료.
 
 실행 모드:
-  python collector.py free   → 무료 소스만 (KDCA·네이버·WHO AFRO·Wikipedia·PubMed)
+  python collector.py free   → 무료 소스만 (KDCA·네이버·WHO AFRO·WHO PAHO·Wikipedia·PubMed·Polymarket)
   python collector.py ai     → AI 갭필링 (Perplexity·Tavily·Claude, 비용 발생)
   python collector.py full   → 전부 다 (하루 1회 권장)
 
@@ -54,6 +54,16 @@ KDCA_WATCH_DISEASES = [
     "마버그열", "신종인플루엔자", "신종감염병증후군", "콜레라", "홍역", "페스트",
 ]
 
+# Polymarket 팬데믹 예측시장 — 군중 베팅 가격이 곧 확률 추정치라 LLM 합성 없이
+# 그대로 신호로 씀. slug는 폴리마켓 이벤트 URL의 마지막 경로.
+POLYMARKET_WATCHLIST = [
+    ("new-pandemic-in-2026", "신규 팬데믹(2026)"),
+    ("ebola-pandemic-in-2026", "에볼라 팬데믹 전환"),
+    ("ebola-case-in-the-us-by-june-30", "에볼라 미국 유입"),
+    ("new-coronavirus-pandemic-in-2026", "코로나 변종 재유행"),
+    ("measles-cases-in-us-in-2026", "홍역 미국 확산"),
+]
+
 
 def fetch_kdca_weekly(api_key: str, weeks_back: int = 4) -> dict[str, dict[str, int]]:
     """관심 법정감염병의 최근 N주 주간 신고 건수. searchPeriodType=3(주간) 사용."""
@@ -80,6 +90,75 @@ def fetch_kdca_weekly(api_key: str, weeks_back: int = 4) -> dict[str, dict[str, 
             continue
         out.setdefault(name, {})[it["period"]] = int(it["resultVal"])
     return out
+
+
+def fetch_polymarket_odds() -> dict[str, dict]:
+    """워치리스트 팬데믹 예측시장의 현재가(Yes 확률)·거래량. 키 불필요, 완전 무료."""
+    slugs = [slug for slug, _ in POLYMARKET_WATCHLIST]
+    r = requests.get(
+        "https://gamma-api.polymarket.com/events",
+        params=[("slug", s) for s in slugs],
+        headers=USER_AGENT,
+        timeout=15,
+    )
+    r.raise_for_status()
+    by_slug = {e["slug"]: e for e in r.json()}
+
+    out: dict[str, dict] = {}
+    for slug, label in POLYMARKET_WATCHLIST:
+        event = by_slug.get(slug)
+        if not event or not event.get("markets"):
+            continue
+        market = event["markets"][0]
+        prices = json.loads(market["outcomePrices"])  # ["Yes가", "No가"]
+        out[slug] = {
+            "label": label,
+            "yes_probability": float(prices[0]),
+            "volume_24h": event.get("volume24hr"),
+        }
+    return out
+
+
+POLYMARKET_HISTORY_FILE = DATA_DIR / "polymarket_history.json"
+
+# 급변("쏠림") 판정 기준: 직전 회차 대비 확률이 3%p 이상 움직이거나
+# 24시간 거래량이 2배 이상 뛰면 단순 정보가 아니라 "변화" 신호로 플래그.
+PROB_SURGE_THRESHOLD = 0.03
+VOLUME_SURGE_RATIO = 2.0
+
+
+def detect_polymarket_surges(odds: dict[str, dict]) -> dict[str, dict]:
+    """직전 회차 스냅샷과 비교해 각 시장에 prob_change·volume_ratio·surge_alert를 채워 넣는다."""
+    DATA_DIR.mkdir(exist_ok=True)
+    try:
+        history = json.loads(POLYMARKET_HISTORY_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        history = {}
+
+    for slug, entry in odds.items():
+        prev = history.get(slug)
+        entry["prob_change"] = None
+        entry["volume_ratio"] = None
+        entry["surge_alert"] = False
+
+        if prev:
+            prob_change = entry["yes_probability"] - prev["yes_probability"]
+            entry["prob_change"] = round(prob_change, 4)
+
+            ratio = None
+            prev_vol = prev.get("volume_24h") or 0
+            if prev_vol > 0 and entry.get("volume_24h") is not None:
+                ratio = round(entry["volume_24h"] / prev_vol, 2)
+                entry["volume_ratio"] = ratio
+
+            entry["surge_alert"] = abs(prob_change) >= PROB_SURGE_THRESHOLD or (
+                ratio is not None and ratio >= VOLUME_SURGE_RATIO
+            )
+
+        history[slug] = {"yes_probability": entry["yes_probability"], "volume_24h": entry.get("volume_24h")}
+
+    POLYMARKET_HISTORY_FILE.write_text(json.dumps(history, ensure_ascii=False, indent=2), encoding="utf-8")
+    return odds
 
 
 # ══════════════════════════════════════════════
@@ -146,6 +225,17 @@ def collect_free_sources() -> dict:
         log_error("WHO_AFRO", e)
 
     try:
+        # WHO EMRO·SEARO·WPRO RSS는 전부 죽어있음(404·302→404, 2026-06-24 재확인) —
+        # 그 지역은 global_watch.py의 AI 검색 갭필링으로 우회 중. PAHO(아메리카)만 살아있음.
+        r = requests.get("https://www.paho.org/en/rss.xml", headers=USER_AGENT, timeout=15)
+        r.raise_for_status()
+        result["who_paho_items"] = r.text.count("<item>")
+        log(f"  WHO PAHO: {result['who_paho_items']}건")
+    except Exception as e:
+        result["who_paho_items"] = None
+        log_error("WHO_PAHO", e)
+
+    try:
         end_s = dt.date.today().strftime("%Y%m%d00")
         start_s = (dt.date.today() - dt.timedelta(days=1)).strftime("%Y%m%d00")
         r = requests.get(
@@ -179,9 +269,36 @@ def collect_free_sources() -> dict:
         result["pubmed_ebola_count"] = None
         log_error("PubMed", e)
 
+    try:
+        result["polymarket"] = detect_polymarket_surges(fetch_polymarket_odds())
+        for slug, v in result["polymarket"].items():
+            tag = "  🚨 급변" if v["surge_alert"] else " "
+            change = f" (Δ{v['prob_change']*100:+.1f}%p)" if v["prob_change"] is not None else ""
+            log(f"{tag} Polymarket {v['label']}: Yes {v['yes_probability']*100:.1f}%{change} "
+                f"(24h거래량 {v['volume_24h']:.0f})")
+    except Exception as e:
+        result["polymarket"] = None
+        log_error("Polymarket", e)
+
     append_signal(result)
     log("=== 무료 소스 수집 완료 ===")
     return result
+
+
+def get_latest_polymarket_signals() -> dict | None:
+    """가장 최근 free_sources 회차의 Polymarket 신호를 재사용 (재수집하면 히스토리 비교가 꼬임)."""
+    if not LOG_FILE.exists():
+        return None
+    with open(LOG_FILE, encoding="utf-8") as f:
+        lines = f.readlines()
+    for line in reversed(lines):
+        try:
+            rec = json.loads(line)
+        except Exception:
+            continue
+        if rec.get("type") == "free_sources" and rec.get("polymarket"):
+            return rec["polymarket"]
+    return None
 
 
 # ══════════════════════════════════════════════
@@ -192,7 +309,7 @@ def collect_ai_sources() -> dict:
     from algorithms.global_watch import run_global_watch
 
     result = {"type": "ai_sources", "timestamp": dt.datetime.now().isoformat()}
-    watch = run_global_watch()
+    watch = run_global_watch(polymarket_signals=get_latest_polymarket_signals())
     result.update(watch)
     for s in watch["signals"]:
         log(f"  {s['label']}: {(s['text'] or s['error'] or '결과 없음')[:80]}")
