@@ -3,7 +3,8 @@
 Windows 작업 스케줄러 등에서 무인 실행되는 스크립트. input() 없음 — 끝까지 실행 후 자동 종료.
 
 실행 모드:
-  python collector.py free   → 무료 소스만 (KDCA·네이버·WHO AFRO·WHO PAHO·CDC NWSS·CDC EID·CIDRAP·Wikipedia·PubMed·Polymarket)
+  python collector.py free   → 무료 소스만 (KDCA·네이버·WHO AFRO·WHO PAHO·CDC NWSS·CDC EID·
+                                CIDRAP·홍콩CHP·일본IDWR·Wikipedia·PubMed·Polymarket)
   python collector.py ai     → AI 갭필링 (Perplexity·Tavily·Claude, 비용 발생)
   python collector.py full   → 전부 다 (하루 1회 권장)
 
@@ -11,7 +12,7 @@ Windows 작업 스케줄러 등에서 무인 실행되는 스크립트. input() 
 키는 환경변수로만 주입 (.env 또는 시스템 환경변수). 하드코딩된 키 없음.
 """
 from __future__ import annotations
-import sys, os, json, time
+import sys, os, json, time, csv, io
 import datetime as dt
 from pathlib import Path
 
@@ -64,6 +65,13 @@ CIDRAP_FEEDS = [
     ("cholera", "콜레라", "https://www.cidrap.umn.edu/news/58/rss"),
 ]
 
+# 홍콩 위생방호중심(CHP) — 중국령 커버리지 갭을 메움. publications 피드엔
+# 조류인플루엔자 보고서·EV Scan(장바이러스)도 포함. 2026-06-24 라이브 확인.
+HK_CHP_FEEDS = [
+    ("cd_watch", "홍콩 CD Watch", "https://www.chp.gov.hk/rss/cdwatch_en_RSS.xml"),
+    ("publications", "홍콩 정기간행물(조류인플루엔자 등)", "https://www.chp.gov.hk/rss/publication_en_RSS.xml"),
+]
+
 # Polymarket 팬데믹 예측시장 — 군중 베팅 가격이 곧 확률 추정치라 LLM 합성 없이
 # 그대로 신호로 씀. slug는 폴리마켓 이벤트 URL의 마지막 경로.
 POLYMARKET_WATCHLIST = [
@@ -113,6 +121,51 @@ def fetch_cidrap() -> dict[str, int | None]:
         except Exception:
             out[slug] = None
     return out
+
+
+def fetch_hk_chp() -> dict[str, int | None]:
+    """홍콩 CHP RSS 건수. 피드 하나가 죽어도 나머지는 계속 수집."""
+    out: dict[str, int | None] = {}
+    for slug, label, url in HK_CHP_FEEDS:
+        try:
+            r = requests.get(url, headers=USER_AGENT, timeout=15)
+            r.raise_for_status()
+            out[slug] = r.text.count("<item>")
+        except Exception:
+            out[slug] = None
+    return out
+
+
+def fetch_japan_idwr() -> dict | None:
+    """일본 표본감시(11개 질병) 전국 합계.
+
+    KDCA EIDAPIService가 못 주는 ILI 표본감시와 같은 데이터 종류를 일본은
+    매주 CSV로 직접 공개함 — Table 2의 "Total No." 행이 전국 합계라 도도부현별
+    합산 없이 그대로 읽으면 됨. 게시 지연이 실측 약 2주라(2026-06-25 확인 시
+    26·25주차는 아직 없고 24주차까지만 게시) 최대 3주 전까지 폴백.
+    """
+    year = dt.date.today().year
+    cur_week = dt.date.today().isocalendar()[1]
+    for week in range(cur_week, cur_week - 4, -1):
+        url = f"https://id-info.jihs.go.jp/en/surveillance/idwr/rapid/{year}/{week:02d}/teiten{week:02d}.csv"
+        try:
+            r = requests.get(url, headers=USER_AGENT, timeout=15)
+            if r.status_code == 404:
+                continue
+            r.raise_for_status()
+            rows = list(csv.reader(io.StringIO(r.content.decode("utf-8-sig"))))
+            disease_row, total_row = rows[3], rows[5]
+            totals: dict[str, int | None] = {}
+            for i in range(1, len(disease_row), 2):
+                name = disease_row[i].strip()
+                if not name:
+                    continue
+                val = total_row[i].strip()
+                totals[name] = int(val) if val.isdigit() else None
+            return {"year": year, "week": week, "national_totals": totals}
+        except Exception:
+            continue
+    return None
 
 
 def fetch_polymarket_odds() -> dict[str, dict]:
@@ -306,6 +359,27 @@ def collect_free_sources() -> dict:
     except Exception as e:
         result["cidrap"] = None
         log_error("CIDRAP", e)
+
+    try:
+        result["hk_chp"] = fetch_hk_chp()
+        labels = {slug: label for slug, label, _ in HK_CHP_FEEDS}
+        summary = ", ".join(f"{labels[k]}={v}건" for k, v in result["hk_chp"].items())
+        log(f"  {summary}")
+    except Exception as e:
+        result["hk_chp"] = None
+        log_error("HK_CHP", e)
+
+    try:
+        result["japan_idwr"] = fetch_japan_idwr()
+        if result["japan_idwr"]:
+            j = result["japan_idwr"]
+            flu = j["national_totals"].get("Influenza(excld. avian influenza and pandemic influenza)")
+            log(f"  일본 IDWR({j['year']}년 {j['week']}주): 독감 전국 {flu}건 등 11종 표본감시")
+        else:
+            log("  ⏭ 일본 IDWR: 이번 주·전주 모두 미게시")
+    except Exception as e:
+        result["japan_idwr"] = None
+        log_error("Japan_IDWR", e)
 
     try:
         end_s = dt.date.today().strftime("%Y%m%d00")
