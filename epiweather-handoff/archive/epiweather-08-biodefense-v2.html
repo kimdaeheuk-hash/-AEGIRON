@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>역병예보 · 바이오 방어 설계 엔진 (8단계 v2)</title>
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+:root{--bg:#050810;--bg2:#0a1018;--panel:rgba(14,22,35,.78);--panel2:#121925;--line:rgba(120,140,170,.14);--line2:rgba(120,140,170,.28);--txt:#e9eef5;--muted:#7c8aa0;--muted2:#566377;--accent:#f43f5e;--ok:#34d399;--cyan:#38bdf8;--amber:#fbbf24;--violet:#a78bfa;--gold:#eab308;--nvidia:#76b900;--kr:"Pretendard Variable",Pretendard,sans-serif;--disp:"Bricolage Grotesque",var(--kr);--mono:"JetBrains Mono",monospace;}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--txt);font-family:var(--kr);-webkit-font-smoothing:antialiased}
+body{min-height:100vh;position:relative;background:radial-gradient(1400px 800px at 75% -10%,rgba(118,185,0,.07),transparent 60%),radial-gradient(900px 600px at 5% 110%,rgba(234,179,8,.06),transparent 55%),var(--bg)}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.04;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+.wrap{position:relative;z-index:1;max-width:1240px;margin:0 auto;padding:clamp(16px,3vw,30px)}
+.top{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:14px}
+.brand{display:flex;align-items:center;gap:14px}
+.logo{width:42px;height:42px;border-radius:11px;background:radial-gradient(circle at 30% 30%,#1a2410,#0d1605);border:1px solid var(--nvidia);display:grid;place-items:center;position:relative;overflow:hidden}
+.logo svg{width:22px;height:22px;position:relative;z-index:2}
+.brand h1{font-family:var(--disp);font-weight:800;font-size:clamp(19px,2.6vw,26px);letter-spacing:-.02em;line-height:1}
+.brand .sub{font-family:var(--mono);font-size:10px;color:var(--nvidia);letter-spacing:.16em;margin-top:5px}
+.estate{text-align:right;font-family:var(--mono);font-size:10px;color:var(--nvidia)}
+.estate .big{font-size:13px}
+.estate .live{display:inline-flex;align-items:center;gap:6px;font-size:9px;letter-spacing:.14em;margin-top:4px}
+.estate .live i{width:6px;height:6px;border-radius:50%;background:var(--nvidia);box-shadow:0 0 8px var(--nvidia);animation:blink 1.6s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+.stage-label{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--nvidia);background:rgba(118,185,0,.08);border:1px solid rgba(118,185,0,.3);border-radius:8px;padding:6px 12px;margin-top:18px}
+.hero{margin:14px 0 22px;padding:22px 24px;border-radius:18px;background:linear-gradient(135deg,rgba(118,185,0,.10),rgba(234,179,8,.05),rgba(14,22,35,.6));border:1px solid var(--line2);position:relative;overflow:hidden}
+.hero .t{font-family:var(--disp);font-weight:800;font-size:clamp(19px,2.6vw,27px);letter-spacing:-.02em;line-height:1.25}
+.hero .t b{color:var(--nvidia)}
+.hero .d{color:var(--muted);font-size:13px;margin-top:10px;line-height:1.6;max-width:820px}
+.hero .d em{color:var(--nvidia);font-style:normal;font-weight:600}
+.hero .quote{margin-top:12px;padding-left:14px;border-left:2px solid var(--nvidia);font-style:italic;color:var(--muted);font-size:12.5px;line-height:1.5}
+
+.controls{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-bottom:18px;padding:14px 16px;background:var(--panel);border:1px solid var(--line);border-radius:14px;backdrop-filter:blur(14px)}
+.ctl{display:flex;flex-direction:column;gap:6px}
+.ctl .lbl{font-family:var(--mono);font-size:9px;letter-spacing:.16em;color:var(--muted);text-transform:uppercase}
+.seg{display:flex;background:var(--bg2);border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.seg button{font-family:var(--kr);font-size:12px;font-weight:600;color:var(--muted);background:none;border:none;padding:8px 12px;cursor:pointer;transition:.18s;white-space:nowrap}
+.seg button.on{background:rgba(118,185,0,.16);color:var(--txt)}
+.slidergrp{display:flex;align-items:center;gap:10px}
+.slidergrp input{width:150px;accent-color:var(--nvidia);cursor:pointer}
+.ln{font-family:var(--mono);font-size:11px;color:var(--nvidia);min-width:54px;text-align:right}
+
+.grid2{display:grid;grid-template-columns:1.3fr 1fr;gap:18px}
+@media(max-width:920px){.grid2{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:clamp(14px,2vw,20px);backdrop-filter:blur(14px)}
+.card+.card{margin-top:14px}
+.card-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px;flex-wrap:wrap}
+.card-h .h{font-family:var(--mono);font-size:10px;letter-spacing:.16em;color:var(--muted);text-transform:uppercase}
+.card-h .meta{font-family:var(--mono);font-size:11px;color:var(--muted2)}
+.sectitle{font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;color:var(--muted);text-transform:uppercase;margin:16px 0 10px}
+
+/* strategy chart */
+#stratchart{width:100%;height:auto;display:block;overflow:visible}
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-family:var(--mono);font-size:10px;color:var(--muted)}
+.legend span{display:flex;align-items:center;gap:6px}
+.legend i{width:16px;height:0;border-top-width:2px;border-top-style:solid;display:inline-block}
+
+/* strategy cards */
+.strats{display:flex;flex-direction:column;gap:9px}
+.strat{padding:12px 14px;border-radius:12px;background:rgba(255,255,255,.025);border:1px solid var(--line);cursor:pointer;transition:.2s}
+.strat:hover{border-color:var(--line2)}
+.strat.on{border-color:var(--nvidia);background:linear-gradient(135deg,rgba(118,185,0,.10),rgba(255,255,255,.02))}
+.strat .sh{display:flex;justify-content:space-between;align-items:center}
+.strat .sn{font-family:var(--disp);font-weight:700;font-size:14px;display:flex;align-items:center;gap:8px}
+.strat .sv{font-family:var(--mono);font-weight:700;font-size:18px}
+.strat .sd{font-family:var(--mono);font-size:9.5px;color:var(--muted);margin-top:5px;line-height:1.5}
+
+/* pillars */
+.pillars{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.pillar{padding:13px;border-radius:12px;background:rgba(255,255,255,.025);border:1px solid var(--line)}
+.pillar .pi{font-size:20px}
+.pillar .pn{font-size:12.5px;font-weight:700;margin-top:6px}
+.pillar .pv{font-family:var(--mono);font-weight:700;font-size:18px;margin-top:6px}
+.pillar .pd{font-family:var(--mono);font-size:9px;color:var(--muted2);margin-top:3px;line-height:1.5}
+.pillar .pbar{margin-top:7px;height:5px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden}
+.pillar .pbar i{display:block;height:100%;border-radius:3px;transition:width .5s}
+
+/* variant timeline */
+.vtimeline{position:relative}
+#variantchart{width:100%;height:auto;display:block}
+
+/* matching list */
+.matchlist{display:flex;flex-direction:column;gap:8px}
+.match{display:flex;align-items:center;gap:11px;padding:10px 12px;background:rgba(255,255,255,.025);border:1px solid var(--line);border-radius:10px}
+.match .mi{font-size:18px;flex:none}
+.match .mb{flex:1}
+.match .mn{font-size:12.5px;font-weight:700}
+.match .md{font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:2px}
+.match .mbar{margin-top:5px;height:5px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden}
+.match .mbar i{display:block;height:100%;border-radius:3px;transition:width .5s}
+.match .mv{font-family:var(--mono);font-size:13px;font-weight:700;flex:none;width:48px;text-align:right}
+
+/* sovereignty */
+.sov{display:flex;flex-direction:column;gap:8px}
+.sovrow{display:flex;align-items:center;gap:10px;padding:9px 11px;background:rgba(255,255,255,.025);border:1px solid var(--line);border-radius:9px}
+.sovrow .sn{font-size:12px;flex:1}.sovrow .sn small{display:block;font-family:var(--mono);font-size:8.5px;color:var(--muted2);margin-top:1px}
+.sovrow .sbadge{font-family:var(--mono);font-size:9.5px;font-weight:700;padding:3px 8px;border-radius:5px;flex:none}
+
+.nvbox{margin-top:14px;border-radius:12px;padding:14px 16px;background:linear-gradient(135deg,rgba(118,185,0,.08),rgba(14,22,35,.4));border:1px solid rgba(118,185,0,.3);display:flex;gap:12px}
+.nvbox .ni{font-size:22px;flex:none}
+.nvbox .nt b{font-family:var(--disp);font-size:14px;color:var(--nvidia)}
+.nvbox .nt p{font-size:12px;color:var(--muted);line-height:1.6;margin-top:5px}
+.nvbox .nchips{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
+.nvbox .nchips span{font-family:var(--mono);font-size:9px;color:var(--muted);border:1px solid rgba(118,185,0,.3);border-radius:6px;padding:4px 8px}
+
+.note{margin-top:22px;font-size:11px;color:var(--muted2);line-height:1.7;border-top:1px solid var(--line);padding-top:16px}.note b{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="brand">
+      <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#76b900" stroke-width="1.8"><path d="M4 12a8 8 0 018-8M20 12a8 8 0 01-8 8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3"/></svg></div>
+      <div><h1>역병예보 <span style="font-family:var(--mono);font-size:11px;color:var(--nvidia);vertical-align:middle">BIO-DEFENSE v2</span></h1><div class="sub">바이오 방어 설계 엔진 · 비축을 넘어 진화 대응까지</div></div>
+    </div>
+    <div class="estate"><div class="big">설계 엔진 가동</div><div class="live"><i></i><span id="esub">변이 예측 + 플랫폼 최적화</span></div></div>
+  </div>
+
+  <span class="stage-label">⬢ STAGE 8 v2 · 거시 비축 + 미시 진화대응 · BioNeMo 연동 설계</span>
+
+  <div class="hero">
+    <div class="t">비축만으로는 부족하다. <b>병원체는 진화한다.</b><br>진짜 바이오 안보는 — <b>진화를 예측하고, 100일 안에 맞춤 대응하는 능력이다.</b></div>
+    <div class="d">엔비디아가 생물학을 <em>과학에서 공학으로</em> 바꾸듯, 우리는 팬데믹 대응을 공학으로 만든다. 병원체 변이를 예측하고, 비축 대응제의 시점별 유효성을 계산하며, 비축(빠르지만 진화에 취약)과 플랫폼(느리지만 항상 맞춤)을 최적 혼합한다.</div>
+    <div class="quote">"인류 역사상 처음으로, 생물학이 과학이 아니라 공학이 될 기회를 얻었다." — Jensen Huang, NVIDIA. 우리는 그 공학을 *국가 방어*에 적용한다.</div>
+  </div>
+
+  <div class="controls">
+    <div class="ctl"><span class="lbl">위협 변이 속도</span>
+      <div class="seg" id="mutrate"><button data-m="0.15" >느린 변이</button><button data-m="0.28" class="on">중간</button><button data-m="0.42">빠른 변이(코로나급)</button></div></div>
+    <div class="ctl"><span class="lbl">플랫폼 준비태세 (대응 소요일)</span>
+      <div class="slidergrp"><input type="range" min="60" max="300" step="10" value="100" id="platdays"><span class="ln" id="platdaysv">100일</span></div></div>
+    <div class="ctl"><span class="lbl">분석 기간</span>
+      <div class="slidergrp"><input type="range" min="180" max="730" step="30" value="365" id="horizon"><span class="ln" id="horizonv">365일</span></div></div>
+  </div>
+
+  <div class="grid2">
+    <!-- LEFT: strategy comparison -->
+    <div>
+      <div class="card">
+        <div class="card-h"><span class="h">전략별 방어 효과 · 시간축 시뮬레이션</span><span class="meta" id="stratmeta"></span></div>
+        <svg id="stratchart" viewBox="0 0 700 280"></svg>
+        <div class="legend">
+          <span><i style="border-color:var(--gold)"></i>순수 비축 (진화에 취약)</span>
+          <span><i style="border-color:var(--cyan)"></i>플랫폼만 (초기 공백)</span>
+          <span><i style="border-color:var(--nvidia)"></i>혼합 전략 (최적)</span>
+        </div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--muted);line-height:1.6;margin-top:10px">비축 대응제는 병원체 변이로 효과가 감소하고(골드 하강), 플랫폼은 준비기간 후 맞춤 대응(시안 상승). <b style="color:var(--nvidia)">둘을 혼합하면 초기 비축으로 버티고 플랫폼으로 장기 대응</b> — CEPI 100일 미션의 핵심.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><span class="h">변이 회피 예측 · 항원 드리프트</span><span class="meta">BioNeMo 연동 지점</span></div>
+        <svg id="variantchart" viewBox="0 0 700 160"></svg>
+        <div class="nvbox">
+          <span class="ni">🧬</span>
+          <div class="nt"><b>여기가 엔비디아 BioNeMo와 만나는 지점</b>
+            <p>현재는 단순 항원 드리프트 모델이지만, 실제 운영 시 BioNeMo 단백질·변이 예측 모델로 <b style="color:var(--txt)">병원체 유전체 → 미래 변이 → 비축 대응제 중화 여부</b>를 분자 수준으로 계산합니다. 거시(몇 명 살까) + 미시(분자가 듣을까)를 잇는 바이오 방어 설계 엔진.</p>
+            <div class="nchips"><span>BioNeMo 단백질 모델</span><span>변이 구조 예측</span><span>중화항체 매칭</span><span>lab-in-the-loop</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: pillars + strategy + matching + sovereignty -->
+    <div>
+      <div class="card">
+        <div class="card-h"><span class="h">전략 선택</span></div>
+        <div class="strats" id="strats"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><span class="h">국가 바이오 안보 4대 기둥</span></div>
+        <div class="pillars" id="pillars"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid2" style="margin-top:14px">
+    <div class="card">
+      <div class="card-h"><span class="h">대응제-병원체 매칭 · 변이 시점별 유효성</span><span class="meta" id="matchmeta"></span></div>
+      <div class="matchlist" id="matchlist"></div>
+    </div>
+    <div class="card">
+      <div class="card-h"><span class="h">생산 주권 · 공급망 자립도</span></div>
+      <div class="sov" id="sov"></div>
+      <div style="font-family:var(--mono);font-size:9.5px;color:var(--muted2);margin-top:10px;line-height:1.6">비축은 reactive, 생산능력은 proactive. 긴급 시 직접 만들 수 있는가가 진짜 안보. 빨강=수입의존(취약), 초록=국내자립.</div>
+    </div>
+  </div>
+
+  <div class="note"><b>※ 8단계 v2 — 비축에서 바이오 방어 설계로</b> · v1이 "무엇을 얼마나 비축할까"였다면, v2는 "<b>진화하는 위협에 어떻게 견고하게 대응할까</b>"입니다. ①변이 회피 예측 ②비축 vs 플랫폼 혼합 최적화 ③대응제-병원체 분자 매칭 ④생산 주권. 이 네 가지가 진짜 국가 바이오 안보이며, ③④는 엔비디아 BioNeMo 생태계와 직접 연결됩니다. 엔비디아가 생물학을 공학으로 만드는 시대 — 우리는 그 공학을 국가 방어에 적용하는 글로벌 인프라입니다. 모든 수치는 모델이 직접 계산하며, 실제 운영 시 BioNeMo·유전체 데이터·CEPI 표준을 연동합니다.</div>
+</div>
+
+<script>
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+let ST={mutRate:0.28, platDays:100, horizon:365, strategy:'hybrid', baseEff:0.85, susc:0.6, matchedEff:0.92};
+
+function variantEscape(days,rate){const months=days/30;return 1-Math.exp(-rate*months);}
+function stockpileEff(days){return ST.baseEff*(1-ST.susc*variantEscape(days,ST.mutRate));}
+function platformEff(days){return days>=ST.platDays?ST.matchedEff:0;}
+function hybridEff(days){return Math.max(stockpileEff(days),platformEff(days));}
+function effOf(strat,days){return strat==='stockpile'?stockpileEff(days):strat==='platform'?platformEff(days):hybridEff(days);}
+function avgEff(strat){let s=0,n=0;for(let d=0;d<ST.horizon;d+=5){s+=effOf(strat,d);n++;}return s/n;}
+
+/* strategy chart */
+function renderStratChart(){
+  const W=700,H=280,padL=36,padR=12,padT=14,padB=26;
+  const x=d=>padL+(d/ST.horizon)*(W-padL-padR);
+  const y=e=>H-padB-e*(H-padT-padB);
+  let svg='';
+  // grid
+  [0,0.25,0.5,0.75,1.0].forEach(e=>{svg+=`<line x1="${padL}" y1="${y(e)}" x2="${W-padR}" y2="${y(e)}" stroke="rgba(255,255,255,.05)"/><text x="${padL-6}" y="${y(e)+3}" fill="var(--muted2)" font-size="9" font-family="var(--mono)" text-anchor="end">${(e*100).toFixed(0)}%</text>`;});
+  // platform ready line
+  svg+=`<line x1="${x(ST.platDays)}" y1="${padT}" x2="${x(ST.platDays)}" y2="${H-padB}" stroke="rgba(118,185,0,.4)" stroke-dasharray="3 3"/><text x="${x(ST.platDays)}" y="${padT+10}" fill="var(--nvidia)" font-size="9" font-family="var(--mono)" text-anchor="middle">플랫폼 준비 D+${ST.platDays}</text>`;
+  // curves
+  function curve(strat,col,width,dash){let p='';for(let d=0;d<=ST.horizon;d+=5){p+=(d===0?'M':'L')+x(d).toFixed(1)+' '+y(effOf(strat,d)).toFixed(1)+' ';}return `<path d="${p}" fill="none" stroke="${col}" stroke-width="${width}"${dash?' stroke-dasharray="'+dash+'"':''}/>`;}
+  svg+=curve('stockpile','#eab308',ST.strategy==='stockpile'?3:1.5,ST.strategy==='stockpile'?'':'4 3');
+  svg+=curve('platform','#38bdf8',ST.strategy==='platform'?3:1.5,ST.strategy==='platform'?'':'4 3');
+  svg+=curve('hybrid','#76b900',ST.strategy==='hybrid'?3.2:1.5,ST.strategy==='hybrid'?'':'4 3');
+  // x labels
+  [0,Math.round(ST.horizon/3),Math.round(ST.horizon*2/3),ST.horizon].forEach(d=>{svg+=`<text x="${x(d)}" y="${H-8}" fill="var(--muted2)" font-size="9" font-family="var(--mono)" text-anchor="middle">D+${d}</text>`;});
+  document.getElementById('stratchart').innerHTML=svg;
+  document.getElementById('stratmeta').textContent='혼합 1년평균 '+(avgEff('hybrid')*100).toFixed(0)+'%';
+}
+
+/* variant escape chart */
+function renderVariantChart(){
+  const W=700,H=160,padL=36,padR=12,padT=12,padB=24;
+  const x=d=>padL+(d/ST.horizon)*(W-padL-padR);
+  const y=e=>H-padB-e*(H-padT-padB);
+  let svg='';
+  [0,0.5,1.0].forEach(e=>{svg+=`<line x1="${padL}" y1="${y(e)}" x2="${W-padR}" y2="${y(e)}" stroke="rgba(255,255,255,.05)"/><text x="${padL-6}" y="${y(e)+3}" fill="var(--muted2)" font-size="9" font-family="var(--mono)" text-anchor="end">${(e*100).toFixed(0)}%</text>`;});
+  // escape curve
+  let p='';for(let d=0;d<=ST.horizon;d+=5){p+=(d===0?'M':'L')+x(d).toFixed(1)+' '+y(variantEscape(d,ST.mutRate)).toFixed(1)+' ';}
+  svg+=`<path d="${p}" fill="none" stroke="#f43f5e" stroke-width="2.4"/>`;
+  // fill
+  svg+=`<path d="${p} L${x(ST.horizon)} ${y(0)} L${x(0)} ${y(0)} Z" fill="rgba(244,63,94,.08)"/>`;
+  [0,Math.round(ST.horizon/3),Math.round(ST.horizon*2/3),ST.horizon].forEach(d=>{svg+=`<text x="${x(d)}" y="${H-7}" fill="var(--muted2)" font-size="9" font-family="var(--mono)" text-anchor="middle">D+${d}</text>`;});
+  svg+=`<text x="${W-padR}" y="${y(variantEscape(ST.horizon,ST.mutRate))-6}" fill="#f43f5e" font-size="10" font-family="var(--mono)" text-anchor="end">항원 회피 ${(variantEscape(ST.horizon,ST.mutRate)*100).toFixed(0)}%</text>`;
+  document.getElementById('variantchart').innerHTML=svg;
+}
+
+/* strategy cards */
+function renderStrats(){
+  const strats=[
+    {id:'stockpile',nm:'순수 비축',ic:'📦',d:'즉시 가용, 변이로 약화'},
+    {id:'platform',nm:'플랫폼만',ic:'🏭',d:'초기 공백, 항상 맞춤'},
+    {id:'hybrid',nm:'혼합 전략',ic:'🛡',d:'비축+플랫폼, 가장 견고'},
+  ];
+  document.getElementById('strats').innerHTML=strats.map(s=>{const avg=avgEff(s.id);const col=s.id==='hybrid'?'var(--nvidia)':s.id==='platform'?'var(--cyan)':'var(--gold)';return `<div class="strat ${ST.strategy===s.id?'on':''}" onclick="window.__strat('${s.id}')"><div class="sh"><div class="sn">${s.ic} ${s.nm}</div><div class="sv" style="color:${col}">${(avg*100).toFixed(0)}%</div></div><div class="sd">${s.d} · 1년 평균 방어효과</div></div>`;}).join('');
+}
+window.__strat=id=>{ST.strategy=id;renderStratChart();renderStrats();};
+
+/* pillars */
+function renderPillars(){
+  const escape=variantEscape(ST.horizon,ST.mutRate);
+  const platReady=clamp(1-(ST.platDays-60)/240,0,1); // 빠를수록 높음
+  const hybridAvg=avgEff('hybrid');
+  const sovereignty=0.55; // 국내 자립도 (고정 데모값)
+  const pillars=[
+    {ic:'🧬',nm:'변이 예측',v:(escape*100).toFixed(0)+'%',d:'1년 항원 회피율',bar:escape,col:'#f43f5e'},
+    {ic:'🏭',nm:'플랫폼 준비',v:'D+'+ST.platDays,d:'맞춤 대응 소요',bar:platReady,col:'#76b900'},
+    {ic:'🛡',nm:'방어 견고성',v:(hybridAvg*100).toFixed(0)+'%',d:'혼합전략 효과',bar:hybridAvg,col:'#34d399'},
+    {ic:'🇰🇷',nm:'생산 주권',v:(sovereignty*100).toFixed(0)+'%',d:'국내 자립도',bar:sovereignty,col:'#eab308'},
+  ];
+  document.getElementById('pillars').innerHTML=pillars.map(p=>`<div class="pillar"><div class="pi">${p.ic}</div><div class="pn">${p.nm}</div><div class="pv" style="color:${p.col}">${p.v}</div><div class="pd">${p.d}</div><div class="pbar"><i style="width:${p.bar*100}%;background:${p.col}"></i></div></div>`).join('');
+}
+
+/* matching */
+function renderMatching(){
+  const items=[
+    {ic:'💉',nm:'기존 비축 백신',sub:'STOCKPILED VACCINE',susc:0.6},
+    {ic:'💉',nm:'광범위 백신',sub:'BROAD-SPECTRUM',susc:0.25},
+    {ic:'💊',nm:'기존 치료제',sub:'EXISTING ANTIVIRAL',susc:0.45},
+    {ic:'🏭',nm:'플랫폼 맞춤 백신',sub:'PLATFORM-MATCHED',susc:0.05},
+  ];
+  const checkDay=Math.round(ST.horizon*0.5);
+  const escape=variantEscape(checkDay,ST.mutRate);
+  document.getElementById('matchmeta').textContent='D+'+checkDay+' 시점 평가';
+  document.getElementById('matchlist').innerHTML=items.map(it=>{
+    let eff;
+    if(it.sub==='PLATFORM-MATCHED'){eff = checkDay>=ST.platDays?ST.matchedEff:0;}
+    else {eff = ST.baseEff*(1-it.susc*escape);}
+    const col=eff>=0.7?'#34d399':eff>=0.5?'#eab308':eff>=0.3?'#f97316':'#ef4444';
+    return `<div class="match"><span class="mi">${it.ic}</span><div class="mb"><div class="mn">${it.nm}</div><div class="md">${it.sub} · 회피민감도 ${it.susc}</div><div class="mbar"><i style="width:${Math.max(2,eff*100)}%;background:${col}"></i></div></div><div class="mv" style="color:${col}">${(eff*100).toFixed(0)}%</div></div>`;
+  }).join('');
+}
+
+/* sovereignty */
+function renderSov(){
+  const items=[
+    {nm:'mRNA 백신 플랫폼',sub:'국내 생산 가능',level:'국내자립',col:'#34d399'},
+    {nm:'원료의약품(API)',sub:'대부분 수입',level:'수입의존',col:'#ef4444'},
+    {nm:'진단키트',sub:'국내 생산 강점',level:'국내자립',col:'#34d399'},
+    {nm:'필러·바이알(충전)',sub:'일부 수입',level:'부분의존',col:'#f97316'},
+    {nm:'인공호흡기',sub:'수입 의존',level:'수입의존',col:'#ef4444'},
+  ];
+  document.getElementById('sov').innerHTML=items.map(it=>`<div class="sovrow"><div class="sn">${it.nm}<small>${it.sub}</small></div><div class="sbadge" style="background:${it.col}22;color:${it.col}">${it.level}</div></div>`).join('');
+}
+
+function recompute(){
+  ST.platDays=parseInt(document.getElementById('platdays').value);
+  ST.horizon=parseInt(document.getElementById('horizon').value);
+  document.getElementById('platdaysv').textContent=ST.platDays+'일';
+  document.getElementById('horizonv').textContent=ST.horizon+'일';
+  renderStratChart();renderVariantChart();renderStrats();renderPillars();renderMatching();renderSov();
+}
+document.querySelectorAll('#mutrate button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#mutrate button').forEach(x=>x.classList.remove('on'));b.classList.add('on');ST.mutRate=parseFloat(b.dataset.m);recompute();});
+document.getElementById('platdays').oninput=recompute;
+document.getElementById('horizon').oninput=recompute;
+recompute();
+</script>
+</body>
+</html>
