@@ -35,6 +35,7 @@ from algorithms.gai import compute_gai
 from algorithms.negative_space import scan_negative_space
 from algorithms.alerts import refresh_alerts
 from algorithms.country_risk import rank_countries, compute_country_risk, COUNTRIES
+from algorithms.event_dedup import dedupe_events
 import db
 
 app = FastAPI(
@@ -351,6 +352,16 @@ def risk_index_country(country: str):
             detail=f"지원하지 않는 국가 ID. 지원 목록: {list(COUNTRIES)}",
         )
     return compute_country_risk(country)
+
+
+@app.get("/api/threats", tags=["GAI"])
+def threats():
+    """
+    현재 진행 중인 위협 — NLP 구조화 추출(⑦) 결과를 disease 기준으로 병합한
+    중복제거 이벤트 목록(⑩). 같은 사건을 출처 여러 곳이 따로 보고해도
+    하나로 합쳐 신뢰도가중 평균 점수를 매긴다.
+    """
+    return {"events": dedupe_events()}
 
 
 # ── 예측 검증 ─────────────────────────────────────────────────
