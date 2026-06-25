@@ -32,6 +32,7 @@ from algorithms.defense import run_defense
 from algorithms.decision_tree import classify_alert_level, get_priority_actions
 from algorithms.common import PRESETS, CIVIC, THREAT
 from algorithms.gai import compute_gai
+from algorithms.negative_space import scan_negative_space
 import db
 
 app = FastAPI(
@@ -299,6 +300,16 @@ def anomaly_score():
     70점↑ 주의, 80점↑ 경보, 90점↑ 위험.
     """
     return compute_gai()
+
+
+@app.get("/api/negative-space", tags=["GAI"])
+def negative_space():
+    """
+    부정적 공간 감시 — 평소 활발하던 신호원이 과거 평균의 50% 미만으로
+    급감했는지 전체 스캔. 신호 증가가 아니라 '보고가 끊긴 것'을 잡아낸다.
+    (2014 기니 에볼라 — 보건부 보고 급감 → 실제론 의료체계 붕괴였던 사례 참고)
+    """
+    return scan_negative_space()
 
 
 # ── 예측 검증 ─────────────────────────────────────────────────
