@@ -18,6 +18,7 @@ import datetime as dt
 import db
 from .gai import compute_gai
 from .negative_space import scan_negative_space
+from .unexplained import scan_unexplained
 
 CRITICAL = 90
 HIGH = 80
@@ -38,8 +39,8 @@ def classify_tier(score: float) -> str:
     return "low"
 
 
-def collect_candidate_alerts() -> list[dict]:
-    """GAI 층별 신호원 + 부정적 공간 감시 결과를 경보 후보로 변환."""
+def collect_candidate_alerts(today: str) -> list[dict]:
+    """GAI 층별 신호원 + 부정적 공간 감시 + 설명불가 신호를 경보 후보로 변환."""
     candidates = []
 
     gai_result = compute_gai()
@@ -67,6 +68,23 @@ def collect_candidate_alerts() -> list[dict]:
                 "score": severity,
             })
 
+    # 설명불가 신호는 문서 요구사항대로 무조건 critical(100점)으로 즉시 올림 —
+    # 단, 능동 검색(unexplained_cluster)만 대상으로 함. who_wpro 같은 일반
+    # 지역동향 요약은 질병명이 없는 게 흔해서, 전체 source를 다 포함하면
+    # "원인불명 클러스터"가 아니라 그냥 막연한 요약문까지 critical로 오탐함.
+    # 오늘 추출된 것만 후보로 올림(아니면 과거 발견이 매일 영원히 재후보로 뜸).
+    for a in scan_unexplained()["alerts"]:
+        if a["source"] != "unexplained_cluster":
+            continue
+        if (a["extracted_at"] or "")[:10] != today:
+            continue
+        key = a["location"] or a["raw_disease_text"] or a["source"]
+        candidates.append({
+            "source": f"unexplained:{key}",
+            "label": f"설명불가 신호 · {a['location'] or '지역불명'} ({a['raw_disease_text'] or '질병불명'})",
+            "score": 100.0,
+        })
+
     return candidates
 
 
@@ -74,7 +92,7 @@ def refresh_alerts(today: str | None = None) -> dict:
     """후보를 분류·저장하고, 등급별 일일 캡을 적용해 오늘자 경보 상태를 반환."""
     today = today or dt.date.today().isoformat()
 
-    for c in collect_candidate_alerts():
+    for c in collect_candidate_alerts(today):
         tier = classify_tier(c["score"])
         db.upsert_alert(today, c["source"], tier, c["label"], c["score"])
 

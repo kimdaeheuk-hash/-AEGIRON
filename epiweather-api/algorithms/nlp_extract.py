@@ -25,9 +25,13 @@ EXTRACT_PROMPT = """다음 감염병 관련 텍스트에서 아래 항목을 추
 나오면 절대 추측하지 말고 null로 둬(특히 네 학습 시점 연도로 채우지 마).
 모르는 항목은 null. severity는 텍스트에서 드러나는 심각도를 나타내는 영어 소문자 키워드 배열(예: ["unusual","spike"]), 없으면 빈 배열.
 signal_type은 다음 중 하나만 골라: 급증, 감소, 신규발생, 진행중, 종료, 불명.
+known_disease는 텍스트가 설명하는 병이 의학적으로 이미 알려지고 연구된 질병(예: 에볼라, 인플루엔자, 한타바이러스처럼
+이름·원인체·임상양상이 규명된 것)이면 true. 원인불명·미규명·기존 질병 패턴과 안 맞는 새로운 증후군이면 false.
+질병명을 못 뽑아도(disease가 null이어도) 텍스트가 "독감 유사 증상"처럼 알려진 패턴을 가리키면 true로 둬도 됨 — disease 칸과
+독립적으로 판단해.
 
 형식:
-{{"disease": "질병명 또는 null", "location": "지역/국가 또는 null", "signal_type": "위 6개 중 하나", "severity": ["키워드"], "symptom": "증상 요약 또는 null", "transmission": "전파경로 또는 null", "date": "YYYY-MM-DD 또는 null"}}
+{{"disease": "질병명 또는 null", "location": "지역/국가 또는 null", "signal_type": "위 6개 중 하나", "severity": ["키워드"], "symptom": "증상 요약 또는 null", "transmission": "전파경로 또는 null", "date": "YYYY-MM-DD 또는 null", "known_disease": true 또는 false}}
 
 텍스트:
 {text}"""
@@ -54,6 +58,8 @@ def extract_signal(raw_text: str, source: str, api_key: str) -> dict | None:
         if raw.lower().startswith("json"):
             raw = raw[4:].strip()
         data = json.loads(raw)
+        if not isinstance(data, dict):
+            return None  # 모델이 배열 등 객체가 아닌 형태로 응답한 경우
     except Exception:
         return None
 
@@ -74,6 +80,7 @@ def extract_signal(raw_text: str, source: str, api_key: str) -> dict | None:
         "transmission": data.get("transmission"),
         "source_trust": trust_for("ai_extracted"),
         "signal_date": data.get("date"),
+        "known_disease": bool(data.get("known_disease", True)),
         "raw_text": raw_text,
     }
 

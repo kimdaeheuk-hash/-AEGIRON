@@ -518,6 +518,8 @@ def collect_ai_sources() -> dict:
     append_signal(result)
 
     anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
+    perplexity_key = os.environ.get("PERPLEXITY_API_KEY")
+    tavily_key = os.environ.get("TAVILY_API_KEY")
     if anthropic_key:
         try:
             from algorithms.nlp_extract import extract_from_global_watch
@@ -529,8 +531,25 @@ def collect_ai_sources() -> dict:
             log(f"  NLP 구조화 추출: {len(extracted)}건 저장")
         except Exception as e:
             log_error("NLP_Extract", e)
+
+        try:
+            from algorithms.unexplained import run_unexplained_watch
+            import db
+            db.init_db()
+            unexplained = run_unexplained_watch(
+                perplexity_key=perplexity_key, tavily_key=tavily_key, anthropic_key=anthropic_key
+            )
+            if unexplained:
+                flagged = unexplained.pop("is_unexplained")
+                unexplained.pop("search_source", None)
+                db.create_extracted_signal(**unexplained)
+                log(f"  설명불가 신호 감시: {'🔴 설명 불가 — 즉시경보' if flagged else '기존 질병 패턴과 일치, 정상'}")
+            else:
+                log("  ⏭ 설명불가 신호 감시: 검색/추출 실패 또는 키 없음")
+        except Exception as e:
+            log_error("Unexplained_Watch", e)
     else:
-        log("  ⏭ ANTHROPIC_API_KEY 없음 — NLP 구조화 추출 건너뜀")
+        log("  ⏭ ANTHROPIC_API_KEY 없음 — NLP 구조화 추출·설명불가 감시 건너뜀")
 
     log("=== AI 갭필링 수집 완료 ===")
     return result

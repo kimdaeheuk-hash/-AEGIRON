@@ -40,18 +40,19 @@ CREATE TABLE IF NOT EXISTS alerts (
 );
 
 CREATE TABLE IF NOT EXISTS extracted_signals (
-    id            INTEGER PRIMARY KEY AUTOINCREMENT,
-    extracted_at  TEXT NOT NULL,
-    source        TEXT NOT NULL,   -- global_watch.py의 slug (who_emro, africa_cdc 등)
-    disease       TEXT,
-    location      TEXT,
-    signal_type   TEXT,            -- 급증 | 감소 | 신규발생 | 진행중 | 종료 | 불명
-    severity      TEXT NOT NULL,   -- JSON 배열 문자열
-    symptom       TEXT,
-    transmission  TEXT,
-    source_trust  REAL NOT NULL,
-    signal_date   TEXT,            -- 텍스트가 언급한 기준일 (YYYY-MM-DD), 모르면 NULL
-    raw_text      TEXT NOT NULL
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    extracted_at   TEXT NOT NULL,
+    source         TEXT NOT NULL,   -- global_watch.py의 slug (who_emro, africa_cdc 등)
+    disease        TEXT,
+    location       TEXT,
+    signal_type    TEXT,            -- 급증 | 감소 | 신규발생 | 진행중 | 종료 | 불명
+    severity       TEXT NOT NULL,   -- JSON 배열 문자열
+    symptom        TEXT,
+    transmission   TEXT,
+    source_trust   REAL NOT NULL,
+    signal_date    TEXT,            -- 텍스트가 언급한 기준일 (YYYY-MM-DD), 모르면 NULL
+    known_disease  INTEGER NOT NULL DEFAULT 1,  -- 모델이 "기존에 알려진 질병 패턴과 일치"로 판단했는지
+    raw_text       TEXT NOT NULL
 );
 """
 
@@ -186,6 +187,7 @@ def create_extracted_signal(
     source: str, disease: str | None, location: str | None, signal_type: str | None,
     severity: list[str], symptom: str | None, transmission: str | None,
     source_trust: float, signal_date: str | None, raw_text: str,
+    known_disease: bool = True,
 ) -> dict:
     extracted_at = datetime.now(timezone.utc).isoformat()
     with get_connection() as conn:
@@ -193,12 +195,12 @@ def create_extracted_signal(
             """
             INSERT INTO extracted_signals
                 (extracted_at, source, disease, location, signal_type, severity,
-                 symptom, transmission, source_trust, signal_date, raw_text)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 symptom, transmission, source_trust, signal_date, known_disease, raw_text)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (extracted_at, source, disease, location, signal_type,
              json.dumps(severity, ensure_ascii=False), symptom, transmission,
-             source_trust, signal_date, raw_text),
+             source_trust, signal_date, int(known_disease), raw_text),
         )
         conn.commit()
         row = conn.execute(
@@ -223,4 +225,5 @@ def list_extracted_signals(disease: str | None = None, limit: int = 50) -> list[
 def _extracted_row_to_dict(row: sqlite3.Row) -> dict:
     d = dict(row)
     d["severity"] = json.loads(d["severity"])
+    d["known_disease"] = bool(d["known_disease"])
     return d

@@ -36,6 +36,7 @@ from algorithms.negative_space import scan_negative_space
 from algorithms.alerts import refresh_alerts
 from algorithms.country_risk import rank_countries, compute_country_risk, COUNTRIES
 from algorithms.event_dedup import dedupe_events
+from algorithms.unexplained import scan_unexplained
 import db
 
 app = FastAPI(
@@ -362,6 +363,16 @@ def threats():
     하나로 합쳐 신뢰도가중 평균 점수를 매긴다.
     """
     return {"events": dedupe_events()}
+
+
+@app.get("/api/unexplained-signals", tags=["GAI"])
+def unexplained_signals():
+    """
+    설명 불가 신호 탐지 — NLP 구조화추출(⑦) 결과 중 알려진 질병 별칭에 안
+    걸리는 신호를 즉시경보로 표시. 조건1(병원방문 급증)은 데이터 소스가
+    없어 측정 불가 — caveat에 명시.
+    """
+    return scan_unexplained()
 
 
 # ── 예측 검증 ─────────────────────────────────────────────────
