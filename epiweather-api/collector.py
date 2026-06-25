@@ -516,6 +516,22 @@ def collect_ai_sources() -> dict:
         log(f"  {s['label']}: {(s['text'] or s['error'] or '결과 없음')[:80]}")
 
     append_signal(result)
+
+    anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
+    if anthropic_key:
+        try:
+            from algorithms.nlp_extract import extract_from_global_watch
+            import db
+            db.init_db()
+            extracted = extract_from_global_watch(watch, api_key=anthropic_key)
+            for e in extracted:
+                db.create_extracted_signal(**e)
+            log(f"  NLP 구조화 추출: {len(extracted)}건 저장")
+        except Exception as e:
+            log_error("NLP_Extract", e)
+    else:
+        log("  ⏭ ANTHROPIC_API_KEY 없음 — NLP 구조화 추출 건너뜀")
+
     log("=== AI 갭필링 수집 완료 ===")
     return result
 

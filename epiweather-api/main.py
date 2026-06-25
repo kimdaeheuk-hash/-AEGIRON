@@ -322,6 +322,15 @@ def alerts():
     return refresh_alerts()
 
 
+@app.get("/api/extracted-signals", tags=["GAI"])
+def extracted_signals(disease: Optional[str] = None, limit: int = 50):
+    """
+    NLP 구조화 추출 결과 조회. collector.py의 AI 갭필링이 모아온 자유문장을
+    Claude가 disease/location/signal_type 등으로 구조화해 쌓은 것.
+    """
+    return {"records": db.list_extracted_signals(disease=disease, limit=limit)}
+
+
 # ── 예측 검증 ─────────────────────────────────────────────────
 class PredictionCreate(BaseModel):
     country: str = Field(..., description="대상 국가")

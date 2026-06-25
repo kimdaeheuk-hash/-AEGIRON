@@ -38,6 +38,21 @@ CREATE TABLE IF NOT EXISTS alerts (
     updated_at  TEXT NOT NULL,
     UNIQUE(alert_date, source)
 );
+
+CREATE TABLE IF NOT EXISTS extracted_signals (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    extracted_at  TEXT NOT NULL,
+    source        TEXT NOT NULL,   -- global_watch.py의 slug (who_emro, africa_cdc 등)
+    disease       TEXT,
+    location      TEXT,
+    signal_type   TEXT,            -- 급증 | 감소 | 신규발생 | 진행중 | 종료 | 불명
+    severity      TEXT NOT NULL,   -- JSON 배열 문자열
+    symptom       TEXT,
+    transmission  TEXT,
+    source_trust  REAL NOT NULL,
+    signal_date   TEXT,            -- 텍스트가 언급한 기준일 (YYYY-MM-DD), 모르면 NULL
+    raw_text      TEXT NOT NULL
+);
 """
 
 
@@ -164,3 +179,48 @@ def list_alerts(alert_date: str) -> list[dict]:
             "SELECT * FROM alerts WHERE alert_date = ? ORDER BY score DESC", (alert_date,)
         ).fetchall()
         return [dict(r) for r in rows]
+
+
+# ── NLP 구조화 추출 (extracted_signals) ──────────────────────
+def create_extracted_signal(
+    source: str, disease: str | None, location: str | None, signal_type: str | None,
+    severity: list[str], symptom: str | None, transmission: str | None,
+    source_trust: float, signal_date: str | None, raw_text: str,
+) -> dict:
+    extracted_at = datetime.now(timezone.utc).isoformat()
+    with get_connection() as conn:
+        cur = conn.execute(
+            """
+            INSERT INTO extracted_signals
+                (extracted_at, source, disease, location, signal_type, severity,
+                 symptom, transmission, source_trust, signal_date, raw_text)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (extracted_at, source, disease, location, signal_type,
+             json.dumps(severity, ensure_ascii=False), symptom, transmission,
+             source_trust, signal_date, raw_text),
+        )
+        conn.commit()
+        row = conn.execute(
+            "SELECT * FROM extracted_signals WHERE id = ?", (cur.lastrowid,)
+        ).fetchone()
+        return _extracted_row_to_dict(row)
+
+
+def list_extracted_signals(disease: str | None = None, limit: int = 50) -> list[dict]:
+    query = "SELECT * FROM extracted_signals"
+    params: list = []
+    if disease:
+        query += " WHERE disease = ?"
+        params.append(disease)
+    query += " ORDER BY extracted_at DESC LIMIT ?"
+    params.append(limit)
+    with get_connection() as conn:
+        rows = conn.execute(query, params).fetchall()
+        return [_extracted_row_to_dict(r) for r in rows]
+
+
+def _extracted_row_to_dict(row: sqlite3.Row) -> dict:
+    d = dict(row)
+    d["severity"] = json.loads(d["severity"])
+    return d
