@@ -31,6 +31,7 @@ from algorithms.global_inflow import compute_import
 from algorithms.defense import run_defense
 from algorithms.decision_tree import classify_alert_level, get_priority_actions
 from algorithms.common import PRESETS, CIVIC, THREAT
+from algorithms.gai import compute_gai
 import db
 
 app = FastAPI(
@@ -286,6 +287,18 @@ def backtest(req: BacktestRequest):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Global Anomaly Index ─────────────────────────────────────
+@app.get("/api/anomaly-score", tags=["GAI"])
+def anomaly_score():
+    """
+    수집기(collector.py)가 data/signals_log.jsonl에 쌓은 신호를
+    6계층(공식·비공식·행동·환경·동물·설명불가)으로 묶어 가중합산한 단일 점수.
+    각 신호원은 자기 과거 누적치 대비 이상도(z-score)로 평가됨.
+    70점↑ 주의, 80점↑ 경보, 90점↑ 위험.
+    """
+    return compute_gai()
 
 
 # ── 예측 검증 ─────────────────────────────────────────────────
