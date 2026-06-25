@@ -34,6 +34,7 @@ from algorithms.common import PRESETS, CIVIC, THREAT
 from algorithms.gai import compute_gai
 from algorithms.negative_space import scan_negative_space
 from algorithms.alerts import refresh_alerts
+from algorithms.country_risk import rank_countries, compute_country_risk, COUNTRIES
 import db
 
 app = FastAPI(
@@ -329,6 +330,27 @@ def extracted_signals(disease: Optional[str] = None, limit: int = 50):
     Claude가 disease/location/signal_type 등으로 구조화해 쌓은 것.
     """
     return {"records": db.list_extracted_signals(disease=disease, limit=limit)}
+
+
+# ── 국가별 위험지수 ───────────────────────────────────────────
+@app.get("/api/risk-index", tags=["GAI"])
+def risk_index():
+    """
+    국가별 위험지수 전체 랭킹. 최종위험도 = 원시위험도(직접수치+NLP신호) × 취약성지수.
+    취약성지수 4요소는 WHO GHO·World Bank·OpenFlights·UNWTO 실연동 전까지의 추정 시드값.
+    """
+    return rank_countries()
+
+
+@app.get("/api/risk-index/{country}", tags=["GAI"])
+def risk_index_country(country: str):
+    """특정 국가 상세. country는 COUNTRIES 키(DRC, Uganda, South Korea 등)."""
+    if country not in COUNTRIES:
+        raise HTTPException(
+            status_code=404,
+            detail=f"지원하지 않는 국가 ID. 지원 목록: {list(COUNTRIES)}",
+        )
+    return compute_country_risk(country)
 
 
 # ── 예측 검증 ─────────────────────────────────────────────────
