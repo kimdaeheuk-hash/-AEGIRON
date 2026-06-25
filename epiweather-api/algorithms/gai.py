@@ -1,7 +1,8 @@
 """Global Anomaly Index — collector.py가 쌓은 누적 신호를 6계층 가중합산.
 
-인수인계서 Part5 ①②: 신호원마다 "오늘값 vs 과거평균" 이상도를 구하고,
-6계층(공식·비공식·행동·환경·동물·설명불가)으로 묶어 가중합산한 단일 점수.
+인수인계서 Part5 ①②③: 신호원마다 "오늘값 vs 과거평균" 이상도(raw_score)를 구하고
+출처신뢰도(trust.py, ③)를 곱해 trusted_score를 만든 뒤, 6계층(공식·비공식·행동·
+환경·동물·설명불가)으로 묶어 가중합산한 단일 점수.
 
 층 배정은 인수인계서가 신호원 목록까지 정해주지 않아서 다음 기준으로 직접 매핑함:
   공식    — 정부기관이 직접 운영하는 API/RSS (KDCA, WHO, CDC EID, 홍콩 CHP, 일본 IDWR, 브라질 InfoDengue)
@@ -15,6 +16,8 @@ from __future__ import annotations
 import json
 import statistics
 from pathlib import Path
+
+from .trust import trust_for
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 LOG_FILE = DATA_DIR / "signals_log.jsonl"
@@ -75,55 +78,55 @@ def _ai_anchor_field(field: str):
     return fn
 
 
-# (metric_id, collector.py record type, 레코드 → 값 추출 함수)
+# (metric_id, collector.py record type, 레코드 → 값 추출 함수, 신뢰도 카테고리)
 LAYERS = {
     "official": {
         "label": "공식신호", "weight": 0.15,
         "metrics": [
-            ("kdca_weekly_total", "free_sources", _kdca_latest_total),
-            ("who_afro_items", "free_sources", lambda r: r.get("who_afro_items")),
-            ("who_paho_items", "free_sources", lambda r: r.get("who_paho_items")),
-            ("cdc_eid_items", "free_sources", lambda r: r.get("cdc_eid_items")),
-            ("hk_chp_total", "free_sources", _hk_chp_total),
-            ("japan_idwr_total", "free_sources", _japan_idwr_total),
-            ("infodengue_casos_total", "free_sources", _infodengue_total),
+            ("kdca_weekly_total", "free_sources", _kdca_latest_total, "government"),
+            ("who_afro_items", "free_sources", lambda r: r.get("who_afro_items"), "who"),
+            ("who_paho_items", "free_sources", lambda r: r.get("who_paho_items"), "who"),
+            ("cdc_eid_items", "free_sources", lambda r: r.get("cdc_eid_items"), "cdc"),
+            ("hk_chp_total", "free_sources", _hk_chp_total, "government"),
+            ("japan_idwr_total", "free_sources", _japan_idwr_total, "government"),
+            ("infodengue_casos_total", "free_sources", _infodengue_total, "academic"),
         ],
     },
     "informal": {
         "label": "비공식신호", "weight": 0.20,
         "metrics": [
-            ("cidrap_ebola", "free_sources", _cidrap_field("ebola")),
-            ("cidrap_mers", "free_sources", _cidrap_field("mers")),
-            ("cidrap_cholera", "free_sources", _cidrap_field("cholera")),
-            ("africa_cdc_confirmed", "ai_sources", _ai_anchor_field("confirmed_cases")),
-            ("africa_cdc_deaths", "ai_sources", _ai_anchor_field("deaths")),
+            ("cidrap_ebola", "free_sources", _cidrap_field("ebola"), "academic"),
+            ("cidrap_mers", "free_sources", _cidrap_field("mers"), "academic"),
+            ("cidrap_cholera", "free_sources", _cidrap_field("cholera"), "academic"),
+            ("africa_cdc_confirmed", "ai_sources", _ai_anchor_field("confirmed_cases"), "ai_extracted"),
+            ("africa_cdc_deaths", "ai_sources", _ai_anchor_field("deaths"), "ai_extracted"),
         ],
     },
     "behavioral": {
         "label": "행동신호", "weight": 0.25,
         "metrics": [
-            ("naver_flu_ratio", "free_sources", lambda r: r.get("naver_flu_ratio")),
-            ("naver_ebola_ratio", "free_sources", lambda r: r.get("naver_ebola_ratio")),
-            ("wiki_ebola_daily", "free_sources", lambda r: r.get("wiki_ebola_daily")),
-            ("pubmed_ebola_count", "free_sources", lambda r: r.get("pubmed_ebola_count")),
+            ("naver_flu_ratio", "free_sources", lambda r: r.get("naver_flu_ratio"), "behavioral_api"),
+            ("naver_ebola_ratio", "free_sources", lambda r: r.get("naver_ebola_ratio"), "behavioral_api"),
+            ("wiki_ebola_daily", "free_sources", lambda r: r.get("wiki_ebola_daily"), "behavioral_api"),
+            ("pubmed_ebola_count", "free_sources", lambda r: r.get("pubmed_ebola_count"), "behavioral_api"),
         ],
     },
     "environmental": {
         "label": "환경신호", "weight": 0.15,
         "metrics": [
-            ("cdc_nwss_concentration", "free_sources", _cdc_nwss_conc),
+            ("cdc_nwss_concentration", "free_sources", _cdc_nwss_conc, "cdc"),
         ],
     },
     "animal": {
         "label": "동물신호", "weight": 0.15,
         "metrics": [
-            ("cidrap_avian_flu", "free_sources", _cidrap_field("avian_flu")),
+            ("cidrap_avian_flu", "free_sources", _cidrap_field("avian_flu"), "academic"),
         ],
     },
     "unexplained": {
         "label": "설명불가", "weight": 0.10,
         "metrics": [
-            ("polymarket_new_pandemic", "free_sources", _polymarket_prob("new-pandemic-in-2026")),
+            ("polymarket_new_pandemic", "free_sources", _polymarket_prob("new-pandemic-in-2026"), "prediction_market"),
         ],
     },
 }
@@ -183,13 +186,20 @@ def compute_gai() -> dict:
     layer_results = {}
     for key, cfg in LAYERS.items():
         metric_scores = []
-        for metric_id, rtype, extractor in cfg["metrics"]:
+        for metric_id, rtype, extractor, trust_category in cfg["metrics"]:
             series = [extractor(r) for r in records if r.get("type") == rtype]
-            score = _anomaly_score(series)
-            if score is not None:
-                metric_scores.append({"metric": metric_id, "score": score})
+            raw_score = _anomaly_score(series)
+            if raw_score is None:
+                continue
+            trust = trust_for(trust_category)
+            metric_scores.append({
+                "metric": metric_id,
+                "raw_score": raw_score,
+                "trust": trust,
+                "trusted_score": round(raw_score * trust, 1),
+            })
         layer_score = (
-            round(statistics.mean(m["score"] for m in metric_scores), 1)
+            round(statistics.mean(m["trusted_score"] for m in metric_scores), 1)
             if metric_scores else None
         )
         layer_results[key] = {
