@@ -31,12 +31,14 @@ from algorithms.global_inflow import compute_import
 from algorithms.defense import run_defense
 from algorithms.decision_tree import classify_alert_level, get_priority_actions
 from algorithms.common import PRESETS, CIVIC, THREAT
+import db
 
 app = FastAPI(
     title="역병예보 API",
     description="감염병 조기경보 추론 엔진 REST API",
     version="0.1.0",
 )
+db.init_db()
 
 app.add_middleware(
     CORSMiddleware,
@@ -284,6 +286,48 @@ def backtest(req: BacktestRequest):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── 예측 검증 ─────────────────────────────────────────────────
+class PredictionCreate(BaseModel):
+    country: str = Field(..., description="대상 국가")
+    disease: str = Field(..., description="예측 질병")
+    risk_score: float = Field(..., description="예측 위험도 (0~100)")
+    basis: list[str] = Field(..., min_length=1, description="예측 근거 (최소 1개, 권장 3개)")
+
+@app.post("/api/predictions", tags=["예측 검증"])
+def create_prediction(req: PredictionCreate):
+    """
+    예측 시점에 근거와 함께 기록.
+    나중에 실제 결과가 나오면 /api/predictions/{id}/verify로 채점.
+    """
+    return db.create_prediction(req.country, req.disease, req.risk_score, req.basis)
+
+
+@app.get("/api/predictions", tags=["예측 검증"])
+def get_predictions(country: Optional[str] = None, verified_only: bool = False):
+    """
+    예측 기록 목록 + 검증된 예측의 정확도 통계.
+    '우리가 72% 맞췄다'를 뒷받침하는 실측 수치.
+    """
+    return {
+        "predictions": db.list_predictions(country=country, verified_only=verified_only),
+        "accuracy": db.accuracy_stats(country=country),
+    }
+
+
+class PredictionVerify(BaseModel):
+    actual_result: str = Field(..., description="실제 발생 여부/내용")
+    correct: bool = Field(..., description="예측이 맞았는지")
+    lead_days: Optional[int] = Field(None, description="공식 발표 대비 선행 일수 (양수=먼저 감지)")
+
+@app.post("/api/predictions/{prediction_id}/verify", tags=["예측 검증"])
+def verify_prediction(prediction_id: int, req: PredictionVerify):
+    """예측을 실제 결과로 검증·채점."""
+    result = db.verify_prediction(prediction_id, req.actual_result, req.correct, req.lead_days)
+    if result is None:
+        raise HTTPException(status_code=404, detail="해당 prediction_id 없음")
+    return result
 
 
 # ── Stage 6: AI 통합 추론 ────────────────────────────────────
