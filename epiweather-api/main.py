@@ -33,6 +33,7 @@ from algorithms.decision_tree import classify_alert_level, get_priority_actions
 from algorithms.common import PRESETS, CIVIC, THREAT
 from algorithms.gai import compute_gai
 from algorithms.negative_space import scan_negative_space
+from algorithms.alerts import refresh_alerts
 import db
 
 app = FastAPI(
@@ -310,6 +311,15 @@ def negative_space():
     (2014 기니 에볼라 — 보건부 보고 급감 → 실제론 의료체계 붕괴였던 사례 참고)
     """
     return scan_negative_space()
+
+
+@app.get("/api/alerts", tags=["GAI"])
+def alerts():
+    """
+    경보 피로 방지 — GAI·부정적 공간 감시 후보를 Critical/High/Medium/Low로
+    분류하고 일일 캡(Critical 3개, High 5개)을 적용. 대시보드엔 상위 5개만 노출.
+    """
+    return refresh_alerts()
 
 
 # ── 예측 검증 ─────────────────────────────────────────────────

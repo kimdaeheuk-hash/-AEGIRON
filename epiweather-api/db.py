@@ -25,6 +25,19 @@ CREATE TABLE IF NOT EXISTS predictions (
     lead_days     INTEGER,
     correct       INTEGER
 );
+
+CREATE TABLE IF NOT EXISTS alerts (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    alert_date  TEXT NOT NULL,   -- YYYY-MM-DD, 일일 캡 카운트 기준
+    source      TEXT NOT NULL,   -- 같은 조건의 재발생을 식별하는 키 (예: gai:behavioral.naver_flu_ratio)
+    tier        TEXT NOT NULL,   -- critical | high | medium | low
+    label       TEXT NOT NULL,
+    score       REAL NOT NULL,
+    suppressed  INTEGER NOT NULL DEFAULT 0,
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL,
+    UNIQUE(alert_date, source)
+);
 """
 
 
@@ -37,7 +50,7 @@ def get_connection() -> sqlite3.Connection:
 
 def init_db() -> None:
     with get_connection() as conn:
-        conn.execute(SCHEMA)
+        conn.executescript(SCHEMA)
 
 
 def create_prediction(country: str, disease: str, risk_score: float, basis: list[str]) -> dict:
@@ -112,3 +125,42 @@ def _row_to_dict(row: sqlite3.Row) -> dict:
     d["basis"] = json.loads(d["basis"])
     d["correct"] = bool(d["correct"]) if d["correct"] is not None else None
     return d
+
+
+# ── 경보 피로 방지 (alerts) ──────────────────────────────────
+def upsert_alert(alert_date: str, source: str, tier: str, label: str, score: float) -> None:
+    """같은 날 같은 source는 갱신만 함 — 매시간 재계산해도 캡 카운트가 부풀지 않게."""
+    now = datetime.now(timezone.utc).isoformat()
+    with get_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO alerts (alert_date, source, tier, label, score, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(alert_date, source) DO UPDATE SET
+                tier = excluded.tier,
+                label = excluded.label,
+                score = excluded.score,
+                updated_at = excluded.updated_at
+            """,
+            (alert_date, source, tier, label, score, now, now),
+        )
+        conn.commit()
+
+
+def set_suppressed(alert_ids: list[int], suppressed: bool) -> None:
+    if not alert_ids:
+        return
+    with get_connection() as conn:
+        conn.executemany(
+            "UPDATE alerts SET suppressed = ? WHERE id = ?",
+            [(int(suppressed), aid) for aid in alert_ids],
+        )
+        conn.commit()
+
+
+def list_alerts(alert_date: str) -> list[dict]:
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM alerts WHERE alert_date = ? ORDER BY score DESC", (alert_date,)
+        ).fetchall()
+        return [dict(r) for r in rows]
