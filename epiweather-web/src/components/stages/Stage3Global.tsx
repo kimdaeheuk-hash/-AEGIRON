@@ -5,7 +5,7 @@ import { CITIES, proj, arc } from '@/lib/algorithms';
 const VW = 1000, VH = 400;
 const KR = { lon: 127, lat: 37 };
 
-export default function Stage2Global() {
+export default function Stage3Global() {
   const { glob } = useStore();
   if (!glob) return null;
 

@@ -13,7 +13,7 @@ interface BacktestEvidence {
   search_data_source: string;
 }
 
-export default function Stage1Civic() {
+export default function Stage2Civic() {
   const { civicOn, toggleCivic } = useStore();
   const active = CIVIC.filter(s => civicOn[s.id]);
   const lead = active.length ? Math.max(...active.map(s => s.lead)) : 0;

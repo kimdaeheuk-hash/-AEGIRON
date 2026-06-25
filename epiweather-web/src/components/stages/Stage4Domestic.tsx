@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useStore } from '@/lib/store';
 import { REGIONS, riskColor, statusOf } from '@/lib/algorithms';
 
-export default function Stage3Domestic() {
+export default function Stage4Domestic() {
   const { dom, week, reg, setWeek, setReg } = useStore();
   const [playing, setPlaying] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);

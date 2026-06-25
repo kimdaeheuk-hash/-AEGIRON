@@ -49,7 +49,7 @@ const URGENCY_COLOR: Record<string, string> = {
   '주간 점검': '#3b82f6',
 };
 
-export default function Stage6AI() {
+export default function Stage7AI() {
   const { pz, glob, def, def0, lev, threat, origin, civicOn, savedLives } = useStore();
   const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const [result, setResult] = useState<InferResponse | null>(null);

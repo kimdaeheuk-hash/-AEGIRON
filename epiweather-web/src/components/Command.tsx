@@ -3,13 +3,13 @@ import { useEffect } from 'react';
 import { useStore } from '@/lib/store';
 import { CITIES, THREAT, PRESETS, CIVIC, currentRt } from '@/lib/algorithms';
 import Stage0Synthetic from './stages/Stage0Synthetic';
-import Stage0PatientZero from './stages/Stage0PatientZero';
-import Stage1Civic from './stages/Stage1Civic';
-import Stage2Global from './stages/Stage2Global';
-import Stage3Domestic from './stages/Stage3Domestic';
-import Stage4Network from './stages/Stage4Network';
-import Stage5Defense from './stages/Stage5Defense';
-import Stage6AI from './stages/Stage6AI';
+import Stage1PatientZero from './stages/Stage1PatientZero';
+import Stage2Civic from './stages/Stage2Civic';
+import Stage3Global from './stages/Stage3Global';
+import Stage4Domestic from './stages/Stage4Domestic';
+import Stage5Network from './stages/Stage5Network';
+import Stage6Defense from './stages/Stage6Defense';
+import Stage7AI from './stages/Stage7AI';
 import Stage8Biodefense from './stages/Stage8Biodefense';
 
 const STAGES = [
@@ -53,13 +53,13 @@ export default function Command() {
 
   const stageComponents = [
     <Stage0Synthetic key={0} />,
-    <Stage0PatientZero key={1} />,
-    <Stage1Civic key={2} />,
-    <Stage2Global key={3} />,
-    <Stage3Domestic key={4} />,
-    <Stage4Network key={5} />,
-    <Stage5Defense key={6} />,
-    <Stage6AI key={7} />,
+    <Stage1PatientZero key={1} />,
+    <Stage2Civic key={2} />,
+    <Stage3Global key={3} />,
+    <Stage4Domestic key={4} />,
+    <Stage5Network key={5} />,
+    <Stage6Defense key={6} />,
+    <Stage7AI key={7} />,
     <Stage8Biodefense key={8} />,
   ];
 

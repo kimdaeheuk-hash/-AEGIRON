@@ -6,7 +6,7 @@ import { LEVERS_CONFIG, clamp, currentRt } from '@/lib/algorithms';
 const HOSP_CAP = 12000;
 const HOSP_FRAC = 0.08;
 
-export default function Stage5Defense() {
+export default function Stage6Defense() {
   const { def, def0, lev, threat, setLev, savedLives } = useStore();
   const [animDay, setAnimDay] = useState(200);
   const [playing, setPlaying] = useState(false);

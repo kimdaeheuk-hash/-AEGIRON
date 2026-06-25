@@ -12,7 +12,7 @@ interface LocalSignal {
   titles?: LocalSignalTitle[]; max_anomaly_ratio?: number; verdict?: string; source?: string;
 }
 
-export default function Stage0PatientZero() {
+export default function Stage1PatientZero() {
   const { pz, zsel, setZSel, origin } = useStore();
 
   const [who, setWho] = useState<WhoSignal[] | null>(null);

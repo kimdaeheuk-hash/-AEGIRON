@@ -2,7 +2,7 @@
 import { useStore } from '@/lib/store';
 import { REGIONS, MOBILITY, clamp } from '@/lib/algorithms';
 
-export default function Stage4Network() {
+export default function Stage5Network() {
   const { dom } = useStore();
   if (!dom) return null;
 
