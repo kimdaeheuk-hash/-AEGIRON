@@ -611,6 +611,198 @@ def _seed_known_timelines():
             db.upsert_timeline_event(event_id, event_name, event_date, milestone, description, source, source_type)
 
 
+# ── Phase 3 ──────────────────────────────────────────────────
+# ── 대시보드 6개 화면 통합 API ────────────────────────────────
+@app.get("/api/dashboard", tags=["대시보드"])
+def dashboard():
+    """
+    대시보드 6개 화면 데이터를 한 번에 반환.
+
+    화면1: 글로벌 위험 지도    → screen1_global_map
+    화면2: 실시간 이벤트 스트림 → screen2_event_stream
+    화면3: 발병 타임라인       → screen3_timeline
+    화면4: 국가별 위험 랭킹    → screen4_country_ranking
+    화면5: AI 예측 패널        → screen5_forecast
+    화면6: 경보 센터           → screen6_alert_center
+    """
+    import datetime as dt
+    from algorithms.gai import compute_gai
+    from algorithms.alerts import refresh_alerts
+    from algorithms.country_risk import rank_countries
+    from algorithms.event_dedup import dedupe_events
+    from algorithms.forecast_engine import forecast_summary
+    from algorithms.anomaly_engine import compute_anomalies
+    from algorithms.knowledge_graph import match_active_signals
+
+    today = dt.date.today().isoformat()
+    country_data  = rank_countries()
+    events        = dedupe_events()
+    gai_data      = compute_gai()
+    forecast_data = forecast_summary()
+    anomalies     = compute_anomalies()
+    active_metrics = [a["metric"] for a in anomalies["anomalies"]]
+    chain_warnings = match_active_signals(active_metrics)
+    alert_data    = refresh_alerts(today)
+    timeline_events = db.list_timeline_events()
+
+    return {
+        "generated_at": dt.datetime.now().isoformat(),
+        "screen1_global_map": {
+            "gai": gai_data["gai"],
+            "tier": gai_data["tier"],
+            "countries": country_data["countries"][:50],
+        },
+        "screen2_event_stream": {
+            "events": events[:20],
+            "total":  len(events),
+        },
+        "screen3_timeline": {
+            "active_outbreaks": timeline_events,
+        },
+        "screen4_country_ranking": {
+            "top20": country_data["countries"][:20],
+        },
+        "screen5_forecast": {
+            "score_7d":       forecast_data["score_7d"],
+            "score_14d":      forecast_data["score_14d"],
+            "tier_7d":        forecast_data["tier_7d"],
+            "tier_14d":       forecast_data["tier_14d"],
+            "chain_warnings": chain_warnings[:5],
+            "top_alerts":     forecast_data.get("top_alerts", [])[:5],
+        },
+        "screen6_alert_center": {
+            "dashboard":    alert_data["dashboard"],
+            "tier_summary": alert_data["tier_summary"],
+        },
+    }
+
+
+@app.post("/api/digital-twin/simulate", tags=["Phase3"])
+def digital_twin_simulate(
+    origin: str = "Kinshasa",
+    threat: str = "novel",
+    days: int = 90,
+):
+    """
+    디지털 트윈 — 다도시 전파 시뮬레이션.
+    origin에서 발생한 감염이 항공 네트워크를 타고 서울까지 도달하는 경로·일정 예측.
+    origin: Kinshasa, Bangkok, Riyadh 등 / threat: flu | novel | severe
+    """
+    from algorithms.digital_twin import simulate_spread
+    if threat not in ("flu", "novel", "severe"):
+        raise HTTPException(status_code=422, detail="threat는 flu|novel|severe 중 하나")
+    return simulate_spread(origin=origin, threat=threat, days=min(days, 180))
+
+
+@app.get("/api/cities", tags=["Phase3"])
+def cities_risk():
+    """
+    도시 단위 위험도 — 국가 위험도 × 공항연결성·왕래량·인프라 가중치.
+    인천공항 직항 노선 여부와 연간 탑승객 수 반영.
+    """
+    from algorithms.geo_resolution import rank_cities
+    from algorithms.country_risk import rank_countries
+    country_data = rank_countries()
+    country_risks = {c["country"]: c["risk_score"] for c in country_data["countries"]}
+    return {"cities": rank_cities(country_risks)}
+
+
+@app.get("/api/cities/{city}/inflow", tags=["Phase3"])
+def city_inflow(city: str):
+    """인천공항 → 서울 유입 경로 분석. city: Bangkok, Dubai, Kinshasa 등"""
+    from algorithms.geo_resolution import compute_city_risk, get_korea_inflow_path
+    from algorithms.country_risk import rank_countries
+    country_data = rank_countries()
+    country_risks = {c["country"]: c["risk_score"] for c in country_data["countries"]}
+    city_data = compute_city_risk(city, country_risks.get(city, 50.0))
+    if "error" in city_data:
+        raise HTTPException(status_code=404, detail=city_data["error"])
+    return get_korea_inflow_path(city, city_data["city_risk"])
+
+
+@app.get("/api/profiles", tags=["Phase3"])
+def profiles_list():
+    """기업 고객 맞춤 프로파일 목록 — airline, insurance, school, military, hospital, kdca."""
+    from algorithms.customer_profiles import PROFILES
+    return {
+        "profiles": [
+            {"id": k, "name": v["name"], "example": v["example"],
+             "threshold": v["alert_threshold"], "description": v["description"]}
+            for k, v in PROFILES.items()
+        ]
+    }
+
+
+@app.get("/api/profiles/{profile_id}/risk", tags=["Phase3"])
+def profile_risk(profile_id: str):
+    """
+    특정 프로파일 맞춤 위험도.
+    현재 이상 신호 + 7일 예측을 프로파일 필터로 걸러서 반환.
+    """
+    from algorithms.customer_profiles import filter_risk_for_profile
+    from algorithms.anomaly_engine import compute_anomalies
+    from algorithms.forecast_engine import forecast_summary
+    anomalies = compute_anomalies()["anomalies"]
+    forecast  = forecast_summary()
+    return filter_risk_for_profile(profile_id, anomalies, forecast)
+
+
+@app.get("/api/forecast", tags=["Phase3"])
+def forecast():
+    """
+    7·14일 위험도 예측 — 선형회귀 + 지수평활 앙상블.
+    모든 신호원 시계열에서 7일·14일 후 위험도 점수 계산.
+    데이터가 쌓일수록 정확도 상승.
+    """
+    from algorithms.forecast_engine import forecast_summary
+    return forecast_summary()
+
+
+@app.get("/api/forecast/detail", tags=["Phase3"])
+def forecast_detail():
+    """신호원별 상세 예측값 (delta: 현재 대비 점수 변화량)."""
+    from algorithms.forecast_engine import forecast_all_metrics
+    return forecast_all_metrics()
+
+
+@app.get("/api/knowledge-graph", tags=["Phase3"])
+def knowledge_graph_all():
+    """질병 지식 그래프 전체 — 질병별 원인-결과 인과 체인 + 한국 유입 경로."""
+    from algorithms.knowledge_graph import get_disease_graph
+    return get_disease_graph()
+
+
+@app.get("/api/knowledge-graph/{disease}", tags=["Phase3"])
+def knowledge_graph_disease(disease: str):
+    """특정 질병의 인과 체인. disease: H5N1, Ebola, MERS, Dengue, Novel"""
+    from algorithms.knowledge_graph import get_disease_graph
+    return get_disease_graph(disease)
+
+
+@app.get("/api/knowledge-graph-active", tags=["Phase3"])
+def knowledge_graph_active():
+    """
+    현재 이상 탐지된 신호와 지식 그래프를 매핑.
+    "어떤 인과 체인이 지금 활성화됐는가" 경고 반환.
+    """
+    from algorithms.anomaly_engine import compute_anomalies
+    from algorithms.knowledge_graph import match_active_signals
+    anomalies = compute_anomalies()
+    active = [a["metric"] for a in anomalies["anomalies"]]
+    return {"active_metrics": active, "chain_warnings": match_active_signals(active)}
+
+
+@app.get("/api/behavioral", tags=["Phase3"])
+def behavioral():
+    """
+    행동 변화 데이터 — HIRA 약품 처방 건수 + 서울 응급실 포화도.
+    HIRA_API_KEY, SEOUL_OPEN_DATA_KEY 환경변수 필요 (둘 다 무료 발급).
+    키 없으면 상태와 발급 안내 반환.
+    """
+    from algorithms.behavioral_data import get_behavioral_signal
+    return get_behavioral_signal()
+
+
 @app.get("/api/anomaly-engine", tags=["Phase2"])
 def anomaly_engine():
     """
