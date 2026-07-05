@@ -11,6 +11,7 @@ import Stage5Network from './stages/Stage5Network';
 import Stage6Defense from './stages/Stage6Defense';
 import Stage7AI from './stages/Stage7AI';
 import Stage8Biodefense from './stages/Stage8Biodefense';
+import Stage9Dashboard from './stages/Stage9Dashboard';
 
 const STAGES = [
   { id: 0, nm: '합성위협 탐지', sub: 'SYNTHETIC',    ic: '🧬' },
@@ -22,6 +23,7 @@ const STAGES = [
   { id: 6, nm: '방어 대응',   sub: 'DEFENSE',       ic: '🛡' },
   { id: 7, nm: 'AI 추론',    sub: 'AI POLICY',     ic: '🧠' },
   { id: 8, nm: '전략 비축',  sub: 'BIODEFENSE',    ic: '🦠' },
+  { id: 9, nm: '실시간 대시보드', sub: 'LIVE DATA', ic: '📡' },
 ];
 
 export default function Command() {
@@ -45,6 +47,7 @@ export default function Command() {
     6: savedLives >= 1000 ? (savedLives / 1000).toFixed(0) + 'k' : savedLives.toLocaleString(),
     7: '9단계',
     8: '시뮬',
+    9: 'LIVE',
   };
   const rtSafe = currentRt(lev, threat);
   const estateText = rtSafe < 1 ? '✓ 방어 우세' : rtSafe < 1.5 ? '⚠ 억제' : '⚠ 확산 위험';
@@ -61,6 +64,7 @@ export default function Command() {
     <Stage6Defense key={6} />,
     <Stage7AI key={7} />,
     <Stage8Biodefense key={8} />,
+    <Stage9Dashboard key={9} />,
   ];
 
   return (
@@ -90,7 +94,7 @@ export default function Command() {
               역병예보 <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--accent)', verticalAlign: 'middle' }}>COMMAND</span>
             </h1>
             <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted)', letterSpacing: '.18em', marginTop: 5 }}>
-              9단계 통합 관제센터 · 합성위협 탐지 → 생명 살리기까지
+              10단계 통합 관제센터 · 합성위협 탐지 → 실시간 대시보드
             </div>
           </div>
         </div>
@@ -98,7 +102,7 @@ export default function Command() {
           <div style={{ fontSize: 13, color: estateCol }}>{estateText}</div>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 9, letterSpacing: '.14em', marginTop: 4, color: 'var(--ok)' }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--ok)', boxShadow: '0 0 8px var(--ok)', animation: 'blink 1.6s infinite' }} />
-            9단계 동시 추론
+            10단계 동시 추론
           </div>
         </div>
       </div>
