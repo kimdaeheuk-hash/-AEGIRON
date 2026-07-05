@@ -227,9 +227,18 @@ def fetch_polymarket_odds() -> dict[str, dict]:
     out: dict[str, dict] = {}
     for slug, label in POLYMARKET_WATCHLIST:
         event = by_slug.get(slug)
-        if not event or not event.get("markets"):
+        if not event or not event.get("markets") or event.get("closed"):
             continue
-        market = event["markets"][0]
+        # 일부 이벤트는 단일 마켓이 아니라 임계값별 하위 마켓 여러 개가 묶인
+        # 그룹 이벤트(예: 홍역 "500명 이상"·"1000명 이상"·... 10개). markets[0]을
+        # 그대로 쓰면 API 응답 순서가 안정적이지 않아 매번 다른 임계값을 가리킬 수 있고,
+        # 이미 결과가 확정된(closed) 하위 마켓(확률이 0%/100%로 고정)을 집어올 수도 있다.
+        # → 아직 열려 있는 하위 마켓 중 24h 거래량이 가장 큰(가장 활발히 거래되는) 것을
+        #   결정적으로 골라 대표 확률로 사용한다.
+        open_markets = [m for m in event["markets"] if not m.get("closed")]
+        if not open_markets:
+            continue
+        market = max(open_markets, key=lambda m: m.get("volume24hr") or 0)
         prices = json.loads(market["outcomePrices"])  # ["Yes가", "No가"]
         out[slug] = {
             "label": label,
@@ -475,8 +484,9 @@ def collect_free_sources() -> dict:
         for slug, v in result["polymarket"].items():
             tag = "  🚨 급변" if v["surge_alert"] else " "
             change = f" (Δ{v['prob_change']*100:+.1f}%p)" if v["prob_change"] is not None else ""
+            volume = f"{v['volume_24h']:.0f}" if v["volume_24h"] is not None else "—"
             log(f"{tag} Polymarket {v['label']}: Yes {v['yes_probability']*100:.1f}%{change} "
-                f"(24h거래량 {v['volume_24h']:.0f})")
+                f"(24h거래량 {volume})")
     except Exception as e:
         result["polymarket"] = None
         log_error("Polymarket", e)
