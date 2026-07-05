@@ -89,6 +89,7 @@ LAYERS = {
             ("cidrap_cholera", "free_sources", _cidrap_field("cholera"), "academic"),
             ("africa_cdc_confirmed", "ai_sources", _ai_anchor_field("confirmed_cases"), "ai_extracted"),
             ("africa_cdc_deaths", "ai_sources", _ai_anchor_field("deaths"), "ai_extracted"),
+            ("local_news_kw_hits", "free_sources", lambda r: (r.get("local_news") or {}).get("total_kw_hits"), "behavioral_api"),
         ],
     },
     "behavioral": {
@@ -98,6 +99,10 @@ LAYERS = {
             ("naver_ebola_ratio", "free_sources", lambda r: r.get("naver_ebola_ratio"), "behavioral_api"),
             ("wiki_ebola_daily", "free_sources", lambda r: r.get("wiki_ebola_daily"), "behavioral_api"),
             ("pubmed_ebola_count", "free_sources", lambda r: r.get("pubmed_ebola_count"), "behavioral_api"),
+            ("supply_total_ratio", "free_sources", lambda r: (r.get("supply_chain") or {}).get("total_supply_ratio"), "behavioral_api"),
+            ("supply_alert_count", "free_sources", lambda r: (r.get("supply_chain") or {}).get("supply_alert_count"), "behavioral_api"),
+            ("mobility_total_flights", "free_sources", lambda r: (r.get("mobility") or {}).get("mobility_total_flights"), "behavioral_api"),
+            ("medrxiv_epi_papers", "free_sources", lambda r: (r.get("extra_sources") or {}).get("medrxiv_epi_papers"), "academic"),
         ],
     },
     "environmental": {
@@ -110,6 +115,8 @@ LAYERS = {
         "label": "동물신호", "weight": 0.15,
         "metrics": [
             ("cidrap_avian_flu", "free_sources", _cidrap_field("avian_flu"), "academic"),
+            ("wahis_outbreaks_30d", "free_sources", lambda r: (r.get("wahis") or {}).get("outbreaks_30d"), "government"),
+            ("wahis_watch_hits", "free_sources", lambda r: (r.get("wahis") or {}).get("watch_hits"), "government"),
         ],
     },
     "unexplained": {
@@ -122,18 +129,25 @@ LAYERS = {
 
 
 def load_records() -> list[dict]:
-    if not LOG_FILE.exists():
-        return []
+    """
+    기준선 파일(baseline_signals.jsonl) + 실시간 수집 파일(signals_log.jsonl)을
+    시간순으로 합쳐서 반환. 기준선이 먼저, 실시간이 뒤에 오므로 z-score 계산 시
+    역사적 컨텍스트를 확보할 수 있다.
+    """
+    baseline_file = DATA_DIR / "baseline_signals.jsonl"
     records = []
-    with open(LOG_FILE, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                records.append(json.loads(line))
-            except json.JSONDecodeError:
-                continue
+    for path in (baseline_file, LOG_FILE):
+        if not path.exists():
+            continue
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    records.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
     return records
 
 

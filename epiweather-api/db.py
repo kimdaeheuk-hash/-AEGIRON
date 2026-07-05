@@ -13,6 +13,34 @@ from datetime import datetime, timezone
 DB_PATH = Path(__file__).parent / "data" / "epiweather.db"
 
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS outbreak_timeline (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id     TEXT NOT NULL,
+    event_name   TEXT NOT NULL,
+    event_date   TEXT NOT NULL,
+    milestone    TEXT NOT NULL,
+    description  TEXT NOT NULL,
+    source       TEXT,
+    source_type  TEXT,
+    created_at   TEXT NOT NULL,
+    UNIQUE(event_id, milestone)
+);
+
+CREATE TABLE IF NOT EXISTS sentinel_queue (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    detected_at  TEXT NOT NULL,
+    layer        TEXT NOT NULL,
+    metric       TEXT NOT NULL,
+    spike_ratio  REAL NOT NULL,
+    latest_val   REAL NOT NULL,
+    baseline_avg REAL NOT NULL,
+    status       TEXT NOT NULL DEFAULT 'pending',  -- pending | confirmed | dismissed
+    evidence     TEXT,
+    confidence   REAL,
+    verified_at  TEXT,
+    UNIQUE(detected_at, layer, metric)
+);
+
 CREATE TABLE IF NOT EXISTS predictions (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     predicted_at  TEXT NOT NULL,
@@ -227,3 +255,106 @@ def _extracted_row_to_dict(row: sqlite3.Row) -> dict:
     d["severity"] = json.loads(d["severity"])
     d["known_disease"] = bool(d["known_disease"])
     return d
+
+
+# ── Sentinel Queue ────────────────────────────────────────────
+def upsert_timeline_event(
+    event_id: str, event_name: str, event_date: str,
+    milestone: str, description: str,
+    source: str | None = None, source_type: str | None = None,
+) -> dict:
+    """발병 타임라인 이벤트 추가. 같은 milestone은 갱신."""
+    now = datetime.now(timezone.utc).isoformat()
+    with get_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO outbreak_timeline
+                (event_id, event_name, event_date, milestone, description, source, source_type, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(event_id, milestone) DO UPDATE SET
+                description = excluded.description,
+                source = excluded.source
+            """,
+            (event_id, event_name, event_date, milestone, description, source, source_type, now),
+        )
+        conn.commit()
+    return get_timeline(event_id)
+
+
+def get_timeline(event_id: str) -> dict:
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM outbreak_timeline WHERE event_id = ? ORDER BY event_date",
+            (event_id,),
+        ).fetchall()
+        if not rows:
+            return {"event_id": event_id, "milestones": []}
+        return {
+            "event_id":   event_id,
+            "event_name": rows[0]["event_name"],
+            "milestones": [dict(r) for r in rows],
+        }
+
+
+def list_timeline_events() -> list[dict]:
+    """진행 중인 발병 이벤트 목록 (event_id별 최신 마일스톤)."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT event_id, event_name, MAX(event_date) as latest_date, COUNT(*) as milestone_count
+            FROM outbreak_timeline GROUP BY event_id ORDER BY latest_date DESC
+            """,
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def upsert_sentinel(
+    detected_at: str, layer: str, metric: str,
+    spike_ratio: float, latest_val: float, baseline_avg: float,
+) -> int:
+    """같은 날 같은 metric은 갱신 — 매시간 재스캔해도 중복 안 쌓임."""
+    now = datetime.now(timezone.utc).isoformat()
+    with get_connection() as conn:
+        cur = conn.execute(
+            """
+            INSERT INTO sentinel_queue
+                (detected_at, layer, metric, spike_ratio, latest_val, baseline_avg)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(detected_at, layer, metric) DO UPDATE SET
+                spike_ratio  = excluded.spike_ratio,
+                latest_val   = excluded.latest_val,
+                baseline_avg = excluded.baseline_avg
+            """,
+            (detected_at, layer, metric, spike_ratio, latest_val, baseline_avg),
+        )
+        conn.commit()
+        row = conn.execute(
+            "SELECT id FROM sentinel_queue WHERE detected_at=? AND layer=? AND metric=?",
+            (detected_at, layer, metric),
+        ).fetchone()
+        return row["id"]
+
+
+def update_sentinel_verification(
+    sentinel_id: int, status: str, evidence: str | None, confidence: float | None
+) -> None:
+    verified_at = datetime.now(timezone.utc).isoformat()
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE sentinel_queue SET status=?, evidence=?, confidence=?, verified_at=? WHERE id=?",
+            (status, evidence, confidence, verified_at, sentinel_id),
+        )
+        conn.commit()
+
+
+def list_sentinel_queue(status: str | None = None, limit: int = 50) -> list[dict]:
+    query = "SELECT * FROM sentinel_queue"
+    params: list = []
+    if status:
+        query += " WHERE status = ?"
+        params.append(status)
+    query += " ORDER BY detected_at DESC, spike_ratio DESC LIMIT ?"
+    params.append(limit)
+    with get_connection() as conn:
+        rows = conn.execute(query, params).fetchall()
+        return [dict(r) for r in rows]

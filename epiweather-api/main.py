@@ -529,6 +529,218 @@ def global_watch():
     return run_global_watch()
 
 
+# ── 과거 기준선 데이터 수집 (Phase 2 ⑮) ──────────────────────
+@app.post("/api/baseline/collect", tags=["기준선"])
+def baseline_collect(months_back: int = 24, years_back: int = 5):
+    """
+    Wikipedia 최대 24개월 + KDCA 최대 5년치 역사 데이터를
+    data/baseline_signals.jsonl에 저장. GAI 이상도 계산의 역사적 ���준선으로 쓰임.
+    KDCA는 환경변수 KDCA_API_KEY가 있어야 수집됨.
+    """
+    from algorithms.baseline_collector import collect_baseline
+    return collect_baseline(months_back=months_back, years_back=years_back)
+
+
+# ── 발병 타임라인 (Phase 2 ㉑) ──────────────────────────────
+@app.get("/api/timeline", tags=["타임라인"])
+def timeline_list():
+    """
+    등록된 발병 이벤트 목록 (event_id별 최신 마일스톤 날짜 + 마일스톤 수).
+    """
+    return {"events": db.list_timeline_events()}
+
+
+@app.get("/api/timeline/current", tags=["타임라인"])
+def timeline_current():
+    """
+    현재 진행 중인 위협 타임라인 — 인수인계서에 기록된 에볼라 PHEIC 등
+    알려진 이벤트의 시드 데이터를 포함해 반환.
+    """
+    db.init_db()
+    _seed_known_timelines()
+    return {"events": db.list_timeline_events()}
+
+
+@app.get("/api/timeline/{event_id}", tags=["타임라인"])
+def timeline_event(event_id: str):
+    """특정 발병 이벤트의 전체 타임라인 (날짜순)."""
+    result = db.get_timeline(event_id)
+    if not result["milestones"]:
+        raise HTTPException(status_code=404, detail=f"이벤트 없음: {event_id}")
+    return result
+
+
+class TimelineMilestone(BaseModel):
+    event_id:    str = Field(..., description="이벤트 식별자 (예: ebola_drc_2026)")
+    event_name:  str = Field(..., description="이벤트 이름")
+    event_date:  str = Field(..., description="날짜 YYYY-MM-DD")
+    milestone:   str = Field(..., description="마일스톤 키 (예: who_pheic, first_report)")
+    description: str = Field(..., description="설명")
+    source:      Optional[str] = Field(None)
+    source_type: Optional[str] = Field(None, description="who | cdc | media | ai_detected")
+
+@app.post("/api/timeline", tags=["타임라인"])
+def timeline_add(req: TimelineMilestone):
+    """발병 타임라인에 마일스톤 추가 (같은 milestone은 갱신)."""
+    return db.upsert_timeline_event(
+        req.event_id, req.event_name, req.event_date,
+        req.milestone, req.description, req.source, req.source_type,
+    )
+
+
+def _seed_known_timelines():
+    """인수인계서 Part8 — 현재 진행 중인 발병의 시드 데이터."""
+    known = [
+        ("ebola_drc_2026", "에볼라 DRC 2026", [
+            ("2026-05-09", "msf_first_alert",   "MSF 현장 첫 경보", "MSF 보고서", "media"),
+            ("2026-05-15", "drc_official",       "DRC 보건부 공식 선언", "DRC Ministry of Health", "who"),
+            ("2026-05-16", "who_pheic",          "WHO PHEIC 선언", "WHO DON", "who"),
+            ("2026-05-17", "wiki_spike",         "Wikipedia 영어판 조회수 급증", "Wikimedia API", "ai_detected"),
+            ("2026-06-25", "status_update",      "확진 896명·사망 232명", "WHO Situation Report", "who"),
+        ]),
+        ("mers_saudi_2026", "MERS 사우디아라비아 2026", [
+            ("2026-01-01", "year_start",         "2026년 감시 시작", "WHO DON591", "who"),
+            ("2026-06-25", "status_update",      "2026년 확진 11건·사망 2명 / 리야드 병원 집단감염 7건", "WHO DON591", "who"),
+        ]),
+        ("dengue_2026", "뎅기열 글로벌 2026", [
+            ("2026-06-25", "status_update",      "방글라데시 1,870명 / 태국 3,191명 / 전세계 50만+", "WHO/ECDC", "who"),
+        ]),
+    ]
+    for event_id, event_name, milestones in known:
+        for event_date, milestone, description, source, source_type in milestones:
+            db.upsert_timeline_event(event_id, event_name, event_date, milestone, description, source, source_type)
+
+
+@app.get("/api/anomaly-engine", tags=["Phase2"])
+def anomaly_engine():
+    """
+    이상 신호 탐지 엔진 — (오늘값-30일평균)/30일평균 방식으로 모든 신호원 이상도 계산.
+    임계값(50점) 이상 항목 목록 + 증상 클러스터(질병명 없이 패턴 탐지) 반환.
+    """
+    from algorithms.anomaly_engine import compute_anomalies
+    return compute_anomalies()
+
+
+@app.get("/api/extra-sources", tags=["Phase2"])
+def extra_sources():
+    """
+    추가 데이터 소스 — medRxiv 감염병 프리프린트 수, Google Trends 전세계/한국.
+    pytrends 설치 시 Google Trends 활성화. 미설치 시 null 반환.
+    """
+    from algorithms.extra_sources import get_extra_signals
+    return get_extra_signals()
+
+
+@app.get("/api/mobility", tags=["Phase2"])
+def mobility():
+    """
+    이동성 신호 — OpenSky API로 주요 발병국 공항 24시간 항공편 수 조회.
+    항공편 급감 = 해당 지역 유행 간접 신호. 무료, 인증 불필요.
+    """
+    from algorithms.mobility import fetch_mobility_signals
+    return fetch_mobility_signals()
+
+
+@app.get("/api/supply-chain", tags=["Phase2"])
+def supply_chain():
+    """
+    공급망 신호 — 해열제·마스크·산소발생기 등 의약품 수요 급증 감지.
+    네이버 DataLab 트렌드 기반. NAVER_CLIENT_ID/SECRET 필요.
+    2003 SARS 선행 사례: 해열제 품절이 공식 발표 11일 전.
+    """
+    from algorithms.supply_chain import get_supply_signal
+    return get_supply_signal()
+
+
+@app.get("/api/local-news", tags=["Phase2"])
+def local_news():
+    """
+    현지어 뉴스 RSS — 스와힐리어·프랑스어·태국어·베트남어 감염병 키워드 감지.
+    영어 번역 전에 감지. hit_ratio가 높을수록 현지 감염병 보도 활발.
+    """
+    from algorithms.local_news import fetch_all_local_news
+    return fetch_all_local_news()
+
+
+@app.get("/api/animal-signals", tags=["Phase2"])
+def animal_signals():
+    """
+    WAHIS(세계동물보건기구) 동물질병 신호.
+    30일 내 발병 건수, 감시 대상 질병 활성 수, WOAH RSS 항목 수.
+    WAHIS_API_KEY 환경변수가 있으면 전체 API, 없으면 RSS로만 수집.
+    """
+    from algorithms.wahis import get_animal_signal
+    return get_animal_signal()
+
+
+@app.get("/api/baseline/status", tags=["기준선"])
+def baseline_status():
+    """기준선 파일 현황 — 저장된 레코드 수와 최신/최고 타임스탬프."""
+    from algorithms.baseline_collector import load_baseline_records
+    records = load_baseline_records()
+    if not records:
+        return {"status": "없음", "count": 0, "hint": "POST /api/baseline/collect 실행 필요"}
+    timestamps = [r.get("_logged_at", "") for r in records if r.get("_logged_at")]
+    return {
+        "status": "있음",
+        "count": len(records),
+        "oldest": min(timestamps) if timestamps else None,
+        "newest": max(timestamps) if timestamps else None,
+        "wiki_records": sum(1 for r in records if r.get("_source") == "wikipedia_monthly"),
+        "kdca_records": sum(1 for r in records if r.get("_source") == "kdca_annual"),
+    }
+
+
+# ── Sentinel + Verification 2층 구조 (Phase 2 ⑭) ────────────
+@app.get("/api/sentinel/status", tags=["Sentinel"])
+def sentinel_status():
+    """
+    Sentinel 대기열 현황 — pending/confirmed/dismissed 건수와 최신 목록.
+    Sentinel은 spike_ratio >= 2.0인 신호를 자동 탐지해 쌓는다.
+    """
+    from algorithms.sentinel import get_sentinel_status
+    return get_sentinel_status()
+
+
+@app.post("/api/sentinel/scan", tags=["Sentinel"])
+def sentinel_scan():
+    """
+    즉시 스파이크 스캔 실행 — signals_log.jsonl을 읽어 기준선 2배 이상 급등 탐지.
+    탐지 결과를 sentinel_queue에 upsert. 5분 이내 응답 목표.
+    """
+    from algorithms.sentinel import scan_spikes
+    spikes = scan_spikes()
+    return {"detected": len(spikes), "spikes": spikes}
+
+
+@app.post("/api/sentinel/verify", tags=["Sentinel"])
+def sentinel_verify(max_items: int = 10):
+    """
+    pending 항목을 Perplexity → Tavily 순서로 검증.
+    키가 없으면 안내 메시지 반환. 30~60분 주기로 실행 권장.
+    """
+    from algorithms.verification import verify_pending
+    return verify_pending(max_items=max_items)
+
+
+@app.post("/api/sentinel/{sentinel_id}/verify", tags=["Sentinel"])
+def sentinel_manual_verify(
+    sentinel_id: int,
+    status: str,
+    evidence: Optional[str] = None,
+    confidence: Optional[float] = None,
+):
+    """수동 검증 — status는 confirmed | dismissed."""
+    if status not in ("confirmed", "dismissed"):
+        raise HTTPException(status_code=422, detail="status는 confirmed | dismissed 중 하나")
+    db.update_sentinel_verification(sentinel_id, status, evidence, confidence)
+    rows = db.list_sentinel_queue(limit=1)
+    match = next((r for r in db.list_sentinel_queue() if r["id"] == sentinel_id), None)
+    if not match:
+        raise HTTPException(status_code=404, detail="sentinel_id 없음")
+    return match
+
+
 @app.post("/api/ai/triage", tags=["Stage 6: AI 추론"])
 def ai_triage(
     rt: float, arrival_day: int, hosp_overflow_days: int = 0,
