@@ -74,10 +74,19 @@ def fetch_kdca_historical(api_key: str, years_back: int = 5) -> list[dict]:
             item_list = items.get("item") or []
             if isinstance(item_list, dict):
                 item_list = [item_list]
-            for it in item_list:
-                results.append({"year": year, "disease": it.get("icdNm"), "count": int(it.get("resultVal", 0))})
         except Exception:
             continue
+        for it in item_list:
+            # 신규 추가 질병(예: 니파바이러스감염증)은 과거 연도에 아직 감시 대상이
+            # 아니었으면 resultVal이 숫자가 아니라 "-"로 옴. int() 변환이 여기서
+            # 터지면 그 뒤에 오는 나머지 질병(홍역·콜레라 등 실제 감시 대상 포함)까지
+            # 해당 연도 전체가 통째로 유실돼 기준선(baseline)이 왜곡됨 — 항목별로
+            # 개별 처리해 문제 있는 항목만 0으로 두고 나머지는 살린다.
+            try:
+                count = int(it.get("resultVal", 0))
+            except (TypeError, ValueError):
+                count = 0
+            results.append({"year": year, "disease": it.get("icdNm"), "count": count})
     return results
 
 

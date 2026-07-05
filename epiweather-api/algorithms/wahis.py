@@ -33,8 +33,10 @@ WATCH_DISEASES = [
     "Rabies",
 ]
 
-# WOAH 공개 RSS — 계정 없이 사용 가능 (공식 발병 보고 요약)
-WOAH_RSS_URL = "https://www.woah.org/en/home/feed/"
+# WOAH 공개 RSS — 계정 없이 사용 가능 (공식 발병 보고 요약).
+# "/en/home/feed/"는 항상 403(WordPress comments-closed 오류)이라 죽어있던
+# URL — 실제 유효한 경로는 "/en/feed/"(실측 확인, 200·항목 10개).
+WOAH_RSS_URL = "https://www.woah.org/en/feed/"
 
 
 def _headers(api_key: str | None) -> dict:

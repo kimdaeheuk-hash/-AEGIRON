@@ -65,7 +65,19 @@ def fetch_local_signal(origin_id: str) -> dict:
             results.append({"title": title, "error": str(e)[:100]})
 
     valid = [r for r in results if "ratio" in r]
-    max_ratio = max((r["ratio"] for r in valid), default=1.0)
+    if not valid:
+        # 문서 전부 조회 실패(레이트리밋·네트워크 오류)면 max_ratio를 1.0으로
+        # 기본값 처리하면 "✅ 평소 수준"으로 잘못 보고됨 — 실제로는 데이터를
+        # 아예 못 받아온 것이라 "정상"과 구분해야 함.
+        return {
+            "available": False,
+            "lang": lang,
+            "titles": results,
+            "reason": "모든 문서 조회 실패 — 레이트리밋 또는 네트워크 오류",
+            "source": f"{lang}.wikipedia.org 실시간 조회량 (Wikimedia REST API)",
+        }
+
+    max_ratio = max(r["ratio"] for r in valid)
 
     return {
         "available": True,
