@@ -367,29 +367,37 @@ def collect_free_sources() -> dict:
     try:
         # 원래 쓰려던 percentile 지표 데이터셋(2ew6-ywp6)은 2025-09-12 보관 처리되어
         # 더 안 올라옴 — CDC가 안내한 대체 원시샘플 데이터셋(j9g8-acpt)으로 서버단
-        # 집계(최신일 보고 사이트 수·평균 SARS-CoV-2 농도) 조회.
+        # 집계(최근 보고 사이트 수·평균 SARS-CoV-2 농도) 조회.
+        #
+        # sample_collect_date는 "채집일"이라 실험실 처리 지연으로 최신 며칠은
+        # 극소수 사이트만 먼저 들어오고 나머지는 이후 며칠에 걸쳐 채워짐 — 그래서
+        # "가장 최근 날짜" 단일일자만 집계하면 site_count=1, mean_concentration이
+        # 그 한 사이트 값(종종 0)으로 왜곡됨(실측: 2026-06-25 단일일자 1개 사이트
+        # 평균 0.0 vs 같은 날 포함 7일 창 181개 사이트 평균 8494.5). 최신 날짜를
+        # 기준으로 7일 창으로 집계해 보고 지연을 흡수한다.
         latest = requests.get(
             "https://data.cdc.gov/resource/j9g8-acpt.json",
             params={"$select": "sample_collect_date", "$order": "sample_collect_date DESC", "$limit": 1},
             headers=USER_AGENT, timeout=15,
         )
         latest.raise_for_status()
-        latest_date = latest.json()[0]["sample_collect_date"][:10]
+        latest_date = dt.date.fromisoformat(latest.json()[0]["sample_collect_date"][:10])
+        window_start = latest_date - dt.timedelta(days=6)
 
         agg = requests.get(
             "https://data.cdc.gov/resource/j9g8-acpt.json",
             params={"$select": "count(*) as n, avg(pcr_target_avg_conc) as avg_conc",
-                    "$where": f"sample_collect_date='{latest_date}'"},
+                    "$where": f"sample_collect_date >= '{window_start}' and sample_collect_date <= '{latest_date}'"},
             headers=USER_AGENT, timeout=15,
         )
         agg.raise_for_status()
         row = agg.json()[0]
         result["cdc_nwss"] = {
-            "date": latest_date,
+            "date": f"{window_start}~{latest_date}",
             "site_count": int(row["n"]),
             "mean_concentration": round(float(row["avg_conc"]), 1) if row.get("avg_conc") else None,
         }
-        log(f"  CDC NWSS(하수): {latest_date} 기준 {result['cdc_nwss']['site_count']}개 사이트, "
+        log(f"  CDC NWSS(하수): {window_start}~{latest_date} 기준 {result['cdc_nwss']['site_count']}개 사이트, "
             f"평균농도 {result['cdc_nwss']['mean_concentration']}")
     except Exception as e:
         result["cdc_nwss"] = None
