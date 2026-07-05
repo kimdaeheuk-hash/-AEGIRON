@@ -131,7 +131,12 @@ def compute_country_risk(country_id: str) -> dict:
     components = [s for s in (direct_score, nlp_score) if s is not None]
     raw_score = round(statistics.mean(components), 1) if components else None
     vuln = vulnerability_index(country_id)
-    final_risk = round(raw_score * vuln, 1) if raw_score is not None else None
+
+    if raw_score is not None:
+        risk_score = round(raw_score * vuln, 1)
+    else:
+        # 실신호 없을 때 취약성 지수로 기준선 제공 (표시는 되되 낮은 값)
+        risk_score = round(vuln * 35, 1)
 
     return {
         "country": country_id,
@@ -143,12 +148,13 @@ def compute_country_risk(country_id: str) -> dict:
             "nlp_signal_count": nlp_count,
         },
         "vulnerability_index": vuln,
-        "final_risk": final_risk,
-        "tier": _tier(final_risk),
+        "risk_score": risk_score,
+        "has_signal": raw_score is not None,
+        "tier": _tier(risk_score),
     }
 
 
 def rank_countries() -> dict:
     results = [compute_country_risk(cid) for cid in COUNTRIES]
-    results.sort(key=lambda r: (r["final_risk"] is None, -(r["final_risk"] or 0)))
+    results.sort(key=lambda r: -r["risk_score"])
     return {"countries": results}
