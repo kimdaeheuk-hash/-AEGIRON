@@ -128,7 +128,7 @@ LAYERS = {
             ("supply_total_ratio", "free_sources", lambda r: (r.get("supply_chain") or {}).get("total_supply_ratio"), "behavioral_api"),
             ("supply_alert_count", "free_sources", lambda r: (r.get("supply_chain") or {}).get("supply_alert_count"), "behavioral_api"),
             ("mobility_total_flights", "free_sources", lambda r: (r.get("mobility") or {}).get("mobility_total_flights"), "behavioral_api"),
-            ("medrxiv_epi_papers", "free_sources", lambda r: (r.get("extra_sources") or {}).get("medrxiv_epi_papers"), "academic"),
+            ("medrxiv_epi_papers", "free_sources", lambda r: (r.get("extra_sources") or {}).get("medrxiv", {}).get("medrxiv_epi_papers"), "academic"),
         ],
     },
     "environmental": {

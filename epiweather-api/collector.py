@@ -532,6 +532,61 @@ def collect_free_sources() -> dict:
         result["social_signal"] = None
         log_error("SocialSignal", e)
 
+    try:
+        from algorithms.mobility import get_mobility_score, WATCH_AIRPORTS
+        result["mobility"] = get_mobility_score()
+        m = result["mobility"]
+        if m.get("mobility_rate_limited"):
+            log(f"  ⏭ 이동성(OpenSky): 레이트리밋({m['mobility_airports_ok']}/{len(WATCH_AIRPORTS)}개만 조회)")
+        else:
+            log(f"  이동성(OpenSky): {m['mobility_airports_ok']}개 공항 확인, "
+                f"1h 항공편 합계 {m['mobility_total_flights']}")
+    except Exception as e:
+        result["mobility"] = None
+        log_error("Mobility", e)
+
+    try:
+        from algorithms.local_news import fetch_all_local_news
+        result["local_news"] = fetch_all_local_news()
+        n = result["local_news"]
+        log(f"  현지어 뉴스: {n['active_feeds']}/{n['total_feeds']}개 피드, "
+            f"키워드 히트 {n['total_kw_hits']}건, 고경보 {n['high_alert_feeds']}개")
+    except Exception as e:
+        result["local_news"] = None
+        log_error("LocalNews", e)
+
+    try:
+        from algorithms.supply_chain import get_supply_signal
+        result["supply_chain"] = get_supply_signal()
+        s = result["supply_chain"]
+        if s.get("status") == "no_key":
+            log(f"  ⏭ 공급망 신호: {s.get('note')}")
+        else:
+            log(f"  공급망 신호: 이상급증 {s['supply_alert_count']}개 품목, "
+                f"총 비율합 {s['total_supply_ratio']}")
+    except Exception as e:
+        result["supply_chain"] = None
+        log_error("SupplyChain", e)
+
+    try:
+        from algorithms.extra_sources import get_extra_signals
+        result["extra_sources"] = get_extra_signals()
+        e_ = result["extra_sources"]
+        log(f"  추가소스: medRxiv 감염병 프리프린트 {e_['medrxiv']['medrxiv_epi_papers']}건")
+    except Exception as e:
+        result["extra_sources"] = None
+        log_error("ExtraSources", e)
+
+    try:
+        from algorithms.wahis import get_animal_signal
+        result["wahis"] = get_animal_signal()
+        w = result["wahis"]
+        log(f"  WAHIS 동물신호: 30일 발병 {w['outbreaks_30d']}건, "
+            f"감시질병 활성 {w['watch_hits']}종, WOAH RSS {w['woah_rss_items']}건")
+    except Exception as e:
+        result["wahis"] = None
+        log_error("WAHIS", e)
+
     append_signal(result)
     log("=== 무료 소스 수집 완료 ===")
     return result
