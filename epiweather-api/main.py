@@ -865,6 +865,17 @@ def animal_signals():
     return get_animal_signal()
 
 
+@app.get("/api/genomic-variants", tags=["Phase2"])
+def genomic_variants():
+    """
+    Nextstrain 실시간 유전체 계통(clade) 추적 — SARS-CoV-2/엠폭스/RSV-A.
+    최근 60일 구간에 이전 60일 구간엔 없던 신규 계통이 등장했는지, 우세 계통
+    구성비를 반환. 무료·인증 불필요. 빌드가 오래 갱신 안 됐으면 available=False.
+    """
+    from algorithms.genomic_variants import get_genomic_variant_signals
+    return get_genomic_variant_signals()
+
+
 @app.get("/api/baseline/status", tags=["기준선"])
 def baseline_status():
     """기준선 파일 현황 — 저장된 레코드 수와 최신/최고 타임스탬프."""

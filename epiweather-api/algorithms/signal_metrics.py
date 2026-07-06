@@ -61,6 +61,12 @@ def _polymarket_prob(slug: str):
     return fn
 
 
+def _genomic_field(slug: str, field: str):
+    def fn(rec: dict) -> float | None:
+        return (rec.get("genomic_variants") or {}).get(slug, {}).get(field)
+    return fn
+
+
 def _ai_anchor_field(field: str):
     def fn(rec: dict) -> float | None:
         return (rec.get("anchors") or {}).get("africa_cdc", {}).get(field)
@@ -90,6 +96,9 @@ LAYERS = {
             ("africa_cdc_confirmed", "ai_sources", _ai_anchor_field("confirmed_cases"), "ai_extracted"),
             ("africa_cdc_deaths", "ai_sources", _ai_anchor_field("deaths"), "ai_extracted"),
             ("local_news_kw_hits", "free_sources", lambda r: (r.get("local_news") or {}).get("total_kw_hits"), "behavioral_api"),
+            ("genomic_new_clades_covid", "free_sources", _genomic_field("ncov_open_global_6m", "new_clade_count"), "academic"),
+            ("genomic_new_clades_mpox", "free_sources", _genomic_field("mpox", "new_clade_count"), "academic"),
+            ("genomic_new_clades_rsv", "free_sources", _genomic_field("rsv_a_genome", "new_clade_count"), "academic"),
         ],
     },
     "behavioral": {

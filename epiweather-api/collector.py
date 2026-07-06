@@ -499,6 +499,23 @@ def collect_free_sources() -> dict:
         result["polymarket"] = None
         log_error("Polymarket", e)
 
+    try:
+        from algorithms.genomic_variants import get_genomic_variant_signals
+        result["genomic_variants"] = get_genomic_variant_signals()
+        for slug, v in result["genomic_variants"].items():
+            if not v.get("available"):
+                log(f"  ⏭ Nextstrain {v['label']}: {v.get('reason')}")
+                continue
+            if v.get("dominant_share") is None:
+                log(f"  ⏭ Nextstrain {v['label']}: {v.get('note') or '최근 구간 데이터 없음'}")
+                continue
+            new_tag = f" 🆕신규계통{v['new_clade_count']}건" if v.get("new_clade_count") else ""
+            log(f"  Nextstrain {v['label']}: 우세계통 {v['dominant_clade']}"
+                f"({v['dominant_share']*100:.0f}%, n={v['n_recent_sequences']}){new_tag}")
+    except Exception as e:
+        result["genomic_variants"] = None
+        log_error("GenomicVariants", e)
+
     append_signal(result)
     log("=== 무료 소스 수집 완료 ===")
     return result
