@@ -242,6 +242,7 @@ def fetch_polymarket_odds() -> dict[str, dict]:
         prices = json.loads(market["outcomePrices"])  # ["Yes가", "No가"]
         out[slug] = {
             "label": label,
+            "tracked_market": market.get("question"),  # 그룹 이벤트에서 어떤 하위 임계값을 추적했는지 기록
             "yes_probability": float(prices[0]),
             "volume_24h": event.get("volume24hr"),
         }
@@ -269,8 +270,17 @@ def detect_polymarket_surges(odds: dict[str, dict]) -> dict[str, dict]:
         entry["prob_change"] = None
         entry["volume_ratio"] = None
         entry["surge_alert"] = False
+        entry["market_switched"] = False
 
         if prev:
+            # 그룹 이벤트는 회차마다 "가장 거래량 많은 하위 임계값"이 바뀔 수 있음 —
+            # 그 경우 확률 차이는 실제 시장 변화가 아니라 다른 질문을 비교하는 것이라
+            # surge_alert(진짜 급변)이 아니라 market_switched로 따로 표시한다.
+            # tracked_market이 없던 과거 기록(오늘 이전)은 비교 불가라 스킵.
+            prev_market = prev.get("tracked_market")
+            if prev_market is not None and prev_market != entry.get("tracked_market"):
+                entry["market_switched"] = True
+
             prob_change = entry["yes_probability"] - prev["yes_probability"]
             entry["prob_change"] = round(prob_change, 4)
 
@@ -280,11 +290,17 @@ def detect_polymarket_surges(odds: dict[str, dict]) -> dict[str, dict]:
                 ratio = round(entry["volume_24h"] / prev_vol, 2)
                 entry["volume_ratio"] = ratio
 
-            entry["surge_alert"] = abs(prob_change) >= PROB_SURGE_THRESHOLD or (
-                ratio is not None and ratio >= VOLUME_SURGE_RATIO
+            entry["surge_alert"] = not entry["market_switched"] and (
+                abs(prob_change) >= PROB_SURGE_THRESHOLD or (
+                    ratio is not None and ratio >= VOLUME_SURGE_RATIO
+                )
             )
 
-        history[slug] = {"yes_probability": entry["yes_probability"], "volume_24h": entry.get("volume_24h")}
+        history[slug] = {
+            "yes_probability": entry["yes_probability"],
+            "volume_24h": entry.get("volume_24h"),
+            "tracked_market": entry.get("tracked_market"),
+        }
 
     POLYMARKET_HISTORY_FILE.write_text(json.dumps(history, ensure_ascii=False, indent=2), encoding="utf-8")
     return odds
@@ -588,6 +604,20 @@ def collect_free_sources() -> dict:
         log_error("WAHIS", e)
 
     append_signal(result)
+
+    try:
+        from algorithms.sentinel import scan_spikes
+        spikes = scan_spikes()
+        if spikes:
+            log(f"  🚨 Sentinel: 기준선 대비 2배 이상 급등 {len(spikes)}건 감지 → 검증 대기열 등록")
+            for s in spikes:
+                log(f"     - {s['layer']}/{s['metric']}: x{s['spike_ratio']} "
+                    f"(최근값 {s['latest_val']} vs 기준선 {s['baseline_avg']})")
+        else:
+            log("  Sentinel: 급등 신호 없음")
+    except Exception as e:
+        log_error("Sentinel", e)
+
     log("=== 무료 소스 수집 완료 ===")
     return result
 
@@ -656,6 +686,24 @@ def collect_ai_sources() -> dict:
             log_error("Unexplained_Watch", e)
     else:
         log("  ⏭ ANTHROPIC_API_KEY 없음 — NLP 구조화 추출·설명불가 감시 건너뜀")
+
+    if perplexity_key or tavily_key:
+        try:
+            from algorithms.verification import verify_pending
+            import db
+            db.init_db()
+            v = verify_pending()
+            if "skipped" in v:
+                log(f"  ⏭ Sentinel 검증: {v.get('note')}")
+            elif v.get("verified"):
+                log(f"  Sentinel 검증: {v['verified']}건 처리 "
+                    f"(확인 {v['confirmed']}건 / 기각 {v['dismissed']}건, {v['note']} 사용)")
+            else:
+                log("  Sentinel 검증: 대기 중인 항목 없음")
+        except Exception as e:
+            log_error("Verification", e)
+    else:
+        log("  ⏭ PERPLEXITY_API_KEY/TAVILY_API_KEY 없음 — Sentinel 검증 건너뜀")
 
     log("=== AI 갭필링 수집 완료 ===")
     return result
