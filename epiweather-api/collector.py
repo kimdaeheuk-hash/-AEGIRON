@@ -516,6 +516,22 @@ def collect_free_sources() -> dict:
         result["genomic_variants"] = None
         log_error("GenomicVariants", e)
 
+    try:
+        from algorithms.social_signal import get_social_signal
+        result["social_signal"] = get_social_signal()
+        for tag, v in result["social_signal"].items():
+            if not v.get("available"):
+                log(f"  ⏭ Mastodon #{tag}: {v.get('reason')}")
+                continue
+            surge_tag = "  🚨 급변" if v["surge_alert"] else " "
+            capped = "+" if v.get("sample_capped") else ""
+            change = f" (x{v['count_change_ratio']})" if v["count_change_ratio"] is not None else ""
+            log(f"{surge_tag} Mastodon #{tag}({v['label']}): 최근{v['window_hours']//24}일 "
+                f"{v['count_recent']}{capped}명(원문 {v['count_posts_raw']}건){change}")
+    except Exception as e:
+        result["social_signal"] = None
+        log_error("SocialSignal", e)
+
     append_signal(result)
     log("=== 무료 소스 수집 완료 ===")
     return result

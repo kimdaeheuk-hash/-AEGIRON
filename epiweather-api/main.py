@@ -876,6 +876,18 @@ def genomic_variants():
     return get_genomic_variant_signals()
 
 
+@app.get("/api/social-signal", tags=["Phase2"])
+def social_signal():
+    """
+    Mastodon 실시간 SNS 신호 — 질병별 해시태그(ebola/mpox/birdflu 등) 최근
+    7일 게시량과 직전 수집 회차 대비 급변 여부. 무료·인증 불필요.
+    (트위터/X는 유료화, 레딧 공개 JSON은 403으로 막혀있어 실측으로 확인된
+    유일한 접근 가능 무료 실시간 SNS 소스 — mastodon.social 단일 인스턴스 표본)
+    """
+    from algorithms.social_signal import get_social_signal
+    return get_social_signal()
+
+
 @app.get("/api/baseline/status", tags=["기준선"])
 def baseline_status():
     """기준선 파일 현황 — 저장된 레코드 수와 최신/최고 타임스탬프."""

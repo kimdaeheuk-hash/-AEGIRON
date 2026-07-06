@@ -67,6 +67,15 @@ def _genomic_field(slug: str, field: str):
     return fn
 
 
+def _social_count(tag: str):
+    def fn(rec: dict) -> float | None:
+        entry = (rec.get("social_signal") or {}).get(tag)
+        if not entry or not entry.get("available"):
+            return None
+        return entry.get("count_recent")
+    return fn
+
+
 def _ai_anchor_field(field: str):
     def fn(rec: dict) -> float | None:
         return (rec.get("anchors") or {}).get("africa_cdc", {}).get(field)
@@ -106,6 +115,14 @@ LAYERS = {
         "metrics": [
             ("naver_flu_ratio", "free_sources", lambda r: r.get("naver_flu_ratio"), "behavioral_api"),
             ("naver_ebola_ratio", "free_sources", lambda r: r.get("naver_ebola_ratio"), "behavioral_api"),
+            ("social_ebola", "free_sources", _social_count("ebola"), "behavioral_api"),
+            ("social_mpox", "free_sources", _social_count("mpox"), "behavioral_api"),
+            ("social_birdflu", "free_sources", _social_count("birdflu"), "behavioral_api"),
+            ("social_h5n1", "free_sources", _social_count("h5n1"), "behavioral_api"),
+            ("social_cholera", "free_sources", _social_count("cholera"), "behavioral_api"),
+            ("social_measles", "free_sources", _social_count("measles"), "behavioral_api"),
+            ("social_dengue", "free_sources", _social_count("dengue"), "behavioral_api"),
+            ("social_marburg", "free_sources", _social_count("marburg"), "behavioral_api"),
             ("wiki_ebola_daily", "free_sources", lambda r: r.get("wiki_ebola_daily"), "behavioral_api"),
             ("pubmed_ebola_count", "free_sources", lambda r: r.get("pubmed_ebola_count"), "behavioral_api"),
             ("supply_total_ratio", "free_sources", lambda r: (r.get("supply_chain") or {}).get("total_supply_ratio"), "behavioral_api"),
