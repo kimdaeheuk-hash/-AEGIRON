@@ -681,7 +681,8 @@ def collect_ai_sources() -> dict:
                 db.create_extracted_signal(**unexplained)
                 log(f"  설명불가 신호 감시: {'🔴 설명 불가 — 즉시경보' if flagged else '기존 질병 패턴과 일치, 정상'}")
             else:
-                log("  ⏭ 설명불가 신호 감시: 검색/추출 실패 또는 키 없음")
+                log("  ⏭ 설명불가 신호 감시: 새 신호 없음(검색/추출 실패, 배경정보 노이즈, "
+                    "또는 최근 21일 내 동일 사건 재탐지 중 하나)")
         except Exception as e:
             log_error("Unexplained_Watch", e)
     else:

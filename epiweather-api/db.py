@@ -8,7 +8,7 @@ from __future__ import annotations
 import sqlite3
 import json
 from pathlib import Path
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 DB_PATH = Path(__file__).parent / "data" / "epiweather.db"
 
@@ -247,6 +247,18 @@ def list_extracted_signals(disease: str | None = None, limit: int = 50) -> list[
     params.append(limit)
     with get_connection() as conn:
         rows = conn.execute(query, params).fetchall()
+        return [_extracted_row_to_dict(r) for r in rows]
+
+
+def list_recent_signals_by_source(source: str, days: int = 21, limit: int = 50) -> list[dict]:
+    """최근 N일 이내 특정 source의 추출 신호 목록 — 같은 사건 재탐지 여부 판정용."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM extracted_signals WHERE source = ? AND extracted_at >= ? "
+            "ORDER BY extracted_at DESC LIMIT ?",
+            (source, cutoff, limit),
+        ).fetchall()
         return [_extracted_row_to_dict(r) for r in rows]
 
 

@@ -18,6 +18,7 @@
 """
 from __future__ import annotations
 import datetime as dt
+import re
 
 import db
 from .global_watch import perplexity_search, tavily_search
@@ -28,6 +29,43 @@ UNEXPLAINED_QUERY = (
     "원인불명 클러스터 감시",
     "unexplained illness cluster outbreak news, undiagnosed pneumonia cases, mystery disease",
 )
+
+DEDUP_WINDOW_DAYS = 21  # 이 기간 내 같은 사건 재탐지는 새 신호로 안 침
+
+
+def _normalize_disease(name: str | None) -> str:
+    """괄호·흔한 접미사를 걷어내 핵심 명칭만 비교(실측: "한타바이러스"·"한타바이러스
+    심폐증후군"·"영타(안데스) 바이러스"가 사실 같은 사건인데 매번 다르게 뽑혔음)."""
+    if not name:
+        return ""
+    name = re.sub(r"\([^)]*\)", "", name)
+    for suffix in ("바이러스", "증후군", "감염증", "질환"):
+        name = name.replace(suffix, "")
+    return name.strip()
+
+
+def _location_tokens(loc: str | None) -> set[str]:
+    if not loc:
+        return set()
+    return {t for t in re.split(r"[·,\s]+", loc) if t}
+
+
+def _is_duplicate_event(new: dict, recent: list[dict]) -> bool:
+    """같은 사건의 재탐지인지 판정 — 질병명 핵심 토큰이 서로 포함관계고
+    지역 토큰이 하나라도 겹치면 이미 아는 사건으로 본다."""
+    new_disease = _normalize_disease(new.get("disease"))
+    new_locs = _location_tokens(new.get("location"))
+    if not new_disease or not new_locs:
+        return False
+    for r in recent:
+        r_disease = _normalize_disease(r.get("disease"))
+        r_locs = _location_tokens(r.get("location"))
+        if not r_disease or not r_locs:
+            continue
+        disease_match = new_disease in r_disease or r_disease in new_disease
+        if disease_match and (new_locs & r_locs):
+            return True
+    return False
 
 
 def is_unexplained_signal(record: dict) -> bool:
@@ -62,6 +100,22 @@ def run_unexplained_watch(
 
     extracted = extract_signal(text, source=slug, api_key=anthropic_key)
     if extracted is None:
+        return None
+
+    # 노이즈 필터: 질병명도 증상도 전혀 못 뽑았으면 실제 클러스터 서술이 아니라
+    # 여론조사·정책발표 같은 배경정보일 가능성이 높음(실측: 이런 항목이 섞여
+    # unexplained_cluster로 잘못 저장된 사례 3건 발견) — 저장하지 않는다.
+    if not extracted.get("disease") and not extracted.get("symptom"):
+        return None
+
+    # 재탐지 필터: 같은 사건을 검색할 때마다 숫자가 조금씩 다르게 뽑히는 걸
+    # 확인함(실측: 크루즈선 한타바이러스 건이 5회 걸쳐 환자수 7~147명으로 요동).
+    # 최근 21일 내 동일 사건이 이미 있으면 새로 저장하지 않는다.
+    try:
+        recent = db.list_recent_signals_by_source(slug, days=DEDUP_WINDOW_DAYS)
+    except Exception:
+        recent = []
+    if _is_duplicate_event(extracted, recent):
         return None
 
     extracted["search_source"] = source
