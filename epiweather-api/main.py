@@ -46,9 +46,12 @@ app = FastAPI(
 )
 db.init_db()
 
+# ALLOWED_ORIGINS 환경변수로 배포된 프론트엔드 도메인을 추가할 수 있게 함
+# (예: "https://epiweather.vercel.app,https://epiweather.kr") — 쉼표로 구분.
+_extra_origins = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001"],
+    allow_origins=["http://localhost:3000", "http://localhost:3001", *_extra_origins],
     allow_methods=["*"],
     allow_headers=["*"],
 )
