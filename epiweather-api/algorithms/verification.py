@@ -61,14 +61,62 @@ def _tavily_search(query: str, api_key: str) -> str | None:
     return None
 
 
-def _assess_evidence(evidence: str, metric: str, layer: str) -> tuple[bool, float]:
+def _llm_assess(evidence: str, metric: str, layer: str, api_key: str) -> tuple[bool, float] | None:
+    """Claude Haiku로 근거 텍스트가 실제로 이상신호를 뒷받침하는지 판단.
+    실패하면 None(호출측이 키워드 매칭으로 폴백)."""
+    import json
+    import anthropic
+
+    prompt = f"""아래는 "{metric}" 지표({layer} 계층)의 급등이 실제 사건 때문인지
+확인하려고 검색한 결과다. 이 검색결과 내용이 실제로 이상 신호(발병·급증 등)를
+뒷받침하는 근거인지 판단해라 — 관련 단어(outbreak·disease 등)가 등장하더라도
+"근거 없음"·"무관한 내용"이라고 명시하는 문장이면 false로 판단해야 한다.
+
+검색결과:
+{evidence[:1500]}
+
+JSON만 출력해(다른 텍스트 절대 금지): {{"confirmed": true 또는 false, "confidence": 0.0~1.0}}"""
+
+    try:
+        client = anthropic.Anthropic(api_key=api_key)
+        response = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=150,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = "".join(b.text for b in response.content if b.type == "text").strip().strip("`")
+        if raw.lower().startswith("json"):
+            raw = raw[4:].strip()
+        start, end = raw.find("{"), raw.rfind("}")
+        if start != -1 and end != -1:
+            raw = raw[start:end + 1]
+        data = json.loads(raw)
+        if not isinstance(data, dict):
+            return None
+        return bool(data.get("confirmed")), round(min(max(float(data.get("confidence", 0.5)), 0.0), 1.0), 2)
+    except Exception:
+        return None
+
+
+def _assess_evidence(evidence: str, metric: str, layer: str, anthropic_key: str | None = None) -> tuple[bool, float]:
     """
     검색 결과를 보고 '실제 사건인가' 판단.
-    키워드 일치 개수로 단순 점수 매김 (LLM 없이도 돌아가도록).
-    confirmed_threshold 이상이면 confirmed.
+    anthropic_key가 있으면 LLM으로 판단(부정문도 구분 가능), 없으면 키워드
+    일치 개수로 폴백.
+
+    실측 확인(2026-07-09): 키워드 카운트 방식은 "실제 근거 없음"이라고 명시한
+    검색결과도 outbreak·disease·confirmed cases·death 단어가 다 등장한다는
+    이유만으로 confidence 1.0(confirmed)이 나온 사례가 있었음 — 부정문을
+    구분 못 하는 게 원인이라 LLM 판단으로 교체.
     """
     if not evidence:
         return False, 0.0
+
+    if anthropic_key:
+        result = _llm_assess(evidence, metric, layer, anthropic_key)
+        if result is not None:
+            return result
+
     text = evidence.lower()
     keywords = LAYER_KEYWORDS.get(layer, ["outbreak", "disease"])
     hits = sum(1 for kw in keywords if kw in text)
@@ -82,6 +130,7 @@ def verify_pending(max_items: int = 10) -> dict:
     """
     pkey = os.environ.get(PERPLEXITY_KEY_ENV)
     tkey = os.environ.get(TAVILY_KEY_ENV)
+    akey = os.environ.get("ANTHROPIC_API_KEY")
 
     if not pkey and not tkey:
         return {
@@ -112,7 +161,7 @@ def verify_pending(max_items: int = 10) -> dict:
         if not evidence and tkey:
             evidence = _tavily_search(query, tkey)
 
-        confirmed, confidence = _assess_evidence(evidence or "", metric, layer)
+        confirmed, confidence = _assess_evidence(evidence or "", metric, layer, anthropic_key=akey)
         status = "confirmed" if confirmed else "dismissed"
 
         db.update_sentinel_verification(
