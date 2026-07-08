@@ -640,6 +640,20 @@ def collect_free_sources() -> dict:
     except Exception as e:
         log_error("Sentinel", e)
 
+    try:
+        from algorithms.country_risk import log_notable_predictions
+        import db
+        db.init_db()
+        logged = log_notable_predictions()
+        if logged:
+            log(f"  📋 예측 기록: {len(logged)}개국 주의 이상 등급 → predictions 테이블에 자동 기록")
+            for p in logged:
+                log(f"     - {p['country']}: 위험도 {p['risk_score']}점")
+        else:
+            log("  예측 기록: 새로 기록할 주의 이상 국가 없음")
+    except Exception as e:
+        log_error("PredictionLog", e)
+
     log("=== 무료 소스 수집 완료 ===")
     return result
 
