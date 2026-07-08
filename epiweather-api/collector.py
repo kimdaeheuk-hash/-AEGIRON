@@ -603,6 +603,25 @@ def collect_free_sources() -> dict:
         result["wahis"] = None
         log_error("WAHIS", e)
 
+    groq_key = os.environ.get("GROQ_API_KEY")
+    if groq_key:
+        try:
+            from algorithms.groq_watch import fetch_groq_pulse
+            result["groq_pulse"] = fetch_groq_pulse(groq_key)
+            g = result["groq_pulse"]
+            if g is None:
+                log("  ⏭ Groq 웹서치: 응답 파싱 실패")
+            elif g["has_new_signal"]:
+                log(f"  Groq 웹서치({g.get('urgency')}): {g.get('summary')}")
+            else:
+                log("  Groq 웹서치: 새 신호 없음")
+        except Exception as e:
+            result["groq_pulse"] = None
+            log_error("GroqWatch", e)
+    else:
+        result["groq_pulse"] = None
+        log("  ⏭ GROQ_API_KEY 없음 — Groq 웹서치 건너뜀")
+
     append_signal(result)
 
     try:

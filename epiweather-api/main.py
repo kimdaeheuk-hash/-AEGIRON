@@ -891,6 +891,23 @@ def social_signal():
     return get_social_signal()
 
 
+@app.get("/api/groq-pulse", tags=["Phase2"])
+def groq_pulse():
+    """
+    Groq compound-beta(웹서치 내장) 기반 실시간 발병 뉴스 체크.
+    Perplexity/Tavily(유료·AI 갭필링 단계 전용)와 달리 무료 티어라
+    free_sources 수집(매시간)에 포함. GROQ_API_KEY 필요.
+    """
+    key = os.environ.get("GROQ_API_KEY")
+    if not key:
+        raise HTTPException(status_code=503, detail="GROQ_API_KEY 환경변수 없음")
+    from algorithms.groq_watch import fetch_groq_pulse
+    result = fetch_groq_pulse(key)
+    if result is None:
+        raise HTTPException(status_code=502, detail="Groq 응답 파싱 실패")
+    return result
+
+
 @app.get("/api/baseline/status", tags=["기준선"])
 def baseline_status():
     """기준선 파일 현황 — 저장된 레코드 수와 최신/최고 타임스탬프."""

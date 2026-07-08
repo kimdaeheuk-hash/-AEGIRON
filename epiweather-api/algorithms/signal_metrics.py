@@ -67,6 +67,18 @@ def _genomic_field(slug: str, field: str):
     return fn
 
 
+_GROQ_URGENCY_SCORE = {"low": 1, "medium": 2, "high": 3}
+
+
+def _groq_pulse_score(rec: dict) -> float | None:
+    g = rec.get("groq_pulse")
+    if not g:
+        return None
+    if not g.get("has_new_signal"):
+        return 0
+    return _GROQ_URGENCY_SCORE.get(g.get("urgency"), 1)
+
+
 def _social_count(tag: str):
     def fn(rec: dict) -> float | None:
         entry = (rec.get("social_signal") or {}).get(tag)
@@ -108,6 +120,7 @@ LAYERS = {
             ("genomic_new_clades_covid", "free_sources", _genomic_field("ncov_open_global_6m", "new_clade_count"), "academic"),
             ("genomic_new_clades_mpox", "free_sources", _genomic_field("mpox", "new_clade_count"), "academic"),
             ("genomic_new_clades_rsv", "free_sources", _genomic_field("rsv_a_genome", "new_clade_count"), "academic"),
+            ("groq_pulse_urgency", "free_sources", _groq_pulse_score, "ai_extracted"),
         ],
     },
     "behavioral": {
