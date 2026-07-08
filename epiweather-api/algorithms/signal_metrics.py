@@ -79,6 +79,15 @@ def _groq_pulse_score(rec: dict) -> float | None:
     return _GROQ_URGENCY_SCORE.get(g.get("urgency"), 1)
 
 
+def _local_news_llm_relevant(rec: dict) -> float | None:
+    """Cerebras 재분류가 켜져있을 때만 값이 나옴(꺼져있으면 None — 0과 구분)."""
+    feeds = (rec.get("local_news") or {}).get("feeds") or []
+    classified = [f for f in feeds if "llm_relevant_count" in f]
+    if not classified:
+        return None
+    return sum(f["llm_relevant_count"] for f in classified)
+
+
 def _social_count(tag: str):
     def fn(rec: dict) -> float | None:
         entry = (rec.get("social_signal") or {}).get(tag)
@@ -117,6 +126,7 @@ LAYERS = {
             ("africa_cdc_confirmed", "ai_sources", _ai_anchor_field("confirmed_cases"), "ai_extracted"),
             ("africa_cdc_deaths", "ai_sources", _ai_anchor_field("deaths"), "ai_extracted"),
             ("local_news_kw_hits", "free_sources", lambda r: (r.get("local_news") or {}).get("total_kw_hits"), "behavioral_api"),
+            ("local_news_llm_relevant", "free_sources", _local_news_llm_relevant, "ai_extracted"),
             ("genomic_new_clades_covid", "free_sources", _genomic_field("ncov_open_global_6m", "new_clade_count"), "academic"),
             ("genomic_new_clades_mpox", "free_sources", _genomic_field("mpox", "new_clade_count"), "academic"),
             ("genomic_new_clades_rsv", "free_sources", _genomic_field("rsv_a_genome", "new_clade_count"), "academic"),

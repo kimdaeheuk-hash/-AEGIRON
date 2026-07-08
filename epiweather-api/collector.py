@@ -563,10 +563,13 @@ def collect_free_sources() -> dict:
 
     try:
         from algorithms.local_news import fetch_all_local_news
-        result["local_news"] = fetch_all_local_news()
+        cerebras_key = os.environ.get("CEREBRAS_API_KEY")
+        result["local_news"] = fetch_all_local_news(cerebras_key=cerebras_key)
         n = result["local_news"]
+        classified = sum(1 for f in n["feeds"] if "llm_hit_ratio" in f)
+        tag = f", LLM 재분류 {classified}개 피드" if classified else ""
         log(f"  현지어 뉴스: {n['active_feeds']}/{n['total_feeds']}개 피드, "
-            f"키워드 히트 {n['total_kw_hits']}건, 고경보 {n['high_alert_feeds']}개")
+            f"키워드 히트 {n['total_kw_hits']}건, 고경보 {n['high_alert_feeds']}개{tag}")
     except Exception as e:
         result["local_news"] = None
         log_error("LocalNews", e)
