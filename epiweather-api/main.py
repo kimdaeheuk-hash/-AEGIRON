@@ -12,6 +12,8 @@ Swagger UI: http://localhost:8000/docs
 """
 from __future__ import annotations
 import sys, os, json
+import asyncio
+import datetime as dt
 from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent / ".env")
@@ -55,6 +57,47 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ── 자동 수집 스케줄러 ──────────────────────────────────────────
+# collector.py는 원래 로컬 PC의 Windows 작업 스케줄러로 무인 실행되도록
+# 만들어졌는데, 클라우드(Railway)에는 별도 스케줄러가 없어 배포만 해서는
+# 신호가 전혀 쌓이지 않았음. API 프로세스 안에서 백그라운드로 직접 돌려
+# 이 문제를 해결한다. EPIWEATHER_SCHEDULER=off 로 끌 수 있음(로컬 개발 시
+# 작업 스케줄러와 중복 수집하지 않도록).
+_FREE_INTERVAL_SEC = 3600       # 무료 소스: 1시간마다
+_AI_HOUR_UTC       = 21         # AI 갭필링(유료): 하루 1회, UTC 21시(KST 06시)경
+
+
+async def _run_collector(mode: str) -> None:
+    import collector
+    try:
+        if mode == "free":
+            await asyncio.to_thread(collector.collect_free_sources)
+        elif mode == "ai":
+            await asyncio.to_thread(collector.collect_ai_sources)
+    except Exception as e:
+        collector.log_error(f"scheduler_{mode}", e)
+
+
+async def _scheduler_loop() -> None:
+    last_ai_run_date: dt.date | None = None
+    await _run_collector("free")
+    while True:
+        await asyncio.sleep(_FREE_INTERVAL_SEC)
+        await _run_collector("free")
+
+        now = dt.datetime.utcnow()
+        if now.hour == _AI_HOUR_UTC and last_ai_run_date != now.date():
+            last_ai_run_date = now.date()
+            await _run_collector("ai")
+
+
+@app.on_event("startup")
+async def _start_scheduler() -> None:
+    if os.environ.get("EPIWEATHER_SCHEDULER", "on").lower() == "off":
+        return
+    asyncio.create_task(_scheduler_loop())
 
 
 # ── 헬스체크 ─────────────────────────────────────────────────
