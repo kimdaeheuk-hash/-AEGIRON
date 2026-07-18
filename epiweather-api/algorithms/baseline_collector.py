@@ -6,6 +6,9 @@
 이 모듈은:
   - Wikipedia 월별 조회수 최대 24개월치 (무료, 인증 불필요)
   - KDCA 법정감염병 최대 5년치 연간 데이터 (KDCA API 키 필요)
+  - CDC NWSS(하수 감시) 월별 과거 평균 농도 (무료, 인증 불필요) — "환경신호"
+    층이 예전엔 기준선이 전혀 없었음
+  - 브라질 InfoDengue 도시별 과거 주간 데이터 (무료, 인증 불필요)
 를 data/baseline_signals.jsonl에 저장한다.
 
 signal_metrics.py의 load_records()가 이 파일을 먼저 읽어
@@ -90,6 +93,59 @@ def fetch_kdca_historical(api_key: str, years_back: int = 5) -> list[dict]:
     return results
 
 
+INFODENGUE_CITIES = [
+    (3550308, "상파울루"),
+    (3304557, "리우데자네이루"),
+]
+
+
+def fetch_cdc_nwss_historical(months_back: int = 24) -> list[dict]:
+    """CDC NWSS(하수 감시) 월별 과거 평균 농도. Socrata $group으로 서버단 집계."""
+    try:
+        r = requests.get(
+            "https://data.cdc.gov/resource/j9g8-acpt.json",
+            params={
+                "$select": "date_trunc_ym(sample_collect_date) as month, "
+                           "avg(pcr_target_avg_conc) as avg_conc, count(*) as n",
+                "$group": "month",
+                "$order": "month DESC",
+                "$limit": months_back,
+            },
+            headers=USER_AGENT, timeout=30,
+        )
+        r.raise_for_status()
+        return r.json()
+    except Exception:
+        return []
+
+
+def fetch_infodengue_historical(weeks_back: int = 104) -> list[dict]:
+    """InfoDengue 도시별 과거 주간 데이터. 기존 실시간 수집(collector.py)과
+    동일 엔드포인트를 훨씬 넓은 주간 범위로 호출."""
+    today = dt.date.today()
+    cur_year, cur_week, _ = today.isocalendar()
+    start_year, start_week, _ = (today - dt.timedelta(weeks=weeks_back)).isocalendar()
+    out: list[dict] = []
+    for geocode, label in INFODENGUE_CITIES:
+        try:
+            r = requests.get(
+                "https://info.dengue.mat.br/api/alertcity",
+                params={
+                    "geocode": geocode, "disease": "dengue", "format": "json",
+                    "ew_start": start_week, "ew_end": cur_week,
+                    "ey_start": start_year, "ey_end": cur_year,
+                },
+                headers=USER_AGENT, timeout=30,
+            )
+            r.raise_for_status()
+            rows = r.json()
+        except Exception:
+            continue
+        for row in rows:
+            out.append({"label": label, "week": row.get("SE"), "casos": row.get("casos")})
+    return out
+
+
 def build_wiki_records(months_back: int = 24) -> list[dict]:
     """Wikipedia 히스토리를 signals_log 포맷 레코드로 변환."""
     records = []
@@ -135,9 +191,62 @@ def build_kdca_records(api_key: str, years_back: int = 5) -> list[dict]:
     return records
 
 
-def collect_baseline(months_back: int = 24, years_back: int = 5) -> dict:
+def build_cdc_nwss_records(months_back: int = 24) -> list[dict]:
+    """CDC NWSS 히스토리를 signals_log 포맷 레코드로 변환."""
+    rows = fetch_cdc_nwss_historical(months_back)
+    records = []
+    for row in rows:
+        month = row.get("month")
+        if not month:
+            continue
+        avg_conc = row.get("avg_conc")
+        n = row.get("n")
+        records.append({
+            "type": "free_sources",
+            "_baseline": True,
+            "_source": "cdc_nwss_monthly",
+            "_logged_at": f"{month[:10]}T00:00:00",
+            "cdc_nwss": {
+                "site_count": int(n) if n else None,
+                "mean_concentration": round(float(avg_conc), 1) if avg_conc else None,
+            },
+        })
+    return records
+
+
+def build_infodengue_records(weeks_back: int = 104) -> list[dict]:
+    """InfoDengue 히스토리를 signals_log 포맷 레코드로 변환. 도시별 주간 값을
+    같은 주(epidemiological week)끼리 묶어 하나의 레코드로 만든다."""
+    rows = fetch_infodengue_historical(weeks_back)
+    by_week: dict[str, dict] = {}
+    for row in rows:
+        week = row.get("week")
+        if week is None:
+            continue
+        by_week.setdefault(str(week), {})[row["label"]] = {"casos": row.get("casos")}
+
+    records = []
+    for week_str, city_map in sorted(by_week.items()):
+        if len(week_str) != 6:
+            continue
+        year, wk = int(week_str[:4]), int(week_str[4:])
+        try:
+            logged_date = dt.date.fromisocalendar(year, wk, 1).isoformat()
+        except ValueError:
+            continue
+        records.append({
+            "type": "free_sources",
+            "_baseline": True,
+            "_source": "infodengue_weekly",
+            "_logged_at": f"{logged_date}T00:00:00",
+            "infodengue": city_map,
+        })
+    return records
+
+
+def collect_baseline(months_back: int = 24, years_back: int = 5, weeks_back: int = 104) -> dict:
     """
-    Wikipedia + KDCA 기준선을 수집해 baseline_signals.jsonl에 저장.
+    Wikipedia + KDCA + CDC NWSS + InfoDengue 기준선을 수집해 baseline_signals.jsonl에 저장.
     이미 저장된 파일이 있어도 덮어쓴다 (최신화).
     """
     DATA_DIR.mkdir(exist_ok=True)
@@ -152,6 +261,14 @@ def collect_baseline(months_back: int = 24, years_back: int = 5) -> dict:
         records.extend(kdca_records)
         kdca_count = len(kdca_records)
 
+    nwss_records = build_cdc_nwss_records(months_back)
+    records.extend(nwss_records)
+    nwss_count = len(nwss_records)
+
+    infodengue_records = build_infodengue_records(weeks_back)
+    records.extend(infodengue_records)
+    infodengue_count = len(infodengue_records)
+
     records.sort(key=lambda r: r.get("_logged_at", ""))
 
     with open(BASELINE_FILE, "w", encoding="utf-8") as f:
@@ -164,6 +281,8 @@ def collect_baseline(months_back: int = 24, years_back: int = 5) -> dict:
         "wiki_records": wiki_count,
         "kdca_records": kdca_count,
         "kdca_skipped": kdca_count == 0 and api_key is None,
+        "nwss_records": nwss_count,
+        "infodengue_records": infodengue_count,
     }
 
 

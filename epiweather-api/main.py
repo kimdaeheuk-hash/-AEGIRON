@@ -577,14 +577,14 @@ def global_watch():
 
 # ── 과거 기준선 데이터 수집 (Phase 2 ⑮) ──────────────────────
 @app.post("/api/baseline/collect", tags=["기준선"])
-def baseline_collect(months_back: int = 24, years_back: int = 5):
+def baseline_collect(months_back: int = 24, years_back: int = 5, weeks_back: int = 104):
     """
-    Wikipedia 최대 24개월 + KDCA 최대 5년치 역사 데이터를
-    data/baseline_signals.jsonl에 저장. GAI 이상도 계산의 역사적 ���준선으로 쓰임.
-    KDCA는 환경변수 KDCA_API_KEY가 있어야 수집됨.
+    Wikipedia 최대 24개월 + KDCA 최대 5년치 + CDC NWSS(하수감시) 최대 24개월 +
+    브라질 InfoDengue 최대 104주 역사 데이터를 data/baseline_signals.jsonl에 저장.
+    GAI 이상도 계산의 역사적 기준선으로 쓰임. KDCA는 환경변수 KDCA_API_KEY가 있어야 수집됨.
     """
     from algorithms.baseline_collector import collect_baseline
-    return collect_baseline(months_back=months_back, years_back=years_back)
+    return collect_baseline(months_back=months_back, years_back=years_back, weeks_back=weeks_back)
 
 
 # ── 발병 타임라인 (Phase 2 ㉑) ──────────────────────────────
