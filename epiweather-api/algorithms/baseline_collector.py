@@ -174,10 +174,19 @@ def build_kdca_records(api_key: str, years_back: int = 5) -> list[dict]:
     실시간 수집(collector.py)의 kdca_weekly는 "1주일" 합계인데, 여기서 받는
     KDCA API는 "1년" 합계라 그대로 넣으면 단위가 안 맞아 실시간 값이 항상
     기준선의 1/52 수준으로 보여 상시 "급감" 오탐이 났음(2026-07-19). 연간
-    합계를 52로 나눈 주간 평균치로 저장해 단위를 맞춘다."""
+    합계를 52로 나눈 주간 평균치로 저장해 단위를 맞춘다.
+
+    또한 실시간 수집은 collector.py의 KDCA_WATCH_DISEASES(위험 감염병 9종:
+    MERS·SARS·에볼라 등)만 추적하는데, 이 API는 전체 60여 종(수두·간염 등
+    흔한 질병 포함)을 다 준다. 종 범위 자체가 다르면 단위를 맞춰도 비교
+    대상이 달라 여전히 오탐이 남음(2026-07-19 확인) — 같은 9종만 걸러서
+    저장한다."""
+    from collector import KDCA_WATCH_DISEASES
     rows = fetch_kdca_historical(api_key, years_back)
     by_year: dict[int, dict] = {}
     for row in rows:
+        if row["disease"] not in KDCA_WATCH_DISEASES:
+            continue
         year = row["year"]
         disease = row["disease"]
         count = row["count"]
