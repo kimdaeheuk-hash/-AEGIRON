@@ -39,7 +39,8 @@ OAUTH_TOKEN_URL = (
     "/protocol/openid-connect/token"
 )
 USER_AGENT   = {"User-Agent": "EpiWeather-Mobility/1.0 (epiweather.kr)"}
-TIMEOUT      = 20
+TIMEOUT      = (3, 8)  # (연결 타임아웃, 응답 타임아웃) — 일부 호스팅 IP대에서
+                       # OpenSky가 연결 자체를 막아 20초씩 멈추던 문제 방지
 
 WATCH_AIRPORTS = {
     "FZAA": ("킨샤사", "아프리카"),
@@ -89,8 +90,11 @@ def _auth_header() -> dict:
         return {}
 
 
-def _fetch_airport_flights(icao: str, begin: int, end: int) -> tuple[int | None, bool]:
-    """특정 공항의 도착+출발 항공편 수. 반환: (건수 또는 None, rate_limited 여부)."""
+def _fetch_airport_flights(icao: str, begin: int, end: int) -> tuple[int | None, str]:
+    """특정 공항의 도착+출발 항공편 수. 반환: (건수 또는 None, status).
+    status: "ok" | "rate_limited" | "network_error" | "http_error"
+    rate_limited/network_error는 나머지 공항도 뻔히 같은 이유로 실패할
+    가능성이 높아 상위 루프에서 조기 중단시키는 신호로 쓰인다."""
     try:
         resp = requests.get(
             f"{OPENSKY_BASE}/flights/airport",
@@ -99,14 +103,16 @@ def _fetch_airport_flights(icao: str, begin: int, end: int) -> tuple[int | None,
             timeout=TIMEOUT,
         )
         if resp.status_code == 200:
-            return len(resp.json()), False
+            return len(resp.json()), "ok"
         if resp.status_code == 404:
-            return 0, False
+            return 0, "ok"
         if resp.status_code == 429:
-            return None, True
+            return None, "rate_limited"
+        return None, "http_error"
+    except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):
+        return None, "network_error"
     except Exception:
-        pass
-    return None, False
+        return None, "http_error"
 
 
 def fetch_mobility_signals(hours_back: int = 1) -> dict:
@@ -119,32 +125,29 @@ def fetch_mobility_signals(hours_back: int = 1) -> dict:
     begin_ts = now_ts - hours_back * 3600
 
     results: list[dict] = []
-    rate_limited = False
+    abort_reason: str | None = None
     for icao, (city, region) in WATCH_AIRPORTS.items():
-        if rate_limited:
-            # 이미 429를 만났으면 나머지도 뻔히 실패함 — 쿼터만 더 태우지 않고 건너뜀
+        if abort_reason:
+            # 이미 429나 연결 차단을 만났으면 나머지도 뻔히 같은 이유로
+            # 실패함 — 매 공항마다 타임아웃을 다 기다리지 않고 건너뜀
             results.append({
                 "icao": icao, "city": city, "region": region,
-                "flights_24h": None, "status": "skipped_rate_limit",
+                "flights_24h": None, "status": f"skipped_{abort_reason}",
             })
             continue
 
-        count, hit_limit = _fetch_airport_flights(icao, begin_ts, now_ts)
-        if hit_limit:
-            rate_limited = True
-            results.append({
-                "icao": icao, "city": city, "region": region,
-                "flights_24h": None, "status": "rate_limited",
-            })
-            continue
-
+        count, status = _fetch_airport_flights(icao, begin_ts, now_ts)
+        if status in ("rate_limited", "network_error"):
+            abort_reason = status
         results.append({
             "icao":   icao,
             "city":   city,
             "region": region,
             "flights_24h": count,
-            "status": "ok" if count is not None else "error",
+            "status": status,
         })
+
+    rate_limited = abort_reason == "rate_limited"
 
     available = [r for r in results if r["flights_24h"] is not None]
     # 전 공항이 실패했으면 0이 아니라 None — "항공편 0건 확인"과 "아예 못 가져옴"을 구분
