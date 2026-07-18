@@ -100,15 +100,6 @@ async def _start_scheduler() -> None:
     asyncio.create_task(_scheduler_loop())
 
 
-# ── 임시 정리용(일회성) — stale 오탐 alert row 삭제. 사용 후 제거 예정.
-@app.post("/api/admin/purge-alert", tags=["시스템"])
-def purge_alert(source: str):
-    with db.get_connection() as conn:
-        cur = conn.execute("DELETE FROM alerts WHERE source LIKE ?", (f"%{source}%",))
-        conn.commit()
-        return {"deleted": cur.rowcount}
-
-
 # ── 헬스체크 ─────────────────────────────────────────────────
 @app.get("/health", tags=["시스템"])
 def health():
