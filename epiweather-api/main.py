@@ -100,17 +100,6 @@ async def _start_scheduler() -> None:
     asyncio.create_task(_scheduler_loop())
 
 
-# ── 임시 정리용(일회성) — mobility_total_flights 오탐 alert row 삭제 ──
-# negative_space.py 수정 전에 DB에 upsert된 stale critical 경보 정리용.
-# 사용 후 바로 제거 예정.
-@app.post("/api/admin/purge-alert", tags=["시스템"])
-def purge_alert(source: str):
-    with db.get_connection() as conn:
-        cur = conn.execute("DELETE FROM alerts WHERE source = ?", (source,))
-        conn.commit()
-        return {"deleted": cur.rowcount}
-
-
 # ── 헬스체크 ─────────────────────────────────────────────────
 @app.get("/health", tags=["시스템"])
 def health():
