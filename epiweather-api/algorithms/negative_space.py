@@ -18,6 +18,14 @@ from .signal_metrics import LAYERS, MIN_HISTORY, load_records
 
 DROP_RATIO = 0.5
 
+# OpenSky는 익명/제한 쿼터 탓에 대부분의 시도가 None(수집 실패)으로 끝나고
+# 어쩌다 성공한 값도 표본이 1~2건뿐이라 신뢰할 수 없다. None은 이미
+# cleaned 단계에서 제거되지만, 그 결과 "latest"가 우연히 성공한 희소
+# 표본(예: 0)이 되어 실제 감소가 아닌데도 50% 급감으로 오판하는 사례가
+# 있었음(2026-07-19). OpenSky 연결 문제가 해결되기 전까지 이 지표는
+# 부정적 공간 스캔에서 제외한다.
+UNRELIABLE_METRICS = {"mobility_total_flights"}
+
 
 def check_negative_space(latest: float | None, history_avg: float | None) -> dict:
     """단건 판정 — 인수인계서 원문 함수와 동일한 기준."""
@@ -36,6 +44,8 @@ def scan_negative_space() -> dict:
 
     for layer_key, cfg in LAYERS.items():
         for metric_id, rtype, extractor, _trust_category in cfg["metrics"]:
+            if metric_id in UNRELIABLE_METRICS:
+                continue
             series = [extractor(r) for r in records if r.get("type") == rtype]
             cleaned = [v for v in series if v is not None]
             if len(cleaned) < MIN_HISTORY + 1:
