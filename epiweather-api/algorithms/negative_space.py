@@ -18,6 +18,14 @@ from .signal_metrics import LAYERS, MIN_HISTORY, load_records
 
 DROP_RATIO = 0.5
 
+# SNS 언급수(social_*)·AI 긴급도 점수(groq_pulse_urgency) 같은 지표는 원래
+# 평균이 시간당 0~2건 수준으로 작아서, "0건"이 뜨는 게 극히 정상적인
+# 상태인데도 50% 급감 규칙을 그대로 적용하면 거의 항상 오탐이 뜬다
+# (2026-07-19, social_cholera·social_mpox·groq_pulse_urgency 확인).
+# 평균이 이 값 미만인 지표는 비율 기반 판정이 통계적으로 무의미하므로
+# 부정적 공간 스캔에서 제외한다.
+MIN_MEANINGFUL_AVG = 2.0
+
 # OpenSky는 익명/제한 쿼터 탓에 대부분의 시도가 None(수집 실패)으로 끝나고
 # 어쩌다 성공한 값도 표본이 1~2건뿐이라 신뢰할 수 없다. None은 이미
 # cleaned 단계에서 제거되지만, 그 결과 "latest"가 우연히 성공한 희소
@@ -31,6 +39,8 @@ def check_negative_space(latest: float | None, history_avg: float | None) -> dic
     """단건 판정 — 인수인계서 원문 함수와 동일한 기준."""
     if latest is None or history_avg is None or history_avg <= 0:
         return {"alert": False, "message": "판정 불가 (과거 기준선 없음)"}
+    if history_avg < MIN_MEANINGFUL_AVG:
+        return {"alert": False, "message": "판정 불가 (평균값이 너무 작아 비율 판정 무의미)"}
     if latest < history_avg * DROP_RATIO:
         return {"alert": True, "message": "⚠️ 신호 50% 감소 — 보고 체계 붕괴 가능성"}
     return {"alert": False, "message": "정상"}
