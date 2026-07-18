@@ -169,7 +169,12 @@ def build_wiki_records(months_back: int = 24) -> list[dict]:
 
 
 def build_kdca_records(api_key: str, years_back: int = 5) -> list[dict]:
-    """KDCA 히스토리를 signals_log 포맷 레코드로 변환."""
+    """KDCA 히스토리를 signals_log 포맷 레코드로 변환.
+
+    실시간 수집(collector.py)의 kdca_weekly는 "1주일" 합계인데, 여기서 받는
+    KDCA API는 "1년" 합계라 그대로 넣으면 단위가 안 맞아 실시간 값이 항상
+    기준선의 1/52 수준으로 보여 상시 "급감" 오탐이 났음(2026-07-19). 연간
+    합계를 52로 나눈 주간 평균치로 저장해 단위를 맞춘다."""
     rows = fetch_kdca_historical(api_key, years_back)
     by_year: dict[int, dict] = {}
     for row in rows:
@@ -177,7 +182,7 @@ def build_kdca_records(api_key: str, years_back: int = 5) -> list[dict]:
         disease = row["disease"]
         count = row["count"]
         by_year.setdefault(year, {}).setdefault(disease, {})
-        by_year[year][disease][f"{year}년 연간"] = count
+        by_year[year][disease][f"{year}-주간평균"] = round(count / 52, 1)
 
     records = []
     for year, kdca_map in sorted(by_year.items()):

@@ -34,6 +34,13 @@ MIN_MEANINGFUL_AVG = 2.0
 # 부정적 공간 스캔에서 제외한다.
 UNRELIABLE_METRICS = {"mobility_total_flights"}
 
+# 뎅기열(infodengue_casos_total)은 브라질 여름(12~4월)에 집중되는 계절성
+# 질병이라, 겨울철(지금, 7월) 실제 값을 계절 구분 없는 다년 평균과 비교하면
+# 매년 저계절마다 "50% 급감"으로 오판한다(2026-07-19 확인: 평균 2871건/주 vs
+# 현재 199건/주 — 실제 계절적 감소이지 보고 체계 붕괴가 아님). 계절성을
+# 반영한 판정으로 바꾸기 전까지는 부정적 공간 스캔에서 제외한다.
+SEASONAL_METRICS = {"infodengue_casos_total"}
+
 
 def check_negative_space(latest: float | None, history_avg: float | None) -> dict:
     """단건 판정 — 인수인계서 원문 함수와 동일한 기준."""
@@ -54,7 +61,7 @@ def scan_negative_space() -> dict:
 
     for layer_key, cfg in LAYERS.items():
         for metric_id, rtype, extractor, _trust_category in cfg["metrics"]:
-            if metric_id in UNRELIABLE_METRICS:
+            if metric_id in UNRELIABLE_METRICS or metric_id in SEASONAL_METRICS:
                 continue
             series = [extractor(r) for r in records if r.get("type") == rtype]
             cleaned = [v for v in series if v is not None]
