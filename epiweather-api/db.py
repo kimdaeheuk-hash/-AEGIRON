@@ -82,6 +82,13 @@ CREATE TABLE IF NOT EXISTS extracted_signals (
     known_disease  INTEGER NOT NULL DEFAULT 1,  -- 모델이 "기존에 알려진 질병 패턴과 일치"로 판단했는지
     raw_text       TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS api_key_usage (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    key_label  TEXT NOT NULL,   -- EPIWEATHER_API_KEYS의 라벨 (예: "internal_frontend", "airline_partner_a")
+    endpoint   TEXT NOT NULL,
+    called_at  TEXT NOT NULL
+);
 """
 
 
@@ -373,4 +380,45 @@ def list_sentinel_queue(status: str | None = None, limit: int = 50) -> list[dict
     params.append(limit)
     with get_connection() as conn:
         rows = conn.execute(query, params).fetchall()
+        return [dict(r) for r in rows]
+
+
+# ── 모니터링 (/api/status) ───────────────────────────────────
+_STATUS_TABLES = (
+    "predictions", "alerts", "extracted_signals",
+    "sentinel_queue", "outbreak_timeline",
+)
+
+
+def table_counts() -> dict[str, int]:
+    """/api/status용 — 주요 테이블 행 수 스냅샷."""
+    with get_connection() as conn:
+        return {
+            table: conn.execute(f"SELECT COUNT(*) AS n FROM {table}").fetchone()["n"]
+            for table in _STATUS_TABLES
+        }
+
+
+# ── API 키 사용량 로깅 ────────────────────────────────────────
+# 지금은 요율제한을 만들지 않는다 — 실제 고객사가 생기기 전에 임계값을
+# 정하면 근거 없는 숫자가 됨. 우선 라벨별 호출 이력만 쌓아서, 나중에
+# 실제 사용 패턴을 보고 요율제한 정책을 정할 수 있게 함.
+def log_api_key_usage(key_label: str, endpoint: str) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            "INSERT INTO api_key_usage (key_label, endpoint, called_at) VALUES (?, ?, ?)",
+            (key_label, endpoint, datetime.now(timezone.utc).isoformat()),
+        )
+        conn.commit()
+
+
+def api_key_usage_summary(days: int = 30) -> list[dict]:
+    """라벨별 최근 N일 호출 수·최근 호출 시각 — 요율제한 정책 설계용 근거 데이터."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT key_label, COUNT(*) AS call_count, MAX(called_at) AS last_called_at "
+            "FROM api_key_usage WHERE called_at >= ? GROUP BY key_label ORDER BY call_count DESC",
+            (cutoff,),
+        ).fetchall()
         return [dict(r) for r in rows]

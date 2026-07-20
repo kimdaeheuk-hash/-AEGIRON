@@ -9,11 +9,12 @@
      기록들의 출처신뢰도 가중 심각도 평균.
   둘 다 있으면 평균, 하나만 있으면 그것만, 둘 다 없으면 None(랭킹 하단으로).
 
-국가취약성지수 4요소(의료인프라·인구밀도·공항연결성·국경이동량, 0~1)는
-WHO Global Health Observatory·World Bank·OpenFlights·UNWTO 실연동 전까지
-직접 추정한 시드값이다 — 인수인계서 Part2가 이 4개 소스를 전부 "추가 필요"로
-분류해놓아서 아직 연결된 API가 없음. 실제 API 연동 전까지의 근사치라는 점을
-명확히 하고, 시드 테이블에 없는 국가는 중립값(0.5)을 씀.
+국가취약성지수 4요소(의료인프라·인구밀도·공항연결성·국경이동량, 0~1) 중
+의료인프라·인구밀도는 World Bank Open Data, 공항연결성은 OpenFlights 공개
+데이터로 실연동됨(country_indicators.py, 주간 스케줄러가 갱신). 국경이동량은
+근거로 쓸 만한 무료 API가 없어(UNWTO는 유료) 계속 COUNTRIES의 추정 시드값을
+씀. 실데이터 캐시가 없거나(수집 전, 갱신 실패) 시드 테이블에 없는 국가는
+COUNTRIES의 추정 시드값 → 그마저 없으면 중립값(0.5)으로 폴백.
 """
 from __future__ import annotations
 import datetime as dt
@@ -21,6 +22,7 @@ import statistics
 
 import db
 from .gai import _anomaly_score, _tier
+from .country_indicators import load_country_indicators
 from .signal_metrics import (
     load_records, _kdca_latest_total, _japan_idwr_total, _hk_chp_total, _infodengue_total,
 )
@@ -89,10 +91,32 @@ DIRECT_METRICS = {
 }
 
 
+def _vulnerability_components(country_id: str) -> tuple[dict, bool]:
+    """
+    healthcare_infra·population_density·airport_connectivity는 country_indicators
+    캐시(World Bank·OpenFlights 실데이터)가 있으면 그걸 쓰고, 없으면 COUNTRIES
+    시드값으로 폴백. border_mobility는 항상 시드값(실데이터 소스 없음).
+    반환값 두 번째 요소: 3개 실데이터 필드가 전부 캐시에서 채워졌는지 여부.
+    """
+    seed = COUNTRIES.get(country_id, {})
+    real = load_country_indicators().get(country_id, {})
+
+    fields = {}
+    all_real = True
+    for key in ("healthcare_infra", "population_density", "airport_connectivity"):
+        if key in real:
+            fields[key] = real[key]
+        else:
+            fields[key] = seed.get(key, 0.5)
+            all_real = False
+    fields["border_mobility"] = seed.get("border_mobility", 0.5)
+    return fields, all_real and bool(real)
+
+
 def vulnerability_index(country_id: str) -> float:
-    c = COUNTRIES.get(country_id)
-    if not c:
+    if country_id not in COUNTRIES and country_id not in load_country_indicators():
         return DEFAULT_VULNERABILITY
+    c, _ = _vulnerability_components(country_id)
     return round(
         (1 - c["healthcare_infra"]) * 0.30
         + c["population_density"] * 0.25
@@ -132,6 +156,7 @@ def compute_country_risk(country_id: str) -> dict:
     components = [s for s in (direct_score, nlp_score) if s is not None]
     raw_score = round(statistics.mean(components), 1) if components else None
     vuln = vulnerability_index(country_id)
+    _, vuln_all_real = _vulnerability_components(country_id)
 
     if raw_score is not None:
         risk_score = round(raw_score * vuln, 1)
@@ -149,12 +174,12 @@ def compute_country_risk(country_id: str) -> dict:
             "nlp_signal_count": nlp_count,
         },
         "vulnerability_index": vuln,
-        # WHO GHO·World Bank·OpenFlights·UNWTO 실연동 전까지는 COUNTRIES의
-        # 4요소가 전부 직접 추정한 시드값(파일 상단 docstring 참고)이라, 이걸
-        # 실측값처럼 보이지 않게 항상 명시한다. 시드 테이블에도 없는 국가는
-        # DEFAULT_VULNERABILITY(중립값 0.5) 하나로 뭉개진다는 사실도 함께 알림.
-        "vulnerability_estimated": True,
-        "vulnerability_source": "seed" if country_id in COUNTRIES else "default_neutral",
+        # healthcare_infra·population_density·airport_connectivity 3개 전부
+        # World Bank·OpenFlights 실데이터 캐시에서 채워졌으면 real_data,
+        # 하나라도 COUNTRIES 시드값으로 폴백됐으면 seed_fallback. border_mobility는
+        # 항상 시드값이라 real_data여도 100% 실측은 아니라는 점은 유의.
+        "vulnerability_estimated": not vuln_all_real,
+        "vulnerability_source": "real_data" if vuln_all_real else "seed_fallback",
         "risk_score": risk_score,
         "has_signal": raw_score is not None,
         "tier": _tier(risk_score),

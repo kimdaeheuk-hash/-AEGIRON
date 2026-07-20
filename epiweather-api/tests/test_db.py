@@ -51,3 +51,48 @@ def test_accuracy_stats_empty_when_nothing_verified(isolated_db):
 def test_verify_nonexistent_prediction_returns_none(isolated_db):
     db = isolated_db
     assert db.verify_prediction(999999, "x", True) is None
+
+
+def test_api_key_usage_summary_groups_by_label(isolated_db):
+    db = isolated_db
+    db.log_api_key_usage("default", "/api/civic-fusion")
+    db.log_api_key_usage("default", "/api/predictions")
+    db.log_api_key_usage("partnerA", "/api/civic-fusion")
+
+    summary = db.api_key_usage_summary(days=30)
+    by_label = {row["key_label"]: row["call_count"] for row in summary}
+    assert by_label == {"default": 2, "partnerA": 1}
+
+
+def test_api_key_usage_summary_excludes_old_calls_outside_window(isolated_db):
+    db = isolated_db
+    with db.get_connection() as conn:
+        conn.execute(
+            "INSERT INTO api_key_usage (key_label, endpoint, called_at) VALUES (?, ?, ?)",
+            ("stale", "/api/civic-fusion", "2020-01-01T00:00:00+00:00"),
+        )
+        conn.commit()
+    db.log_api_key_usage("fresh", "/api/civic-fusion")
+
+    summary = db.api_key_usage_summary(days=30)
+    labels = {row["key_label"] for row in summary}
+    assert "fresh" in labels
+    assert "stale" not in labels
+
+
+def test_table_counts_reflects_inserted_rows(isolated_db):
+    db = isolated_db
+    counts_before = db.table_counts()
+    assert counts_before["predictions"] == 0
+    assert counts_before["alerts"] == 0
+
+    db.create_prediction("Thailand", "뎅기열", 82.0, ["근거"])
+    db.upsert_alert("2026-07-20", "gai", "🟡 주의", "a", 70.0)
+
+    counts_after = db.table_counts()
+    assert counts_after["predictions"] == 1
+    assert counts_after["alerts"] == 1
+    # /api/status가 참조하는 모든 테이블이 빠짐없이 포함되는지
+    assert set(counts_after) == {
+        "predictions", "alerts", "extracted_signals", "sentinel_queue", "outbreak_timeline",
+    }

@@ -22,7 +22,7 @@ load_dotenv(Path(__file__).parent / ".env")
 ENGINE_SRC = Path(__file__).parent.parent / "epiweather-handoff" / "engine" / "src"
 sys.path.insert(0, str(ENGINE_SRC))
 
-from fastapi import FastAPI, HTTPException, Depends, Header, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Depends, Header, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Optional
@@ -62,17 +62,54 @@ app.add_middleware(
 # ── 쓰기(POST) 엔드포인트 인증 ────────────────────────────────
 # 조회(GET)는 대시보드가 공개적으로 보여줘야 하므로 그대로 공개.
 # 상태를 바꾸는 POST 엔드포인트만 X-API-Key 헤더로 보호한다.
-# EPIWEATHER_API_KEY가 설정 안 되어 있으면 fail-closed(503)로 막는다 —
-# "키가 없으면 조용히 전체 공개"가 되는 fail-open보다 운영 사고를 막기 쉬움.
-def require_api_key(x_api_key: Optional[str] = Header(None, alias="X-API-Key")) -> None:
-    expected = os.environ.get("EPIWEATHER_API_KEY")
-    if not expected:
+# EPIWEATHER_API_KEY(또는 EPIWEATHER_API_KEYS)가 설정 안 되어 있으면
+# fail-closed(503)로 막는다 — "키가 없으면 조용히 전체 공개"가 되는
+# fail-open보다 운영 사고를 막기 쉬움.
+#
+# 다중 키 지원: EPIWEATHER_API_KEYS="라벨1:키1,라벨2:키2" 형식.
+# 향후 고객사별로 키를 발급할 때를 대비한 최소 골격 — 실제 요율제한은
+# 아직 안 만듦(고객사가 없는 상태에서 임계값을 정하면 근거 없는 숫자가 됨).
+# 지금은 라벨별 호출 이력만 db.api_key_usage에 쌓아서 나중에 정책을 정할
+# 근거를 모은다. 기존 단일 EPIWEATHER_API_KEY도 label="default"로 계속 동작.
+def _valid_api_keys() -> dict[str, str]:
+    keys: dict[str, str] = {}
+    single = os.environ.get("EPIWEATHER_API_KEY")
+    if single:
+        keys[single] = "default"
+    for pair in os.environ.get("EPIWEATHER_API_KEYS", "").split(","):
+        pair = pair.strip()
+        if not pair or ":" not in pair:
+            continue
+        label, _, key = pair.partition(":")
+        if key:
+            keys[key] = label.strip() or "unlabeled"
+    return keys
+
+
+def require_api_key(
+    request: Request, x_api_key: Optional[str] = Header(None, alias="X-API-Key")
+) -> str:
+    keys = _valid_api_keys()
+    if not keys:
         raise HTTPException(
             status_code=503,
-            detail="서버에 EPIWEATHER_API_KEY가 설정되지 않아 쓰기 API가 비활성화됨",
+            detail="서버에 EPIWEATHER_API_KEY(또는 EPIWEATHER_API_KEYS)가 설정되지 않아 쓰기 API가 비활성화됨",
         )
-    if not x_api_key or not secrets.compare_digest(x_api_key, expected):
+    if not x_api_key:
         raise HTTPException(status_code=401, detail="유효하지 않은 API 키 (X-API-Key 헤더 필요)")
+
+    matched_label = next(
+        (label for key, label in keys.items() if secrets.compare_digest(x_api_key, key)),
+        None,
+    )
+    if matched_label is None:
+        raise HTTPException(status_code=401, detail="유효하지 않은 API 키 (X-API-Key 헤더 필요)")
+
+    try:
+        db.log_api_key_usage(matched_label, request.url.path)
+    except Exception:
+        pass  # 사용량 로깅 실패가 실제 요청을 막으면 안 됨
+    return matched_label
 
 
 _auth = [Depends(require_api_key)]
@@ -122,8 +159,10 @@ async def _broadcast_dashboard() -> None:
 # 신호가 전혀 쌓이지 않았음. API 프로세스 안에서 백그라운드로 직접 돌려
 # 이 문제를 해결한다. EPIWEATHER_SCHEDULER=off 로 끌 수 있음(로컬 개발 시
 # 작업 스케줄러와 중복 수집하지 않도록).
-_FREE_INTERVAL_SEC = 3600       # 무료 소스: 1시간마다
-_AI_HOUR_UTC       = 21         # AI 갭필링(유료): 하루 1회, UTC 21시(KST 06시)경
+_FREE_INTERVAL_SEC   = 3600           # 무료 소스: 1시간마다
+_AI_HOUR_UTC         = 21             # AI 갭필링(유료): 하루 1회, UTC 21시(KST 06시)경
+_WEEKLY_INTERVAL_SEC = 7 * 24 * 3600  # 기준선·국가지표: 느리게 변하는 데이터라 주간이면 충분
+_WEEKLY_STATE_FILE   = Path(__file__).parent / "data" / "last_weekly_run.json"
 
 
 async def _run_collector(mode: str) -> None:
@@ -138,9 +177,59 @@ async def _run_collector(mode: str) -> None:
         collector.log_error(f"scheduler_{mode}", e)
 
 
+def _load_last_weekly_run() -> dt.datetime | None:
+    if not _WEEKLY_STATE_FILE.exists():
+        return None
+    try:
+        with open(_WEEKLY_STATE_FILE, encoding="utf-8") as f:
+            return dt.datetime.fromisoformat(json.load(f)["last_run"])
+    except (json.JSONDecodeError, KeyError, ValueError, OSError):
+        return None
+
+
+def _save_last_weekly_run(when: dt.datetime) -> None:
+    _WEEKLY_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(_WEEKLY_STATE_FILE, "w", encoding="utf-8") as f:
+        json.dump({"last_run": when.isoformat()}, f)
+
+
+async def _run_weekly_job() -> None:
+    """
+    기준선(collect_baseline)·국가지표(refresh_country_indicators) 갱신.
+    컨테이너가 재시작돼도(Railway 등) data/last_weekly_run.json에 마지막 실행
+    시각을 남겨서 "7일 지났으면 바로 실행"을 유지한다 — _AI_HOUR_UTC의
+    last_ai_run_date는 메모리 변수라 재시작하면 초기화되는 것과 대비됨.
+    """
+    import collector
+    try:
+        from algorithms.baseline_collector import collect_baseline
+        result = await asyncio.to_thread(collect_baseline)
+        collector.log(f"주간 작업: 기준선 갱신 완료 (레코드 {result.get('total_records', 0)}건)")
+    except Exception as e:
+        collector.log_error("scheduler_weekly_baseline", e)
+
+    try:
+        from algorithms.country_indicators import refresh_country_indicators
+        result = await asyncio.to_thread(refresh_country_indicators)
+        collector.log(
+            f"주간 작업: 국가지표 갱신 완료 "
+            f"(World Bank {result['worldbank_countries']}개국, OpenFlights {result['openflights_countries']}개국)"
+        )
+    except Exception as e:
+        collector.log_error("scheduler_weekly_country_indicators", e)
+
+    _save_last_weekly_run(dt.datetime.now(dt.timezone.utc))
+
+
 async def _scheduler_loop() -> None:
     last_ai_run_date: dt.date | None = None
     await _run_collector("free")
+
+    last_weekly = _load_last_weekly_run()
+    now = dt.datetime.now(dt.timezone.utc)
+    if last_weekly is None or (now - last_weekly).total_seconds() >= _WEEKLY_INTERVAL_SEC:
+        await _run_weekly_job()
+
     while True:
         await asyncio.sleep(_FREE_INTERVAL_SEC)
         await _run_collector("free")
@@ -149,6 +238,11 @@ async def _scheduler_loop() -> None:
         if now.hour == _AI_HOUR_UTC and last_ai_run_date != now.date():
             last_ai_run_date = now.date()
             await _run_collector("ai")
+
+        last_weekly = _load_last_weekly_run()
+        now_utc = dt.datetime.now(dt.timezone.utc)
+        if last_weekly is None or (now_utc - last_weekly).total_seconds() >= _WEEKLY_INTERVAL_SEC:
+            await _run_weekly_job()
 
 
 @app.on_event("startup")
@@ -162,6 +256,70 @@ async def _start_scheduler() -> None:
 @app.get("/health", tags=["시스템"])
 def health():
     return {"status": "ok", "version": "0.1.0", "engine": "역병예보 추론 엔진 v1"}
+
+
+def _file_status(path: Path) -> dict:
+    if not path.exists():
+        return {"exists": False, "updated_at": None, "size_bytes": 0}
+    stat = path.stat()
+    return {
+        "exists": True,
+        "updated_at": dt.datetime.fromtimestamp(stat.st_mtime, tz=dt.timezone.utc).isoformat(),
+        "size_bytes": stat.st_size,
+    }
+
+
+def _recent_errors(limit: int = 10) -> list[dict]:
+    """collector.py가 error_log.txt에 남긴 최근 에러. '<시각> | <출처> | <메시지>' 형식."""
+    err_file = Path(__file__).parent / "data" / "error_log.txt"
+    if not err_file.exists():
+        return []
+    with open(err_file, encoding="utf-8") as f:
+        lines = f.readlines()[-limit:]
+    errors = []
+    for line in lines:
+        parts = line.rstrip("\n").split(" | ", 2)
+        if len(parts) == 3:
+            errors.append({"at": parts[0], "context": parts[1], "message": parts[2]})
+    return errors
+
+
+@app.get("/api/status", tags=["시스템"])
+def status():
+    """
+    운영 모니터링 — 수집 파이프라인이 살아있는지 한눈에 확인.
+    Sentry 등 외부 모니터링 서비스 없이도 "언제 마지막으로 수집됐는지·
+    최근 에러가 뭔지·데이터가 얼마나 쌓였는지"를 바로 보기 위한 용도.
+    """
+    data_dir = Path(__file__).parent / "data"
+    err_file = data_dir / "error_log.txt"
+    error_count = 0
+    if err_file.exists():
+        with open(err_file, encoding="utf-8") as f:
+            error_count = sum(1 for _ in f)
+
+    last_weekly = _load_last_weekly_run()
+    return {
+        "scheduler_enabled": os.environ.get("EPIWEATHER_SCHEDULER", "on").lower() != "off",
+        "last_weekly_job_at": last_weekly.isoformat() if last_weekly else None,
+        "files": {
+            "signals_log":              _file_status(data_dir / "signals_log.jsonl"),
+            "baseline_signals":         _file_status(data_dir / "baseline_signals.jsonl"),
+            "country_indicators_cache": _file_status(data_dir / "country_indicators_cache.json"),
+        },
+        "db_table_counts": db.table_counts(),
+        "recent_errors": _recent_errors(),
+        "total_error_count": error_count,
+    }
+
+
+@app.get("/api/admin/api-key-usage", tags=["시스템"], dependencies=_auth)
+def api_key_usage(days: int = 30):
+    """
+    라벨별 API 키 호출 이력 — 대시보드용 공개 데이터가 아니라 운영 데이터라
+    다른 GET 엔드포인트와 다르게 인증을 건다(고객사별 사용량은 노출하면 안 됨).
+    """
+    return {"days": days, "usage": db.api_key_usage_summary(days=days)}
 
 
 # ── 누적 시계열 신호 (collector.py가 쌓은 데이터) ────────────
@@ -443,7 +601,9 @@ def extracted_signals(disease: Optional[str] = None, limit: int = 50):
 def risk_index():
     """
     국가별 위험지수 전체 랭킹. 최종위험도 = 원시위험도(직접수치+NLP신호) × 취약성지수.
-    취약성지수 4요소는 WHO GHO·World Bank·OpenFlights·UNWTO 실연동 전까지의 추정 시드값.
+    취약성지수 4요소 중 의료인프라·인구밀도(World Bank)·공항연결성(OpenFlights)은
+    실데이터 캐시 확보 시 실측값 사용, 국경이동량은 UNWTO 유료라 계속 추정 시드값.
+    각 응답의 vulnerability_source(real_data|seed_fallback)로 실측 여부 확인 가능.
     """
     return rank_countries()
 
@@ -643,6 +803,35 @@ def baseline_collect(months_back: int = 24, years_back: int = 5, weeks_back: int
     """
     from algorithms.baseline_collector import collect_baseline
     return collect_baseline(months_back=months_back, years_back=years_back, weeks_back=weeks_back)
+
+
+@app.post("/api/country-indicators/refresh", tags=["기준선"], dependencies=_auth)
+def country_indicators_refresh():
+    """
+    국가 취약성 지수 실데이터 갱신 — World Bank(병상수·인구밀도) + OpenFlights
+    (공항연결성) 조회해 data/country_indicators_cache.json에 저장.
+    /api/risk-index의 vulnerability_source가 real_data로 바뀌는 기반 데이터.
+    """
+    from algorithms.country_indicators import refresh_country_indicators
+    return refresh_country_indicators()
+
+
+@app.get("/api/country-indicators/status", tags=["기준선"])
+def country_indicators_status():
+    """국가 지표 캐시 현황 — 갱신 시각과 실데이터 확보된 국가 수."""
+    from algorithms.country_indicators import load_country_indicators, CACHE_FILE
+    import json as _json
+    countries = load_country_indicators()
+    if not CACHE_FILE.exists():
+        return {"status": "없음", "count": 0, "hint": "POST /api/country-indicators/refresh 실행 필요"}
+    with open(CACHE_FILE, encoding="utf-8") as f:
+        cache = _json.load(f)
+    return {
+        "status": "있음",
+        "updated_at": cache.get("updated_at"),
+        "countries_with_real_data": len(countries),
+        "countries": list(countries.keys()),
+    }
 
 
 # ── 발병 타임라인 (Phase 2 ㉑) ──────────────────────────────
