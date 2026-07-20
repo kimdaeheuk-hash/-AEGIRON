@@ -1269,7 +1269,7 @@ def sentinel_manual_verify(
     """수동 검증 — status는 confirmed | dismissed."""
     if status not in ("confirmed", "dismissed"):
         raise HTTPException(status_code=422, detail="status는 confirmed | dismissed 중 하나")
-    db.update_sentinel_verification(sentinel_id, status, evidence, confidence)
+    db.update_sentinel_verification(sentinel_id, status, evidence, confidence, verified_by="human")
     rows = db.list_sentinel_queue(limit=1)
     match = next((r for r in db.list_sentinel_queue() if r["id"] == sentinel_id), None)
     if not match:

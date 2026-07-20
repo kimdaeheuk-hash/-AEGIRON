@@ -27,17 +27,20 @@ CREATE TABLE IF NOT EXISTS outbreak_timeline (
 );
 
 CREATE TABLE IF NOT EXISTS sentinel_queue (
-    id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    detected_at  TEXT NOT NULL,
-    layer        TEXT NOT NULL,
-    metric       TEXT NOT NULL,
-    spike_ratio  REAL NOT NULL,
-    latest_val   REAL NOT NULL,
-    baseline_avg REAL NOT NULL,
-    status       TEXT NOT NULL DEFAULT 'pending',  -- pending | confirmed | dismissed
-    evidence     TEXT,
-    confidence   REAL,
-    verified_at  TEXT,
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    detected_at   TEXT NOT NULL,
+    layer         TEXT NOT NULL,
+    metric        TEXT NOT NULL,
+    spike_ratio   REAL NOT NULL,
+    latest_val    REAL NOT NULL,
+    baseline_avg  REAL NOT NULL,
+    status        TEXT NOT NULL DEFAULT 'pending',  -- pending | confirmed | dismissed
+    evidence      TEXT,
+    confidence    REAL,
+    verified_at   TEXT,
+    verified_by   TEXT,   -- ai | human — 이 판정을 누가 내렸는지
+    ai_status     TEXT,   -- AI가 최초로 내린 판정(사람이 나중에 재검증해도 덮어쓰지 않음 — 일치율 비교용)
+    ai_confidence REAL,
     UNIQUE(detected_at, layer, metric)
 );
 
@@ -106,6 +109,20 @@ def get_connection() -> sqlite3.Connection:
 def init_db() -> None:
     with get_connection() as conn:
         conn.executescript(SCHEMA)
+        # sentinel_queue에 verified_by/ai_status/ai_confidence 컬럼 도입 전에
+        # 이미 만들어진 DB(운영 중인 것 포함)에도 안전하게 추가.
+        # CREATE TABLE IF NOT EXISTS는 기존 테이블에 컬럼을 추가해주지 않으므로
+        # ALTER TABLE로 따로 처리 — 이미 있으면 OperationalError만 삼킴.
+        for ddl in (
+            "ALTER TABLE sentinel_queue ADD COLUMN verified_by TEXT",
+            "ALTER TABLE sentinel_queue ADD COLUMN ai_status TEXT",
+            "ALTER TABLE sentinel_queue ADD COLUMN ai_confidence REAL",
+        ):
+            try:
+                conn.execute(ddl)
+            except sqlite3.OperationalError:
+                pass
+        conn.commit()
 
 
 def create_prediction(country: str, disease: str, risk_score: float, basis: list[str]) -> dict:
@@ -359,15 +376,56 @@ def upsert_sentinel(
 
 
 def update_sentinel_verification(
-    sentinel_id: int, status: str, evidence: str | None, confidence: float | None
+    sentinel_id: int, status: str, evidence: str | None, confidence: float | None,
+    verified_by: str = "ai",
 ) -> None:
+    """
+    verified_by="ai" (verification.py의 자동검증)일 때만 ai_status/ai_confidence를
+    같이 기록한다. verified_by="human"(수동 재검증, POST /api/sentinel/{id}/verify)이면
+    기존 ai_status/ai_confidence는 그대로 두고 status/evidence만 갱신 —
+    "AI가 처음에 뭐라고 판단했었는지"를 사람이 나중에 고쳐도 비교할 수 있게 보존.
+    """
     verified_at = datetime.now(timezone.utc).isoformat()
     with get_connection() as conn:
-        conn.execute(
-            "UPDATE sentinel_queue SET status=?, evidence=?, confidence=?, verified_at=? WHERE id=?",
-            (status, evidence, confidence, verified_at, sentinel_id),
-        )
+        if verified_by == "ai":
+            conn.execute(
+                "UPDATE sentinel_queue SET status=?, evidence=?, confidence=?, verified_at=?, "
+                "verified_by=?, ai_status=?, ai_confidence=? WHERE id=?",
+                (status, evidence, confidence, verified_at, verified_by, status, confidence, sentinel_id),
+            )
+        else:
+            conn.execute(
+                "UPDATE sentinel_queue SET status=?, evidence=?, confidence=?, verified_at=?, "
+                "verified_by=? WHERE id=?",
+                (status, evidence, confidence, verified_at, verified_by, sentinel_id),
+            )
         conn.commit()
+
+
+def sentinel_verification_accuracy() -> dict:
+    """
+    AI 자동검증(verification.py) 후 사람이 나중에 재검증한 사례들만 골라서
+    AI 판정과 사람 판정이 얼마나 일치하는지 계산 — "AI 검증을 얼마나 믿을
+    수 있는가"의 실측 근거. verified_by='human'이면서 ai_status가 남아있는
+    (=AI가 먼저 판단했던) 항목만 대상으로 함.
+    """
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT status, ai_status FROM sentinel_queue "
+            "WHERE verified_by = 'human' AND ai_status IS NOT NULL"
+        ).fetchall()
+    total = len(rows)
+    if total == 0:
+        return {
+            "total_compared": 0, "agreed": 0, "agreement_rate": None,
+            "note": "AI 판정 후 사람이 재검증한 사례가 아직 없음 — 표본 쌓이면 계산됨",
+        }
+    agreed = sum(1 for r in rows if r["status"] == r["ai_status"])
+    return {
+        "total_compared": total,
+        "agreed": agreed,
+        "agreement_rate": round(agreed / total, 3),
+    }
 
 
 def list_sentinel_queue(status: str | None = None, limit: int = 50) -> list[dict]:

@@ -169,6 +169,7 @@ def verify_pending(max_items: int = 10) -> dict:
             status=status,
             evidence=evidence,
             confidence=confidence,
+            verified_by="ai",
         )
 
         if confirmed:
