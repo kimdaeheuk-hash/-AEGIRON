@@ -1,4 +1,16 @@
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+export const API_BASE = BASE;
+
+// 백엔드 쓰기(POST) 엔드포인트는 X-API-Key 인증이 걸려있음.
+// 빌드타임에 공개되는 값이라 진짜 민감한 관리자 키가 아니라, 신뢰 클라이언트인
+// 이 프론트엔드가 봇/스크래퍼와 구분되기 위한 최소한의 게이트임을 유의.
+export function apiWriteHeaders(json = true): HeadersInit {
+  const headers: Record<string, string> = {};
+  if (json) headers['Content-Type'] = 'application/json';
+  const key = process.env.NEXT_PUBLIC_API_KEY;
+  if (key) headers['X-API-Key'] = key;
+  return headers;
+}
 
 // ── 공통 타입 ────────────────────────────────────────────────
 export interface Country {

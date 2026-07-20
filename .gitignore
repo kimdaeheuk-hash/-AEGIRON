@@ -24,6 +24,8 @@ yarn-error.log*
 # runtime data (수집기가 매시간 쌓는 로그 — 소스코드 아님)
 epiweather-api/data/*.jsonl
 epiweather-api/data/*.db
+epiweather-api/data/*.db-wal
+epiweather-api/data/*.db-shm
 epiweather-api/data/*.log
 epiweather-api/data/error_log.txt
 epiweather-api/data/last_known_counts.json

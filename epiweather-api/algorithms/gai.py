@@ -93,6 +93,10 @@ def compute_gai() -> dict:
     result = {
         "gai": gai,
         "tier": _tier(gai),
+        # anomaly_engine.py·forecast_engine.py도 0~100 점수를 내지만 계산식이
+        # 서로 다르다(여긴 6계층 신뢰도가중 z-score 합산). 같은 "70/80/90점"
+        # 언어를 쓰는 다른 스코어와 섞이지 않도록 출처를 명시해서 내보낸다.
+        "score_model": "gai_v1_layered_trust_weighted",
         "layers": layer_results,
         "sample_size": {"free_sources": n_free, "ai_sources": n_ai},
     }

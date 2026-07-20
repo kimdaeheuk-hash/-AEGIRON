@@ -2,8 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useStore } from '@/lib/store';
 import { CHANNELS, clamp } from '@/lib/algorithms';
-
-const API = 'http://localhost:8000';
+import { API_BASE as API } from '@/lib/api';
 
 interface WhoSignal { title: string; date?: string; risk: number; source: string; link?: string }
 interface LocalSignalTitle { title: string; recent_14d?: number; baseline_14d?: number; ratio?: number; error?: string }

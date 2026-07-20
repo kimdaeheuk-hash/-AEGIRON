@@ -7,8 +7,7 @@ import {
   fetchNCBI, fetchPubMed, fetchBioRxiv, fetchWHO,
   NCBIResult, PubMedPaper, BioRxivPaper, WHOItem,
 } from '@/lib/syntheticThreat';
-
-const API = 'http://localhost:8000';
+import { API_BASE as API, apiWriteHeaders } from '@/lib/api';
 
 interface ScanResult {
   total: number; ci: { lo: number; hi: number };
@@ -78,7 +77,7 @@ export default function Stage0Synthetic() {
         접근번호: result.ncbi.acc,
       };
       const res = await fetch(`${API}/api/synthetic-threat/analyze`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: apiWriteHeaders(),
         body: JSON.stringify({ summary }),
       });
       if (!res.ok) throw new Error(`서버 오류 (${res.status})`);

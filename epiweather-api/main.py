@@ -11,7 +11,7 @@ Next.js 프론트엔드(epiweather-web)와 연동 가능.
 Swagger UI: http://localhost:8000/docs
 """
 from __future__ import annotations
-import sys, os, json
+import sys, os, json, secrets
 import asyncio
 import datetime as dt
 from pathlib import Path
@@ -22,7 +22,7 @@ load_dotenv(Path(__file__).parent / ".env")
 ENGINE_SRC = Path(__file__).parent.parent / "epiweather-handoff" / "engine" / "src"
 sys.path.insert(0, str(ENGINE_SRC))
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Optional
@@ -57,6 +57,25 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ── 쓰기(POST) 엔드포인트 인증 ────────────────────────────────
+# 조회(GET)는 대시보드가 공개적으로 보여줘야 하므로 그대로 공개.
+# 상태를 바꾸는 POST 엔드포인트만 X-API-Key 헤더로 보호한다.
+# EPIWEATHER_API_KEY가 설정 안 되어 있으면 fail-closed(503)로 막는다 —
+# "키가 없으면 조용히 전체 공개"가 되는 fail-open보다 운영 사고를 막기 쉬움.
+def require_api_key(x_api_key: Optional[str] = Header(None, alias="X-API-Key")) -> None:
+    expected = os.environ.get("EPIWEATHER_API_KEY")
+    if not expected:
+        raise HTTPException(
+            status_code=503,
+            detail="서버에 EPIWEATHER_API_KEY가 설정되지 않아 쓰기 API가 비활성화됨",
+        )
+    if not x_api_key or not secrets.compare_digest(x_api_key, expected):
+        raise HTTPException(status_code=401, detail="유효하지 않은 API 키 (X-API-Key 헤더 필요)")
+
+
+_auth = [Depends(require_api_key)]
 
 
 # ── 자동 수집 스케줄러 ──────────────────────────────────────────
@@ -140,7 +159,7 @@ class PatientZeroRequest(BaseModel):
     origin_id: str = Field("WUH", description="발원 도시 ID (WUH, JKT, BKK 등)")
     seed: int = Field(42, description="결정론적 시뮬레이션 시드")
 
-@app.post("/api/patient-zero/grid", tags=["Stage 0: 발원지"])
+@app.post("/api/patient-zero/grid", tags=["Stage 0: 발원지"], dependencies=_auth)
 def patient_zero_grid(req: PatientZeroRequest):
     """
     10×10 격자의 발원 후방확률 계산.
@@ -169,7 +188,7 @@ class CivicRequest(BaseModel):
         description="활성 신호 ID 목록 (citi, sewer, otc, kit, lab)"
     )
 
-@app.post("/api/civic-fusion", tags=["Stage 1: 민간 신호"])
+@app.post("/api/civic-fusion", tags=["Stage 1: 민간 신호"], dependencies=_auth)
 def civic_fusion(req: CivicRequest):
     """
     민간 신호 융합 — 정부 공식 발표 대비 선행일 계산.
@@ -239,7 +258,7 @@ class ImportRequest(BaseModel):
     origin_id: str = Field("WUH", description="발원 도시 ID")
     threat: str = Field("novel", description="위협 강도 (flu | novel | severe)")
 
-@app.post("/api/import-day", tags=["Stage 2: 글로벌 유입"])
+@app.post("/api/import-day", tags=["Stage 2: 글로벌 유입"], dependencies=_auth)
 def import_day(req: ImportRequest):
     """
     해외 발원지 → 한국 첫 유입일 예측.
@@ -259,7 +278,7 @@ class DefenseRequest(BaseModel):
     preset: Optional[str] = Field(None, description="프리셋 사용 시 (none | mild | strong)")
     levers: Optional[dict] = Field(None, description="개별 레버 값 (0~1 범위)")
 
-@app.post("/api/seir-simulate", tags=["Stage 5: 방어 시뮬레이션"])
+@app.post("/api/seir-simulate", tags=["Stage 5: 방어 시뮬레이션"], dependencies=_auth)
 def seir_simulate(req: DefenseRequest):
     """
     SEIR + 시간가변 개입 시뮬레이션.
@@ -289,7 +308,7 @@ class BacktestRequest(BaseModel):
         description="비교할 탐지 방법"
     )
 
-@app.post("/api/backtest", tags=["후향 검증"])
+@app.post("/api/backtest", tags=["후향 검증"], dependencies=_auth)
 def backtest(req: BacktestRequest):
     """
     Farrington / z-score / EWMA 비교 후향 검증.
@@ -428,7 +447,7 @@ class PredictionCreate(BaseModel):
     risk_score: float = Field(..., description="예측 위험도 (0~100)")
     basis: list[str] = Field(..., min_length=1, description="예측 근거 (최소 1개, 권장 3개)")
 
-@app.post("/api/predictions", tags=["예측 검증"])
+@app.post("/api/predictions", tags=["예측 검증"], dependencies=_auth)
 def create_prediction(req: PredictionCreate):
     """
     예측 시점에 근거와 함께 기록.
@@ -454,7 +473,7 @@ class PredictionVerify(BaseModel):
     correct: bool = Field(..., description="예측이 맞았는지")
     lead_days: Optional[int] = Field(None, description="공식 발표 대비 선행 일수 (양수=먼저 감지)")
 
-@app.post("/api/predictions/{prediction_id}/verify", tags=["예측 검증"])
+@app.post("/api/predictions/{prediction_id}/verify", tags=["예측 검증"], dependencies=_auth)
 def verify_prediction(prediction_id: int, req: PredictionVerify):
     """예측을 실제 결과로 검증·채점."""
     result = db.verify_prediction(prediction_id, req.actual_result, req.correct, req.lead_days)
@@ -480,7 +499,7 @@ class AIInferRequest(BaseModel):
     levers: Optional[dict] = Field(None)
     api_key: Optional[str] = Field(None, description="Anthropic API 키 (없으면 환경변수)")
 
-@app.post("/api/ai/infer", tags=["Stage 6: AI 추론"])
+@app.post("/api/ai/infer", tags=["Stage 6: AI 추론"], dependencies=_auth)
 def ai_infer(req: AIInferRequest):
     """
     7단계 통합 AI 역학 추론.
@@ -550,7 +569,7 @@ class SyntheticThreatAnalyzeRequest(BaseModel):
     summary: dict = Field(..., description="0단계 스캔 결과 요약 (종합점수, CI, 유전체/역학/인텔 점수 등)")
     api_key: Optional[str] = Field(None, description="Anthropic API 키 (없으면 환경변수)")
 
-@app.post("/api/synthetic-threat/analyze", tags=["Stage 0: 합성위협 탐지"])
+@app.post("/api/synthetic-threat/analyze", tags=["Stage 0: 합성위협 탐지"], dependencies=_auth)
 def synthetic_threat_analyze(req: SyntheticThreatAnalyzeRequest):
     """0단계 합성위협 탐지 스캔 결과를 Claude로 분석 (설계-탐지 이중성 관점)."""
     key = req.api_key or os.environ.get("ANTHROPIC_API_KEY")
@@ -576,7 +595,7 @@ def global_watch():
 
 
 # ── 과거 기준선 데이터 수집 (Phase 2 ⑮) ──────────────────────
-@app.post("/api/baseline/collect", tags=["기준선"])
+@app.post("/api/baseline/collect", tags=["기준선"], dependencies=_auth)
 def baseline_collect(months_back: int = 24, years_back: int = 5, weeks_back: int = 104):
     """
     Wikipedia 최대 24개월 + KDCA 최대 5년치 + CDC NWSS(하수감시) 최대 24개월 +
@@ -625,7 +644,7 @@ class TimelineMilestone(BaseModel):
     source:      Optional[str] = Field(None)
     source_type: Optional[str] = Field(None, description="who | cdc | media | ai_detected")
 
-@app.post("/api/timeline", tags=["타임라인"])
+@app.post("/api/timeline", tags=["타임라인"], dependencies=_auth)
 def timeline_add(req: TimelineMilestone):
     """발병 타임라인에 마일스톤 추가 (같은 milestone은 갱신)."""
     return db.upsert_timeline_event(
@@ -723,7 +742,7 @@ def dashboard():
     }
 
 
-@app.post("/api/digital-twin/simulate", tags=["Phase3"])
+@app.post("/api/digital-twin/simulate", tags=["Phase3"], dependencies=_auth)
 def digital_twin_simulate(
     origin: str = "Kinshasa",
     threat: str = "novel",
@@ -756,11 +775,15 @@ def cities_risk():
 @app.get("/api/cities/{city}/inflow", tags=["Phase3"])
 def city_inflow(city: str):
     """인천공항 → 서울 유입 경로 분석. city: Bangkok, Dubai, Kinshasa 등"""
-    from algorithms.geo_resolution import compute_city_risk, get_korea_inflow_path
+    from algorithms.geo_resolution import compute_city_risk, get_korea_inflow_path, CITY_RISK_DATA
     from algorithms.country_risk import rank_countries
     country_data = rank_countries()
     country_risks = {c["country"]: c["risk_score"] for c in country_data["countries"]}
-    city_data = compute_city_risk(city, country_risks.get(city, 50.0))
+    # country_risks는 국가ID로 키가 잡혀있어 city명으로는 조회가 안 됨 —
+    # 도시→국가 매핑을 먼저 거쳐야 실제 국가위험도가 들어감 (안 거치면 항상 폴백 50.0)
+    city_country = CITY_RISK_DATA.get(city, {}).get("country")
+    country_risk_score = country_risks.get(city_country, 50.0)
+    city_data = compute_city_risk(city, country_risk_score)
     if "error" in city_data:
         raise HTTPException(status_code=404, detail=city_data["error"])
     return get_korea_inflow_path(city, city_data["city_risk"])
@@ -980,7 +1003,7 @@ def sentinel_status():
     return get_sentinel_status()
 
 
-@app.post("/api/sentinel/scan", tags=["Sentinel"])
+@app.post("/api/sentinel/scan", tags=["Sentinel"], dependencies=_auth)
 def sentinel_scan():
     """
     즉시 스파이크 스캔 실행 — signals_log.jsonl을 읽어 기준선 2배 이상 급등 탐지.
@@ -991,7 +1014,7 @@ def sentinel_scan():
     return {"detected": len(spikes), "spikes": spikes}
 
 
-@app.post("/api/sentinel/verify", tags=["Sentinel"])
+@app.post("/api/sentinel/verify", tags=["Sentinel"], dependencies=_auth)
 def sentinel_verify(max_items: int = 10):
     """
     pending 항목을 Perplexity → Tavily 순서로 검증.
@@ -1001,7 +1024,7 @@ def sentinel_verify(max_items: int = 10):
     return verify_pending(max_items=max_items)
 
 
-@app.post("/api/sentinel/{sentinel_id}/verify", tags=["Sentinel"])
+@app.post("/api/sentinel/{sentinel_id}/verify", tags=["Sentinel"], dependencies=_auth)
 def sentinel_manual_verify(
     sentinel_id: int,
     status: str,
@@ -1019,7 +1042,7 @@ def sentinel_manual_verify(
     return match
 
 
-@app.post("/api/ai/triage", tags=["Stage 6: AI 추론"])
+@app.post("/api/ai/triage", tags=["Stage 6: AI 추론"], dependencies=_auth)
 def ai_triage(
     rt: float, arrival_day: int, hosp_overflow_days: int = 0,
     civic_lead: int = 0, saved_lives: int = 0, threat: str = "novel",

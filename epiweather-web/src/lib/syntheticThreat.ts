@@ -1,5 +1,6 @@
 // 0단계 합성위협 탐지 — 원본 epiweather-stage0-v3.html에서 TypeScript로 이식
 // CAI(코돈적응지수)·CpG억제비율·엔트로피·GC편향 + Fisher's 결합
+import { API_BASE } from '@/lib/api';
 
 const HCF: Record<string, number> = {
   TTT:.17,TTC:.204,TTA:.073,TTG:.127,CTT:.129,CTC:.198,CTA:.07,CTG:.405,
@@ -139,7 +140,7 @@ export async function fetchPubMed(): Promise<PubMedPaper[]> {
   }
 }
 
-const API = 'http://localhost:8000';
+const API = API_BASE;
 
 // bioRxiv API는 브라우저에서 CORS로 차단되므로 서버(FastAPI) 경유로 호출
 export async function fetchBioRxiv(): Promise<BioRxivPaper[]> {

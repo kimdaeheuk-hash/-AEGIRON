@@ -87,8 +87,12 @@ CREATE TABLE IF NOT EXISTS extracted_signals (
 
 def get_connection() -> sqlite3.Connection:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=5.0)
     conn.row_factory = sqlite3.Row
+    # WAL: 백그라운드 스케줄러와 API 요청이 동시에 읽고/쓸 때 서로 안 막게 함.
+    # busy_timeout: 그래도 쓰기가 겹치면 즉시 실패 대신 5초까지 재시도 대기.
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=5000")
     return conn
 
 

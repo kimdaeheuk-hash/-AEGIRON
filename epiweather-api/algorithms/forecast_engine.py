@@ -129,6 +129,9 @@ def forecast_all_metrics() -> dict:
         "top_alerts_7d":  len(top_alerts),
         "forecasts":      forecasts,
         "top_alerts":     top_alerts[:10],
+        # gai.py의 GAI, anomaly_engine.py의 이상도와 척도(0~100)는 같지만
+        # 계산식이 다른 별개 모델(선형회귀+EWMA 앙상블 z-score) — 구분 명시.
+        "score_model":    "forecast_engine_v1_regression_ewma_ensemble",
     }
 
 
@@ -139,7 +142,10 @@ def forecast_summary(country: str | None = None) -> dict:
     """
     result = forecast_all_metrics()
     if not result["forecasts"]:
-        return {"score_7d": None, "score_14d": None, "confidence": "insufficient_data"}
+        return {
+            "score_7d": None, "score_14d": None, "confidence": "insufficient_data",
+            "score_model": "forecast_engine_v1_regression_ewma_ensemble",
+        }
 
     forecasts = result["forecasts"]
     w7  = sum(f["forecast_7d"]["score"]  for f in forecasts) / len(forecasts)
@@ -159,4 +165,5 @@ def forecast_summary(country: str | None = None) -> dict:
         "confidence": "medium",
         "top_alerts": result["top_alerts"],
         "metrics_used": len(forecasts),
+        "score_model": "forecast_engine_v1_regression_ewma_ensemble",
     }

@@ -149,6 +149,12 @@ def compute_country_risk(country_id: str) -> dict:
             "nlp_signal_count": nlp_count,
         },
         "vulnerability_index": vuln,
+        # WHO GHO·World Bank·OpenFlights·UNWTO 실연동 전까지는 COUNTRIES의
+        # 4요소가 전부 직접 추정한 시드값(파일 상단 docstring 참고)이라, 이걸
+        # 실측값처럼 보이지 않게 항상 명시한다. 시드 테이블에도 없는 국가는
+        # DEFAULT_VULNERABILITY(중립값 0.5) 하나로 뭉개진다는 사실도 함께 알림.
+        "vulnerability_estimated": True,
+        "vulnerability_source": "seed" if country_id in COUNTRIES else "default_neutral",
         "risk_score": risk_score,
         "has_signal": raw_score is not None,
         "tier": _tier(risk_score),

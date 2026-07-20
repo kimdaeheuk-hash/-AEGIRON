@@ -91,6 +91,9 @@ def compute_anomalies() -> dict:
         "anomaly_count":   len(anomalies),
         "metrics_checked": len(all_metrics),
         "threshold":       ANOMALY_THRESHOLD,
+        # gai.py의 GAI, forecast_engine.py의 예측점수와 척도(0~100)는 같아도
+        # 계산식이 다른 별개 모델 — 소비자가 섞어서 비교하지 않도록 명시.
+        "score_model":     "anomaly_engine_v1_ratio_vs_baseline",
         "anomalies":       anomalies,
         "symptom_clusters": _check_symptom_clusters(records),
     }
