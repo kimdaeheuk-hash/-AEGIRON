@@ -16,7 +16,7 @@ function scoreColor(score: number): string {
 // 옆의 막대그래프(Screen1Banner)에서만 보이게 둔다.
 export default function GlobalRiskMap({ countries }: { countries: Country[] }) {
   return (
-    <div style={{ height: 260, borderRadius: 10, overflow: 'hidden', border: '1px solid var(--line)' }}>
+    <div className="grm-wrap" style={{ borderRadius: 10, overflow: 'hidden', border: '1px solid var(--line)' }}>
       <MapContainer
         center={[15, 20]}
         zoom={1.4}

@@ -7,7 +7,7 @@ import type { Country, StreamEvent, Outbreak, ChainWarning, AlertItem, AlertDash
 const GlobalRiskMap = dynamic(() => import('@/components/GlobalRiskMap'), {
   ssr: false,
   loading: () => (
-    <div style={{ height: 260, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted2)', fontFamily: 'var(--mono)', fontSize: 11 }}>
+    <div className="grm-wrap" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted2)', fontFamily: 'var(--mono)', fontSize: 11 }}>
       지도 불러오는 중...
     </div>
   ),
@@ -146,7 +146,7 @@ function Screen4Ranking({ top20 }: { top20: Country[] }) {
       <div className="card-h">
         <span className="lbl">🏴 국가별 위험지수 상위 20</span>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 14px' }}>
+      <div className="rank-grid">
         {top20.slice(0, 20).map((c, i) => {
           const sc = c.risk_score ?? 0;
           return (

@@ -243,9 +243,13 @@ export default function Command() {
         .lbl { font-family: var(--mono); font-size: 10px; letter-spacing: .18em; color: var(--muted); text-transform: uppercase; }
         .grid2 { display: grid; grid-template-columns: 1.4fr 1fr; gap: 14px; }
         .shell { display: grid; grid-template-columns: 240px 1fr; gap: 18px; }
+        .rank-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 14px; }
+        .grm-wrap { height: 260px; }
         @media(max-width:760px) {
           .shell { grid-template-columns: 1fr; }
           .sidenav { position: static !important; max-height: none !important; overflow-y: visible !important; }
+          .rank-grid { grid-template-columns: 1fr; }
+          .grm-wrap { height: 200px; }
         }
         .oc { border-radius: 12px; padding: 11px; border: 1px solid var(--line); background: rgba(255,255,255,.025); }
         .ok { font-size: 10.5px; color: var(--muted); display: flex; align-items: center; gap: 5px; }
