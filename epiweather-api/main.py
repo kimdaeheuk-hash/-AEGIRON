@@ -964,6 +964,12 @@ def _build_dashboard() -> dict:
             "tier_14d":       forecast_data.get("tier_14d", "정상"),
             "chain_warnings": chain_warnings[:5],
             "top_alerts":     forecast_data.get("top_alerts", [])[:5],
+            # "우리가 X% 맞췄다"를 실제로 보여주는 부분 — country_risk.py의
+            # log_notable_predictions()가 매시간 자동 기록한 예측 중 검증된 것들.
+            "prediction_track_record": {
+                "accuracy": db.accuracy_stats(),
+                "recent_verified": db.list_predictions(verified_only=True)[:5],
+            },
         },
         "screen6_alert_center": {
             "dashboard":    alert_data["dashboard"],

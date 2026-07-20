@@ -72,6 +72,26 @@ export interface AlertDashboard {
   hidden_count?: number;
 }
 
+export interface PredictionAccuracy {
+  total_verified: number;
+  correct: number;
+  accuracy: number | null;
+  mean_lead_days: number | null;
+}
+
+export interface VerifiedPrediction {
+  id: number;
+  predicted_at: string;
+  country: string;
+  disease: string;
+  risk_score: number;
+  basis: string[];
+  verified_at: string | null;
+  actual_result: string | null;
+  lead_days: number | null;
+  correct: boolean | null;
+}
+
 export interface DashboardData {
   generated_at: string;
   screen1_global_map: {
@@ -96,6 +116,10 @@ export interface DashboardData {
     tier_14d: string;
     chain_warnings: ChainWarning[];
     top_alerts: AlertItem[];
+    prediction_track_record: {
+      accuracy: PredictionAccuracy;
+      recent_verified: VerifiedPrediction[];
+    };
   };
   screen6_alert_center: {
     dashboard: AlertDashboard | null;

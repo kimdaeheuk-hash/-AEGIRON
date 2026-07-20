@@ -1,7 +1,7 @@
 'use client';
 import dynamic from 'next/dynamic';
 import { useDashboard } from '@/lib/useDashboard';
-import type { Country, StreamEvent, Outbreak, ChainWarning, AlertItem, AlertDashboard, TierSummaryEntry } from '@/lib/api';
+import type { Country, StreamEvent, Outbreak, ChainWarning, AlertItem, AlertDashboard, TierSummaryEntry, PredictionAccuracy, VerifiedPrediction } from '@/lib/api';
 
 // Leaflet은 window에 의존해 SSR에서 깨지므로 클라이언트에서만 로드.
 const GlobalRiskMap = dynamic(() => import('@/components/GlobalRiskMap'), {
@@ -169,13 +169,15 @@ function Screen4Ranking({ top20 }: { top20: Country[] }) {
 
 // ── 화면 5: AI 예측 패널 ──────────────────────────────────────
 function Screen5Forecast({
-  score7, score14, tier7, tier14, warnings, topAlerts,
+  score7, score14, tier7, tier14, warnings, topAlerts, trackRecord,
 }: {
   score7: number; score14: number;
   tier7: string; tier14: string;
   warnings: ChainWarning[];
   topAlerts: AlertItem[];
+  trackRecord: { accuracy: PredictionAccuracy; recent_verified: VerifiedPrediction[] };
 }) {
+  const acc = trackRecord.accuracy;
   return (
     <div className="card">
       <div className="card-h">
@@ -211,6 +213,39 @@ function Screen5Forecast({
           ))}
         </>
       )}
+      {/* 예측 트랙레코드 — "우리가 X% 맞췄다"의 실측 근거 */}
+      <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--line)' }}>
+        <div style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted)', letterSpacing: '.14em', marginBottom: 7 }}>
+          예측 트랙레코드
+        </div>
+        {acc.total_verified === 0 ? (
+          <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)' }}>
+            아직 검증된 예측 없음 — 표본이 쌓이면 적중률이 계산됨
+          </div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 10 }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontFamily: 'var(--mono)', fontSize: 22, fontWeight: 800, color: 'var(--ok)' }}>
+                {acc.accuracy != null ? `${Math.round(acc.accuracy * 100)}%` : '—'}
+              </div>
+              <div style={{ fontFamily: 'var(--mono)', fontSize: 8, color: 'var(--muted2)' }}>적중률</div>
+            </div>
+            <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted2)', lineHeight: 1.7 }}>
+              검증 {acc.total_verified}건 중 {acc.correct}건 적중
+              {acc.mean_lead_days != null && <><br />평균 선행일수 D−{Math.round(acc.mean_lead_days)}</>}
+            </div>
+          </div>
+        )}
+        {trackRecord.recent_verified.map(p => (
+          <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', fontFamily: 'var(--mono)', fontSize: 10 }}>
+            <span style={{ color: p.correct ? 'var(--ok)' : '#ef4444', flexShrink: 0 }}>{p.correct ? '✓' : '✗'}</span>
+            <span style={{ color: 'var(--txt)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {p.country} · {p.disease}
+            </span>
+            {p.lead_days != null && <span style={{ color: 'var(--muted2)', flexShrink: 0 }}>D−{p.lead_days}</span>}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -361,6 +396,7 @@ export default function Stage9Dashboard() {
           tier14={s5.tier_14d}
           warnings={s5.chain_warnings}
           topAlerts={s5.top_alerts}
+          trackRecord={s5.prediction_track_record}
         />
       </div>
 
