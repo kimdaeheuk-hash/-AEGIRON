@@ -108,3 +108,14 @@ export async function fetchDashboard(): Promise<DashboardData> {
   if (!res.ok) throw new Error(`API error ${res.status}`);
   return res.json() as Promise<DashboardData>;
 }
+
+// http(s):// 베이스를 ws(s):// 대시보드 엔드포인트로 변환.
+export function dashboardWsUrl(): string | null {
+  try {
+    const u = new URL(`${BASE}/ws/dashboard`);
+    u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
+    return u.toString();
+  } catch {
+    return null;
+  }
+}

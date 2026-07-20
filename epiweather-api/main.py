@@ -22,7 +22,7 @@ load_dotenv(Path(__file__).parent / ".env")
 ENGINE_SRC = Path(__file__).parent.parent / "epiweather-handoff" / "engine" / "src"
 sys.path.insert(0, str(ENGINE_SRC))
 
-from fastapi import FastAPI, HTTPException, Depends, Header
+from fastapi import FastAPI, HTTPException, Depends, Header, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Optional
@@ -78,6 +78,44 @@ def require_api_key(x_api_key: Optional[str] = Header(None, alias="X-API-Key")) 
 _auth = [Depends(require_api_key)]
 
 
+# ── 대시보드 WebSocket ────────────────────────────────────────
+# 기존 30초 폴링 대신 실시간 푸시. 수집기(스케줄러)가 새 신호를 쌓을 때마다
+# 연결된 클라이언트에 최신 /api/dashboard 페이로드를 브로드캐스트한다.
+_ws_clients: set[WebSocket] = set()
+
+
+@app.websocket("/ws/dashboard")
+async def ws_dashboard(websocket: WebSocket) -> None:
+    await websocket.accept()
+    _ws_clients.add(websocket)
+    try:
+        # 연결 직후 최신 스냅샷을 바로 보내서, 다음 수집 주기까지 안 기다려도
+        # 화면을 그릴 수 있게 함(REST 초기 로드와 동등한 경험).
+        await websocket.send_json(_build_dashboard())
+        while True:
+            # 클라이언트가 보내는 메시지는 쓰지 않지만, 연결이 끊기면
+            # WebSocketDisconnect가 여기서 발생하도록 계속 대기한다.
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        pass
+    finally:
+        _ws_clients.discard(websocket)
+
+
+async def _broadcast_dashboard() -> None:
+    if not _ws_clients:
+        return
+    payload = _build_dashboard()
+    dead: list[WebSocket] = []
+    for ws in list(_ws_clients):
+        try:
+            await ws.send_json(payload)
+        except Exception:
+            dead.append(ws)
+    for ws in dead:
+        _ws_clients.discard(ws)
+
+
 # ── 자동 수집 스케줄러 ──────────────────────────────────────────
 # collector.py는 원래 로컬 PC의 Windows 작업 스케줄러로 무인 실행되도록
 # 만들어졌는데, 클라우드(Railway)에는 별도 스케줄러가 없어 배포만 해서는
@@ -95,6 +133,7 @@ async def _run_collector(mode: str) -> None:
             await asyncio.to_thread(collector.collect_free_sources)
         elif mode == "ai":
             await asyncio.to_thread(collector.collect_ai_sources)
+        await _broadcast_dashboard()
     except Exception as e:
         collector.log_error(f"scheduler_{mode}", e)
 
@@ -678,8 +717,7 @@ def _seed_known_timelines():
 
 # ── Phase 3 ──────────────────────────────────────────────────
 # ── 대시보드 6개 화면 통합 API ────────────────────────────────
-@app.get("/api/dashboard", tags=["대시보드"])
-def dashboard():
+def _build_dashboard() -> dict:
     """
     대시보드 6개 화면 데이터를 한 번에 반환.
 
@@ -689,6 +727,9 @@ def dashboard():
     화면4: 국가별 위험 랭킹    → screen4_country_ranking
     화면5: AI 예측 패널        → screen5_forecast
     화면6: 경보 센터           → screen6_alert_center
+
+    GET /api/dashboard와 /ws/dashboard 브로드캐스트가 이 함수 하나를 공유함
+    (계산 로직 이중 관리 방지).
     """
     import datetime as dt
     from algorithms.gai import compute_gai
@@ -740,6 +781,11 @@ def dashboard():
             "tier_summary": alert_data["tier_summary"],
         },
     }
+
+
+@app.get("/api/dashboard", tags=["대시보드"])
+def dashboard():
+    return _build_dashboard()
 
 
 @app.post("/api/digital-twin/simulate", tags=["Phase3"], dependencies=_auth)

@@ -1,6 +1,17 @@
 'use client';
+import dynamic from 'next/dynamic';
 import { useDashboard } from '@/lib/useDashboard';
 import type { Country, StreamEvent, Outbreak, ChainWarning, AlertItem, AlertDashboard, TierSummaryEntry } from '@/lib/api';
+
+// Leaflet은 window에 의존해 SSR에서 깨지므로 클라이언트에서만 로드.
+const GlobalRiskMap = dynamic(() => import('@/components/GlobalRiskMap'), {
+  ssr: false,
+  loading: () => (
+    <div style={{ height: 260, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted2)', fontFamily: 'var(--mono)', fontSize: 11 }}>
+      지도 불러오는 중...
+    </div>
+  ),
+});
 
 // ── 색상 헬퍼 ─────────────────────────────────────────────────
 function tierColor(tier: string | undefined): string {
@@ -30,13 +41,15 @@ function Screen1Banner({ gai, tier, countries }: { gai: number; tier: string; co
         <span className="lbl">🌐 글로벌 이상지수 (GAI)</span>
         <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: tierColor(tier), border: `1px solid ${tierColor(tier)}44`, borderRadius: 6, padding: '2px 8px' }}>{tier}</span>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
+      {/* 실제 지도 (Leaflet + OpenStreetMap) */}
+      <GlobalRiskMap countries={countries} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap', marginTop: 14 }}>
         {/* 숫자 */}
         <div style={{ textAlign: 'center', minWidth: 90 }}>
           <div style={{ fontFamily: 'var(--mono)', fontSize: 56, fontWeight: 800, color: col, lineHeight: 1 }}>{Math.round(gai)}</div>
           <div style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted)', letterSpacing: '.14em', marginTop: 4 }}>/ 100</div>
         </div>
-        {/* 바 차트 */}
+        {/* 바 차트 — 지도 마커로는 순위 비교가 어려워서 보조 지표로 유지 */}
         <div style={{ flex: 1, minWidth: 200 }}>
           {top5.map(c => {
             const sc = c.risk_score ?? 0;
@@ -266,7 +279,7 @@ function Screen6Alerts({
 
 // ── 메인 컴포넌트 ─────────────────────────────────────────────
 export default function Stage9Dashboard() {
-  const { data, loading, error, lastUpdated } = useDashboard(30_000);
+  const { data, loading, error, lastUpdated, live } = useDashboard(30_000);
 
   if (loading) {
     return (
@@ -319,7 +332,7 @@ export default function Stage9Dashboard() {
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 4, flexWrap: 'wrap', gap: 8 }}>
         <div>
           <div className="ptitle">실시간 대시보드</div>
-          <div className="psub">백엔드 실시간 데이터 · 30초 자동 갱신</div>
+          <div className="psub">백엔드 실시간 데이터 · {live ? 'WebSocket 실시간 푸시' : '30초 폴링(WebSocket 미연결)'}</div>
         </div>
         {lastUpdated && (
           <div style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted2)', textAlign: 'right' }}>
