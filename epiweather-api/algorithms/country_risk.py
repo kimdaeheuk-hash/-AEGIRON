@@ -74,6 +74,35 @@ COUNTRIES = {
         "healthcare_infra": 0.82, "population_density": 0.20,
         "airport_connectivity": 0.85, "border_mobility": 0.40,
     },
+    # 기존 9개국이 동아시아·중동·남미·미국 위주라 실제 감염병 고위험·저인프라
+    # 지역(아프리카 상당수·분쟁지역·태평양 오지)이 안 보이는 문제가 있었음 —
+    # 5개국 추가. 4요소는 다른 국가들과 동일하게 손으로 추정한 시드값이고,
+    # country_indicators.py의 World Bank·OpenFlights 실데이터로 갱신됨.
+    "Nigeria": {
+        "name": "나이지리아", "aliases": ["나이지리아", "Nigeria", "라고스", "Lagos", "아부자", "Abuja"],
+        "healthcare_infra": 0.25, "population_density": 0.45,
+        "airport_connectivity": 0.45, "border_mobility": 0.55,  # 라싸열 풍토병 + 아프리카 최다인구
+    },
+    "Ethiopia": {
+        "name": "에티오피아", "aliases": ["에티오피아", "Ethiopia", "아디스아바바", "Addis Ababa"],
+        "healthcare_infra": 0.20, "population_density": 0.40,
+        "airport_connectivity": 0.50, "border_mobility": 0.45,  # 에티오피아항공 = 아프리카 최대 허브
+    },
+    "Yemen": {
+        "name": "예멘", "aliases": ["예멘", "Yemen", "사나", "Sanaa"],
+        "healthcare_infra": 0.10, "population_density": 0.35,
+        "airport_connectivity": 0.10, "border_mobility": 0.40,  # 분쟁으로 의료체계 붕괴, 콜레라 상시유행
+    },
+    "Madagascar": {
+        "name": "마다가스카르", "aliases": ["마다가스카르", "Madagascar", "안타나나리보", "Antananarivo"],
+        "healthcare_infra": 0.20, "population_density": 0.30,
+        "airport_connectivity": 0.20, "border_mobility": 0.15,  # 전세계 유일 상시 페스트(흑사병) 발생국
+    },
+    "Papua New Guinea": {
+        "name": "파푸아뉴기니", "aliases": ["파푸아뉴기니", "Papua New Guinea", "PNG", "포트모르즈비", "Port Moresby"],
+        "healthcare_infra": 0.15, "population_density": 0.15,
+        "airport_connectivity": 0.10, "border_mobility": 0.20,  # 태평양 오지 — 산악지형 의료접근성 최하위권
+    },
 }
 
 DEFAULT_VULNERABILITY = 0.5  # 시드 데이터 없는 국가용 중립값

@@ -11,4 +11,9 @@ export const COUNTRY_COORDS: Record<string, [number, number]> = {
   'Hong Kong':    [22.3193, 114.1694],
   Brazil:         [-15.7939, -47.8828], // 브라질리아
   USA:            [39.8283, -98.5795],  // 국토 중심(대표점)
+  Nigeria:        [9.0765, 7.3986],     // 아부자
+  Ethiopia:       [9.0192, 38.7525],    // 아디스아바바
+  Yemen:          [15.3694, 44.1910],   // 사나
+  Madagascar:     [-18.8792, 47.5079],  // 안타나나리보
+  'Papua New Guinea': [-9.4438, 147.1803], // 포트모르즈비
 };

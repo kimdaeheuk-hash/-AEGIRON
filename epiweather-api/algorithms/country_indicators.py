@@ -35,6 +35,8 @@ WORLDBANK_ISO3 = {
     "DRC": "COD", "Uganda": "UGA", "Saudi Arabia": "SAU", "Thailand": "THA",
     "South Korea": "KOR", "Japan": "JPN", "Hong Kong": "HKG", "Brazil": "BRA",
     "USA": "USA",
+    "Nigeria": "NGA", "Ethiopia": "ETH", "Yemen": "YEM", "Madagascar": "MDG",
+    "Papua New Guinea": "PNG",
 }
 # 인구1천명당 병상수 — 대략 0~13 범위(선진국 상한 근처)로 정규화
 WB_HOSPITAL_BEDS_INDICATOR = "SH.MED.BEDS.ZS"
@@ -51,6 +53,8 @@ OPENFLIGHTS_COUNTRY_NAMES = {
     "DRC": "Congo (Kinshasa)", "Uganda": "Uganda", "Saudi Arabia": "Saudi Arabia",
     "Thailand": "Thailand", "South Korea": "South Korea", "Japan": "Japan",
     "Hong Kong": "Hong Kong", "Brazil": "Brazil", "USA": "United States",
+    "Nigeria": "Nigeria", "Ethiopia": "Ethiopia", "Yemen": "Yemen",
+    "Madagascar": "Madagascar", "Papua New Guinea": "Papua New Guinea",
 }
 # 2026-07 실측 기준 미국이 최다(약 13,100개 노선) — 여유를 둔 상한
 ROUTE_COUNT_LOG_MAX = 15000.0
