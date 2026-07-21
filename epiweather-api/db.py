@@ -64,6 +64,7 @@ CREATE TABLE IF NOT EXISTS alerts (
     tier        TEXT NOT NULL,   -- critical | high | medium | low
     label       TEXT NOT NULL,
     score       REAL NOT NULL,
+    evidence    TEXT,            -- JSON 배열 문자열 — 경보 근거(원시값·기준선·신뢰도 등)
     suppressed  INTEGER NOT NULL DEFAULT 0,
     created_at  TEXT NOT NULL,
     updated_at  TEXT NOT NULL,
@@ -117,6 +118,7 @@ def init_db() -> None:
             "ALTER TABLE sentinel_queue ADD COLUMN verified_by TEXT",
             "ALTER TABLE sentinel_queue ADD COLUMN ai_status TEXT",
             "ALTER TABLE sentinel_queue ADD COLUMN ai_confidence REAL",
+            "ALTER TABLE alerts ADD COLUMN evidence TEXT",
         ):
             try:
                 conn.execute(ddl)
@@ -200,21 +202,30 @@ def _row_to_dict(row: sqlite3.Row) -> dict:
 
 
 # ── 경보 피로 방지 (alerts) ──────────────────────────────────
-def upsert_alert(alert_date: str, source: str, tier: str, label: str, score: float) -> None:
-    """같은 날 같은 source는 갱신만 함 — 매시간 재계산해도 캡 카운트가 부풀지 않게."""
+def upsert_alert(
+    alert_date: str, source: str, tier: str, label: str, score: float,
+    evidence: list[str] | None = None,
+) -> None:
+    """같은 날 같은 source는 갱신만 함 — 매시간 재계산해도 캡 카운트가 부풀지 않게.
+
+    evidence: "근거 없는 숫자는 기관이 사용 못 함" — KDCA 담당자가 결재 올릴 수
+    있는 형태를 목표로 각 경보에 구체적 근거(원시값·기준선·신뢰도 등)를 담음.
+    """
     now = datetime.now(timezone.utc).isoformat()
+    evidence_json = json.dumps(evidence or [], ensure_ascii=False)
     with get_connection() as conn:
         conn.execute(
             """
-            INSERT INTO alerts (alert_date, source, tier, label, score, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO alerts (alert_date, source, tier, label, score, evidence, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(alert_date, source) DO UPDATE SET
                 tier = excluded.tier,
                 label = excluded.label,
                 score = excluded.score,
+                evidence = excluded.evidence,
                 updated_at = excluded.updated_at
             """,
-            (alert_date, source, tier, label, score, now, now),
+            (alert_date, source, tier, label, score, evidence_json, now, now),
         )
         conn.commit()
 
@@ -235,7 +246,15 @@ def list_alerts(alert_date: str) -> list[dict]:
         rows = conn.execute(
             "SELECT * FROM alerts WHERE alert_date = ? ORDER BY score DESC", (alert_date,)
         ).fetchall()
-        return [dict(r) for r in rows]
+        results = []
+        for r in rows:
+            d = dict(r)
+            try:
+                d["evidence"] = json.loads(d["evidence"]) if d.get("evidence") else []
+            except (json.JSONDecodeError, TypeError):
+                d["evidence"] = []
+            results.append(d)
+        return results
 
 
 # ── NLP 구조화 추출 (extracted_signals) ──────────────────────

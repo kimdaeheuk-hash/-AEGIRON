@@ -23,6 +23,31 @@ def test_upsert_alert_different_source_creates_separate_rows(isolated_db):
     assert len(db.list_alerts("2026-07-20")) == 2
 
 
+def test_upsert_alert_stores_and_returns_evidence_list(isolated_db):
+    """'근거 없는 숫자는 기관이 사용 못 함' — 경보에 근거가 실제로 왕복 저장되는지."""
+    db = isolated_db
+    evidence = ["원시 이상도 91.2점", "출처신뢰도 0.90 반영 후 82.1점", "누적 표본 40건 기준"]
+    db.upsert_alert("2026-07-20", "gai:behavioral.naver_flu_ratio", "🟠 경보", "행동신호 급증", 82.1, evidence=evidence)
+
+    row = db.list_alerts("2026-07-20")[0]
+    assert row["evidence"] == evidence
+
+
+def test_upsert_alert_without_evidence_defaults_to_empty_list(isolated_db):
+    db = isolated_db
+    db.upsert_alert("2026-07-20", "gai", "🟡 주의", "a", 70.0)  # evidence 인자 생략
+    assert db.list_alerts("2026-07-20")[0]["evidence"] == []
+
+
+def test_upsert_alert_evidence_updates_on_same_source_upsert(isolated_db):
+    db = isolated_db
+    db.upsert_alert("2026-07-20", "gai", "🟡 주의", "a", 70.0, evidence=["초기 근거"])
+    db.upsert_alert("2026-07-20", "gai", "🟠 경보", "a", 82.0, evidence=["갱신된 근거 1", "갱신된 근거 2"])
+
+    row = db.list_alerts("2026-07-20")[0]
+    assert row["evidence"] == ["갱신된 근거 1", "갱신된 근거 2"]
+
+
 def test_prediction_lifecycle_create_verify_accuracy(isolated_db):
     db = isolated_db
     pred = db.create_prediction("Thailand", "뎅기열", 82.0, ["근거1", "근거2"])

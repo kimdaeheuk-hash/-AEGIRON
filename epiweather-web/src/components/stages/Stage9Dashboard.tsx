@@ -293,15 +293,27 @@ function Screen6Alerts({
           {topItems.map((a, i) => {
             const col = tierColor(a.tier);
             return (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: `${col}0d`, borderRadius: 8, border: `1px solid ${col}22` }}>
-                <div style={{ fontFamily: 'var(--mono)', fontSize: 9, color: col, border: `1px solid ${col}44`, borderRadius: 4, padding: '1px 5px', flexShrink: 0 }}>
-                  {(a.tier ?? '').toUpperCase()}
+              <div key={i} style={{ padding: '8px 10px', background: `${col}0d`, borderRadius: 8, border: `1px solid ${col}22` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ fontFamily: 'var(--mono)', fontSize: 9, color: col, border: `1px solid ${col}44`, borderRadius: 4, padding: '1px 5px', flexShrink: 0 }}>
+                    {(a.tier ?? '').toUpperCase()}
+                  </div>
+                  <div style={{ flex: 1, fontFamily: 'var(--kr)', fontSize: 12, color: 'var(--txt)', lineHeight: 1.4 }}>
+                    {a.label ?? a.metric ?? a.message ?? '—'}
+                  </div>
+                  {a.score != null && (
+                    <div style={{ fontFamily: 'var(--mono)', fontSize: 12, color: col, flexShrink: 0 }}>{Math.round(a.score)}</div>
+                  )}
                 </div>
-                <div style={{ flex: 1, fontFamily: 'var(--kr)', fontSize: 12, color: 'var(--txt)', lineHeight: 1.4 }}>
-                  {a.label ?? a.metric ?? a.message ?? '—'}
-                </div>
-                {a.score != null && (
-                  <div style={{ fontFamily: 'var(--mono)', fontSize: 12, color: col, flexShrink: 0 }}>{Math.round(a.score)}</div>
+                {/* 경보 근거 — "근거 없는 숫자는 기관이 사용 못 함" */}
+                {a.evidence && a.evidence.length > 0 && (
+                  <div style={{ marginTop: 6, paddingLeft: 8, borderLeft: `2px solid ${col}33` }}>
+                    {a.evidence.map((e, ei) => (
+                      <div key={ei} style={{ fontFamily: 'var(--mono)', fontSize: 9.5, color: 'var(--muted2)', lineHeight: 1.6 }}>
+                        · {e}
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             );

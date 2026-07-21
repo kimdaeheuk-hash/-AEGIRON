@@ -59,6 +59,7 @@ export interface AlertItem {
   tier?: string;
   message?: string;
   source?: string;
+  evidence?: string[];
 }
 
 export interface TierSummaryEntry {
