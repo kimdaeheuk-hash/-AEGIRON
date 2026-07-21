@@ -176,6 +176,64 @@ def test_schema_migration_adds_columns_to_pre_existing_table(tmp_path, monkeypat
     assert {"verified_by", "ai_status", "ai_confidence"} <= columns
 
 
+def test_metric_reliability_report_computes_false_positive_rate(isolated_db):
+    db = isolated_db
+    # metric_a: 4건 검증(confirmed 1, dismissed 3) -> 오탐율 0.75
+    for i in range(4):
+        sid = db.upsert_sentinel(
+            detected_at=f"2026-07-{10+i}", layer="behavioral", metric="metric_a",
+            spike_ratio=2.5, latest_val=100.0, baseline_avg=40.0,
+        )
+        status = "confirmed" if i == 0 else "dismissed"
+        db.update_sentinel_verification(sid, status, "e", 0.5, verified_by="ai")
+
+    report = db.metric_reliability_report(min_samples=3)
+    entry = next(r for r in report if r["metric"] == "metric_a")
+    assert entry["total_flagged"] == 4
+    assert entry["dismissed"] == 3
+    assert entry["false_positive_rate"] == 0.75
+
+
+def test_metric_reliability_report_excludes_low_sample_metrics(isolated_db):
+    db = isolated_db
+    sid = db.upsert_sentinel(
+        detected_at="2026-07-20", layer="behavioral", metric="rare_metric",
+        spike_ratio=2.5, latest_val=100.0, baseline_avg=40.0,
+    )
+    db.update_sentinel_verification(sid, "dismissed", "e", 0.2, verified_by="ai")
+
+    report = db.metric_reliability_report(min_samples=3)
+    assert all(r["metric"] != "rare_metric" for r in report)
+
+
+def test_metric_reliability_report_excludes_pending_items(isolated_db):
+    db = isolated_db
+    db.upsert_sentinel(
+        detected_at="2026-07-20", layer="behavioral", metric="still_pending",
+        spike_ratio=2.5, latest_val=100.0, baseline_avg=40.0,
+    )  # 검증 안 함 -> pending 그대로
+    report = db.metric_reliability_report(min_samples=1)
+    assert all(r["metric"] != "still_pending" for r in report)
+
+
+def test_metric_reliability_report_sorted_worst_first(isolated_db):
+    db = isolated_db
+    for metric, statuses in [
+        ("mostly_reliable", ["confirmed", "confirmed", "confirmed", "dismissed"]),
+        ("mostly_noisy", ["dismissed", "dismissed", "dismissed", "confirmed"]),
+    ]:
+        for i, status in enumerate(statuses):
+            sid = db.upsert_sentinel(
+                detected_at=f"2026-07-{10+i}", layer="behavioral", metric=metric,
+                spike_ratio=2.5, latest_val=100.0, baseline_avg=40.0,
+            )
+            db.update_sentinel_verification(sid, status, "e", 0.5, verified_by="ai")
+
+    report = db.metric_reliability_report(min_samples=3)
+    assert report[0]["metric"] == "mostly_noisy"
+    assert report[-1]["metric"] == "mostly_reliable"
+
+
 def test_table_counts_reflects_inserted_rows(isolated_db):
     db = isolated_db
     counts_before = db.table_counts()

@@ -84,4 +84,6 @@ def get_sentinel_status() -> dict:
         # AI 자동검증(verification.py)이 사람의 수동 재검증과 얼마나 일치하는지 —
         # "AI 판정을 얼마나 믿을 수 있나"를 뒷받침할 실측 근거. 표본이 쌓여야 의미 생김.
         "ai_verification_accuracy": db.sentinel_verification_accuracy(),
+        # 오탐율 상위 3개만 요약 — 전체 리포트는 GET /api/sentinel/reliability
+        "least_reliable_metrics": db.metric_reliability_report()[:3],
     }

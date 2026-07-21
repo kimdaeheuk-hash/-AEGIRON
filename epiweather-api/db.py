@@ -428,6 +428,52 @@ def sentinel_verification_accuracy() -> dict:
     }
 
 
+def metric_reliability_report(min_samples: int = 3) -> list[dict]:
+    """
+    (layer, metric)별로 Sentinel 검증 이력(confirmed/dismissed)을 집계해
+    오탐율이 높은 지표를 자동으로 드러낸다.
+
+    지금까지 negative_space.py의 UNRELIABLE_METRICS·SEASONAL_METRICS는
+    사람이 로그를 보고 수동으로 찾아서 하드코딩한 것(git log 참고 — 실측
+    오탐 사례가 쌓일 때마다 커밋으로 예외 목록을 늘려옴). 이 리포트는 같은
+    판단을 검증 이력 데이터로 자동 계산해서, "이 지표는 못 믿는다"를 사람이
+    매번 로그를 뒤져서 발견하지 않아도 시스템 스스로 계속 드러내게 한다 —
+    실제로 UNRELIABLE_METRICS에 반영할지는 여전히 사람이 판단(자동 제외까지
+    시키면 진짜 위협 신호를 스스로 꺼버릴 위험이 있어 최종 판단은 안 자동화).
+
+    표본이 min_samples 미만인 지표는 통계적으로 의미가 없어 제외.
+    false_positive_rate 내림차순(가장 못 믿을 지표가 먼저) 정렬.
+    """
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT layer, metric, status FROM sentinel_queue WHERE status != 'pending'"
+        ).fetchall()
+
+    grouped: dict[tuple[str, str], dict[str, int]] = {}
+    for r in rows:
+        key = (r["layer"], r["metric"])
+        counts = grouped.setdefault(key, {"confirmed": 0, "dismissed": 0})
+        counts[r["status"]] = counts.get(r["status"], 0) + 1
+
+    report = []
+    for (layer, metric), counts in grouped.items():
+        confirmed = counts.get("confirmed", 0)
+        dismissed = counts.get("dismissed", 0)
+        total = confirmed + dismissed
+        if total < min_samples:
+            continue
+        report.append({
+            "layer": layer,
+            "metric": metric,
+            "total_flagged": total,
+            "confirmed": confirmed,
+            "dismissed": dismissed,
+            "false_positive_rate": round(dismissed / total, 3),
+        })
+    report.sort(key=lambda r: -r["false_positive_rate"])
+    return report
+
+
 def list_sentinel_queue(status: str | None = None, limit: int = 50) -> list[dict]:
     query = "SELECT * FROM sentinel_queue"
     params: list = []

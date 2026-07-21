@@ -1244,6 +1244,18 @@ def sentinel_status():
     return get_sentinel_status()
 
 
+@app.get("/api/sentinel/reliability", tags=["Sentinel"])
+def sentinel_reliability(min_samples: int = 3):
+    """
+    지표(layer+metric)별 오탐율 전체 리포트 — 시스템이 스스로 "이 신호는
+    못 믿는다"를 검증 이력으로 드러낸다. negative_space.py의
+    UNRELIABLE_METRICS·SEASONAL_METRICS(사람이 로그 보고 하드코딩한 예외
+    목록)를 앞으로 이 리포트가 먼저 가리켜줄 수 있음 — 실제 반영은 여전히
+    사람이 판단(자동 제외는 진짜 신호를 스스로 꺼버릴 위험이 있어 안 함).
+    """
+    return {"metrics": db.metric_reliability_report(min_samples=min_samples)}
+
+
 @app.post("/api/sentinel/scan", tags=["Sentinel"], dependencies=_auth)
 def sentinel_scan():
     """
