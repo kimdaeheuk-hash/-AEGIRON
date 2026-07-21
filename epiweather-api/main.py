@@ -24,6 +24,8 @@ sys.path.insert(0, str(ENGINE_SRC))
 
 from fastapi import FastAPI, HTTPException, Depends, Header, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from starlette.background import BackgroundTask
 from pydantic import BaseModel, Field
 from typing import Optional
 
@@ -334,6 +336,40 @@ def api_key_usage(days: int = 30):
     return {"days": days, "usage": db.api_key_usage_summary(days=days)}
 
 
+@app.get("/api/admin/db-backup", tags=["시스템"], dependencies=_auth)
+def db_backup():
+    """
+    운영 DB(SQLite) 스냅샷 다운로드 — Railway 같은 컨테이너 배포 환경은 영구
+    볼륨을 마운트하지 않으면 재배포할 때 파일시스템이 초기화될 수 있음.
+    이러면 예측 트랙레코드·검증 이력 등 시간이 지나야 쌓이는 자산이 전부
+    사라질 수 있어(⑲), 이 엔드포인트를 로컬 머신에서 주기적으로 호출해
+    타임스탬프 백업을 남기는 걸 권장한다(scripts/backup_db.sh 참고).
+
+    파일을 그대로 복사하지 않고 sqlite3 backup API로 뜨는 이유: WAL 모드에서
+    동시 쓰기가 일어나는 중에 파일을 직접 복사하면 손상된 스냅샷이 될 수
+    있음 — backup API는 진행 중인 쓰기와 안전하게 분리된 일관 스냅샷을 보장함.
+    """
+    import sqlite3
+    import tempfile
+
+    stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d_%H%M%S")
+    tmp_path = Path(tempfile.gettempdir()) / f"epiweather_backup_{stamp}.db"
+
+    src = sqlite3.connect(db.DB_PATH)
+    dest = sqlite3.connect(tmp_path)
+    with dest:
+        src.backup(dest)
+    src.close()
+    dest.close()
+
+    return FileResponse(
+        tmp_path,
+        filename=f"epiweather_backup_{stamp}.db",
+        media_type="application/octet-stream",
+        background=BackgroundTask(lambda: tmp_path.unlink(missing_ok=True)),
+    )
+
+
 # ── 누적 시계열 신호 (collector.py가 쌓은 데이터) ────────────
 @app.get("/api/signals", tags=["시스템"])
 def signals(limit: int = 50, type: Optional[str] = None):
@@ -566,6 +602,27 @@ def backtest(req: BacktestRequest):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/backtest/historical", tags=["후향 검증"])
+def backtest_historical():
+    """
+    실제 발병 이력 기반 백테스트(⑳) — 위 /api/backtest가 합성 데이터로
+    "탐지 방법론"을 비교하는 것과 달리, 이건 실제 outbreak_timeline
+    milestone(WHO PHEIC 선언 등 진짜 날짜)과 실제 extracted_signals를
+    대조해 "아이기론이 실제로 며칠 먼저 알았는가"를 계산한다.
+    extracted_signals가 아직 없는 이벤트는 verified=False로 정직하게 표시
+    — 합성 데이터로 대신 채우지 않음.
+    """
+    from algorithms.historical_backtest import backtest_all_known_events
+    return backtest_all_known_events()
+
+
+@app.get("/api/backtest/historical/{event_id}", tags=["후향 검증"])
+def backtest_historical_event(event_id: str):
+    """특정 발병 이벤트 하나만 실제 이력 기반으로 백테스트."""
+    from algorithms.historical_backtest import backtest_event
+    return backtest_event(event_id)
 
 
 # ── Global Anomaly Index ─────────────────────────────────────

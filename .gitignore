@@ -31,6 +31,11 @@ epiweather-api/data/error_log.txt
 epiweather-api/data/last_known_counts.json
 epiweather-api/data/polymarket_history.json
 epiweather-api/data/social_signal_history.json
+epiweather-api/data/country_indicators_cache.json
+epiweather-api/data/world_countries_cache.json
+epiweather-api/data/last_weekly_run.json
+# scripts/backup_db.sh가 로컬에 내려받는 운영 DB 스냅샷 — 실제 데이터 포함이라 커밋 금지
+epiweather-api/data/backups/
 # engine/output/*.json은 PoC 백테스트 증거 산출물이라 추적함 (제외하지 않음)
 
 # misc

@@ -97,13 +97,37 @@ def extract_signal(raw_text: str, source: str, api_key: str) -> dict | None:
     }
 
 
-def extract_from_global_watch(watch_result: dict, api_key: str) -> list[dict]:
-    """run_global_watch() 결과의 signals 리스트 중 text가 있는 항목만 구조화."""
+EXTRACTION_DEDUP_WINDOW_DAYS = 3  # 같은 source의 원문이 이 기간 내 그대로 재수집되면 재추출 안 함
+
+
+def extract_from_global_watch(
+    watch_result: dict, api_key: str, dedup_window_days: int = EXTRACTION_DEDUP_WINDOW_DAYS,
+) -> list[dict]:
+    """run_global_watch() 결과의 signals 리스트 중 text가 있는 항목만 구조화.
+
+    global_watch.py의 소스(WHO EMRO·Africa CDC 등)는 고정 피드라 매시간
+    수집기가 돌아도 기사가 안 바뀌면 원문(raw_text)도 완전히 그대로다 —
+    unexplained.py의 능동검색(Perplexity/Tavily, 매번 문구가 재구성됨)과
+    다름. 같은 source에서 최근 며칠 내 이미 뽑아낸 원문과 완전히 같으면
+    Claude를 다시 호출하지 않고 건너뛴다: (1) API 비용 낭비를 막고,
+    (2) 같은 기사가 여러 번 저장돼 _nlp_raw_score의 신뢰도가중 평균이
+    실제보다 부풀려지는 걸 막는다. 원문이 조금이라도 다르면(기사 갱신)
+    새 신호로 취급 — 완전 일치만 건너뛰므로 실제 갱신을 놓치지 않는다."""
+    import db
+
     extracted = []
     for s in watch_result.get("signals", []):
-        if not s.get("text"):
+        text = s.get("text")
+        if not text:
             continue
-        result = extract_signal(s["text"], source=s["id"], api_key=api_key)
+        try:
+            recent = db.list_recent_signals_by_source(s["id"], days=dedup_window_days)
+        except Exception:
+            recent = []
+        if any(r.get("raw_text") == text for r in recent):
+            continue
+
+        result = extract_signal(text, source=s["id"], api_key=api_key)
         if result:
             extracted.append(result)
     return extracted

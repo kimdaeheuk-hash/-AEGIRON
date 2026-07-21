@@ -4,10 +4,11 @@ DB에 들어가면 하류 매칭이 전부 깨짐)."""
 from __future__ import annotations
 
 import json
+from unittest.mock import patch
 
 import anthropic
 
-from algorithms.nlp_extract import extract_signal
+from algorithms.nlp_extract import extract_signal, extract_from_global_watch
 
 
 class _FakeBlock:
@@ -82,3 +83,66 @@ def test_null_country_iso3_for_multi_country_text_stays_none(monkeypatch):
     _stub_client(monkeypatch, _base_payload(location="아프리카 전역", country_iso3=None))
     result = extract_signal("텍스트", source="africa_cdc", api_key="fake")
     assert result["country_iso3"] is None
+
+
+# ── 중복 원문 재추출 방지 ────────────────────────────────────────
+
+
+def test_new_text_from_never_seen_source_is_extracted(isolated_db):
+    """처음 보는 원문은 당연히 Claude를 호출해야 함."""
+    watch = {"signals": [{"id": "who_emro", "text": "새로운 기사 내용"}]}
+    with patch("algorithms.nlp_extract.extract_signal") as mock_extract:
+        mock_extract.return_value = {"source": "who_emro", "disease": "에볼라"}
+        result = extract_from_global_watch(watch, api_key="fake")
+    mock_extract.assert_called_once()
+    assert len(result) == 1
+
+
+def test_identical_text_from_same_source_within_window_is_skipped(isolated_db):
+    """같은 source가 최근에 뽑아낸 것과 원문이 완전히 같으면 Claude를 다시
+    호출하지 않아야 함 — 고정 피드가 매시간 같은 기사를 다시 줄 때 비용 낭비 방지."""
+    import db as dbmod
+    dbmod.create_extracted_signal(
+        source="who_emro", disease="에볼라", location="DRC", signal_type="신규발생",
+        severity=[], symptom=None, transmission=None, source_trust=0.65,
+        signal_date="2026-07-20", raw_text="이미 본 기사 내용",
+    )
+    watch = {"signals": [{"id": "who_emro", "text": "이미 본 기사 내용"}]}
+    with patch("algorithms.nlp_extract.extract_signal") as mock_extract:
+        result = extract_from_global_watch(watch, api_key="fake")
+    mock_extract.assert_not_called()
+    assert result == []
+
+
+def test_updated_text_from_same_source_is_still_extracted(isolated_db):
+    """같은 source라도 원문이 바뀌었으면(기사 갱신) 재추출해야 함 —
+    완전 일치만 건너뛰므로 실제 갱신을 놓치지 않음."""
+    import db as dbmod
+    dbmod.create_extracted_signal(
+        source="who_emro", disease="에볼라", location="DRC", signal_type="신규발생",
+        severity=[], symptom=None, transmission=None, source_trust=0.65,
+        signal_date="2026-07-20", raw_text="어제 기사 내용",
+    )
+    watch = {"signals": [{"id": "who_emro", "text": "오늘 갱신된 기사 내용"}]}
+    with patch("algorithms.nlp_extract.extract_signal") as mock_extract:
+        mock_extract.return_value = {"source": "who_emro", "disease": "에볼라"}
+        result = extract_from_global_watch(watch, api_key="fake")
+    mock_extract.assert_called_once()
+    assert len(result) == 1
+
+
+def test_same_text_from_different_source_is_not_deduped(isolated_db):
+    """같은 문구라도 source가 다르면(예: 다른 기관이 우연히 같은 표현) 독립
+    출처로 취급 — source별로 최근기록을 따로 조회하므로 안전함."""
+    import db as dbmod
+    dbmod.create_extracted_signal(
+        source="who_emro", disease="에볼라", location="DRC", signal_type="신규발생",
+        severity=[], symptom=None, transmission=None, source_trust=0.65,
+        signal_date="2026-07-20", raw_text="공통 문구",
+    )
+    watch = {"signals": [{"id": "africa_cdc", "text": "공통 문구"}]}
+    with patch("algorithms.nlp_extract.extract_signal") as mock_extract:
+        mock_extract.return_value = {"source": "africa_cdc", "disease": "에볼라"}
+        result = extract_from_global_watch(watch, api_key="fake")
+    mock_extract.assert_called_once()
+    assert len(result) == 1

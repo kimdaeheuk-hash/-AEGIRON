@@ -19,6 +19,7 @@ import db
 from .gai import compute_gai
 from .negative_space import scan_negative_space
 from .unexplained import scan_unexplained
+from .notifier import notify_new_alerts
 
 CRITICAL = 90
 HIGH = 80
@@ -127,8 +128,12 @@ def collect_candidate_alerts(today: str) -> list[dict]:
 
 
 def refresh_alerts(today: str | None = None) -> dict:
-    """후보를 분류·저장하고, 등급별 일일 캡을 적용해 오늘자 경보 상태를 반환."""
+    """후보를 분류·저장하고, 등급별 일일 캡을 적용해 오늘자 경보 상태를 반환.
+    스케줄러가 매시간 돌면서 같은 경보를 반복 재계산하므로, Telegram 알림은
+    "오늘 이 source로 처음 잡힌" critical/high 경보에만 보낸다 — 안 그러면
+    같은 진행중 경보를 매시간 재통보하게 됨."""
     today = today or dt.date.today().isoformat()
+    already_seen_today = {r["source"] for r in db.list_alerts(today)}
 
     for c in collect_candidate_alerts(today):
         tier = classify_tier(c["score"])
@@ -155,6 +160,13 @@ def refresh_alerts(today: str | None = None) -> dict:
     db.set_suppressed(suppressed_ids, True)
 
     visible_rows = [r for r in rows if r["id"] in visible_ids]
+
+    new_critical_high = [
+        r for r in visible_rows
+        if r["tier"] in ("critical", "high") and r["source"] not in already_seen_today
+    ]
+    notify_new_alerts(new_critical_high)
+
     dashboard_top = visible_rows[:DASHBOARD_TOP_N]
     hidden_count = len(visible_rows) - len(dashboard_top)
 
