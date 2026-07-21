@@ -1089,6 +1089,18 @@ def knowledge_graph_disease(disease: str):
     return get_disease_graph(disease)
 
 
+@app.get("/api/knowledge-graph/{disease}/verify", tags=["Phase3"])
+def knowledge_graph_verify(disease: str):
+    """
+    지식그래프의 lead_days(손으로 추정한 값)를 outbreak_timeline 실측
+    마일스톤과 비교. 발병 사례가 쌓일수록 이 그래프 자체가 정확해지는 게
+    목표 — 경쟁사가 복제 못 하는 건 알고리즘이 아니라 이렇게 축적된
+    실측 검증 이력임.
+    """
+    from algorithms.knowledge_graph import verify_chain_lead_time
+    return verify_chain_lead_time(disease)
+
+
 @app.get("/api/knowledge-graph-active", tags=["Phase3"])
 def knowledge_graph_active():
     """
