@@ -679,13 +679,42 @@ def risk_index():
 
 @app.get("/api/risk-index/{country}", tags=["GAI"])
 def risk_index_country(country: str):
-    """특정 국가 상세. country는 ISO 3166-1 alpha-3 코드(COD, KOR, USA 등)."""
-    if country not in COUNTRIES:
+    """특정 국가 상세. country는 ISO 3166-1 alpha-3 코드(COD, KOR, USA 등).
+    Tier-1(큐레이션 14개국)뿐 아니라 최근 실제 신호가 있는 Tier-2(자동발견)
+    국가도 조회 가능 — 신호 근거가 전혀 없는 코드만 404."""
+    try:
+        return compute_country_risk(country)
+    except KeyError:
         raise HTTPException(
             status_code=404,
-            detail=f"지원하지 않는 국가 ID. 지원 목록: {list(COUNTRIES)}",
+            detail=f"지원하지 않는 국가 ID이거나 최근 신호가 없음. Tier-1 목록: {list(COUNTRIES)}",
         )
-    return compute_country_risk(country)
+
+
+@app.get("/api/risk-quantification", tags=["GAI"])
+def risk_quantification():
+    """
+    팬데믹 리스크 계량화(㉓) — BlueDot의 '탐지'와 Metabiota의 '계량화' 사이의
+    빈 시장. 이미 수집된 실제 신호를 국가별 노출 지수(exposure_index, 0~100)로
+    합성하고, 상대 백분위와 실증 근거(실제 이력 백테스트로 검증된 선행탐지
+    사례 수)를 함께 준다. is_probability=False — 절대 발생 확률이 아니라 비교용
+    모델 지표임을 응답에 못박아, 보험·금융이 자체 기저율로 재보정해 쓰게 한다.
+    """
+    from algorithms.risk_quantification import quantify_portfolio
+    return quantify_portfolio()
+
+
+@app.get("/api/risk-quantification/{country}", tags=["GAI"])
+def risk_quantification_country(country: str):
+    """특정 국가의 노출 지수 상세(구성요소·가중치·정직성 플래그 포함)."""
+    from algorithms.risk_quantification import quantify_country_exposure
+    try:
+        return quantify_country_exposure(country)
+    except KeyError:
+        raise HTTPException(
+            status_code=404,
+            detail=f"지원하지 않는 국가 ID이거나 최근 신호가 없음. Tier-1 목록: {list(COUNTRIES)}",
+        )
 
 
 @app.get("/api/threats", tags=["GAI"])

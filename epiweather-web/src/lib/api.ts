@@ -140,6 +140,43 @@ export async function fetchDashboard(): Promise<DashboardData> {
   return res.json() as Promise<DashboardData>;
 }
 
+// ── 팬데믹 리스크 계량화(㉓) ──────────────────────────────────
+// BlueDot의 '탐지'와 Metabiota의 '계량화' 사이 빈 시장. 노출 지수는 절대
+// 확률이 아니라 상대 비교용 모델 지표임(is_probability=false)을 UI에서도
+// 반드시 그대로 표기해야 함 — 보험·금융이 확률로 오해하면 안 됨.
+export interface CountryExposure {
+  country: string;
+  name: string;
+  coverage_tier: 'curated' | 'auto';
+  exposure_index: number;
+  components: {
+    signal_pressure: number;
+    vulnerability: number;
+    spread_potential: number;
+  };
+  has_active_signal: boolean;
+  is_probability: false;
+  weights_calibrated: false;
+  vulnerability_source: 'real_data' | 'seed_fallback';
+  percentile?: number;
+}
+
+export interface RiskQuantification {
+  countries: CountryExposure[];
+  empirical_basis: {
+    verified_lead_time_cases: number;
+    mean_observed_lead_days: number | null;
+    note: string;
+  };
+  disclaimer: string;
+}
+
+export async function fetchRiskQuantification(): Promise<RiskQuantification> {
+  const res = await fetch(`${BASE}/api/risk-quantification`, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`API error ${res.status}`);
+  return res.json() as Promise<RiskQuantification>;
+}
+
 // http(s):// 베이스를 ws(s):// 대시보드 엔드포인트로 변환.
 export function dashboardWsUrl(): string | null {
   try {

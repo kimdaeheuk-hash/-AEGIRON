@@ -118,6 +118,26 @@ def test_backtest_historical_event_endpoint_reports_unverified_for_unknown_event
     assert resp.json()["verified"] is False
 
 
+def test_risk_quantification_endpoint_is_public_and_flags_not_probability(client):
+    resp = client.get("/api/risk-quantification")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "countries" in body
+    assert "disclaimer" in body
+    assert body["countries"][0]["is_probability"] is False
+
+
+def test_risk_quantification_country_endpoint_returns_components(client):
+    resp = client.get("/api/risk-quantification/KOR")
+    assert resp.status_code == 200
+    assert set(resp.json()["components"]) == {"signal_pressure", "vulnerability", "spread_potential"}
+
+
+def test_risk_quantification_unknown_country_returns_404(client):
+    resp = client.get("/api/risk-quantification/ZZZ")
+    assert resp.status_code == 404
+
+
 def test_status_endpoint_reports_tier2_discovery_field(client):
     resp = client.get("/api/status")
     assert resp.status_code == 200
