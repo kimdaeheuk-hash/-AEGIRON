@@ -31,13 +31,8 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 CACHE_FILE = DATA_DIR / "country_indicators_cache.json"
 
 WORLDBANK_BASE = "https://api.worldbank.org/v2/country"
-WORLDBANK_ISO3 = {
-    "DRC": "COD", "Uganda": "UGA", "Saudi Arabia": "SAU", "Thailand": "THA",
-    "South Korea": "KOR", "Japan": "JPN", "Hong Kong": "HKG", "Brazil": "BRA",
-    "USA": "USA",
-    "Nigeria": "NGA", "Ethiopia": "ETH", "Yemen": "YEM", "Madagascar": "MDG",
-    "Papua New Guinea": "PNG",
-}
+# country_risk.COUNTRIES의 키가 이제 ISO3 그 자체라(⑰) 별도 변환 딕셔너리가
+# 필요 없음 — World Bank API도 ISO3 코드를 그대로 받는다.
 # 인구1천명당 병상수 — 대략 0~13 범위(선진국 상한 근처)로 정규화
 WB_HOSPITAL_BEDS_INDICATOR = "SH.MED.BEDS.ZS"
 HOSPITAL_BEDS_NORM_MAX = 13.0
@@ -48,13 +43,13 @@ POP_DENSITY_LOG_MAX = 8000.0  # 홍콩(~7000)보다 살짝 위 — 여유를 둔
 
 OPENFLIGHTS_AIRPORTS_URL = "https://raw.githubusercontent.com/jpatokal/openflights/master/data/airports.dat"
 OPENFLIGHTS_ROUTES_URL   = "https://raw.githubusercontent.com/jpatokal/openflights/master/data/routes.dat"
-# country_risk.py의 COUNTRIES 키 → OpenFlights 데이터셋이 쓰는 국가명 문자열
+# country_risk.py의 COUNTRIES 키(ISO3) → OpenFlights 데이터셋이 쓰는 국가명 문자열
 OPENFLIGHTS_COUNTRY_NAMES = {
-    "DRC": "Congo (Kinshasa)", "Uganda": "Uganda", "Saudi Arabia": "Saudi Arabia",
-    "Thailand": "Thailand", "South Korea": "South Korea", "Japan": "Japan",
-    "Hong Kong": "Hong Kong", "Brazil": "Brazil", "USA": "United States",
-    "Nigeria": "Nigeria", "Ethiopia": "Ethiopia", "Yemen": "Yemen",
-    "Madagascar": "Madagascar", "Papua New Guinea": "Papua New Guinea",
+    "COD": "Congo (Kinshasa)", "UGA": "Uganda", "SAU": "Saudi Arabia",
+    "THA": "Thailand", "KOR": "South Korea", "JPN": "Japan",
+    "HKG": "Hong Kong", "BRA": "Brazil", "USA": "United States",
+    "NGA": "Nigeria", "ETH": "Ethiopia", "YEM": "Yemen",
+    "MDG": "Madagascar", "PNG": "Papua New Guinea",
 }
 # 2026-07 실측 기준 미국이 최다(약 13,100개 노선) — 여유를 둔 상한
 ROUTE_COUNT_LOG_MAX = 15000.0
@@ -96,11 +91,22 @@ def _normalize_log(value: float, max_val: float) -> float:
 
 
 def refresh_worldbank_indicators() -> dict[str, dict]:
-    """국가별 병상수·인구밀도 실데이터 조회 → 0~1 정규화 값으로 반환."""
+    """국가별 병상수·인구밀도 실데이터 조회 → 0~1 정규화 값으로 반환.
+    Tier-1(COUNTRIES) 14개국뿐 아니라 최근 country_iso3로 자동발견된 Tier-2
+    국가도 함께 조회한다 — ISO3는 국가명과 달리 표기 모호성이 없어서(World
+    Bank가 "Korea, Rep."로 부르든 우리가 "South Korea"로 부르든 KOR은 KOR)
+    Tier-2도 안전하게 실데이터로 갱신할 수 있다(OpenFlights 공항연결성은 국가명
+    문자열 매칭이 필요해 오매칭 위험이 있으므로 Tier-2에는 적용하지 않음).
+    country_risk를 함수 안에서 지연 임포트하는 이유: country_risk.py가 이 모듈의
+    load_country_indicators()를 모듈 최상단에서 임포트하므로, 반대 방향으로
+    최상단에서 가져오면 순환 임포트가 됨."""
+    from .country_risk import COUNTRIES, discovered_tier2_countries
+
+    target_ids = set(COUNTRIES) | discovered_tier2_countries()
     results: dict[str, dict] = {}
-    for country_id, iso3 in WORLDBANK_ISO3.items():
-        beds = fetch_worldbank_indicator(iso3, WB_HOSPITAL_BEDS_INDICATOR)
-        density = fetch_worldbank_indicator(iso3, WB_POP_DENSITY_INDICATOR)
+    for country_id in target_ids:
+        beds = fetch_worldbank_indicator(country_id, WB_HOSPITAL_BEDS_INDICATOR)
+        density = fetch_worldbank_indicator(country_id, WB_POP_DENSITY_INDICATOR)
         entry: dict[str, Any] = {}
         if beds:
             entry["healthcare_infra"] = _normalize_linear(beds[0], HOSPITAL_BEDS_NORM_MAX)

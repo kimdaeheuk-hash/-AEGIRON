@@ -15,9 +15,15 @@ export function apiWriteHeaders(json = true): HeadersInit {
 // ── 공통 타입 ────────────────────────────────────────────────
 export interface Country {
   country: string;
+  name?: string;
   risk_score: number;
   tier?: string;
   layer_scores?: Record<string, number>;
+  // coverage_tier: "curated"(Tier-1, 손으로 다듬은 14개국) | "auto"(Tier-2, country_iso3로
+  // 자동발견된 국가). lat/lng: world_countries 캐시 좌표 — Tier-2 지도 표시에 씀.
+  coverage_tier?: 'curated' | 'auto';
+  lat?: number | null;
+  lng?: number | null;
 }
 
 export interface StreamEvent {

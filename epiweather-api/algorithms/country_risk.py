@@ -15,6 +15,13 @@
 근거로 쓸 만한 무료 API가 없어(UNWTO는 유료) 계속 COUNTRIES의 추정 시드값을
 씀. 실데이터 캐시가 없거나(수집 전, 갱신 실패) 시드 테이블에 없는 국가는
 COUNTRIES의 추정 시드값 → 그마저 없으면 중립값(0.5)으로 폴백.
+
+Tier-1(COUNTRIES, 14개국)은 사람이 손으로 취약성 지수를 다듬고 직접수치까지
+연결한 큐레이션 국가. Tier-2는 nlp_extract.py(⑯)가 country_iso3를 뽑아낸
+그 외 전세계 국가 중 최근 실제 신호가 있었던 곳만 자동으로 랭킹에 편입된다
+(discovered_tier2_countries) — 별칭사전 없이 ISO3 정확매칭만으로 커버리지가
+열리는 지점. API 응답의 coverage_tier로 "curated"(정교)/"auto"(자동편입,
+아직 손으로 다듬지 않음)를 항상 구분해서 노출한다(정직성 원칙).
 """
 from __future__ import annotations
 import datetime as dt
@@ -23,48 +30,54 @@ import statistics
 import db
 from .gai import _anomaly_score, _tier
 from .country_indicators import load_country_indicators
+from .world_countries import load_world_countries
 from .signal_metrics import (
     load_records, _kdca_latest_total, _japan_idwr_total, _hk_chp_total, _infodengue_total,
 )
 
-# (국가ID: 한국어명·매칭별칭·취약성 4요소[0~1, 추정 시드값])
+TIER2_DISCOVERY_WINDOW_DAYS = 30  # 이 기간 내 country_iso3 신호가 있어야 Tier-2로 편입
+
+# (국가ID = ISO 3166-1 alpha-3: 한국어명·매칭별칭[레거시 location 텍스트 매칭용]·
+#  취약성 4요소[0~1, 추정 시드값]). 키가 ISO3라 nlp_extract.py가 뽑아내는
+# country_iso3와 별칭사전 없이 바로 매칭된다(⑯). aliases는 country_iso3가
+# 없는 구형 레코드의 free-text location 매칭 폴백용으로만 남겨둠.
 COUNTRIES = {
-    "DRC": {
+    "COD": {
         "name": "콩고민주공화국", "aliases": ["DRC", "콩고민주공화국", "콩고", "Congo"],
         "healthcare_infra": 0.25, "population_density": 0.55,
         "airport_connectivity": 0.15, "border_mobility": 0.55,
     },
-    "Uganda": {
+    "UGA": {
         "name": "우간다", "aliases": ["우간다", "Uganda"],
         "healthcare_infra": 0.30, "population_density": 0.50,
         "airport_connectivity": 0.20, "border_mobility": 0.50,
     },
-    "Saudi Arabia": {
+    "SAU": {
         "name": "사우디아라비아", "aliases": ["사우디", "사우디아라비아", "Saudi"],
         "healthcare_infra": 0.70, "population_density": 0.20,
         "airport_connectivity": 0.55, "border_mobility": 0.75,  # 하지 순례 — 단기 대규모 국경이동
     },
-    "Thailand": {
+    "THA": {
         "name": "태국", "aliases": ["태국", "Thailand", "방콕", "Bangkok"],
         "healthcare_infra": 0.60, "population_density": 0.45,
         "airport_connectivity": 0.75, "border_mobility": 0.70,
     },
-    "South Korea": {
+    "KOR": {
         "name": "한국", "aliases": ["한국", "대한민국", "Korea", "South Korea"],
         "healthcare_infra": 0.88, "population_density": 0.85,
         "airport_connectivity": 0.75, "border_mobility": 0.45,
     },
-    "Japan": {
+    "JPN": {
         "name": "일본", "aliases": ["일본", "Japan"],
         "healthcare_infra": 0.85, "population_density": 0.70,
         "airport_connectivity": 0.75, "border_mobility": 0.40,
     },
-    "Hong Kong": {
+    "HKG": {
         "name": "홍콩", "aliases": ["홍콩", "Hong Kong"],
         "healthcare_infra": 0.82, "population_density": 0.95,
         "airport_connectivity": 0.85, "border_mobility": 0.60,
     },
-    "Brazil": {
+    "BRA": {
         "name": "브라질", "aliases": ["브라질", "Brazil", "상파울루", "Sao Paulo", "리우데자네이루", "Rio"],
         "healthcare_infra": 0.55, "population_density": 0.30,
         "airport_connectivity": 0.45, "border_mobility": 0.35,
@@ -78,27 +91,27 @@ COUNTRIES = {
     # 지역(아프리카 상당수·분쟁지역·태평양 오지)이 안 보이는 문제가 있었음 —
     # 5개국 추가. 4요소는 다른 국가들과 동일하게 손으로 추정한 시드값이고,
     # country_indicators.py의 World Bank·OpenFlights 실데이터로 갱신됨.
-    "Nigeria": {
+    "NGA": {
         "name": "나이지리아", "aliases": ["나이지리아", "Nigeria", "라고스", "Lagos", "아부자", "Abuja"],
         "healthcare_infra": 0.25, "population_density": 0.45,
         "airport_connectivity": 0.45, "border_mobility": 0.55,  # 라싸열 풍토병 + 아프리카 최다인구
     },
-    "Ethiopia": {
+    "ETH": {
         "name": "에티오피아", "aliases": ["에티오피아", "Ethiopia", "아디스아바바", "Addis Ababa"],
         "healthcare_infra": 0.20, "population_density": 0.40,
         "airport_connectivity": 0.50, "border_mobility": 0.45,  # 에티오피아항공 = 아프리카 최대 허브
     },
-    "Yemen": {
+    "YEM": {
         "name": "예멘", "aliases": ["예멘", "Yemen", "사나", "Sanaa"],
         "healthcare_infra": 0.10, "population_density": 0.35,
         "airport_connectivity": 0.10, "border_mobility": 0.40,  # 분쟁으로 의료체계 붕괴, 콜레라 상시유행
     },
-    "Madagascar": {
+    "MDG": {
         "name": "마다가스카르", "aliases": ["마다가스카르", "Madagascar", "안타나나리보", "Antananarivo"],
         "healthcare_infra": 0.20, "population_density": 0.30,
         "airport_connectivity": 0.20, "border_mobility": 0.15,  # 전세계 유일 상시 페스트(흑사병) 발생국
     },
-    "Papua New Guinea": {
+    "PNG": {
         "name": "파푸아뉴기니", "aliases": ["파푸아뉴기니", "Papua New Guinea", "PNG", "포트모르즈비", "Port Moresby"],
         "healthcare_infra": 0.15, "population_density": 0.15,
         "airport_connectivity": 0.10, "border_mobility": 0.20,  # 태평양 오지 — 산악지형 의료접근성 최하위권
@@ -113,10 +126,10 @@ SIGNAL_TYPE_SEVERITY = {
 
 # 국가 단위로 떨어지는 collector.py 직접수치 — 이 4개만 국가에 1:1로 귀속 가능
 DIRECT_METRICS = {
-    "South Korea": _kdca_latest_total,
-    "Japan": _japan_idwr_total,
-    "Hong Kong": _hk_chp_total,
-    "Brazil": _infodengue_total,
+    "KOR": _kdca_latest_total,
+    "JPN": _japan_idwr_total,
+    "HKG": _hk_chp_total,
+    "BRA": _infodengue_total,
 }
 
 
@@ -159,19 +172,69 @@ def _matches(location: str | None, aliases: list[str]) -> bool:
     return bool(location) and any(alias in location for alias in aliases)
 
 
+def _record_matches_country(record: dict, country_id: str, aliases: list[str]) -> bool:
+    """country_iso3(⑯, Claude가 직접 추출한 표준코드)가 있으면 정확일치로 판정.
+    country_iso3가 없는 구형 레코드만 기존 alias substring 매칭으로 폴백 —
+    별칭사전에 없는 신규 국가도 country_iso3만 있으면 매칭되게 하는 게 핵심."""
+    iso3 = record.get("country_iso3")
+    if iso3:
+        return iso3 == country_id
+    return _matches(record.get("location"), aliases)
+
+
 def _nlp_raw_score(country_id: str) -> tuple[float | None, int]:
-    """extracted_signals 중 이 국가에 매칭되는 기록들의 신뢰도가중 평균 심각도."""
-    aliases = COUNTRIES[country_id]["aliases"]
-    matched = [r for r in db.list_extracted_signals(limit=500) if _matches(r["location"], aliases)]
+    """extracted_signals 중 이 국가에 매칭되는 기록들의 신뢰도가중 평균 심각도.
+    country_id가 COUNTRIES(Tier-1)에 없으면(Tier-2) aliases가 비어있어
+    country_iso3 정확매칭만 동작 — 별칭사전 없이도 자동발견 국가가 집계됨."""
+    aliases = COUNTRIES.get(country_id, {}).get("aliases", [])
+    matched = [
+        r for r in db.list_extracted_signals(limit=500)
+        if _record_matches_country(r, country_id, aliases)
+    ]
     if not matched:
         return None, 0
     scores = [SIGNAL_TYPE_SEVERITY.get(r["signal_type"], 40) * r["source_trust"] for r in matched]
     return round(statistics.mean(scores), 1), len(matched)
 
 
+def discovered_tier2_countries(days: int = TIER2_DISCOVERY_WINDOW_DAYS, limit: int = 1000) -> set[str]:
+    """최근 N일 이내 extracted_signals에 country_iso3로 등장했지만 COUNTRIES(Tier-1)에는
+    없는 국가 — 실제 신호가 있는 국가만 자동으로 랭킹에 편입시켜(근거 없는 국가를
+    억지로 채우지 않음) Tier-2 전세계 커버리지를 연다."""
+    cutoff = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=days)
+    found: set[str] = set()
+    for r in db.list_extracted_signals(limit=limit):
+        iso3 = r.get("country_iso3")
+        if not iso3 or iso3 in COUNTRIES:
+            continue
+        try:
+            extracted_at = dt.datetime.fromisoformat(r["extracted_at"])
+        except (KeyError, ValueError, TypeError):
+            continue
+        if extracted_at >= cutoff:
+            found.add(iso3)
+    return found
+
+
+def _country_display(country_id: str) -> str:
+    """Tier-1은 손으로 다듬은 한국어명, Tier-2는 world_countries 캐시의 영문명
+    (world_countries.py, 주간 갱신) → 캐시가 아직 없으면 ISO3 코드 그대로."""
+    curated = COUNTRIES.get(country_id)
+    if curated:
+        return curated["name"]
+    ref = load_world_countries().get(country_id)
+    return ref["name"] if ref else country_id
+
+
+def _country_coords(country_id: str) -> tuple[float | None, float | None]:
+    ref = load_world_countries().get(country_id)
+    if not ref or "lat" not in ref or "lng" not in ref:
+        return None, None
+    return ref["lat"], ref["lng"]
+
+
 def compute_country_risk(country_id: str) -> dict:
-    if country_id not in COUNTRIES:
-        raise KeyError(country_id)
+    curated = country_id in COUNTRIES
 
     direct_score = None
     extractor = DIRECT_METRICS.get(country_id)
@@ -182,10 +245,16 @@ def compute_country_risk(country_id: str) -> dict:
 
     nlp_score, nlp_count = _nlp_raw_score(country_id)
 
+    # Tier-1(COUNTRIES)이 아니면 실제 신호(country_iso3 매칭)가 있을 때만 유효한
+    # Tier-2 국가로 인정 — 근거 없는 임의 ISO3 코드로 위험도가 만들어지지 않게 함.
+    if not curated and nlp_count == 0:
+        raise KeyError(country_id)
+
     components = [s for s in (direct_score, nlp_score) if s is not None]
     raw_score = round(statistics.mean(components), 1) if components else None
     vuln = vulnerability_index(country_id)
     _, vuln_all_real = _vulnerability_components(country_id)
+    lat, lng = _country_coords(country_id)
 
     if raw_score is not None:
         risk_score = round(raw_score * vuln, 1)
@@ -195,7 +264,10 @@ def compute_country_risk(country_id: str) -> dict:
 
     return {
         "country": country_id,
-        "name": COUNTRIES[country_id]["name"],
+        "name": _country_display(country_id),
+        "coverage_tier": "curated" if curated else "auto",
+        "lat": lat,
+        "lng": lng,
         "raw_score": raw_score,
         "raw_score_components": {
             "direct_signal": direct_score,
@@ -205,8 +277,8 @@ def compute_country_risk(country_id: str) -> dict:
         "vulnerability_index": vuln,
         # healthcare_infra·population_density·airport_connectivity 3개 전부
         # World Bank·OpenFlights 실데이터 캐시에서 채워졌으면 real_data,
-        # 하나라도 COUNTRIES 시드값으로 폴백됐으면 seed_fallback. border_mobility는
-        # 항상 시드값이라 real_data여도 100% 실측은 아니라는 점은 유의.
+        # 하나라도 COUNTRIES 시드값(또는 Tier-2 중립값)으로 폴백됐으면 seed_fallback.
+        # border_mobility는 항상 시드값이라 real_data여도 100% 실측은 아니라는 점은 유의.
         "vulnerability_estimated": not vuln_all_real,
         "vulnerability_source": "real_data" if vuln_all_real else "seed_fallback",
         "risk_score": risk_score,
@@ -216,7 +288,8 @@ def compute_country_risk(country_id: str) -> dict:
 
 
 def rank_countries() -> dict:
-    results = [compute_country_risk(cid) for cid in COUNTRIES]
+    ids = set(COUNTRIES) | discovered_tier2_countries()
+    results = [compute_country_risk(cid) for cid in ids]
     results.sort(key=lambda r: -r["risk_score"])
     return {"countries": results}
 

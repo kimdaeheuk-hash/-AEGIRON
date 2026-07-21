@@ -21,11 +21,12 @@ def test_normalize_disease_unknown_disease_kept_verbatim():
     assert normalize_disease("정체불명 신종질병 X") == "정체불명 신종질병 X"
 
 
-def _make_signal(dbmod, source, disease, location, signal_type, trust, date):
+def _make_signal(dbmod, source, disease, location, signal_type, trust, date, country_iso3=None):
     return dbmod.create_extracted_signal(
         source=source, disease=disease, location=location, signal_type=signal_type,
         severity=["unusual"], symptom=None, transmission=None,
         source_trust=trust, signal_date=date, raw_text=f"{source}: {disease}",
+        country_iso3=country_iso3,
     )
 
 
@@ -44,6 +45,19 @@ def test_multiple_sources_reporting_same_disease_merge_into_one_event(isolated_d
     mers = [e for e in events if e["disease"] == "MERS"]
     assert len(mers) == 1
     assert mers[0]["source_count"] == 1
+
+
+def test_country_iso3_matches_even_with_unaliased_location_text(isolated_db):
+    """country_iso3(⑯)가 있으면 location 문구가 별칭 사전에 없어도 국가가 정확히
+    태깅돼야 함 — 별칭사전 없이도 전세계 매칭이 되는지 이벤트 병합 단위에서 확인."""
+    _make_signal(
+        isolated_db, "WHO", "에볼라", "이 문구는 어떤 별칭에도 안 걸림",
+        "신규발생", 1.00, "2026-05-16", country_iso3="COD",
+    )
+
+    events = dedupe_events()
+    ebola = next(e for e in events if e["disease"] == "에볼라")
+    assert ebola["countries"] == ["COD"]
 
 
 def test_merged_score_is_trust_weighted_not_plain_average(isolated_db):

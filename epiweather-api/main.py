@@ -218,6 +218,13 @@ async def _run_weekly_job() -> None:
     except Exception as e:
         collector.log_error("scheduler_weekly_country_indicators", e)
 
+    try:
+        from algorithms.world_countries import refresh_world_countries
+        result = await asyncio.to_thread(refresh_world_countries)
+        collector.log(f"주간 작업: 전세계 국가 참조데이터 갱신 완료 ({result['countries_fetched']}개국)")
+    except Exception as e:
+        collector.log_error("scheduler_weekly_world_countries", e)
+
     _save_last_weekly_run(dt.datetime.now(dt.timezone.utc))
 
 
@@ -299,6 +306,7 @@ def status():
             error_count = sum(1 for _ in f)
 
     last_weekly = _load_last_weekly_run()
+    from algorithms.country_risk import discovered_tier2_countries
     return {
         "scheduler_enabled": os.environ.get("EPIWEATHER_SCHEDULER", "on").lower() != "off",
         "last_weekly_job_at": last_weekly.isoformat() if last_weekly else None,
@@ -306,8 +314,12 @@ def status():
             "signals_log":              _file_status(data_dir / "signals_log.jsonl"),
             "baseline_signals":         _file_status(data_dir / "baseline_signals.jsonl"),
             "country_indicators_cache": _file_status(data_dir / "country_indicators_cache.json"),
+            "world_countries_cache":    _file_status(data_dir / "world_countries_cache.json"),
         },
         "db_table_counts": db.table_counts(),
+        # 최근 30일 내 country_iso3로 새로 발견된, COUNTRIES(Tier-1) 밖 국가 수 —
+        # 별칭사전 없이 얼마나 넓게 자동 커버리지가 열렸는지 보여주는 지표(⑱).
+        "tier2_countries_discovered": len(discovered_tier2_countries()),
         "recent_errors": _recent_errors(),
         "total_error_count": error_count,
     }
@@ -610,7 +622,7 @@ def risk_index():
 
 @app.get("/api/risk-index/{country}", tags=["GAI"])
 def risk_index_country(country: str):
-    """특정 국가 상세. country는 COUNTRIES 키(DRC, Uganda, South Korea 등)."""
+    """특정 국가 상세. country는 ISO 3166-1 alpha-3 코드(COD, KOR, USA 등)."""
     if country not in COUNTRIES:
         raise HTTPException(
             status_code=404,
@@ -831,6 +843,34 @@ def country_indicators_status():
         "updated_at": cache.get("updated_at"),
         "countries_with_real_data": len(countries),
         "countries": list(countries.keys()),
+    }
+
+
+@app.post("/api/world-countries/refresh", tags=["기준선"], dependencies=_auth)
+def world_countries_refresh():
+    """
+    전세계 국가 참조데이터(이름·수도 위경도) 갱신 — World Bank 국가목록 API 조회해
+    data/world_countries_cache.json에 저장. Tier-2(자동발견) 국가의 표시명·지도
+    좌표가 여기서 채워짐(⑱).
+    """
+    from algorithms.world_countries import refresh_world_countries
+    return refresh_world_countries()
+
+
+@app.get("/api/world-countries/status", tags=["기준선"])
+def world_countries_status():
+    """전세계 국가 참조데이터 캐시 현황 — 갱신 시각과 확보된 국가 수."""
+    from algorithms.world_countries import load_world_countries, CACHE_FILE
+    import json as _json
+    countries = load_world_countries()
+    if not CACHE_FILE.exists():
+        return {"status": "없음", "count": 0, "hint": "POST /api/world-countries/refresh 실행 필요"}
+    with open(CACHE_FILE, encoding="utf-8") as f:
+        cache = _json.load(f)
+    return {
+        "status": "있음",
+        "updated_at": cache.get("updated_at"),
+        "countries_count": len(countries),
     }
 
 

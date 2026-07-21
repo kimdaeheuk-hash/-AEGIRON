@@ -16,7 +16,7 @@ from typing import Any
 
 CITY_RISK_DATA: dict[str, dict] = {
     "Kinshasa": {
-        "country": "DRC",
+        "country": "COD",
         "region":  "아프리카",
         "population_m": 17.1,
         "airport": "FZAA",
@@ -27,7 +27,7 @@ CITY_RISK_DATA: dict[str, dict] = {
         "disease_focus": ["Ebola", "Mpox"],
     },
     "Kampala": {
-        "country": "Uganda",
+        "country": "UGA",
         "region":  "아프리카",
         "population_m": 3.6,
         "airport": "HUEN",
@@ -38,7 +38,7 @@ CITY_RISK_DATA: dict[str, dict] = {
         "disease_focus": ["Ebola"],
     },
     "Riyadh": {
-        "country": "Saudi Arabia",
+        "country": "SAU",
         "region":  "중동",
         "population_m": 7.7,
         "airport": "OERK",
@@ -60,7 +60,7 @@ CITY_RISK_DATA: dict[str, dict] = {
         "disease_focus": ["MERS", "Novel"],
     },
     "Bangkok": {
-        "country": "Thailand",
+        "country": "THA",
         "region":  "동남아",
         "population_m": 10.7,
         "airport": "VTBS",
@@ -93,7 +93,7 @@ CITY_RISK_DATA: dict[str, dict] = {
         "disease_focus": ["Dengue", "H5N1"],
     },
     "Seoul": {
-        "country": "South Korea",
+        "country": "KOR",
         "region":  "국내",
         "population_m": 9.7,
         "airport": "RKSI",

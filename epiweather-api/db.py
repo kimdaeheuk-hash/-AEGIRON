@@ -84,7 +84,8 @@ CREATE TABLE IF NOT EXISTS extracted_signals (
     source_trust   REAL NOT NULL,
     signal_date    TEXT,            -- 텍스트가 언급한 기준일 (YYYY-MM-DD), 모르면 NULL
     known_disease  INTEGER NOT NULL DEFAULT 1,  -- 모델이 "기존에 알려진 질병 패턴과 일치"로 판단했는지
-    raw_text       TEXT NOT NULL
+    raw_text       TEXT NOT NULL,
+    country_iso3   TEXT             -- ISO 3166-1 alpha-3, 모델이 국가 하나로 특정 못하면 NULL
 );
 
 CREATE TABLE IF NOT EXISTS api_key_usage (
@@ -119,6 +120,7 @@ def init_db() -> None:
             "ALTER TABLE sentinel_queue ADD COLUMN ai_status TEXT",
             "ALTER TABLE sentinel_queue ADD COLUMN ai_confidence REAL",
             "ALTER TABLE alerts ADD COLUMN evidence TEXT",
+            "ALTER TABLE extracted_signals ADD COLUMN country_iso3 TEXT",
         ):
             try:
                 conn.execute(ddl)
@@ -262,7 +264,7 @@ def create_extracted_signal(
     source: str, disease: str | None, location: str | None, signal_type: str | None,
     severity: list[str], symptom: str | None, transmission: str | None,
     source_trust: float, signal_date: str | None, raw_text: str,
-    known_disease: bool = True,
+    known_disease: bool = True, country_iso3: str | None = None,
 ) -> dict:
     extracted_at = datetime.now(timezone.utc).isoformat()
     with get_connection() as conn:
@@ -270,12 +272,13 @@ def create_extracted_signal(
             """
             INSERT INTO extracted_signals
                 (extracted_at, source, disease, location, signal_type, severity,
-                 symptom, transmission, source_trust, signal_date, known_disease, raw_text)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 symptom, transmission, source_trust, signal_date, known_disease, raw_text,
+                 country_iso3)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (extracted_at, source, disease, location, signal_type,
              json.dumps(severity, ensure_ascii=False), symptom, transmission,
-             source_trust, signal_date, int(known_disease), raw_text),
+             source_trust, signal_date, int(known_disease), raw_text, country_iso3),
         )
         conn.commit()
         row = conn.execute(
