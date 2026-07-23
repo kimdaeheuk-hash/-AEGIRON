@@ -753,6 +753,32 @@ def climate_signals_country(country: str):
         )
 
 
+@app.get("/api/land-signals", tags=["GAI"])
+def land_signals():
+    """
+    토지이용·벌목 선행지표(㉜) — 스필오버 1순위 동인인 삼림파괴를 선행 신호로.
+    NASA FIRMS 활성 화재 탐지(위성 실측)를 벌목·화전 프록시로 씀. fire_count는
+    실측이지만 '삼림파괴'는 화재로부터 추론한 프록시임을 명시(모든 화재가 벌목은
+    아님). FIRMS_MAP_KEY(무료) 없으면 data_available=False로 정직하게 표시.
+    기후 선행지표(/api/climate-signals)와 짝을 이뤄 '발병 앞'을 본다.
+    """
+    from algorithms.forest_signals import land_signals_all
+    return land_signals_all()
+
+
+@app.get("/api/land-signals/{country}", tags=["GAI"])
+def land_signals_country(country: str):
+    """특정 국가(Tier-1 ISO3)의 토지이용 선행지표 상세."""
+    from algorithms.forest_signals import compute_country_land, FIRMS_COUNTRY_CODES
+    try:
+        return compute_country_land(country)
+    except KeyError:
+        raise HTTPException(
+            status_code=404,
+            detail=f"FIRMS 국가코드 미등록. 지원 목록: {list(FIRMS_COUNTRY_CODES)}",
+        )
+
+
 @app.get("/api/threats", tags=["GAI"])
 def threats():
     """

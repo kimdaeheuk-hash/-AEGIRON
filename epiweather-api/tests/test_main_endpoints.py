@@ -161,6 +161,23 @@ def test_climate_signals_unknown_country_returns_404(client):
     assert resp.status_code == 404
 
 
+def test_land_signals_endpoint_public_and_flags_proxy(client, monkeypatch):
+    """토지이용 선행지표(㉜)는 공개 GET이고, 화재→삼림파괴가 프록시임을
+    disclaimer로 명시해야 함. 키 없으면 configured=False."""
+    monkeypatch.delenv("FIRMS_MAP_KEY", raising=False)
+    resp = client.get("/api/land-signals")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["countries"]) == 13  # HKG 제외
+    assert body["configured"] is False
+    assert "GFW" in body["disclaimer"]
+
+
+def test_land_signals_unknown_country_returns_404(client):
+    resp = client.get("/api/land-signals/ZZZ")
+    assert resp.status_code == 404
+
+
 def test_threats_semantic_falls_back_without_api_key(client, monkeypatch):
     """ANTHROPIC_API_KEY 없으면 결정론적 폴백으로 동작하고 그 사실이 표시돼야 함(㉚)."""
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
