@@ -195,6 +195,16 @@ def test_deforestation_signals_unknown_country_returns_404(client):
     assert resp.status_code == 404
 
 
+def test_polar_watch_endpoint_public_and_watch_grade_not_alert(client):
+    """극지 관찰 층(㉞)은 공개 GET이고, '경보'가 아니라 watch 등급임을 명시해야 함."""
+    resp = client.get("/api/polar-watch")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["grade"] == "watch"
+    assert "경보" in body["note"]
+    assert len(body["regions"]) >= 5
+
+
 def test_threats_semantic_falls_back_without_api_key(client, monkeypatch):
     """ANTHROPIC_API_KEY 없으면 결정론적 폴백으로 동작하고 그 사실이 표시돼야 함(㉚)."""
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)

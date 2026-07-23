@@ -805,6 +805,19 @@ def deforestation_signals_country(country: str):
         )
 
 
+@app.get("/api/polar-watch", tags=["GAI"])
+def polar_watch():
+    """
+    극지·영구동토 관찰 층(㉞) — 온난화로 동토 해빙(→고대 병원체, 2016 시베리아
+    탄저 실증)과 극지 신규 발병(→H5N1 남극 도달)을 관찰한다. ★ 이건 '경보'가
+    아니라 저확률·고충격 '관찰(watch)' 등급 — 경보 파이프라인과 섞지 않는다.
+    기후 층(Open-Meteo)과 현지어 뉴스(극지 키워드)를 재사용. 값은 발병 위험
+    측정이 아니라 관찰용 선행 신호 추정.
+    """
+    from algorithms.polar_signals import polar_watch_all
+    return polar_watch_all()
+
+
 @app.get("/api/threats", tags=["GAI"])
 def threats():
     """
