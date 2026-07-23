@@ -202,5 +202,39 @@ def verify_chain_lead_time(disease: str) -> dict:
         "disease": disease,
         "verified": bool(cases),
         "cases": cases,
+        # 실측 사례가 있으면 하드코딩 추정치 옆에 '실측 캘리브레이션' 값을 함께
+        # 노출한다(㉖). 그래프의 5단계 체인을 자동으로 덮어쓰진 않는다 — 사례
+        # 1건으로 전체 체인을 다시 쓰면 과적합이라(모듈 상단 설계원칙), 대신
+        # "심사 자료에 넣을 수 있는 실측 총 선행일수"를 투명하게 제공한다.
+        "calibration": _calibration_summary(claimed_lead_days, cases),
         "note": None if cases else "비교 가능한 실측 타임라인 사례 없음(공식선언 마일스톤 미기록 등)",
+    }
+
+
+def _calibration_summary(claimed_lead_days: int, cases: list[dict]) -> dict:
+    """추정 총 선행일수(하드코딩) vs 실측 총 선행일수(사례 평균/중앙값).
+    실측 없으면 calibrated=False로 정직하게 표기하고 추정치를 그대로 둔다."""
+    if not cases:
+        return {
+            "estimated_max_lead_days": claimed_lead_days,
+            "observed_mean_lead_days": None,
+            "observed_median_lead_days": None,
+            "sample_size": 0,
+            "calibrated": False,
+            "recommendation": "실측 사례 없음 — 추정치 유지(표본 쌓이면 자동 캘리브레이션)",
+        }
+    import statistics as _st
+    observed = [c["observed_lead_days"] for c in cases]
+    mean_obs = round(_st.mean(observed), 1)
+    median_obs = round(_st.median(observed), 1)
+    return {
+        "estimated_max_lead_days": claimed_lead_days,
+        "observed_mean_lead_days": mean_obs,
+        "observed_median_lead_days": median_obs,
+        "sample_size": len(observed),
+        "calibrated": True,
+        "recommendation": (
+            f"실측 {len(observed)}건 기준 총 선행일수 평균 {mean_obs}일"
+            f"(추정치 {claimed_lead_days}일). 표본이 작을수록 보수적으로 인용할 것."
+        ),
     }

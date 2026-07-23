@@ -50,6 +50,23 @@ def test_verify_chain_lead_time_computes_observed_span_from_real_milestones(isol
     assert case["graph_claimed_lead_days"] == graph_claim
     assert case["difference_days"] == 7 - graph_claim
 
+    # ㉖ 실측 캘리브레이션: 하드코딩 추정치 옆에 실측 총 선행일수가 함께 나와야 함
+    cal = result["calibration"]
+    assert cal["calibrated"] is True
+    assert cal["sample_size"] == 1
+    assert cal["observed_mean_lead_days"] == 7
+    assert cal["estimated_max_lead_days"] == graph_claim
+
+
+def test_calibration_reports_uncalibrated_when_no_real_cases(isolated_db):
+    """실측 사례가 없으면 calibrated=False로 정직하게 표기하고 추정치를 유지."""
+    result = verify_chain_lead_time("Ebola")
+    assert result["verified"] is False
+    cal = result["calibration"]
+    assert cal["calibrated"] is False
+    assert cal["observed_mean_lead_days"] is None
+    assert cal["estimated_max_lead_days"] == max(s["lead_days"] for s in DISEASE_GRAPH["Ebola"]["chain"])
+
 
 def test_verify_chain_lead_time_ignores_non_declaration_milestones(isolated_db):
     """year_start·status_update처럼 '공식 선언'이 아닌 마일스톤만 있으면
