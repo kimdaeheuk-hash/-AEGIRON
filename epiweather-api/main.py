@@ -726,6 +726,33 @@ def risk_quantification_country(country: str):
         )
 
 
+@app.get("/api/climate-signals", tags=["GAI"])
+def climate_signals():
+    """
+    기후·환경 선행지표(㉛) — 발병 '뒤'가 아니라 '앞'을 보는 층. 온난화·강수가
+    매개모기(뎅기·지카 등) 전파에 선행한다는 과학적 근거(Mordecai 2017)를
+    정량화. spillover_pressure는 발병 위험 측정치가 아니라 '환경 압력' 모델
+    추정(is_leading_indicator=True, measured=False). 데이터: Open-Meteo(무료).
+    삼림파괴(스필오버 1순위 동인)는 아직 미구현임을 disclaimer에 정직하게 명시.
+    """
+    from algorithms.climate_signals import climate_signals_all
+    return climate_signals_all()
+
+
+@app.get("/api/climate-signals/{country}", tags=["GAI"])
+def climate_signals_country(country: str):
+    """특정 국가(Tier-1 ISO3)의 기후 선행지표 상세."""
+    from algorithms.climate_signals import compute_country_climate
+    try:
+        return compute_country_climate(country)
+    except KeyError:
+        from algorithms.climate_signals import COUNTRY_COORDS
+        raise HTTPException(
+            status_code=404,
+            detail=f"기후 좌표 미등록 국가. 지원 목록: {list(COUNTRY_COORDS)}",
+        )
+
+
 @app.get("/api/threats", tags=["GAI"])
 def threats():
     """

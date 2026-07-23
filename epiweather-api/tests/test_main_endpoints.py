@@ -146,6 +146,21 @@ def test_status_endpoint_reports_tier2_discovery_field(client):
     assert body["tier2_countries_discovered"] == 0  # 신규 DB라 신호 없음
 
 
+def test_climate_signals_endpoint_public_and_flags_leading_indicator(client):
+    """기후 선행지표(㉛)는 공개 GET이고, 발병 측정치가 아니라 선행지표 추정임을
+    disclaimer/note로 명시해야 함."""
+    resp = client.get("/api/climate-signals")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["countries"]) == 14
+    assert "삼림파괴" in body["disclaimer"]  # 미구현 동인 정직하게 명시
+
+
+def test_climate_signals_unknown_country_returns_404(client):
+    resp = client.get("/api/climate-signals/ZZZ")
+    assert resp.status_code == 404
+
+
 def test_threats_semantic_falls_back_without_api_key(client, monkeypatch):
     """ANTHROPIC_API_KEY 없으면 결정론적 폴백으로 동작하고 그 사실이 표시돼야 함(㉚)."""
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
