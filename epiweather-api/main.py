@@ -731,9 +731,32 @@ def threats():
     """
     현재 진행 중인 위협 — NLP 구조화 추출(⑦) 결과를 disease 기준으로 병합한
     중복제거 이벤트 목록(⑩). 같은 사건을 출처 여러 곳이 따로 보고해도
-    하나로 합쳐 신뢰도가중 평균 점수를 매긴다.
+    하나로 합쳐 신뢰도가중 평균 점수를 매긴다. 이 경로는 결정론적(질병명
+    기준)이라 매 대시보드 로드마다 빠르게 동작(clustering_method 참고).
     """
     return {"events": dedupe_events()}
+
+
+@app.get("/api/threats/semantic", tags=["GAI"])
+def threats_semantic():
+    """
+    교차언어 의미 클러스터링(㉚) — Claude가 여러 언어·표기의 신호를 '뜻'으로
+    묶어, 질병명이 문자로 안 겹쳐도(예: 태국어 "람파 정체불명 폐렴" vs 영어
+    "unknown pneumonia northern Thailand") 같은 실제 발병이면 하나로 병합한다.
+    EIOS/EMM의 다국어 클러스터링을 LLM으로 흉내낸 것. ANTHROPIC_API_KEY가 없거나
+    호출 실패 시 결정론적 방식으로 자동 폴백 — 각 이벤트의 clustering_method로
+    실제 어느 방식이 쓰였는지 정직하게 표시한다(비용·지연이 있어 별도 엔드포인트).
+    """
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    events = dedupe_events(api_key=api_key)
+    method = events[0]["clustering_method"] if events else (
+        "semantic_llm" if api_key else "disease_name_fallback"
+    )
+    return {
+        "events": events,
+        "clustering_method": method,
+        "note": None if api_key else "ANTHROPIC_API_KEY 미설정 — 결정론적(질병명) 폴백으로 동작",
+    }
 
 
 @app.get("/api/unexplained-signals", tags=["GAI"])

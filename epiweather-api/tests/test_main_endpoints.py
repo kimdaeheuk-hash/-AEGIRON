@@ -146,6 +146,16 @@ def test_status_endpoint_reports_tier2_discovery_field(client):
     assert body["tier2_countries_discovered"] == 0  # 신규 DB라 신호 없음
 
 
+def test_threats_semantic_falls_back_without_api_key(client, monkeypatch):
+    """ANTHROPIC_API_KEY 없으면 결정론적 폴백으로 동작하고 그 사실이 표시돼야 함(㉚)."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    resp = client.get("/api/threats/semantic")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["clustering_method"] == "disease_name_fallback"
+    assert "ANTHROPIC_API_KEY" in body["note"]
+
+
 def test_status_endpoint_includes_source_health(client):
     resp = client.get("/api/status")
     assert resp.status_code == 200
