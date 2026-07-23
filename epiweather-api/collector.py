@@ -309,6 +309,21 @@ def detect_polymarket_surges(odds: dict[str, dict]) -> dict[str, dict]:
 # ══════════════════════════════════════════════
 # 무료 소스 수집 (매시간 실행 권장)
 # ══════════════════════════════════════════════
+# 소스헬스(㉔)용: 소스이름 → collect_free_sources() result에서 그 소스가 채우는 키.
+# 값이 None이면 그 주기에 수집 실패로 판정. 키 없는 소스가 없도록 result 할당과
+# 1:1로 유지할 것(새 소스 추가 시 여기도 추가).
+FREE_SOURCE_HEALTH_KEYS = {
+    "KDCA": "kdca_weekly", "Naver": "naver_flu_ratio", "WHO_AFRO": "who_afro_items",
+    "WHO_PAHO": "who_paho_items", "CDC_NWSS": "cdc_nwss", "CDC_EID": "cdc_eid_items",
+    "CIDRAP": "cidrap", "HK_CHP": "hk_chp", "Japan_IDWR": "japan_idwr",
+    "InfoDengue": "infodengue", "Wikipedia_Ebola": "wiki_ebola_daily",
+    "PubMed": "pubmed_ebola_count", "Polymarket": "polymarket",
+    "GenomicVariants": "genomic_variants", "SocialSignal": "social_signal",
+    "Mobility": "mobility", "LocalNews": "local_news", "SupplyChain": "supply_chain",
+    "ExtraSources": "extra_sources", "WAHIS": "wahis", "GroqWatch": "groq_pulse",
+}
+
+
 def collect_free_sources() -> dict:
     log("=== 무료 소스 수집 시작 ===")
     result = {"type": "free_sources", "timestamp": dt.datetime.now().isoformat()}
@@ -653,6 +668,19 @@ def collect_free_sources() -> dict:
             log("  예측 기록: 새로 기록할 주의 이상 국가 없음")
     except Exception as e:
         log_error("PredictionLog", e)
+
+    # 소스별 헬스 기록(㉔) — result의 각 키가 None이면 이번 주기 수집 실패로
+    # 판정. 주기당 소스별 정확히 1회만 기록해 "어느 소스가 며칠째 죽었는지"를
+    # /api/status에서 눈에 보이게 한다(조용한 실패 제거).
+    try:
+        from algorithms.source_health import record_cycle
+        newly_failing = record_cycle(result, FREE_SOURCE_HEALTH_KEYS)
+        if newly_failing:
+            log(f"  ⚠️ 소스 장애 감지(연속 실패): {', '.join(newly_failing)}")
+            from algorithms.notifier import notify_source_degradation
+            notify_source_degradation(newly_failing)
+    except Exception as e:
+        log_error("SourceHealth", e)
 
     log("=== 무료 소스 수집 완료 ===")
     return result

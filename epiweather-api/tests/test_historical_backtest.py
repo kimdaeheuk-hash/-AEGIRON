@@ -92,3 +92,20 @@ def test_backtest_all_known_events_aggregates_verified_cases_only(isolated_db):
     assert result["summary"]["events_checked"] == 2
     assert result["summary"]["events_with_verified_lead_time"] == 1
     assert result["summary"]["mean_lead_days"] == 3.0
+
+
+def test_covid_event_attaches_bluedot_comparison_without_false_victory(isolated_db):
+    """코로나 이벤트는 아이기론 신호가 전혀 없어도 블루닷 비교(목표 기준선)를
+    붙이되, aegiron_lead_days=None으로 '이겼다'고 주장하지 않아야 함(㉕ 정직성)."""
+    import db as dbmod
+    # main.py._seed_known_timelines의 코로나 시드와 동일 구조를 최소 재현
+    dbmod.upsert_timeline_event(
+        "covid19_wuhan_2019", "코로나19 우한 초기 2019-2020", "2019-12-31",
+        "official_declaration", "중국 WHO 통보", "WHO", "who",
+    )
+    result = backtest_event("covid19_wuhan_2019")
+    assert "bluedot_comparison" in result
+    comp = result["bluedot_comparison"]
+    assert comp["bluedot_lead_days"] == 9
+    assert comp["aegiron_lead_days"] is None  # 당시 시스템 부재 → 실측 없음
+    assert "실측 없음" in comp["verdict"]

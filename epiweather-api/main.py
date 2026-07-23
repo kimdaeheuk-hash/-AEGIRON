@@ -309,6 +309,7 @@ def status():
 
     last_weekly = _load_last_weekly_run()
     from algorithms.country_risk import discovered_tier2_countries
+    from algorithms.source_health import source_health_report
     return {
         "scheduler_enabled": os.environ.get("EPIWEATHER_SCHEDULER", "on").lower() != "off",
         "last_weekly_job_at": last_weekly.isoformat() if last_weekly else None,
@@ -322,6 +323,9 @@ def status():
         # 최근 30일 내 country_iso3로 새로 발견된, COUNTRIES(Tier-1) 밖 국가 수 —
         # 별칭사전 없이 얼마나 넓게 자동 커버리지가 열렸는지 보여주는 지표(⑱).
         "tier2_countries_discovered": len(discovered_tier2_countries()),
+        # 소스별 헬스(㉔) — degraded_sources가 비어있지 않으면 조용히 죽은 소스가
+        # 실제로 눈에 보이는 것. 조기경보 시스템의 '조용한 실패'를 막는 핵심 지표.
+        "source_health": source_health_report(),
         "recent_errors": _recent_errors(),
         "total_error_count": error_count,
     }
@@ -612,9 +616,12 @@ def backtest_historical():
     milestone(WHO PHEIC 선언 등 진짜 날짜)과 실제 extracted_signals를
     대조해 "아이기론이 실제로 며칠 먼저 알았는가"를 계산한다.
     extracted_signals가 아직 없는 이벤트는 verified=False로 정직하게 표시
-    — 합성 데이터로 대신 채우지 않음.
+    — 합성 데이터로 대신 채우지 않음. 벤치마크(㉕)가 있는 이벤트(코로나 등)는
+    블루닷 대비 비교(bluedot_comparison)도 함께 반환한다.
     """
     from algorithms.historical_backtest import backtest_all_known_events
+    db.init_db()
+    _seed_known_timelines()  # 코로나 등 벤치마크 이벤트가 항상 등록돼 있도록(멱등)
     return backtest_all_known_events()
 
 
@@ -622,6 +629,8 @@ def backtest_historical():
 def backtest_historical_event(event_id: str):
     """특정 발병 이벤트 하나만 실제 이력 기반으로 백테스트."""
     from algorithms.historical_backtest import backtest_event
+    db.init_db()
+    _seed_known_timelines()
     return backtest_event(event_id)
 
 
@@ -1023,6 +1032,16 @@ def _seed_known_timelines():
         ]),
         ("dengue_2026", "뎅기열 글로벌 2026", [
             ("2026-06-25", "status_update",      "방글라데시 1,870명 / 태국 3,191명 / 전세계 50만+", "WHO/ECDC", "who"),
+        ]),
+        # 코로나19 초기 — BlueDot 대비 벤치마크(㉕)용 실측 타임라인. 날짜는 공개
+        # 문헌 인용(WHO COVID-19 타임라인). first_report는 우한 비정상 폐렴
+        # 클러스터 최초 보도, who_pheic는 국제공중보건위기 선언.
+        ("covid19_wuhan_2019", "코로나19 우한 초기 2019-2020", [
+            ("2019-12-30", "first_report",       "우한 비정상 폐렴 클러스터 최초 보도(ProMED 등)", "ProMED/미디어", "media"),
+            ("2019-12-31", "official_declaration","중국, WHO에 우한 폐렴 클러스터 통보", "WHO 타임라인", "who"),
+            ("2020-01-09", "who_statement",       "WHO 신종 코로나바이러스 첫 공개 성명", "WHO", "who"),
+            ("2020-01-30", "who_pheic",           "WHO 국제공중보건위기(PHEIC) 선언", "WHO", "who"),
+            ("2020-03-11", "who_pandemic",        "WHO 팬데믹 선언", "WHO", "who"),
         ]),
     ]
     for event_id, event_name, milestones in known:

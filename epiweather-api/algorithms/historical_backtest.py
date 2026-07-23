@@ -23,6 +23,7 @@ from .event_dedup import normalize_disease
 from .country_risk import SIGNAL_TYPE_SEVERITY
 from .alerts import classify_tier
 from .knowledge_graph import _DECLARATION_MILESTONE_KEYS
+from .benchmark_baselines import compare_to_bluedot
 
 LOOKBACK_DAYS_BEFORE_DECLARATION = 60  # 선언일 이전 이만큼까지만 신호를 훑는다
 LOOKAHEAD_DAYS_AFTER_DECLARATION = 7   # 선언 직후 신호(사후 확인용)도 소폭 포함
@@ -58,8 +59,20 @@ def _daily_severity_series(disease_key: str, start: dt.date, end: dt.date) -> di
 
 
 def backtest_event(event_id: str) -> dict:
-    """특정 발병 이벤트에 대해 '실제 신호가 임계치를 넘은 날' vs '실제 공식
-    선언일'을 비교. 근거 데이터가 없는 단계마다 이유를 명시하고 verified=False."""
+    """특정 발병 이벤트를 백테스트하고, 벤치마크(㉕)가 있으면 블루닷 대비 비교를
+    붙인다. 아이기론 실측 선행일수가 없으면(그 시점 데이터 부재) 블루닷 비교는
+    '실측 없음, 목표 기준선만 표기'로 정직하게 나온다."""
+    result = _backtest_event_core(event_id)
+    aegiron_lead = result.get("lead_days") if result.get("would_have_alerted") else None
+    comparison = compare_to_bluedot(event_id, aegiron_lead)
+    if comparison is not None:
+        result["bluedot_comparison"] = comparison
+    return result
+
+
+def _backtest_event_core(event_id: str) -> dict:
+    """'실제 신호가 임계치를 넘은 날' vs '실제 공식 선언일'을 비교.
+    근거 데이터가 없는 단계마다 이유를 명시하고 verified=False."""
     timeline = db.get_timeline(event_id)
     milestones = timeline.get("milestones", [])
     if not milestones:
@@ -118,11 +131,15 @@ def backtest_event(event_id: str) -> dict:
 
 
 def backtest_all_known_events() -> dict:
-    """outbreak_timeline에 등록된 모든 이벤트를 백테스트하고 요약 통계를 낸다."""
+    """outbreak_timeline에 등록된 모든 이벤트를 백테스트하고 요약 통계를 낸다.
+    벤치마크(㉕)가 있는 이벤트는 블루닷 대비 비교도 요약에 모은다."""
     event_ids = [e["event_id"] for e in db.list_timeline_events()]
     results = [backtest_event(eid) for eid in event_ids]
     verified = [r for r in results if r.get("verified") and r.get("would_have_alerted")]
     lead_days_list = [r["lead_days"] for r in verified]
+
+    benchmarked = [r["bluedot_comparison"] for r in results if "bluedot_comparison" in r]
+    measured_head_to_head = [c for c in benchmarked if c["aegiron_lead_days"] is not None]
 
     return {
         "results": results,
@@ -130,5 +147,9 @@ def backtest_all_known_events() -> dict:
             "events_checked": len(results),
             "events_with_verified_lead_time": len(verified),
             "mean_lead_days": round(sum(lead_days_list) / len(lead_days_list), 1) if lead_days_list else None,
+            "bluedot_benchmarked_events": len(benchmarked),
+            "bluedot_head_to_head_measured": len(measured_head_to_head),
+            "bluedot_note": "블루닷 비교 중 aegiron_lead_days가 실측된 건만 실제 head-to-head. "
+                            "코로나 등 아이기론 부재 시점 사건은 '목표 기준선'으로만 표기(실측 없음).",
         },
     }

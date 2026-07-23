@@ -146,6 +146,24 @@ def test_status_endpoint_reports_tier2_discovery_field(client):
     assert body["tier2_countries_discovered"] == 0  # 신규 DB라 신호 없음
 
 
+def test_status_endpoint_includes_source_health(client):
+    resp = client.get("/api/status")
+    assert resp.status_code == 200
+    sh = resp.json()["source_health"]
+    assert "degraded_sources" in sh
+    assert "sources" in sh
+
+
+def test_historical_backtest_includes_covid_bluedot_benchmark(client):
+    """코로나 벤치마크가 자동 시드돼 블루닷 비교가 항상 나오는지(엔드포인트가
+    _seed_known_timelines를 호출하므로) — 실측 없이도 목표 기준선은 표기."""
+    resp = client.get("/api/backtest/historical/covid19_wuhan_2019")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "bluedot_comparison" in body
+    assert body["bluedot_comparison"]["bluedot_lead_days"] == 9
+
+
 def test_db_backup_requires_auth(client):
     resp = client.get("/api/admin/db-backup")
     assert resp.status_code == 503  # 이 fixture는 키 미설정 상태

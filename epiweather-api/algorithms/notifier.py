@@ -64,3 +64,14 @@ def notify_new_alerts(new_alerts: list[dict]) -> bool:
     if not new_alerts or not telegram_configured():
         return False
     return send_telegram_message(format_alert_message(new_alerts))
+
+
+def notify_source_degradation(failing_sources: list[str]) -> bool:
+    """데이터 소스가 연속 실패로 죽었을 때 운영자에게 즉시 통보(㉔) — '조기경보
+    시스템이 조용히 눈이 머는' 상황을 사람에게 알리는 게 목적. 소스 장애를
+    조용히 넘기지 않고 실제로 경보를 낸다."""
+    if not failing_sources or not telegram_configured():
+        return False
+    lines = ["⚠️ <b>아이기론 데이터 소스 장애 감지</b>",
+             f"다음 소스가 연속 실패로 중단됨(신호 유실 위험): {', '.join(failing_sources)}"]
+    return send_telegram_message("\n".join(lines))
