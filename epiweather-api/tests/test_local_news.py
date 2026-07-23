@@ -41,13 +41,21 @@ def test_fetch_local_feed_returns_error_status_on_failure():
 
 
 def test_all_feeds_have_language_region_and_nonempty_keywords():
-    """전세계 확장(㉘) — 40개국 이상 커버, 각 피드 구조가 온전하고 slug 유일한지."""
-    assert len(LOCAL_FEEDS) >= 40
+    """전세계 확장(㉘) — 사실상 전 세계(160개국+) 커버, 각 피드 구조 온전·slug 유일."""
+    assert len(LOCAL_FEEDS) >= 160
     slugs = [f[0] for f in LOCAL_FEEDS]
     assert len(slugs) == len(set(slugs))  # slug 중복 없음
     for slug, lang, region, url, keywords in LOCAL_FEEDS:
         assert slug and lang and region and url.startswith("https://news.google.com/")
         assert len(keywords) >= 5  # 현지어 + 공통 질병명 앵커
+
+
+def test_previously_missing_high_risk_countries_now_covered():
+    """이전 48개판에서 빠졌던 역학적 핵심국이 실제로 포함됐는지 회귀 방지 —
+    시에라리온·라이베리아(에볼라 진원)·미국·UAE·아이티·남아공·말리·카자흐스탄 등."""
+    slugs = {f[0] for f in LOCAL_FEEDS}
+    for iso2 in ("sl", "lr", "us", "ae", "ht", "za", "ml", "kz", "la", "ma", "so", "ss"):
+        assert f"gn_{iso2}" in slugs, f"{iso2} 누락"
 
 
 def test_feeds_span_multiple_continents():
