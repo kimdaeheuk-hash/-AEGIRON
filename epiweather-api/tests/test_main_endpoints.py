@@ -178,6 +178,23 @@ def test_land_signals_unknown_country_returns_404(client):
     assert resp.status_code == 404
 
 
+def test_deforestation_signals_endpoint_public_and_honest_about_verification(client, monkeypatch):
+    """직접 산림손실 지표(㉝)는 공개 GET이고, 라이브 미검증을 disclaimer에
+    정직하게 명시해야 함. 키 없으면 configured=False."""
+    monkeypatch.delenv("GFW_API_KEY", raising=False)
+    resp = client.get("/api/deforestation-signals")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["countries"]) == 13  # HKG 제외
+    assert body["configured"] is False
+    assert "배포 환경에서 확인" in body["disclaimer"]
+
+
+def test_deforestation_signals_unknown_country_returns_404(client):
+    resp = client.get("/api/deforestation-signals/ZZZ")
+    assert resp.status_code == 404
+
+
 def test_threats_semantic_falls_back_without_api_key(client, monkeypatch):
     """ANTHROPIC_API_KEY 없으면 결정론적 폴백으로 동작하고 그 사실이 표시돼야 함(㉚)."""
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)

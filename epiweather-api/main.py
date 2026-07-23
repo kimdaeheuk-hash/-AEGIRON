@@ -779,6 +779,32 @@ def land_signals_country(country: str):
         )
 
 
+@app.get("/api/deforestation-signals", tags=["GAI"])
+def deforestation_signals():
+    """
+    직접 산림손실 선행지표(㉝) — /api/land-signals(FIRMS 화재 '프록시')보다 한
+    단계 직접적. Global Forest Watch 통합 위성 산림손실 알림(GLAD/RADD)을 국가별
+    조회. 스필오버 1순위 동인(삼림파괴)의 직접 측정 선행 신호. GFW_API_KEY(무료)
+    없으면 data_available=False. 정확한 GFW 쿼리는 배포 환경에서 확인 필요(파서는
+    예상밖 응답 시 가짜 숫자 대신 실패로 떨어지게 방어적으로 설계).
+    """
+    from algorithms.deforestation_signals import deforestation_signals_all
+    return deforestation_signals_all()
+
+
+@app.get("/api/deforestation-signals/{country}", tags=["GAI"])
+def deforestation_signals_country(country: str):
+    """특정 국가(Tier-1 ISO3)의 직접 산림손실 선행지표 상세."""
+    from algorithms.deforestation_signals import compute_country_deforestation, GFW_COUNTRIES
+    try:
+        return compute_country_deforestation(country)
+    except KeyError:
+        raise HTTPException(
+            status_code=404,
+            detail=f"GFW 미지원 국가. 지원 목록: {GFW_COUNTRIES}",
+        )
+
+
 @app.get("/api/threats", tags=["GAI"])
 def threats():
     """
