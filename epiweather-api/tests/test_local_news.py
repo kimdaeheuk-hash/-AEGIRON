@@ -41,11 +41,29 @@ def test_fetch_local_feed_returns_error_status_on_failure():
 
 
 def test_all_feeds_have_language_region_and_nonempty_keywords():
-    """12개 피드(기존 7 + 신규 5) 전부 구조가 온전한지 잠금 테스트."""
-    assert len(LOCAL_FEEDS) == 12
+    """전세계 확장(㉘) — 40개국 이상 커버, 각 피드 구조가 온전하고 slug 유일한지."""
+    assert len(LOCAL_FEEDS) >= 40
+    slugs = [f[0] for f in LOCAL_FEEDS]
+    assert len(slugs) == len(set(slugs))  # slug 중복 없음
     for slug, lang, region, url, keywords in LOCAL_FEEDS:
-        assert slug and lang and region and url.startswith("https://")
-        assert len(keywords) >= 5
+        assert slug and lang and region and url.startswith("https://news.google.com/")
+        assert len(keywords) >= 5  # 현지어 + 공통 질병명 앵커
+
+
+def test_feeds_span_multiple_continents():
+    """오지·발병 고위험 지역이 실제로 들어있는지(아프리카·중동·남아시아·중남미·태평양)."""
+    regions = " ".join(f[2] for f in LOCAL_FEEDS)
+    for continent in ("아프리카", "중동", "남아시아", "동남아", "남미", "태평양"):
+        assert continent in regions, f"{continent} 커버리지 없음"
+
+
+def test_universal_disease_terms_merged_into_every_feed():
+    """모든 피드 키워드에 공통 질병명(교차언어 앵커)이 병합됐는지 — 현지어를
+    다 번역하지 않아도 Ebola·Cholera 등이 현지어 기사에서 잡히게 하는 장치."""
+    from algorithms.local_news import UNIVERSAL_DISEASE_TERMS
+    for _, _, _, _, keywords in LOCAL_FEEDS:
+        assert "ebola" in keywords and "cholera" in keywords
+        assert set(UNIVERSAL_DISEASE_TERMS).issubset(set(keywords))
 
 
 def test_fetch_all_local_news_aggregates_across_all_feeds():
@@ -55,8 +73,8 @@ def test_fetch_all_local_news_aggregates_across_all_feeds():
         mock_get.return_value = mock_resp
         result = fetch_all_local_news()
 
-    assert result["total_feeds"] == 12
-    assert result["active_feeds"] == 12
+    assert result["total_feeds"] == len(LOCAL_FEEDS)
+    assert result["active_feeds"] == len(LOCAL_FEEDS)
     assert result["total_kw_hits"] > 0
     # _all_titles는 내부용이라 최종 응답에는 없어야 함
     assert all("_all_titles" not in f for f in result["feeds"])
