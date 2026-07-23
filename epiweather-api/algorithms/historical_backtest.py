@@ -21,11 +21,61 @@ import datetime as dt
 import db
 from .event_dedup import normalize_disease
 from .country_risk import SIGNAL_TYPE_SEVERITY
-from .alerts import classify_tier
+from .alerts import MEDIUM, HIGH, CRITICAL
 from .knowledge_graph import _DECLARATION_MILESTONE_KEYS
 from .benchmark_baselines import compare_to_bluedot
 
 LOOKBACK_DAYS_BEFORE_DECLARATION = 60  # 선언일 이전 이만큼까지만 신호를 훑는다
+
+# ── 백테스트가 '경보로 넘어갔다'를 판정하는 기준선(로컬 코드리뷰 후속 ㉗) ──
+# lead_days는 이 기준선 위에서만 의미가 있으므로, 숫자를 낼 때 항상 기준선을
+# 함께 명시한다. 주 판정은 high(≥80). anomaly_engine의 z-score 임계값과는
+# 무관 — 백테스트는 extracted_signals의 '사건 유형'(급증/신규발생 등, 범주형)에
+# 매긴 SIGNAL_TYPE_SEVERITY를 신뢰도가중 평균한 점수에 classify_tier를 쓴다.
+# 사건 유형은 수치 시계열이 아니라 z-score(평균/표준편차)를 적용할 대상이
+# 아니다 — 그래서 여기선 '단일 임계값이 정답인 척'하는 대신, 여러 임계값에서의
+# lead_days를 함께 보여주는 민감도 분석으로 '숫자가 임계값에 얼마나 흔들리는지'를
+# 정직하게 드러낸다.
+PRIMARY_THRESHOLD_TIER = "high"
+PRIMARY_THRESHOLD_SCORE = HIGH  # 80
+SEVERITY_MODEL = "SIGNAL_TYPE_SEVERITY(사건유형 범주형 심각도) 신뢰도가중 평균"
+
+
+def _first_day_crossing(severity_by_day: dict[str, float], min_score: float) -> str | None:
+    """severity가 min_score 이상으로 처음 올라간 날(오름차순 첫 날). 없으면 None."""
+    return next(
+        (day for day in sorted(severity_by_day) if severity_by_day[day] >= min_score),
+        None,
+    )
+
+
+def _threshold_sensitivity(severity_by_day: dict[str, float], declaration_date) -> dict:
+    """medium/high/critical 세 임계값 각각에서 lead_days를 계산 — '3일 빨랐다'가
+    임계값을 바꿔도 안 흔들리는지(robust) 심사자가 직접 볼 수 있게 한다."""
+    out = {}
+    for name, score in (("medium", MEDIUM), ("high", HIGH), ("critical", CRITICAL)):
+        day = _first_day_crossing(severity_by_day, score)
+        if day is None:
+            out[name] = {"threshold_score": score, "detected": False, "lead_days": None}
+        else:
+            lead = (declaration_date - dt.date.fromisoformat(day)).days
+            out[name] = {
+                "threshold_score": score, "detected": True,
+                "first_signal_date": day, "lead_days": lead,
+            }
+    return out
+
+
+def _detection_baseline() -> dict:
+    """모든 lead_days 출력에 부착 — 이 숫자가 '어느 기준선 위에서' 나왔는지 명시.
+    기준선 없이 lead_days를 인용하지 못하게 하는 게 목적."""
+    return {
+        "severity_model": SEVERITY_MODEL,
+        "primary_threshold_tier": PRIMARY_THRESHOLD_TIER,
+        "primary_threshold_score": PRIMARY_THRESHOLD_SCORE,
+        "note": "lead_days는 이 기준선 위에서만 유효. 임계값 민감도는 "
+                "threshold_sensitivity 참고(단일 임계값이 정답이 아님을 명시).",
+    }
 LOOKAHEAD_DAYS_AFTER_DECLARATION = 7   # 선언 직후 신호(사후 확인용)도 소폭 포함
 
 
@@ -100,18 +150,18 @@ def _backtest_event_core(event_id: str) -> dict:
             "declaration_date": declaration_date.isoformat(),
         }
 
-    first_high_day = next(
-        (day for day in sorted(severity_by_day)
-         if classify_tier(severity_by_day[day]) in ("critical", "high")),
-        None,
-    )
+    sensitivity = _threshold_sensitivity(severity_by_day, declaration_date)
+    first_high_day = _first_day_crossing(severity_by_day, PRIMARY_THRESHOLD_SCORE)
 
     if first_high_day is None:
         return {
             "event_id": event_id, "verified": True, "would_have_alerted": False,
             "declaration_date": declaration_date.isoformat(),
             "signal_days_checked": len(severity_by_day),
-            "reason": "이 기간 신호는 있었지만 critical/high 임계치를 넘은 날이 없음",
+            "detection_baseline": _detection_baseline(),
+            "threshold_sensitivity": sensitivity,
+            "reason": f"이 기간 신호는 있었지만 주 임계값(high≥{PRIMARY_THRESHOLD_SCORE})을 넘은 날이 없음 "
+                      "— 더 낮은 임계값 결과는 threshold_sensitivity 참고",
         }
 
     detected_date = dt.date.fromisoformat(first_high_day)
@@ -127,6 +177,9 @@ def _backtest_event_core(event_id: str) -> dict:
         "first_high_severity_signal_date": first_high_day,
         "lead_days": lead_days,
         "signal_days_checked": len(severity_by_day),
+        # lead_days를 기준선 없이 인용하지 못하게 항상 부착(㉗)
+        "detection_baseline": _detection_baseline(),
+        "threshold_sensitivity": sensitivity,
     }
 
 
