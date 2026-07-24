@@ -1,5 +1,5 @@
-import Command from '@/components/Command';
+import Home from '@/components/Home';
 
-export default function Home() {
-  return <Command />;
+export default function HomePage() {
+  return <Home />;
 }

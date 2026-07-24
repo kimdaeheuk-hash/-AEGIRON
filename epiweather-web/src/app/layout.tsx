@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: '역병예보 · 통합 관제센터',
-  description: 'AI 감염병 조기경보 통합 관제 시스템',
+  title: 'AEGIRON · AI 감염병 조기경보',
+  description: '예측·시뮬레이션까지 통합한 AI 감염병 인텔리전스 시스템',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
