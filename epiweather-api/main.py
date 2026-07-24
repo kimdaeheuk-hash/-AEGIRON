@@ -374,43 +374,6 @@ def db_backup():
     )
 
 
-class BackfillSignal(BaseModel):
-    source: str
-    disease: Optional[str] = None
-    location: Optional[str] = None
-    country_iso3: Optional[str] = None
-    signal_type: Optional[str] = None
-    severity: list[str] = []
-    symptom: Optional[str] = None
-    transmission: Optional[str] = None
-    source_trust: float
-    signal_date: Optional[str] = None
-    known_disease: bool = True
-    raw_text: str
-
-
-@app.post("/api/admin/backfill-signals", tags=["시스템"], dependencies=_auth)
-def backfill_signals(signals: list[BackfillSignal]):
-    """
-    임시 백테스트 보강용 엔드포인트 — 과거 발병 사건(콩고 에볼라 2026 등)의
-    선언일 이전 60일 구간을 로컬에서 Perplexity/Tavily로 소급 검색·Claude로
-    구조화 추출한 뒤, 이 엔드포인트로 extracted_signals에 일괄 삽입해
-    historical_backtest.py가 참조하는 신호 밀도를 실제 수준으로 채운다.
-    작업 끝나면 제거할 것(다른 임시 admin 엔드포인트와 같은 패턴).
-    """
-    inserted = [
-        db.create_extracted_signal(
-            source=s.source, disease=s.disease, location=s.location,
-            signal_type=s.signal_type, severity=s.severity, symptom=s.symptom,
-            transmission=s.transmission, source_trust=s.source_trust,
-            signal_date=s.signal_date, raw_text=s.raw_text,
-            known_disease=s.known_disease, country_iso3=s.country_iso3,
-        )
-        for s in signals
-    ]
-    return {"inserted": len(inserted)}
-
-
 # ── 누적 시계열 신호 (collector.py가 쌓은 데이터) ────────────
 @app.get("/api/signals", tags=["시스템"])
 def signals(limit: int = 50, type: Optional[str] = None):
