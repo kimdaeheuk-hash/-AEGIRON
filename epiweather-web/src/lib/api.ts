@@ -201,7 +201,7 @@ export interface DailyBrief {
   format: { id: string; name: string; host_mode: 'single' | 'duo'; description: string };
   available_formats: { id: string; name: string; description: string }[];
   presenter: { name: string; appearance: { outfit: string } };
-  presenters: { presenter_id: string; role: string; name: string }[];
+  presenters: { presenter_id: string; role: string; name: string; gender: 'female' | 'male' }[];
   is_official_alert: false;
   quiet_day: boolean;
   headline: string;

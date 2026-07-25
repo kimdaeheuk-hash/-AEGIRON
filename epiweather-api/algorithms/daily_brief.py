@@ -46,104 +46,148 @@ _DISCLOSURE = {
 
 _PROGRAM_NAME = {"ko": "아이기론 역병예보 브리핑", "en": "AEGIRON Outbreak Watch"}
 
-# ── 합성 AI 앵커(여성) 스펙 ───────────────────────────────────────
+# ── 합성 AI 방송 캐스트 ───────────────────────────────────────────
 # 유튜브 뉴스센터·팟캐스트가 공유하는 진행자 페르소나. 실존 인물이 아니라
-# 아이기론 브랜드의 '합성 AI 앵커'다(is_synthetic_ai_presenter=True). 얼굴·헤어·
+# 아이기론 브랜드의 '합성 AI 진행자'다(is_synthetic_ai_presenter=True). 얼굴·헤어·
 # 메이크업은 매일 일관(같은 페르소나여야 시청자가 '우리 채널'로 인식), 옷만 날짜별로
 # 로테이션한다. 페이퍼클립 등 영상·오디오 생성기가 이 스펙을 그대로 소비한다.
-# 진행자 페르소나(모두 여성·단정). 앵커는 모든 포맷 공통, 코호스트는 '앵커 대담'
-# 포맷에서만 등장한다. 각자 식별자가 달라 영상에서 별개 인물로 재현된다.
-_PERSONAS = {
-    "anchor": {
-        "id": "aegiron_anchor_f1",
-        "name": {"ko": "아이기론 AI 앵커", "en": "AEGIRON AI Anchor"},
-        "hair": "shoulder-length, neatly styled, dark",
-        "makeup": "natural, clean, professional broadcast makeup",
-        "demeanor": "calm, credible, professional news anchor",
-        "setting": "seated at a modern news desk, AEGIRON-branded studio backdrop, "
-                   "soft professional studio lighting, front-facing, upper body",
-        "wardrobe_offset": 0,
-    },
-    "cohost": {
-        "id": "aegiron_analyst_f1",
-        "name": {"ko": "아이기론 AI 분석위원", "en": "AEGIRON AI Analyst"},
-        "hair": "long, neatly tied back, dark",
-        "makeup": "natural, clean, professional broadcast makeup",
-        "demeanor": "warm, articulate public-health analyst",
-        "setting": "seated at a modern news desk, AEGIRON-branded studio backdrop, "
-                   "soft professional studio lighting, front-facing, upper body",
-        "wardrobe_offset": 7,  # 앵커와 다른 옷이 나오도록 로테이션 위상만 다르게
-    },
-    "reporter": {
-        "id": "aegiron_reporter_f1",
-        "name": {"ko": "아이기론 AI 현장기자", "en": "AEGIRON AI Field Reporter"},
-        "hair": "shoulder-length, practical neat style, dark",
-        "makeup": "natural, clean, outdoor-broadcast makeup",
-        "demeanor": "composed on-the-scene field correspondent",
-        "setting": "standing on location holding a reporter's handheld microphone, "
-                   "outdoor field background, daytime, upper body",
-        "wardrobe_offset": 3,  # 앵커·분석위원과 겹치지 않게 위상만 다르게
-    },
+#
+# 캐스트: 앵커(여성, 모든 포맷 공통) + 분석위원 3인 풀(여2·남1, '앵커 대담'에서
+# 날짜별 로테이션) + 현장기자 풀(남녀 혼합, '현장 리포트'에서 날짜별 로테이션).
+# 각자 식별자가 달라 영상에서 별개 인물로 재현된다.
+_STUDIO = ("seated at a modern news desk, AEGIRON-branded studio backdrop, "
+           "soft professional studio lighting, front-facing, upper body")
+_FIELD = ("standing on location holding a reporter's handheld microphone, "
+          "outdoor field background, daytime, upper body")
+
+_ANCHOR = {
+    "id": "aegiron_anchor_f1", "role": "anchor", "gender": "female",
+    "name": {"ko": "아이기론 AI 앵커", "en": "AEGIRON AI Anchor"},
+    "hair": "shoulder-length, neatly styled, dark",
+    "grooming": "natural, clean, professional broadcast makeup",
+    "demeanor": "calm, credible, professional news anchor",
+    "setting": _STUDIO, "wardrobe_offset": 0,
 }
 
-# 날짜별로 도는 단정한 정장 워드로브(옷은 매일 다르게). 색/스타일만 바뀌고
-# 격식(단정한 방송 정장)은 유지. 날짜 서수로 결정론적 선택 → 재현 가능하면서 매일 다름.
-_WARDROBE = [
-    "navy tailored blazer over a white blouse",
-    "charcoal-grey business suit with a subtle collar",
-    "burgundy blazer over a cream top",
-    "forest-green blazer with a light neutral blouse",
-    "ivory blazer over a soft grey top",
-    "deep-blue blazer with a pale blue blouse",
-    "camel-toned blazer over a white shirt",
-    "black blazer with a muted mauve blouse",
-    "slate-blue blazer over an off-white top",
-    "plum blazer with a light grey blouse",
-    "teal blazer over a cream blouse",
-    "warm taupe blazer with a white top",
-    "dark-green suit with an ivory shell",
-    "dusty-rose blazer over a white blouse",
+# 분석위원 3인(여2·남1) — '앵커 대담' 포맷에서 날짜별 로테이션.
+_ANALYSTS = [
+    {"id": "aegiron_analyst_f1", "role": "cohost", "gender": "female",
+     "name": {"ko": "아이기론 AI 분석위원 서연", "en": "AEGIRON AI Analyst (Seoyeon)"},
+     "hair": "long, neatly tied back, dark",
+     "grooming": "natural, clean, professional broadcast makeup",
+     "demeanor": "warm, articulate public-health analyst",
+     "setting": _STUDIO, "wardrobe_offset": 7},
+    {"id": "aegiron_analyst_f2", "role": "cohost", "gender": "female",
+     "name": {"ko": "아이기론 AI 분석위원 하린", "en": "AEGIRON AI Analyst (Harin)"},
+     "hair": "short bob, neatly styled, dark",
+     "grooming": "natural, clean, professional broadcast makeup",
+     "demeanor": "precise, data-minded epidemiology analyst",
+     "setting": _STUDIO, "wardrobe_offset": 4},
+    {"id": "aegiron_analyst_m1", "role": "cohost", "gender": "male",
+     "name": {"ko": "아이기론 AI 분석위원 도현", "en": "AEGIRON AI Analyst (Dohyun)"},
+     "hair": "short, neatly combed, dark",
+     "grooming": "clean, natural, professional broadcast grooming",
+     "demeanor": "measured, authoritative public-health expert",
+     "setting": _STUDIO, "wardrobe_offset": 2},
 ]
 
-# 팟캐스트 TTS용 목소리 힌트(여성, 차분한 방송 톤).
-_VOICE_SPEC = {
-    "gender": "female",
-    "style": "calm, clear, professional broadcast narration",
-    "pace": "measured",
+# 현장기자 풀(남녀 혼합) — '현장 리포트' 포맷에서 날짜별 로테이션.
+_REPORTERS = [
+    {"id": "aegiron_reporter_f1", "role": "reporter", "gender": "female",
+     "name": {"ko": "아이기론 AI 현장기자 지우", "en": "AEGIRON AI Field Reporter (Jiwoo)"},
+     "hair": "shoulder-length, practical neat style, dark",
+     "grooming": "natural, clean, outdoor-broadcast makeup",
+     "demeanor": "composed on-the-scene field correspondent",
+     "setting": _FIELD, "wardrobe_offset": 3},
+    {"id": "aegiron_reporter_m1", "role": "reporter", "gender": "male",
+     "name": {"ko": "아이기론 AI 현장기자 민준", "en": "AEGIRON AI Field Reporter (Minjun)"},
+     "hair": "short, neatly combed, dark",
+     "grooming": "clean, natural, outdoor-broadcast grooming",
+     "demeanor": "steady, on-the-scene field correspondent",
+     "setting": _FIELD, "wardrobe_offset": 5},
+]
+
+# 성별에 맞춘 단정한 방송 정장 워드로브(옷은 매일 다르게). 격식은 유지, 색/스타일만 바뀜.
+_WARDROBE = {
+    "female": [
+        "navy tailored blazer over a white blouse",
+        "charcoal-grey business suit with a subtle collar",
+        "burgundy blazer over a cream top",
+        "forest-green blazer with a light neutral blouse",
+        "ivory blazer over a soft grey top",
+        "deep-blue blazer with a pale blue blouse",
+        "camel-toned blazer over a white shirt",
+        "black blazer with a muted mauve blouse",
+        "slate-blue blazer over an off-white top",
+        "plum blazer with a light grey blouse",
+        "teal blazer over a cream blouse",
+        "warm taupe blazer with a white top",
+        "dark-green suit with an ivory shell",
+        "dusty-rose blazer over a white blouse",
+    ],
+    "male": [
+        "navy suit with a white shirt and a light blue tie",
+        "charcoal suit with a white shirt and a burgundy tie",
+        "dark-grey suit with a pale shirt and a navy tie",
+        "deep-blue suit with a white shirt and a silver tie",
+        "black suit with a white shirt and a grey tie",
+        "slate suit with a light blue shirt and a navy tie",
+        "brown-toned suit with a white shirt and a green tie",
+        "midnight-blue suit with a white shirt and a maroon tie",
+        "graphite suit with a pale grey shirt and a blue tie",
+        "olive-tinged suit with a white shirt and a brown tie",
+    ],
 }
 
 
-def _presenter_spec(today: str, lang: str, role: str = "anchor") -> dict:
-    """오늘자 진행자 스펙. 얼굴·헤어·메이크업은 고정, 옷만 날짜별 로테이션.
-    유튜브(영상)·팟캐스트(오디오)가 공유한다. role: 'anchor'|'cohost'."""
-    persona = _PERSONAS.get(role, _PERSONAS["anchor"])
+def _voice_for(gender: str) -> dict:
+    """팟캐스트 TTS용 목소리 힌트 — 성별에 맞춘 차분한 방송 톤."""
+    return {"gender": gender, "style": "calm, clear, professional broadcast narration",
+            "pace": "measured"}
+
+
+def _pick(pool: list[dict], today: str, salt: int = 0) -> dict:
+    """날짜별 결정론적 로테이션(하루 안에서는 고정, 날이 바뀌면 다른 사람)."""
     try:
         ordinal = dt.date.fromisoformat(today).toordinal()
     except ValueError:
         ordinal = 0
-    outfit = _WARDROBE[(ordinal + persona["wardrobe_offset"]) % len(_WARDROBE)]
+    return pool[(ordinal + salt) % len(pool)]
+
+
+def _presenter_spec(today: str, lang: str, persona: dict) -> dict:
+    """오늘자 진행자 스펙. 얼굴·헤어·메이크업은 고정, 옷만 날짜별 로테이션.
+    유튜브(영상)·팟캐스트(오디오)가 공유한다."""
+    try:
+        ordinal = dt.date.fromisoformat(today).toordinal()
+    except ValueError:
+        ordinal = 0
+    gender = persona["gender"]
+    rack = _WARDROBE[gender]
+    outfit = rack[(ordinal + persona["wardrobe_offset"]) % len(rack)]
 
     appearance = {
-        "gender": "female",
+        "gender": gender,
         "hair": persona["hair"],
-        "makeup": persona["makeup"],
+        "grooming": persona["grooming"],
         "demeanor": persona["demeanor"],
         "outfit": outfit,  # 매일 바뀌는 유일한 항목
     }
 
     # 페이퍼클립 등 이미지·영상 생성기에 그대로 넣을 프롬프트(합성 인물임을 명시).
     image_prompt = (
-        f"Synthetic AI-generated female news presenter (not a real person), "
-        f"{persona['hair']}, {persona['makeup']}, "
+        f"Synthetic AI-generated {gender} news presenter (not a real person), "
+        f"{persona['hair']}, {persona['grooming']}, "
         f"wearing {outfit}, {persona['setting']}."
     )
     return {
         "presenter_id": persona["id"],
-        "role": role,
+        "role": persona["role"],
+        "gender": gender,
         "name": persona["name"][lang],
         "is_synthetic_ai_presenter": True,   # 실존 인물 아님 — 아이기론 합성 진행자
         "appearance": appearance,            # 얼굴·헤어·메이크업 고정 + 오늘의 옷
-        "voice": _VOICE_SPEC,                # 팟캐스트 TTS용
+        "voice": _voice_for(gender),         # 팟캐스트 TTS용
         "image_prompt": image_prompt,        # 유튜브 영상 생성용
         "consistency_note": (
             "얼굴·헤어·메이크업은 매일 동일한 페르소나로 유지하고 옷만 매일 바뀜. "
@@ -574,11 +618,11 @@ def generate_daily_brief(lang: str = "ko", api_key: str | None = None,
                if lang == "ko" else
                "This has been AEGIRON Outbreak Watch. See you in the next briefing.")
 
-    presenters = [_presenter_spec(today, lang, "anchor")]
+    presenters = [_presenter_spec(today, lang, _ANCHOR)]
     if fmt_spec["id"] == "duo":
-        presenters.append(_presenter_spec(today, lang, "cohost"))
+        presenters.append(_presenter_spec(today, lang, _pick(_ANALYSTS, today)))  # 분석위원 3인 중 로테이션
     elif fmt_spec["id"] == "field":
-        presenters.append(_presenter_spec(today, lang, "reporter"))  # 앵커 + 현장기자
+        presenters.append(_presenter_spec(today, lang, _pick(_REPORTERS, today)))  # 현장기자 남녀 로테이션
 
     brief = {
         "date": today,

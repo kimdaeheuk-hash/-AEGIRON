@@ -113,16 +113,43 @@ def test_facts_unchanged_across_formats():
     assert a["anchor_script"] != b["anchor_script"]  # 말투는 다름
 
 
-def test_duo_format_has_two_female_presenters_and_dialogue():
+def test_duo_format_has_anchor_plus_analyst_and_dialogue():
     with patch("algorithms.daily_brief._gather", return_value=_ACTIVE):
         brief = generate_daily_brief(today="2026-07-25", fmt="duo")
     assert len(brief["presenters"]) == 2
-    assert all(p["appearance"]["gender"] == "female" for p in brief["presenters"])
-    # 두 진행자는 서로 다른 페르소나(옷도 다름)
+    roles = {p["role"] for p in brief["presenters"]}
+    assert roles == {"anchor", "cohost"}
+    # 앵커는 항상 여성, 분석위원은 풀에서 로테이션(성별 다양)
+    anchor = next(p for p in brief["presenters"] if p["role"] == "anchor")
+    assert anchor["gender"] == "female"
     ids = {p["presenter_id"] for p in brief["presenters"]}
     assert len(ids) == 2
     seg = brief["segments"][0]
     assert "dialogue" in seg and len(seg["dialogue"]) == 2
+
+
+def test_analyst_pool_has_three_including_one_male():
+    from algorithms.daily_brief import _ANALYSTS
+    assert len(_ANALYSTS) == 3
+    genders = [a["gender"] for a in _ANALYSTS]
+    assert genders.count("male") == 1 and genders.count("female") == 2
+
+
+def test_reporter_pool_is_mixed_gender():
+    from algorithms.daily_brief import _REPORTERS
+    genders = {r["gender"] for r in _REPORTERS}
+    assert genders == {"male", "female"}
+
+
+def test_male_presenter_gets_male_voice_and_suit():
+    """남성 분석위원이 뽑히는 날엔 남성 목소리·정장(넥타이)로 나와야 함."""
+    from algorithms.daily_brief import _presenter_spec, _ANALYSTS
+    male = next(a for a in _ANALYSTS if a["gender"] == "male")
+    spec = _presenter_spec("2026-07-25", "ko", male)
+    assert spec["gender"] == "male"
+    assert spec["voice"]["gender"] == "male"
+    assert "tie" in spec["appearance"]["outfit"]
+    assert "male news presenter" in spec["image_prompt"]
 
 
 def test_single_format_has_one_presenter():
@@ -137,9 +164,9 @@ def test_field_format_adds_reporter_and_anchor_handoff():
         brief = generate_daily_brief(lang="ko", today="2026-07-25", fmt="field")
     roles = {p["role"] for p in brief["presenters"]}
     assert roles == {"anchor", "reporter"}
-    # 현장기자도 여성·단정, 현장(마이크) 세팅
+    # 현장기자는 남녀 풀에서 로테이션, 현장(마이크) 세팅
     reporter = next(p for p in brief["presenters"] if p["role"] == "reporter")
-    assert reporter["appearance"]["gender"] == "female"
+    assert reporter["gender"] in {"male", "female"}
     assert "microphone" in reporter["image_prompt"]
     # 위협 세그먼트가 앵커→현장기자 대화로 구성
     seg = next(s for s in brief["segments"] if s["kind"] == "threat")
@@ -193,7 +220,7 @@ def test_presenter_outfit_rotates_daily_but_face_is_constant():
         day2 = generate_daily_brief(today="2026-07-26")["presenter"]
     assert day1["appearance"]["outfit"] != day2["appearance"]["outfit"]   # 옷은 매일 다름
     assert day1["appearance"]["hair"] == day2["appearance"]["hair"]       # 얼굴/헤어 고정
-    assert day1["appearance"]["makeup"] == day2["appearance"]["makeup"]
+    assert day1["appearance"]["grooming"] == day2["appearance"]["grooming"]
     assert day1["presenter_id"] == day2["presenter_id"]                   # 같은 페르소나
 
 

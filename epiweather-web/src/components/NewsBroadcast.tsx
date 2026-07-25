@@ -107,9 +107,9 @@ export default function NewsBroadcast() {
 
         {/* 앵커 자리(합성 AI 진행자 플레이스홀더) */}
         <div style={{ position: 'absolute', right: 'clamp(18px,4vw,64px)', bottom: 88, display: 'flex', gap: 14, alignItems: 'flex-end' }}>
-          {(brief?.presenters ?? [{ presenter_id: 'a', role: 'anchor', name: '' }]).slice(0, 2).map((p) => (
+          {(brief?.presenters ?? [{ presenter_id: 'a', role: 'anchor', name: '', gender: 'female' as const }]).slice(0, 2).map((p) => (
             <AnchorAvatar key={p.presenter_id} accent={accent}
-              reporter={p.role === 'reporter'}
+              reporter={p.role === 'reporter'} male={p.gender === 'male'}
               dimmed={!!seg?.dialogue && brief!.presenters.length === 2
                 ? !seg.dialogue.some(d => d.speaker === p.role) : false} />
           ))}
@@ -197,9 +197,10 @@ export default function NewsBroadcast() {
 }
 
 // 합성 AI 진행자 실루엣 플레이스홀더(실제 영상은 페이퍼클립이 생성). 방송 느낌만 낸다.
-// reporter=true면 현장기자 느낌으로 손에 마이크를 든다.
-function AnchorAvatar({ accent, dimmed, reporter = false }: { accent: string; dimmed: boolean; reporter?: boolean }) {
-  const gid = `bd-${reporter ? 'r' : 'a'}-${accent}`;
+// reporter=true면 손에 마이크, male=true면 짧은 머리 + 넥타이로 성별을 구분한다.
+function AnchorAvatar({ accent, dimmed, reporter = false, male = false }:
+  { accent: string; dimmed: boolean; reporter?: boolean; male?: boolean }) {
+  const gid = `bd-${reporter ? 'r' : 'a'}-${male ? 'm' : 'f'}-${accent}`;
   return (
     <div style={{ width: 'clamp(70px,10vw,120px)', opacity: dimmed ? 0.4 : 1, transition: 'opacity .4s',
       filter: 'drop-shadow(0 6px 24px rgba(0,0,0,.5))' }}>
@@ -213,11 +214,19 @@ function AnchorAvatar({ accent, dimmed, reporter = false }: { accent: string; di
         {/* 어깨/상의 */}
         <path d="M8 130 C8 96 30 84 50 84 C70 84 92 96 92 130 Z" fill={`url(#${gid})`} />
         <path d="M50 84 L50 130" stroke="rgba(0,0,0,.25)" strokeWidth="1" />
+        {/* 남성: 넥타이 */}
+        {male && <path d="M50 84 L46 92 L50 112 L54 92 Z" fill="rgba(255,255,255,.85)" />}
         {/* 머리 */}
         <circle cx="50" cy="52" r="24" fill="#e8d4c0" />
-        {/* 단정한 헤어 */}
-        <path d="M24 52 C24 30 76 30 76 52 C76 44 70 34 50 34 C30 34 24 44 24 52 Z" fill="#2a2018" />
-        <path d="M26 54 C22 66 26 74 30 76 L30 58 Z M74 54 C78 66 74 74 70 76 L70 58 Z" fill="#2a2018" />
+        {/* 헤어 — 남성은 짧게, 여성은 옆으로 내려오게 */}
+        {male ? (
+          <path d="M26 50 C26 32 74 32 74 50 C74 42 68 36 50 36 C32 36 26 42 26 50 Z" fill="#241c14" />
+        ) : (
+          <>
+            <path d="M24 52 C24 30 76 30 76 52 C76 44 70 34 50 34 C30 34 24 44 24 52 Z" fill="#2a2018" />
+            <path d="M26 54 C22 66 26 74 30 76 L30 58 Z M74 54 C78 66 74 74 70 76 L70 58 Z" fill="#2a2018" />
+          </>
+        )}
         {/* 현장기자 마이크 */}
         {reporter && (
           <g>
