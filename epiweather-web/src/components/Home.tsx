@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import NewsBroadcast from './NewsBroadcast';
 
 const STATS = [
   { v: '21', l: '실시간 데이터 소스', s: 'WHO·CDC·현지어뉴스·기후·위성' },
@@ -141,6 +142,9 @@ export default function Home() {
           ))}
         </div>
       </section>
+
+      {/* ── 뉴스센터(자동 브리핑 방송 화면) ────────────────── */}
+      <NewsBroadcast />
 
       {/* ── 왜 아이기론인가 ────────────────────────────────── */}
       <section style={{ maxWidth: 1320, margin: '0 auto', padding: '0 clamp(14px,2.4vw,26px) 80px' }}>

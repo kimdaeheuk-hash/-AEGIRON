@@ -177,6 +177,49 @@ export async function fetchRiskQuantification(): Promise<RiskQuantification> {
   return res.json() as Promise<RiskQuantification>;
 }
 
+// ── 일일 브리핑(㊱) — 홈페이지 뉴스·팟캐스트·유튜브 공통 방송 러시트 ──────
+// 포맷은 '표현 방식'만 바꾸고 숫자·등급·출처 같은 사실은 불변. is_official_alert은
+// 항상 false — UI에서도 '공식 경보 아님'을 반드시 그대로 노출해야 함.
+export interface BriefSegment {
+  segment_id: string;
+  kind: 'threat' | 'quiet';
+  anchor_script: string;
+  lower_third: string;
+  visual_cue: string;
+  tier: string | null;
+  score: number | null;
+  sources: string[];
+  countries: string[];
+  dialogue?: { speaker: string; text: string }[];
+}
+
+export interface DailyBrief {
+  date: string;
+  lang: 'ko' | 'en';
+  program_name: string;
+  format: { id: string; name: string; host_mode: 'single' | 'duo'; description: string };
+  available_formats: { id: string; name: string; description: string }[];
+  presenter: { name: string; appearance: { outfit: string } };
+  presenters: { presenter_id: string; role: string; name: string }[];
+  is_official_alert: false;
+  quiet_day: boolean;
+  headline: string;
+  summary: string;
+  segments: BriefSegment[];
+  ticker: string[];
+  disclosure: string;
+  closing: string;
+  generation_method: 'template_fallback' | 'llm_polished';
+}
+
+export async function fetchDailyBrief(lang: 'ko' | 'en' = 'ko', format?: string): Promise<DailyBrief> {
+  const qs = new URLSearchParams({ lang });
+  if (format) qs.set('format', format);
+  const res = await fetch(`${BASE}/api/daily-brief?${qs.toString()}`, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`API error ${res.status}`);
+  return res.json() as Promise<DailyBrief>;
+}
+
 // http(s):// 베이스를 ws(s):// 대시보드 엔드포인트로 변환.
 export function dashboardWsUrl(): string | null {
   try {
