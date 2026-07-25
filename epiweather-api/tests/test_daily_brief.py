@@ -78,6 +78,36 @@ def test_ticker_includes_country_risk_lines():
     assert any("브라질" in line for line in brief["ticker"])
 
 
+def test_presenter_is_female_synthetic_and_neat():
+    with patch("algorithms.daily_brief._gather", return_value=_ACTIVE):
+        brief = generate_daily_brief(lang="ko", today="2026-07-25")
+    p = brief["presenter"]
+    assert p["is_synthetic_ai_presenter"] is True   # 실존 인물 아님
+    assert p["appearance"]["gender"] == "female"
+    assert p["voice"]["gender"] == "female"
+    assert "outfit" in p["appearance"]
+    # 유튜브 영상 생성 프롬프트에 합성 인물임이 박혀 있어야 함
+    assert "not a real person" in p["image_prompt"].lower()
+
+
+def test_presenter_outfit_rotates_daily_but_face_is_constant():
+    """옷은 매일 달라야 하고, 얼굴·헤어·메이크업은 날짜가 바뀌어도 동일해야 함."""
+    with patch("algorithms.daily_brief._gather", return_value=_ACTIVE):
+        day1 = generate_daily_brief(today="2026-07-25")["presenter"]
+        day2 = generate_daily_brief(today="2026-07-26")["presenter"]
+    assert day1["appearance"]["outfit"] != day2["appearance"]["outfit"]   # 옷은 매일 다름
+    assert day1["appearance"]["hair"] == day2["appearance"]["hair"]       # 얼굴/헤어 고정
+    assert day1["appearance"]["makeup"] == day2["appearance"]["makeup"]
+    assert day1["presenter_id"] == day2["presenter_id"]                   # 같은 페르소나
+
+
+def test_presenter_outfit_is_deterministic_for_same_date():
+    with patch("algorithms.daily_brief._gather", return_value=_ACTIVE):
+        a = generate_daily_brief(today="2026-07-25")["presenter"]["appearance"]["outfit"]
+        b = generate_daily_brief(today="2026-07-25")["presenter"]["appearance"]["outfit"]
+    assert a == b  # 같은 날은 재현 가능
+
+
 def test_llm_polish_success_marks_method_and_keeps_structure():
     edited = '[{"segment_id": "threat_1", "anchor_script": "다듬어진 대본"}]'
     fake = MagicMock()

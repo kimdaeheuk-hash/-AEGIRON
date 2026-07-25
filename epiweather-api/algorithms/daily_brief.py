@@ -46,6 +46,84 @@ _DISCLOSURE = {
 
 _PROGRAM_NAME = {"ko": "아이기론 역병예보 브리핑", "en": "AEGIRON Outbreak Watch"}
 
+# ── 합성 AI 앵커(여성) 스펙 ───────────────────────────────────────
+# 유튜브 뉴스센터·팟캐스트가 공유하는 진행자 페르소나. 실존 인물이 아니라
+# 아이기론 브랜드의 '합성 AI 앵커'다(is_synthetic_ai_presenter=True). 얼굴·헤어·
+# 메이크업은 매일 일관(같은 페르소나여야 시청자가 '우리 채널'로 인식), 옷만 날짜별로
+# 로테이션한다. 페이퍼클립 등 영상·오디오 생성기가 이 스펙을 그대로 소비한다.
+_PRESENTER_ID = "aegiron_anchor_f1"          # 페르소나 식별자(영상마다 동일 인물 유지용)
+_PRESENTER_NAME = {"ko": "아이기론 AI 앵커", "en": "AEGIRON AI Anchor"}
+
+# 얼굴/헤어/메이크업 — 매일 고정(단정한 여성 앵커). 옷만 아래에서 바뀜.
+_PRESENTER_CONSTANT = {
+    "gender": "female",
+    "hair": "shoulder-length, neatly styled, dark",
+    "makeup": "natural, clean, professional broadcast makeup",
+    "demeanor": "calm, credible, professional news anchor",
+}
+
+# 날짜별로 도는 단정한 정장 워드로브(옷은 매일 다르게). 색/스타일만 바뀌고
+# 격식(단정한 방송 정장)은 유지. 날짜 서수로 결정론적 선택 → 재현 가능하면서 매일 다름.
+_WARDROBE = [
+    "navy tailored blazer over a white blouse",
+    "charcoal-grey business suit with a subtle collar",
+    "burgundy blazer over a cream top",
+    "forest-green blazer with a light neutral blouse",
+    "ivory blazer over a soft grey top",
+    "deep-blue blazer with a pale blue blouse",
+    "camel-toned blazer over a white shirt",
+    "black blazer with a muted mauve blouse",
+    "slate-blue blazer over an off-white top",
+    "plum blazer with a light grey blouse",
+    "teal blazer over a cream blouse",
+    "warm taupe blazer with a white top",
+    "dark-green suit with an ivory shell",
+    "dusty-rose blazer over a white blouse",
+]
+
+# 팟캐스트 TTS용 목소리 힌트(여성, 차분한 방송 톤).
+_VOICE_SPEC = {
+    "gender": "female",
+    "style": "calm, clear, professional broadcast narration",
+    "pace": "measured",
+}
+
+
+def _presenter_spec(today: str, lang: str) -> dict:
+    """오늘자 진행자 스펙. 얼굴·헤어·메이크업은 고정, 옷만 날짜별 로테이션.
+    유튜브(영상)·팟캐스트(오디오)가 공유한다."""
+    try:
+        ordinal = dt.date.fromisoformat(today).toordinal()
+    except ValueError:
+        ordinal = 0
+    outfit = _WARDROBE[ordinal % len(_WARDROBE)]
+
+    appearance = dict(_PRESENTER_CONSTANT)
+    appearance["outfit"] = outfit  # 매일 바뀌는 유일한 항목
+
+    # 페이퍼클립 등 이미지·영상 생성기에 그대로 넣을 프롬프트(합성 인물임을 명시).
+    image_prompt = (
+        f"Synthetic AI-generated female news anchor (not a real person), "
+        f"{_PRESENTER_CONSTANT['hair']}, {_PRESENTER_CONSTANT['makeup']}, "
+        f"wearing {outfit}, seated at a modern news desk, AEGIRON-branded studio "
+        f"backdrop, soft professional studio lighting, front-facing, upper body."
+    )
+    return {
+        "presenter_id": _PRESENTER_ID,
+        "name": _PRESENTER_NAME[lang],
+        "is_synthetic_ai_presenter": True,   # 실존 인물 아님 — 아이기론 합성 앵커
+        "appearance": appearance,            # 얼굴·헤어·메이크업 고정 + 오늘의 옷
+        "voice": _VOICE_SPEC,                # 팟캐스트 TTS용
+        "image_prompt": image_prompt,        # 유튜브 영상 생성용
+        "consistency_note": (
+            "얼굴·헤어·메이크업은 매일 동일한 페르소나로 유지하고 옷만 매일 바뀜. "
+            "presenter_id로 영상마다 같은 인물을 재현할 것."
+            if lang == "ko" else
+            "Keep face, hair, and makeup identical across days (same persona); only the "
+            "outfit changes daily. Reuse presenter_id to keep the same person across videos."
+        ),
+    }
+
 
 def _tier_label(lang: str, tier: str | None) -> str:
     return _TIER_LABEL.get(lang, _TIER_LABEL["ko"]).get(tier, _TIER_LABEL[lang][None])
@@ -246,6 +324,7 @@ def generate_daily_brief(lang: str = "ko", api_key: str | None = None,
         "date": today,
         "lang": lang,
         "program_name": _PROGRAM_NAME[lang],
+        "presenter": _presenter_spec(today, lang),
         "is_official_alert": False,
         "quiet_day": quiet,
         "headline": headline,
