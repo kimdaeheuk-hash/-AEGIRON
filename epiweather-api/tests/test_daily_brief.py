@@ -78,6 +78,57 @@ def test_ticker_includes_country_risk_lines():
     assert any("브라질" in line for line in brief["ticker"])
 
 
+def test_format_rotates_by_date():
+    """매일 같은 형태면 질린다 — 날짜별로 다른 작가(포맷)가 나와야 함."""
+    with patch("algorithms.daily_brief._gather", return_value=_ACTIVE):
+        ids = {generate_daily_brief(today=f"2026-07-{d:02d}")["format"]["id"]
+               for d in range(20, 25)}
+    assert len(ids) >= 3  # 5일치에 최소 3종 이상 포맷
+
+
+def test_format_param_pins_a_specific_writer():
+    with patch("algorithms.daily_brief._gather", return_value=_ACTIVE):
+        brief = generate_daily_brief(today="2026-07-25", fmt="deepdive")
+    assert brief["format"]["id"] == "deepdive"
+    assert "집중 분석" in brief["segments"][0]["anchor_script"]
+
+
+def test_available_formats_listed():
+    with patch("algorithms.daily_brief._gather", return_value=_ACTIVE):
+        brief = generate_daily_brief(today="2026-07-25")
+    ids = {f["id"] for f in brief["available_formats"]}
+    assert ids == {"breaking", "deepdive", "field", "data", "duo"}
+
+
+def test_facts_unchanged_across_formats():
+    """포맷이 달라도 등급·출처·국가 같은 사실은 그대로여야 함."""
+    with patch("algorithms.daily_brief._gather", return_value=_ACTIVE):
+        a = generate_daily_brief(today="2026-07-25", fmt="breaking")["segments"][0]
+        b = generate_daily_brief(today="2026-07-25", fmt="data")["segments"][0]
+    assert a["tier"] == b["tier"]
+    assert a["sources"] == b["sources"]
+    assert a["countries"] == b["countries"]
+    assert a["anchor_script"] != b["anchor_script"]  # 말투는 다름
+
+
+def test_duo_format_has_two_female_presenters_and_dialogue():
+    with patch("algorithms.daily_brief._gather", return_value=_ACTIVE):
+        brief = generate_daily_brief(today="2026-07-25", fmt="duo")
+    assert len(brief["presenters"]) == 2
+    assert all(p["appearance"]["gender"] == "female" for p in brief["presenters"])
+    # 두 진행자는 서로 다른 페르소나(옷도 다름)
+    ids = {p["presenter_id"] for p in brief["presenters"]}
+    assert len(ids) == 2
+    seg = brief["segments"][0]
+    assert "dialogue" in seg and len(seg["dialogue"]) == 2
+
+
+def test_single_format_has_one_presenter():
+    with patch("algorithms.daily_brief._gather", return_value=_ACTIVE):
+        brief = generate_daily_brief(today="2026-07-25", fmt="breaking")
+    assert len(brief["presenters"]) == 1
+
+
 def test_presenter_is_female_synthetic_and_neat():
     with patch("algorithms.daily_brief._gather", return_value=_ACTIVE):
         brief = generate_daily_brief(lang="ko", today="2026-07-25")

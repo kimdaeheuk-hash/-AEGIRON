@@ -51,15 +51,25 @@ _PROGRAM_NAME = {"ko": "아이기론 역병예보 브리핑", "en": "AEGIRON Out
 # 아이기론 브랜드의 '합성 AI 앵커'다(is_synthetic_ai_presenter=True). 얼굴·헤어·
 # 메이크업은 매일 일관(같은 페르소나여야 시청자가 '우리 채널'로 인식), 옷만 날짜별로
 # 로테이션한다. 페이퍼클립 등 영상·오디오 생성기가 이 스펙을 그대로 소비한다.
-_PRESENTER_ID = "aegiron_anchor_f1"          # 페르소나 식별자(영상마다 동일 인물 유지용)
-_PRESENTER_NAME = {"ko": "아이기론 AI 앵커", "en": "AEGIRON AI Anchor"}
-
-# 얼굴/헤어/메이크업 — 매일 고정(단정한 여성 앵커). 옷만 아래에서 바뀜.
-_PRESENTER_CONSTANT = {
-    "gender": "female",
-    "hair": "shoulder-length, neatly styled, dark",
-    "makeup": "natural, clean, professional broadcast makeup",
-    "demeanor": "calm, credible, professional news anchor",
+# 진행자 페르소나(모두 여성·단정). 앵커는 모든 포맷 공통, 코호스트는 '앵커 대담'
+# 포맷에서만 등장한다. 각자 식별자가 달라 영상에서 별개 인물로 재현된다.
+_PERSONAS = {
+    "anchor": {
+        "id": "aegiron_anchor_f1",
+        "name": {"ko": "아이기론 AI 앵커", "en": "AEGIRON AI Anchor"},
+        "hair": "shoulder-length, neatly styled, dark",
+        "makeup": "natural, clean, professional broadcast makeup",
+        "demeanor": "calm, credible, professional news anchor",
+        "wardrobe_offset": 0,
+    },
+    "cohost": {
+        "id": "aegiron_analyst_f1",
+        "name": {"ko": "아이기론 AI 분석위원", "en": "AEGIRON AI Analyst"},
+        "hair": "long, neatly tied back, dark",
+        "makeup": "natural, clean, professional broadcast makeup",
+        "demeanor": "warm, articulate public-health analyst",
+        "wardrobe_offset": 7,  # 앵커와 다른 옷이 나오도록 로테이션 위상만 다르게
+    },
 }
 
 # 날짜별로 도는 단정한 정장 워드로브(옷은 매일 다르게). 색/스타일만 바뀌고
@@ -89,29 +99,36 @@ _VOICE_SPEC = {
 }
 
 
-def _presenter_spec(today: str, lang: str) -> dict:
+def _presenter_spec(today: str, lang: str, role: str = "anchor") -> dict:
     """오늘자 진행자 스펙. 얼굴·헤어·메이크업은 고정, 옷만 날짜별 로테이션.
-    유튜브(영상)·팟캐스트(오디오)가 공유한다."""
+    유튜브(영상)·팟캐스트(오디오)가 공유한다. role: 'anchor'|'cohost'."""
+    persona = _PERSONAS.get(role, _PERSONAS["anchor"])
     try:
         ordinal = dt.date.fromisoformat(today).toordinal()
     except ValueError:
         ordinal = 0
-    outfit = _WARDROBE[ordinal % len(_WARDROBE)]
+    outfit = _WARDROBE[(ordinal + persona["wardrobe_offset"]) % len(_WARDROBE)]
 
-    appearance = dict(_PRESENTER_CONSTANT)
-    appearance["outfit"] = outfit  # 매일 바뀌는 유일한 항목
+    appearance = {
+        "gender": "female",
+        "hair": persona["hair"],
+        "makeup": persona["makeup"],
+        "demeanor": persona["demeanor"],
+        "outfit": outfit,  # 매일 바뀌는 유일한 항목
+    }
 
     # 페이퍼클립 등 이미지·영상 생성기에 그대로 넣을 프롬프트(합성 인물임을 명시).
     image_prompt = (
-        f"Synthetic AI-generated female news anchor (not a real person), "
-        f"{_PRESENTER_CONSTANT['hair']}, {_PRESENTER_CONSTANT['makeup']}, "
+        f"Synthetic AI-generated female news presenter (not a real person), "
+        f"{persona['hair']}, {persona['makeup']}, "
         f"wearing {outfit}, seated at a modern news desk, AEGIRON-branded studio "
         f"backdrop, soft professional studio lighting, front-facing, upper body."
     )
     return {
-        "presenter_id": _PRESENTER_ID,
-        "name": _PRESENTER_NAME[lang],
-        "is_synthetic_ai_presenter": True,   # 실존 인물 아님 — 아이기론 합성 앵커
+        "presenter_id": persona["id"],
+        "role": role,
+        "name": persona["name"][lang],
+        "is_synthetic_ai_presenter": True,   # 실존 인물 아님 — 아이기론 합성 진행자
         "appearance": appearance,            # 얼굴·헤어·메이크업 고정 + 오늘의 옷
         "voice": _VOICE_SPEC,                # 팟캐스트 TTS용
         "image_prompt": image_prompt,        # 유튜브 영상 생성용
@@ -123,6 +140,42 @@ def _presenter_spec(today: str, lang: str) -> dict:
             "outfit changes daily. Reuse presenter_id to keep the same person across videos."
         ),
     }
+
+
+# ── 방송 포맷(AI 작가) ────────────────────────────────────────────
+# 매일 같은 형태면 질린다. 같은 데이터를 다른 '작가(포맷)'가 다른 방식으로 풀어낸다.
+# 날짜별로 결정론적 로테이션(요청 시 format 파라미터로 고정 가능). 포맷은 '표현 방식'만
+# 바꾸고 숫자·출처·등급 같은 사실은 절대 바꾸지 않는다(정직성 불변).
+_FORMATS = [
+    {"id": "breaking", "name": {"ko": "속보 데스크", "en": "Breaking Desk"},
+     "host_mode": "single", "tone": "punchy but calm breaking-news desk",
+     "desc": {"ko": "핵심만 빠르게 전하는 속보 데스크", "en": "Fast, headline-first news desk"}},
+    {"id": "deepdive", "name": {"ko": "심층 분석", "en": "Deep Dive"},
+     "host_mode": "single", "tone": "analytical, contextual, explanatory",
+     "desc": {"ko": "최상위 위협 하나를 깊게 파는 분석", "en": "One lead threat, explained in depth"}},
+    {"id": "field", "name": {"ko": "현장 리포트", "en": "Field Report"},
+     "host_mode": "single", "tone": "on-the-ground correspondent report",
+     "desc": {"ko": "지역별 현장 특파원 형식", "en": "Regional correspondent framing"}},
+    {"id": "data", "name": {"ko": "데이터 브리핑", "en": "Data Brief"},
+     "host_mode": "single", "tone": "calm numbers-first data explainer",
+     "desc": {"ko": "수치·추세 중심의 차분한 설명", "en": "Numbers and trends, calmly explained"}},
+    {"id": "duo", "name": {"ko": "앵커 대담", "en": "Anchor Talk"},
+     "host_mode": "duo", "tone": "conversational two-host Q&A",
+     "desc": {"ko": "앵커와 분석위원의 2인 대담", "en": "Two-host anchor + analyst conversation"}},
+]
+_FORMAT_BY_ID = {f["id"]: f for f in _FORMATS}
+_FORMAT_ROTATION = [f["id"] for f in _FORMATS]
+
+
+def _select_format(today: str, requested: str | None) -> dict:
+    """요청 포맷이 유효하면 그걸, 아니면 날짜별 로테이션. 매일 형태가 달라진다."""
+    if requested and requested in _FORMAT_BY_ID:
+        return _FORMAT_BY_ID[requested]
+    try:
+        ordinal = dt.date.fromisoformat(today).toordinal()
+    except ValueError:
+        ordinal = 0
+    return _FORMAT_BY_ID[_FORMAT_ROTATION[ordinal % len(_FORMAT_ROTATION)]]
 
 
 def _tier_label(lang: str, tier: str | None) -> str:
@@ -166,53 +219,123 @@ def _gather() -> dict:
     }
 
 
-def _build_segments(data: dict, lang: str) -> list[dict]:
+def _threat_lines(fmt_id: str, ev: dict, nl: dict, lang: str, idx: int):
+    """포맷별로 같은 사실을 다른 방송 말투로 푼다. (script, dialogue) 반환 —
+    dialogue는 2인 대담 포맷에서만 채워지고 나머지는 None. 숫자·등급·출처는 불변."""
+    disease = ev.get("disease") or ("원인불명 신호" if lang == "ko" else "unspecified signal")
+    where = _country_names(ev.get("countries", []), nl, lang)
+    tier = _tier_label(lang, ev.get("tier"))
+    score = ev.get("merged_score")
+    n = ev.get("source_count", 0)
+    ko = lang == "ko"
+
+    if fmt_id == "deepdive":
+        if idx == 1:
+            script = (f"오늘 집중 분석합니다. {where}의 {disease}입니다. 현재 위험 등급 '{tier}', "
+                      f"서로 다른 {n}개 출처가 같은 신호를 가리키고 있어 주목할 필요가 있습니다."
+                      if ko else
+                      f"Our focus today: {disease} in {where}. Risk level '{tier}', with {n} "
+                      f"independent sources pointing to the same signal — worth a closer look.")
+        else:
+            script = (f"이어서 짚어봅니다. {where} {disease} — 등급 '{tier}', 출처 {n}곳."
+                      if ko else
+                      f"Also on our radar: {disease} in {where} — level '{tier}', {n} sources.")
+        return script, None
+
+    if fmt_id == "field":
+        script = (f"{where} 상황부터 전해드립니다. 현지에서 {disease} 관련 신호가 확인되고 있습니다. "
+                  f"위험 등급 '{tier}', 출처 {n}곳입니다."
+                  if ko else
+                  f"We go on the ground in {where}, where a {disease} signal is being reported. "
+                  f"Risk level '{tier}', {n} sources.")
+        return script, None
+
+    if fmt_id == "data":
+        score_txt = f"{score}점" if ko else f"{score}"
+        script = (f"수치로 보겠습니다. {disease}, 지역 {where}. 합류 위험 점수 {score_txt}, "
+                  f"등급 '{tier}', 독립 출처 {n}개."
+                  if ko else
+                  f"By the numbers: {disease} in {where}. Merged risk score {score}, "
+                  f"level '{tier}', {n} independent sources.")
+        return script, None
+
+    if fmt_id == "duo":
+        if ko:
+            q = f"{where}의 {disease} 상황, 어떻게 보시나요?"
+            a = (f"현재 위험 등급은 '{tier}'입니다. 서로 다른 {n}개 출처에서 같은 신호가 "
+                 f"확인돼 신뢰도가 높습니다.")
+        else:
+            q = f"What are you seeing with the {disease} signal in {where}?"
+            a = (f"The current risk level is '{tier}'. The same signal is confirmed across "
+                 f"{n} independent sources, so our confidence is high.")
+        dialogue = [{"speaker": "anchor", "text": q}, {"speaker": "cohost", "text": a}]
+        script = f"[앵커] {q} [분석위원] {a}" if ko else f"[Anchor] {q} [Analyst] {a}"
+        return script, dialogue
+
+    # breaking(기본)
+    script = (f"{where}에서 {disease} 관련 신호가 포착됐습니다. 현재 위험 등급은 '{tier}'이며, "
+              f"서로 다른 {n}개 출처에서 교차 확인됐습니다."
+              if ko else
+              f"A {disease} signal has been detected in {where}. Current risk level is '{tier}', "
+              f"cross-confirmed across {n} independent sources.")
+    return script, None
+
+
+_QUIET_SCRIPT = {
+    "ko": {
+        "deepdive": "오늘은 집중 분석할 신규 위협이 없습니다. 대신 감시 체계는 정상 가동 중이며, "
+                    "조용한 날은 조용하게 전해드립니다.",
+        "field": "각 지역 현장에서 새로 보고된 격상 신호는 없습니다. 정기 감시는 계속됩니다.",
+        "data": "오늘 수치상 새로 격상된 위협 신호는 없습니다. 기준선 이내에서 정상입니다.",
+        "duo": "[앵커] 오늘 특별히 짚을 신규 위협이 있나요? [분석위원] 아니요, 현재는 조용합니다. "
+               "감시는 정상 가동 중입니다.",
+    },
+    "en": {
+        "deepdive": "No new threat to deep-dive today. Surveillance is running normally — "
+                    "a quiet day reported as a quiet day.",
+        "field": "No newly elevated signals reported from the field. Routine surveillance continues.",
+        "data": "By the numbers, nothing newly elevated today — all within baseline.",
+        "duo": "[Anchor] Anything major to flag today? [Analyst] No — it's quiet right now, "
+               "and surveillance is running normally.",
+    },
+}
+
+
+def _build_segments(data: dict, lang: str, fmt: dict) -> list[dict]:
     segs: list[dict] = []
     nl = data["name_lookup"]
+    fmt_id = fmt["id"]
 
     for i, ev in enumerate(data["threats"], 1):
+        script, dialogue = _threat_lines(fmt_id, ev, nl, lang, i)
         disease = ev.get("disease") or ("원인불명 신호" if lang == "ko" else "unspecified signal")
         where = _country_names(ev.get("countries", []), nl, lang)
         tier = _tier_label(lang, ev.get("tier"))
-        score = ev.get("merged_score")
-        n_src = ev.get("source_count", 0)
-
-        if lang == "ko":
-            script = (
-                f"{where}에서 {disease} 관련 신호가 포착됐습니다. "
-                f"현재 위험 등급은 '{tier}'이며, 서로 다른 {n_src}개 출처에서 교차 확인됐습니다."
-            )
-            lower = f"{disease} · {where} · {tier}"
-        else:
-            script = (
-                f"A {disease} signal has been detected in {where}. "
-                f"Current risk level is '{tier}', cross-confirmed across {n_src} independent sources."
-            )
-            lower = f"{disease} · {where} · {tier}"
-
-        segs.append({
+        seg = {
             "segment_id": f"threat_{i}",
             "kind": "threat",
             "anchor_script": script,
-            "lower_third": lower,
+            "lower_third": f"{disease} · {where} · {tier}",
             "visual_cue": f"map_focus:{','.join(ev.get('countries', [])) or 'world'}",
             "tier": ev.get("tier"),
-            "score": score,
+            "score": ev.get("merged_score"),
             "sources": ev.get("sources", []),
             "countries": ev.get("countries", []),
-        })
+        }
+        if dialogue is not None:
+            seg["dialogue"] = dialogue  # 2인 대담 — 화자별 대사
+        segs.append(seg)
 
     # 위협이 하나도 없으면 조용한 날 세그먼트(방송을 억지로 채우지 않는다).
     if not segs:
-        if lang == "ko":
-            script = ("현재 새로 격상된 감염병 위협 신호는 없습니다. "
+        default_ko = ("현재 새로 격상된 감염병 위협 신호는 없습니다. "
                       "정기 감시는 계속되고 있으며, 조용한 날은 조용하게 전해드립니다.")
-            lower = "특이 위협 없음 · 정상 감시"
-        else:
-            script = ("No newly elevated outbreak signals at this time. "
+        default_en = ("No newly elevated outbreak signals at this time. "
                       "Routine surveillance continues — a quiet day reported as a quiet day.")
-            lower = "No notable threats · normal surveillance"
-        segs.append({
+        script = _QUIET_SCRIPT.get(lang, _QUIET_SCRIPT["ko"]).get(
+            fmt_id, default_ko if lang == "ko" else default_en)
+        lower = "특이 위협 없음 · 정상 감시" if lang == "ko" else "No notable threats · normal surveillance"
+        seg = {
             "segment_id": "quiet",
             "kind": "quiet",
             "anchor_script": script,
@@ -222,7 +345,20 @@ def _build_segments(data: dict, lang: str) -> list[dict]:
             "score": None,
             "sources": [],
             "countries": [],
-        })
+        }
+        if fmt_id == "duo":
+            # 대담 포맷은 조용한 날도 대화체로
+            if lang == "ko":
+                seg["dialogue"] = [
+                    {"speaker": "anchor", "text": "오늘 특별히 짚을 신규 위협이 있나요?"},
+                    {"speaker": "cohost", "text": "아니요, 현재는 조용합니다. 감시는 정상 가동 중입니다."},
+                ]
+            else:
+                seg["dialogue"] = [
+                    {"speaker": "anchor", "text": "Anything major to flag today?"},
+                    {"speaker": "cohost", "text": "No — it's quiet right now, and surveillance is running normally."},
+                ]
+        segs.append(seg)
 
     return segs
 
@@ -243,8 +379,9 @@ def _build_ticker(data: dict, lang: str) -> list[str]:
     return [l for l in lines if l]
 
 
-def _headline(data: dict, lang: str, quiet: bool) -> tuple[str, str]:
-    prog = _PROGRAM_NAME[lang]
+def _headline(data: dict, lang: str, quiet: bool, fmt: dict) -> tuple[str, str]:
+    # 프로그램명 뒤에 오늘의 포맷명을 붙여 코너가 매일 다름을 드러낸다.
+    prog = f"{_PROGRAM_NAME[lang]} · {fmt['name'][lang]}"
     if quiet:
         if lang == "ko":
             return (f"{prog}: 오늘 특이 위협 신호 없음",
@@ -264,8 +401,8 @@ def _headline(data: dict, lang: str, quiet: bool) -> tuple[str, str]:
             f"Tracking {n} threat signal(s) today; the top item is {disease} in {where}.")
 
 
-def _polish_with_llm(brief: dict, lang: str, api_key: str) -> dict | None:
-    """앵커 대본을 Claude로 방송체로 자연스럽게 다듬는다(내용·숫자·출처는 불변).
+def _polish_with_llm(brief: dict, lang: str, fmt: dict, api_key: str) -> dict | None:
+    """앵커 대본을 Claude로 포맷 톤에 맞게 자연스럽게 다듬는다(내용·숫자·출처는 불변).
     실패하면 None을 돌려 템플릿 그대로 쓰게 한다."""
     try:
         import anthropic
@@ -278,10 +415,12 @@ def _polish_with_llm(brief: dict, lang: str, api_key: str) -> dict | None:
         lang_word = "한국어" if lang == "ko" else "English"
         prompt = (
             f"You are a script editor for a public-health news program ({lang_word}). "
-            "Rewrite each 'anchor_script' to sound like a calm, professional broadcast anchor. "
+            f"Today's segment is in the '{fmt['name']['en']}' format — tone: {fmt['tone']}. "
+            "Rewrite each 'anchor_script' to match that tone as a professional broadcast script. "
             "STRICT RULES: do not add, remove, or change any facts, numbers, place names, or "
-            "risk levels; do not invent new claims; do not sensationalize. Keep each script to "
-            "1-2 sentences. Return ONLY a JSON array of "
+            "risk levels; do not invent new claims; do not sensationalize. Preserve any speaker "
+            "tags like [앵커]/[분석위원]/[Anchor]/[Analyst] if present. Keep each script to "
+            "1-3 sentences. Return ONLY a JSON array of "
             '{"segment_id": "...", "anchor_script": "..."}.\n\n'
             f"Segments:\n{json.dumps(payload, ensure_ascii=False)}"
         )
@@ -304,27 +443,44 @@ def _polish_with_llm(brief: dict, lang: str, api_key: str) -> dict | None:
 
 
 def generate_daily_brief(lang: str = "ko", api_key: str | None = None,
-                         today: str | None = None) -> dict:
-    """방송 러시트 한 벌을 조립한다. lang: 'ko'|'en'. api_key가 있으면 앵커 대본을
-    Claude로 다듬고, 없거나 실패하면 결정론적 템플릿을 그대로 쓴다(generation_method로 표시)."""
+                         today: str | None = None, fmt: str | None = None) -> dict:
+    """방송 러시트 한 벌을 조립한다. lang: 'ko'|'en'. fmt로 포맷을 고정하지 않으면
+    날짜별로 다른 작가(포맷)가 로테이션돼 매일 형태가 달라진다. api_key가 있으면 앵커
+    대본을 Claude로 다듬고, 없거나 실패하면 결정론적 템플릿을 그대로 쓴다(generation_method 표시)."""
     lang = lang if lang in ("ko", "en") else "ko"
     today = today or dt.date.today().isoformat()
+    fmt_spec = _select_format(today, fmt)
 
     data = _gather()
-    segments = _build_segments(data, lang)
+    segments = _build_segments(data, lang, fmt_spec)
     quiet = all(s["kind"] == "quiet" for s in segments)
-    headline, summary = _headline(data, lang, quiet)
+    headline, summary = _headline(data, lang, quiet, fmt_spec)
     ticker = _build_ticker(data, lang)
 
     closing = ("이상 아이기론 역병예보였습니다. 다음 브리핑에서 다시 전해드리겠습니다."
                if lang == "ko" else
                "This has been AEGIRON Outbreak Watch. See you in the next briefing.")
 
+    presenters = [_presenter_spec(today, lang, "anchor")]
+    if fmt_spec["host_mode"] == "duo":
+        presenters.append(_presenter_spec(today, lang, "cohost"))
+
     brief = {
         "date": today,
         "lang": lang,
         "program_name": _PROGRAM_NAME[lang],
-        "presenter": _presenter_spec(today, lang),
+        "format": {
+            "id": fmt_spec["id"],
+            "name": fmt_spec["name"][lang],
+            "host_mode": fmt_spec["host_mode"],
+            "description": fmt_spec["desc"][lang],
+        },
+        "available_formats": [
+            {"id": f["id"], "name": f["name"][lang], "description": f["desc"][lang]}
+            for f in _FORMATS
+        ],
+        "presenter": presenters[0],          # 하위호환(단일 진행자 소비자용)
+        "presenters": presenters,            # 대담 포맷은 앵커+분석위원 2인
         "is_official_alert": False,
         "quiet_day": quiet,
         "headline": headline,
@@ -337,7 +493,7 @@ def generate_daily_brief(lang: str = "ko", api_key: str | None = None,
     }
 
     if api_key:
-        polished = _polish_with_llm(brief, lang, api_key)
+        polished = _polish_with_llm(brief, lang, fmt_spec, api_key)
         if polished is not None:
             polished["generation_method"] = "llm_polished"
             return polished
