@@ -244,6 +244,30 @@ def test_historical_backtest_includes_covid_bluedot_benchmark(client):
     assert body["bluedot_comparison"]["bluedot_lead_days"] == 9
 
 
+def test_daily_brief_endpoint_public_and_flags_not_official(client, monkeypatch):
+    """일일 브리핑(㊱)은 공개 GET이고, 공식 경보가 아님을 못박아야 함. 신규 DB라
+    위협이 없으니 조용한 날로 나오고, 앵커 대본·자막·화면지시 3종을 갖춰야 함."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    resp = client.get("/api/daily-brief")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["is_official_alert"] is False
+    assert body["generation_method"] == "template_fallback"
+    assert body["quiet_day"] is True  # 신규 DB — 신호 없음
+    seg = body["segments"][0]
+    assert seg["anchor_script"] and seg["lower_third"] and seg["visual_cue"]
+    assert "공식 경보가 아니" in body["disclosure"]
+
+
+def test_daily_brief_english_version(client, monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    resp = client.get("/api/daily-brief?lang=en")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["lang"] == "en"
+    assert "AEGIRON" in body["program_name"]
+
+
 def test_db_backup_requires_auth(client):
     resp = client.get("/api/admin/db-backup")
     assert resp.status_code == 503  # 이 fixture는 키 미설정 상태

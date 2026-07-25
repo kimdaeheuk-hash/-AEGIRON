@@ -867,6 +867,25 @@ def threats_semantic():
     }
 
 
+@app.get("/api/daily-brief", tags=["GAI"])
+def daily_brief(lang: str = "ko"):
+    """
+    일일 브리핑(㊱) — 홈페이지 실시간 뉴스·팟캐스트 대본·유튜브 방송 러시트가
+    공통으로 읽는 '하나의 재료'. 이미 계산된 중복제거 이벤트·경보·국가위험을 모아
+    방송 러시트(headline/summary/segments[anchor_script,lower_third,visual_cue]/
+    ticker/disclosure/closing) 한 벌로 조립한다. 페이퍼클립 같은 자동화 플랫폼은
+    이 JSON만 받아서 영상·오디오를 찍어낸다.
+
+    lang=ko|en 지원. ANTHROPIC_API_KEY가 있으면 앵커 대본을 Claude로 방송체로
+    다듬고(내용·숫자 불변), 없으면 결정론적 템플릿으로 폴백 — generation_method로
+    표시. is_official_alert=False이며, 새 위협이 없으면 quiet_day=True로 조용한
+    날을 조용하게 전한다(방송을 채우려 없는 위기를 지어내지 않음).
+    """
+    from algorithms.daily_brief import generate_daily_brief
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    return generate_daily_brief(lang=lang, api_key=api_key)
+
+
 @app.get("/api/unexplained-signals", tags=["GAI"])
 def unexplained_signals():
     """
