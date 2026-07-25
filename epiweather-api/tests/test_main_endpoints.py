@@ -118,6 +118,17 @@ def test_backtest_historical_event_endpoint_reports_unverified_for_unknown_event
     assert resp.json()["verified"] is False
 
 
+def test_backtest_gdelt_endpoint_public_and_flags_reconstruction(client):
+    """GDELT 과거 재구성 백테스트(㉟)는 공개 GET이고, 뉴스 커버리지 프록시·재구성임을
+    note로 명시해야 함(라이브 신호와 안 섞음)."""
+    resp = client.get("/api/backtest/gdelt")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "summary" in body
+    assert "gdelt_coverage_volume" in body["note"] or "커버리지" in body["note"]
+    assert "2017" in body["coverage_note"]
+
+
 def test_risk_quantification_endpoint_is_public_and_flags_not_probability(client):
     resp = client.get("/api/risk-quantification")
     assert resp.status_code == 200

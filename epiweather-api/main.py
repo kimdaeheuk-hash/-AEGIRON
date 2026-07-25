@@ -634,6 +634,22 @@ def backtest_historical_event(event_id: str):
     return backtest_event(event_id)
 
 
+@app.get("/api/backtest/gdelt", tags=["후향 검증"])
+def backtest_gdelt():
+    """
+    GDELT 과거 뉴스 커버리지 백테스트(㉟) — 시작이 늦어 '0에서 출발'처럼 보이는
+    문제를, GDELT Project 전세계 뉴스 커버리지(무료)로 과거 발병을 재구성해
+    메운다. 발병별로 '뉴스 커버리지 급증일' vs '공식 선언일'의 선행일수를 계산.
+    ★ GDELT 볼륨은 뉴스 커버리지 프록시(확진자 수·아이기론 자체 신호 아님)이며,
+    라이브 extracted_signals 백테스트와는 별개의 과거 재구성임을 명시. GDELT
+    DOC은 2017년 이후만 커버.
+    """
+    from algorithms.gdelt_signals import backtest_all_gdelt
+    db.init_db()
+    _seed_known_timelines()
+    return backtest_all_gdelt()
+
+
 # ── Global Anomaly Index ─────────────────────────────────────
 @app.get("/api/anomaly-score", tags=["GAI"])
 def anomaly_score():
