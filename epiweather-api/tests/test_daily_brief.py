@@ -135,10 +135,33 @@ def test_analyst_pool_has_three_including_one_male():
     assert genders.count("male") == 1 and genders.count("female") == 2
 
 
-def test_reporter_pool_is_mixed_gender():
+def test_reporter_pool_is_large_and_mixed_gender():
+    """기자 풀이 넉넉해야 매일 다른 기자가 나와 시청자가 질리지 않는다."""
     from algorithms.daily_brief import _REPORTERS
-    genders = {r["gender"] for r in _REPORTERS}
-    assert genders == {"male", "female"}
+    assert len(_REPORTERS) >= 6
+    genders = [r["gender"] for r in _REPORTERS]
+    assert genders.count("male") >= 3 and genders.count("female") >= 3
+
+
+def test_korean_version_uses_korean_faces_english_uses_american():
+    """한국판은 한국인, 영어판은 미국인 얼굴로 생성돼야 함."""
+    with patch("algorithms.daily_brief._gather", return_value=_ACTIVE):
+        ko = generate_daily_brief(lang="ko", today="2026-07-25", fmt="field")
+        en = generate_daily_brief(lang="en", today="2026-07-25", fmt="field")
+    for p in ko["presenters"]:
+        assert p["ethnicity"] == "Korean"
+        assert "Korean" in p["image_prompt"]
+    for p in en["presenters"]:
+        assert p["ethnicity"] == "American"
+        assert "American" in p["image_prompt"]
+
+
+def test_english_names_are_american_not_romanized_korean():
+    with patch("algorithms.daily_brief._gather", return_value=_ACTIVE):
+        en = generate_daily_brief(lang="en", today="2026-07-26", fmt="duo")
+    analyst = next(p for p in en["presenters"] if p["role"] == "cohost")
+    assert analyst["name"] in {"AEGIRON AI Analyst Emma", "AEGIRON AI Analyst Olivia",
+                               "AEGIRON AI Analyst James"}
 
 
 def test_male_presenter_gets_male_voice_and_suit():

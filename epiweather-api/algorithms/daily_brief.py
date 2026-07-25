@@ -63,48 +63,77 @@ _FIELD = ("standing on location holding a reporter's handheld microphone, "
 _ANCHOR = {
     "id": "aegiron_anchor_f1", "role": "anchor", "gender": "female",
     "name": {"ko": "아이기론 AI 앵커", "en": "AEGIRON AI Anchor"},
-    "hair": "shoulder-length, neatly styled, dark",
+    "hair": "shoulder-length, neatly styled", "hair_color": "dark",
     "grooming": "natural, clean, professional broadcast makeup",
     "demeanor": "calm, credible, professional news anchor",
     "setting": _STUDIO, "wardrobe_offset": 0,
 }
 
-# 분석위원 3인(여2·남1) — '앵커 대담' 포맷에서 날짜별 로테이션.
+# 언어별 진행자 인종 — 한국판은 한국인, 영어판은 미국인 얼굴로 생성한다.
+_ETHNICITY = {"ko": "Korean", "en": "American"}
+
+# 분석위원 3인(여2·남1) — '앵커 대담' 포맷에서 날짜별 로테이션. 한국판은 한국식
+# 이름, 영어판은 미국식 이름을 쓴다(인종은 lang에 따라 image_prompt에서 결정).
 _ANALYSTS = [
     {"id": "aegiron_analyst_f1", "role": "cohost", "gender": "female",
-     "name": {"ko": "아이기론 AI 분석위원 서연", "en": "AEGIRON AI Analyst (Seoyeon)"},
-     "hair": "long, neatly tied back, dark",
+     "name": {"ko": "아이기론 AI 분석위원 서연", "en": "AEGIRON AI Analyst Emma"},
+     "hair": "long, neatly tied back", "hair_color": "dark",
      "grooming": "natural, clean, professional broadcast makeup",
      "demeanor": "warm, articulate public-health analyst",
      "setting": _STUDIO, "wardrobe_offset": 7},
     {"id": "aegiron_analyst_f2", "role": "cohost", "gender": "female",
-     "name": {"ko": "아이기론 AI 분석위원 하린", "en": "AEGIRON AI Analyst (Harin)"},
-     "hair": "short bob, neatly styled, dark",
+     "name": {"ko": "아이기론 AI 분석위원 하린", "en": "AEGIRON AI Analyst Olivia"},
+     "hair": "short bob, neatly styled", "hair_color": "dark",
      "grooming": "natural, clean, professional broadcast makeup",
      "demeanor": "precise, data-minded epidemiology analyst",
      "setting": _STUDIO, "wardrobe_offset": 4},
     {"id": "aegiron_analyst_m1", "role": "cohost", "gender": "male",
-     "name": {"ko": "아이기론 AI 분석위원 도현", "en": "AEGIRON AI Analyst (Dohyun)"},
-     "hair": "short, neatly combed, dark",
+     "name": {"ko": "아이기론 AI 분석위원 도현", "en": "AEGIRON AI Analyst James"},
+     "hair": "short, neatly combed", "hair_color": "dark",
      "grooming": "clean, natural, professional broadcast grooming",
      "demeanor": "measured, authoritative public-health expert",
      "setting": _STUDIO, "wardrobe_offset": 2},
 ]
 
-# 현장기자 풀(남녀 혼합) — '현장 리포트' 포맷에서 날짜별 로테이션.
+# 현장기자 6인 풀(여3·남3) — '현장 리포트' 포맷에서 날짜별 로테이션. 풀이 넉넉해야
+# 매일 다른 기자가 나와 시청자가 질리지 않는다.
 _REPORTERS = [
     {"id": "aegiron_reporter_f1", "role": "reporter", "gender": "female",
-     "name": {"ko": "아이기론 AI 현장기자 지우", "en": "AEGIRON AI Field Reporter (Jiwoo)"},
-     "hair": "shoulder-length, practical neat style, dark",
+     "name": {"ko": "아이기론 AI 현장기자 지우", "en": "AEGIRON AI Field Reporter Sophia"},
+     "hair": "shoulder-length, practical neat style", "hair_color": "dark",
      "grooming": "natural, clean, outdoor-broadcast makeup",
      "demeanor": "composed on-the-scene field correspondent",
      "setting": _FIELD, "wardrobe_offset": 3},
+    {"id": "aegiron_reporter_f2", "role": "reporter", "gender": "female",
+     "name": {"ko": "아이기론 AI 현장기자 하은", "en": "AEGIRON AI Field Reporter Ava"},
+     "hair": "long, tied back neatly", "hair_color": "dark",
+     "grooming": "natural, clean, outdoor-broadcast makeup",
+     "demeanor": "energetic, clear on-the-scene correspondent",
+     "setting": _FIELD, "wardrobe_offset": 8},
+    {"id": "aegiron_reporter_f3", "role": "reporter", "gender": "female",
+     "name": {"ko": "아이기론 AI 현장기자 서윤", "en": "AEGIRON AI Field Reporter Mia"},
+     "hair": "short bob, neat", "hair_color": "dark",
+     "grooming": "natural, clean, outdoor-broadcast makeup",
+     "demeanor": "calm, measured field correspondent",
+     "setting": _FIELD, "wardrobe_offset": 11},
     {"id": "aegiron_reporter_m1", "role": "reporter", "gender": "male",
-     "name": {"ko": "아이기론 AI 현장기자 민준", "en": "AEGIRON AI Field Reporter (Minjun)"},
-     "hair": "short, neatly combed, dark",
+     "name": {"ko": "아이기론 AI 현장기자 민준", "en": "AEGIRON AI Field Reporter Ethan"},
+     "hair": "short, neatly combed", "hair_color": "dark",
      "grooming": "clean, natural, outdoor-broadcast grooming",
      "demeanor": "steady, on-the-scene field correspondent",
      "setting": _FIELD, "wardrobe_offset": 5},
+    {"id": "aegiron_reporter_m2", "role": "reporter", "gender": "male",
+     "name": {"ko": "아이기론 AI 현장기자 준우", "en": "AEGIRON AI Field Reporter Liam"},
+     "hair": "short, side-parted", "hair_color": "dark",
+     "grooming": "clean, natural, outdoor-broadcast grooming",
+     "demeanor": "assured, articulate field correspondent",
+     "setting": _FIELD, "wardrobe_offset": 1},
+    {"id": "aegiron_reporter_m3", "role": "reporter", "gender": "male",
+     "name": {"ko": "아이기론 AI 현장기자 도윤", "en": "AEGIRON AI Field Reporter Noah"},
+     "hair": "short crop, neat", "hair_color": "dark",
+     "grooming": "clean, natural, outdoor-broadcast grooming",
+     "demeanor": "grounded, on-the-scene correspondent",
+     "setting": _FIELD, "wardrobe_offset": 9},
 ]
 
 # 성별에 맞춘 단정한 방송 정장 워드로브(옷은 매일 다르게). 격식은 유지, 색/스타일만 바뀜.
@@ -163,12 +192,15 @@ def _presenter_spec(today: str, lang: str, persona: dict) -> dict:
     except ValueError:
         ordinal = 0
     gender = persona["gender"]
+    ethnicity = _ETHNICITY.get(lang, "Korean")  # 한국판=한국인, 영어판=미국인
     rack = _WARDROBE[gender]
     outfit = rack[(ordinal + persona["wardrobe_offset"]) % len(rack)]
+    hair = f"{persona['hair']}, {persona['hair_color']} hair"
 
     appearance = {
         "gender": gender,
-        "hair": persona["hair"],
+        "ethnicity": ethnicity,
+        "hair": hair,
         "grooming": persona["grooming"],
         "demeanor": persona["demeanor"],
         "outfit": outfit,  # 매일 바뀌는 유일한 항목
@@ -176,14 +208,15 @@ def _presenter_spec(today: str, lang: str, persona: dict) -> dict:
 
     # 페이퍼클립 등 이미지·영상 생성기에 그대로 넣을 프롬프트(합성 인물임을 명시).
     image_prompt = (
-        f"Synthetic AI-generated {gender} news presenter (not a real person), "
-        f"{persona['hair']}, {persona['grooming']}, "
+        f"Synthetic AI-generated {ethnicity} {gender} news presenter (not a real person), "
+        f"{hair}, {persona['grooming']}, "
         f"wearing {outfit}, {persona['setting']}."
     )
     return {
         "presenter_id": persona["id"],
         "role": persona["role"],
         "gender": gender,
+        "ethnicity": ethnicity,
         "name": persona["name"][lang],
         "is_synthetic_ai_presenter": True,   # 실존 인물 아님 — 아이기론 합성 진행자
         "appearance": appearance,            # 얼굴·헤어·메이크업 고정 + 오늘의 옷
