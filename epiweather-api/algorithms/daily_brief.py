@@ -567,6 +567,44 @@ def _build_ticker(data: dict, lang: str) -> list[str]:
     return [l for l in lines if l]
 
 
+def _podcast_block(presenters: list[dict], segments: list[dict], headline: str,
+                   summary: str, closing: str, disclosure: str, lang: str) -> dict:
+    """팟캐스트 에피소드 형태로 재조립 — 페이퍼클립이 TTS로 바로 굽게.
+    audio_timeline은 화자별 목소리가 붙은 대사 순서 리스트(단순 반복문으로 합성 가능).
+    오디오는 아이기론이 만들지 않는다(페이퍼클립 위임) — 여기서는 '재료'만 준다."""
+    by_role = {p["role"]: p for p in presenters}
+    anchor = by_role.get("anchor", presenters[0])
+
+    def line(role: str, text: str) -> dict:
+        p = by_role.get(role, anchor)
+        return {"speaker": role, "presenter_id": p["presenter_id"],
+                "name": p["name"], "voice": p["voice"], "text": text}
+
+    timeline: list[dict] = [line("anchor", summary)]  # 앵커 인트로(리드)
+    for seg in segments:
+        if seg.get("dialogue"):
+            for d in seg["dialogue"]:
+                timeline.append(line(d["speaker"], d["text"]))
+        else:
+            timeline.append(line("anchor", seg["anchor_script"]))
+    timeline.append(line("anchor", closing))
+    timeline.append(line("anchor", disclosure))  # 고지를 소리로도 반드시 읽음
+
+    return {
+        "title": headline,
+        "description": f"{summary}\n\n{disclosure}",
+        "author": _PROGRAM_NAME[lang],
+        "language": "ko-KR" if lang == "ko" else "en-US",
+        "cadence": "daily",
+        "audio_timeline": timeline,   # [{speaker, presenter_id, name, voice, text}, ...]
+        "note": ("아이기론은 대본·화자·목소리 스펙만 제공한다. 실제 TTS·오디오 파일·"
+                 "RSS 피드·호스팅은 페이퍼클립 등 자동화 플랫폼이 담당한다."
+                 if lang == "ko" else
+                 "AEGIRON provides only the script, cast, and voice specs. Actual TTS, audio "
+                 "files, RSS feed, and hosting are handled by an automation platform (Paperclip)."),
+    }
+
+
 def _headline(data: dict, lang: str, quiet: bool, fmt: dict) -> tuple[str, str]:
     # 프로그램명 뒤에 오늘의 포맷명을 붙여 코너가 매일 다름을 드러낸다.
     prog = f"{_PROGRAM_NAME[lang]} · {fmt['name'][lang]}"
@@ -687,7 +725,12 @@ def generate_daily_brief(lang: str = "ko", api_key: str | None = None,
     if api_key:
         polished = _polish_with_llm(brief, lang, fmt_spec, api_key)
         if polished is not None:
-            polished["generation_method"] = "llm_polished"
-            return polished
+            brief = polished
+            brief["generation_method"] = "llm_polished"
 
+    # 팟캐스트 에피소드(오디오용)는 폴리시가 끝난 최종 대본 기준으로 조립한다.
+    brief["podcast"] = _podcast_block(
+        brief["presenters"], brief["segments"], brief["headline"],
+        brief["summary"], brief["closing"], brief["disclosure"], lang,
+    )
     return brief

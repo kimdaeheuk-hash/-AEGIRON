@@ -224,6 +224,35 @@ def test_promo_point_rotates_and_marks_future_as_roadmap():
             assert "계획" in seg["anchor_script"] or "roadmap" in seg["anchor_script"]
 
 
+def test_podcast_block_assembles_audio_timeline_with_voices():
+    """팟캐스트 에피소드 형태 — 화자별 목소리가 붙은 대사 순서 리스트. 오디오는
+    아이기론이 만들지 않고(페이퍼클립 위임) 재료만 준다."""
+    with patch("algorithms.daily_brief._gather", return_value=_ACTIVE):
+        brief = generate_daily_brief(lang="ko", today="2026-07-25", fmt="duo")
+    pod = brief["podcast"]
+    assert pod["title"] == brief["headline"]
+    assert pod["language"] == "ko-KR"
+    assert pod["cadence"] == "daily"
+    tl = pod["audio_timeline"]
+    assert len(tl) >= 3
+    # 각 라인은 화자·목소리·텍스트를 갖춤 (TTS 반복문으로 바로 합성 가능)
+    for entry in tl:
+        assert entry["text"].strip()
+        assert entry["voice"]["gender"] in {"male", "female"}
+        assert entry["presenter_id"]
+    # 마지막 줄은 고지(소리로도 읽힘)
+    assert tl[-1]["text"] == brief["disclosure"]
+    # 대담 포맷이면 두 화자가 audio_timeline에 등장
+    speakers = {e["speaker"] for e in tl}
+    assert "anchor" in speakers and "cohost" in speakers
+
+
+def test_podcast_english_uses_en_us_language():
+    with patch("algorithms.daily_brief._gather", return_value=_ACTIVE):
+        brief = generate_daily_brief(lang="en", today="2026-07-25")
+    assert brief["podcast"]["language"] == "en-US"
+
+
 def test_presenter_is_female_synthetic_and_neat():
     with patch("algorithms.daily_brief._gather", return_value=_ACTIVE):
         brief = generate_daily_brief(lang="ko", today="2026-07-25")

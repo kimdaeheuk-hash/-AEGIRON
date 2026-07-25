@@ -211,6 +211,16 @@ export interface DailyBrief {
   disclosure: string;
   closing: string;
   generation_method: 'template_fallback' | 'llm_polished';
+  podcast?: {
+    title: string;
+    description: string;
+    author: string;
+    language: string;
+    cadence: string;
+    audio_timeline: { speaker: string; presenter_id: string; name: string;
+      voice: { gender: string; style: string; pace: string }; text: string }[];
+    note: string;
+  };
 }
 
 export async function fetchDailyBrief(lang: 'ko' | 'en' = 'ko', format?: string): Promise<DailyBrief> {
