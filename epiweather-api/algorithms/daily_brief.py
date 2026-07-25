@@ -60,6 +60,8 @@ _PERSONAS = {
         "hair": "shoulder-length, neatly styled, dark",
         "makeup": "natural, clean, professional broadcast makeup",
         "demeanor": "calm, credible, professional news anchor",
+        "setting": "seated at a modern news desk, AEGIRON-branded studio backdrop, "
+                   "soft professional studio lighting, front-facing, upper body",
         "wardrobe_offset": 0,
     },
     "cohost": {
@@ -68,7 +70,19 @@ _PERSONAS = {
         "hair": "long, neatly tied back, dark",
         "makeup": "natural, clean, professional broadcast makeup",
         "demeanor": "warm, articulate public-health analyst",
+        "setting": "seated at a modern news desk, AEGIRON-branded studio backdrop, "
+                   "soft professional studio lighting, front-facing, upper body",
         "wardrobe_offset": 7,  # 앵커와 다른 옷이 나오도록 로테이션 위상만 다르게
+    },
+    "reporter": {
+        "id": "aegiron_reporter_f1",
+        "name": {"ko": "아이기론 AI 현장기자", "en": "AEGIRON AI Field Reporter"},
+        "hair": "shoulder-length, practical neat style, dark",
+        "makeup": "natural, clean, outdoor-broadcast makeup",
+        "demeanor": "composed on-the-scene field correspondent",
+        "setting": "standing on location holding a reporter's handheld microphone, "
+                   "outdoor field background, daytime, upper body",
+        "wardrobe_offset": 3,  # 앵커·분석위원과 겹치지 않게 위상만 다르게
     },
 }
 
@@ -121,8 +135,7 @@ def _presenter_spec(today: str, lang: str, role: str = "anchor") -> dict:
     image_prompt = (
         f"Synthetic AI-generated female news presenter (not a real person), "
         f"{persona['hair']}, {persona['makeup']}, "
-        f"wearing {outfit}, seated at a modern news desk, AEGIRON-branded studio "
-        f"backdrop, soft professional studio lighting, front-facing, upper body."
+        f"wearing {outfit}, {persona['setting']}."
     )
     return {
         "presenter_id": persona["id"],
@@ -154,8 +167,8 @@ _FORMATS = [
      "host_mode": "single", "tone": "analytical, contextual, explanatory",
      "desc": {"ko": "최상위 위협 하나를 깊게 파는 분석", "en": "One lead threat, explained in depth"}},
     {"id": "field", "name": {"ko": "현장 리포트", "en": "Field Report"},
-     "host_mode": "single", "tone": "on-the-ground correspondent report",
-     "desc": {"ko": "지역별 현장 특파원 형식", "en": "Regional correspondent framing"}},
+     "host_mode": "anchor_reporter", "tone": "on-the-ground correspondent report",
+     "desc": {"ko": "앵커가 현장기자를 연결하는 특파원 형식", "en": "Anchor hands off to a field reporter"}},
     {"id": "data", "name": {"ko": "데이터 브리핑", "en": "Data Brief"},
      "host_mode": "single", "tone": "calm numbers-first data explainer",
      "desc": {"ko": "수치·추세 중심의 차분한 설명", "en": "Numbers and trends, calmly explained"}},
@@ -243,12 +256,18 @@ def _threat_lines(fmt_id: str, ev: dict, nl: dict, lang: str, idx: int):
         return script, None
 
     if fmt_id == "field":
-        script = (f"{where} 상황부터 전해드립니다. 현지에서 {disease} 관련 신호가 확인되고 있습니다. "
-                  f"위험 등급 '{tier}', 출처 {n}곳입니다."
-                  if ko else
-                  f"We go on the ground in {where}, where a {disease} signal is being reported. "
-                  f"Risk level '{tier}', {n} sources.")
-        return script, None
+        # 앵커가 현장을 연결하면 현장기자가 리포트하는 구조.
+        if ko:
+            q = f"{where} 현장을 연결합니다. 상황 어떻습니까?"
+            a = (f"네, 이곳 {where}에서는 {disease} 관련 신호가 확인되고 있습니다. "
+                 f"위험 등급은 '{tier}', 서로 다른 {n}개 출처에서 포착됐습니다.")
+        else:
+            q = f"We now go live to {where}. What's the situation on the ground?"
+            a = (f"Yes — here in {where}, a {disease} signal is being reported. "
+                 f"Risk level '{tier}', picked up across {n} sources.")
+        dialogue = [{"speaker": "anchor", "text": q}, {"speaker": "reporter", "text": a}]
+        script = f"[앵커] {q} [현장기자] {a}" if ko else f"[Anchor] {q} [Reporter] {a}"
+        return script, dialogue
 
     if fmt_id == "data":
         score_txt = f"{score}점" if ko else f"{score}"
@@ -357,6 +376,18 @@ def _build_segments(data: dict, lang: str, fmt: dict) -> list[dict]:
                 seg["dialogue"] = [
                     {"speaker": "anchor", "text": "Anything major to flag today?"},
                     {"speaker": "cohost", "text": "No — it's quiet right now, and surveillance is running normally."},
+                ]
+        elif fmt_id == "field":
+            # 현장 리포트는 조용한 날도 앵커→현장기자 연결로
+            if lang == "ko":
+                seg["dialogue"] = [
+                    {"speaker": "anchor", "text": "현장, 새로 들어온 소식 있습니까?"},
+                    {"speaker": "reporter", "text": "현재까지 새로 격상된 신호는 없습니다. 정기 감시는 계속되고 있습니다."},
+                ]
+            else:
+                seg["dialogue"] = [
+                    {"speaker": "anchor", "text": "Any fresh developments from the field?"},
+                    {"speaker": "reporter", "text": "Nothing newly elevated so far. Routine surveillance continues."},
                 ]
         segs.append(seg)
 
@@ -544,8 +575,10 @@ def generate_daily_brief(lang: str = "ko", api_key: str | None = None,
                "This has been AEGIRON Outbreak Watch. See you in the next briefing.")
 
     presenters = [_presenter_spec(today, lang, "anchor")]
-    if fmt_spec["host_mode"] == "duo":
+    if fmt_spec["id"] == "duo":
         presenters.append(_presenter_spec(today, lang, "cohost"))
+    elif fmt_spec["id"] == "field":
+        presenters.append(_presenter_spec(today, lang, "reporter"))  # 앵커 + 현장기자
 
     brief = {
         "date": today,

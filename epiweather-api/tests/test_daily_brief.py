@@ -131,6 +131,22 @@ def test_single_format_has_one_presenter():
     assert len(brief["presenters"]) == 1
 
 
+def test_field_format_adds_reporter_and_anchor_handoff():
+    """현장 리포트는 앵커 + 현장기자 2인이고, 앵커가 현장기자에게 연결하는 대화 구조."""
+    with patch("algorithms.daily_brief._gather", return_value=_ACTIVE):
+        brief = generate_daily_brief(lang="ko", today="2026-07-25", fmt="field")
+    roles = {p["role"] for p in brief["presenters"]}
+    assert roles == {"anchor", "reporter"}
+    # 현장기자도 여성·단정, 현장(마이크) 세팅
+    reporter = next(p for p in brief["presenters"] if p["role"] == "reporter")
+    assert reporter["appearance"]["gender"] == "female"
+    assert "microphone" in reporter["image_prompt"]
+    # 위협 세그먼트가 앵커→현장기자 대화로 구성
+    seg = next(s for s in brief["segments"] if s["kind"] == "threat")
+    speakers = {d["speaker"] for d in seg["dialogue"]}
+    assert speakers == {"anchor", "reporter"}
+
+
 def test_promo_segment_appended_and_separated_from_news():
     """작가가 뉴스 끝에 아이기론을 홍보하되, 실제 발병 보도와 kind로 분리돼야 함."""
     with patch("algorithms.daily_brief._gather", return_value=_ACTIVE):
