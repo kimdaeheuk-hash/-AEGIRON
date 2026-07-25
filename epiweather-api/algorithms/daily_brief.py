@@ -363,6 +363,86 @@ def _build_segments(data: dict, lang: str, fmt: dict) -> list[dict]:
     return segs
 
 
+# ── 홍보 포인트(아이기론 기술력·미래) ────────────────────────────
+# 작가(포맷)들이 뉴스 끝에 아이기론을 소개한다. 정직성 경계선: 이미 구현된 실제
+# 역량만 사실로 말하고, 미래는 '계획'으로 명시(is_future=True). 실제 발병 보도와
+# 섞이지 않게 kind="promo"로 분리한다. 날짜별로 다른 포인트가 나온다.
+_PROMO_POINTS = [
+    {"is_future": False,
+     "ko": "아이기론은 21개 실시간 데이터 소스를 종합해, 감염병이 국제 뉴스가 되기 전에 신호를 포착합니다.",
+     "en": "AEGIRON fuses 21 live data sources to catch signals before an outbreak becomes international news."},
+    {"is_future": False,
+     "ko": "179개국 현지어 뉴스를 교차언어로 분석해, 언어가 달라도 같은 발병을 하나로 묶어냅니다.",
+     "en": "It reads local-language news from 179 countries and merges the same outbreak across languages."},
+    {"is_future": False,
+     "ko": "기후·산림손실·극지 같은 환경 선행지표로, 발병의 '뒤'가 아니라 '앞'을 봅니다.",
+     "en": "Environmental leading indicators — climate, forest loss, polar thaw — let it look ahead of an outbreak, not just after."},
+    {"is_future": False,
+     "ko": "7일·14일 위험 예측과 도시 간 확산 시뮬레이션까지 하나의 엔진에 통합돼 있습니다.",
+     "en": "7- and 14-day risk forecasts and city-to-city spread simulation are built into one engine."},
+    {"is_future": False,
+     "ko": "지어낸 숫자는 없습니다. 모든 지표에 측정·추정·프록시 여부를 표시합니다.",
+     "en": "No invented numbers — every indicator is labeled as measured, estimated, or proxy."},
+    {"is_future": False,
+     "ko": "GDELT 과거 뉴스 데이터로 지난 발병을 재구성해, 우리가 그때 있었다면 며칠 빨랐는지 검증합니다.",
+     "en": "Using GDELT's historical news data, it reconstructs past outbreaks to verify how many days earlier it would have flagged them."},
+    {"is_future": True,
+     "ko": "다음 단계로, 오지 진료소에 현장 센서망과 위성연결(Starlink)을 붙여 인터넷이 닿지 않는 사각지대의 신호까지 끌어올릴 계획입니다.",
+     "en": "Next, the plan is to add field sensor networks and satellite links (Starlink) at remote clinics to surface signals from areas the internet doesn't reach."},
+    {"is_future": True,
+     "ko": "글로벌 거대 시스템이 얕게밖에 못 보는 로컬·현지어 신호를, 오지·저개발국까지 가장 깊게 보는 것이 아이기론이 가려는 방향입니다.",
+     "en": "AEGIRON's direction is to see the local, native-language signals that big global systems only skim — as deeply as possible, all the way into underserved regions."},
+]
+
+
+def _promo_segment(fmt: dict, lang: str, today: str) -> dict:
+    """오늘의 홍보 포인트를 포맷 말투로 감싼 소개 세그먼트. kind='promo'로 분리."""
+    try:
+        ordinal = dt.date.fromisoformat(today).toordinal()
+    except ValueError:
+        ordinal = 0
+    point = _PROMO_POINTS[ordinal % len(_PROMO_POINTS)]
+    body = point[lang]
+    ko = lang == "ko"
+    fmt_id = fmt["id"]
+    future_tag = (" (개발 계획)" if ko else " (on our roadmap)") if point["is_future"] else ""
+
+    if fmt_id == "duo":
+        if ko:
+            q = "끝으로, 아이기론은 이걸 어떻게 가능하게 하나요?"
+        else:
+            q = "Finally — how does AEGIRON make this possible?"
+        a = body + future_tag
+        dialogue = [{"speaker": "anchor", "text": q}, {"speaker": "cohost", "text": a}]
+        script = f"[앵커] {q} [분석위원] {a}" if ko else f"[Anchor] {q} [Analyst] {a}"
+    else:
+        leadin = {
+            "breaking": ("끝으로 아이기론 소개입니다. ", "Finally, about AEGIRON. "),
+            "deepdive": ("브리핑을 마치며 한 가지. ", "One note as we close. "),
+            "field": ("스튜디오에서 짚어드립니다. ", "Back in the studio, a note. "),
+            "data": ("이 분석을 가능하게 하는 기술입니다. ", "The technology behind this analysis: "),
+        }.get(fmt_id, ("아이기론 소개입니다. ", "About AEGIRON. "))
+        script = leadin[0 if ko else 1] + body + future_tag
+        dialogue = None
+
+    seg = {
+        "segment_id": "about",
+        "kind": "promo",
+        "anchor_script": script,
+        "lower_third": ("아이기론 소개 · 개발 계획" if point["is_future"] else "아이기론 소개")
+        if ko else ("About AEGIRON · roadmap" if point["is_future"] else "About AEGIRON"),
+        "visual_cue": "brand:aegiron",
+        "tier": None,
+        "score": None,
+        "sources": [],
+        "countries": [],
+        "is_future": point["is_future"],
+    }
+    if dialogue is not None:
+        seg["dialogue"] = dialogue
+    return seg
+
+
 def _build_ticker(data: dict, lang: str) -> list[str]:
     nl = data["name_lookup"]
     lines: list[str] = []
@@ -453,7 +533,9 @@ def generate_daily_brief(lang: str = "ko", api_key: str | None = None,
 
     data = _gather()
     segments = _build_segments(data, lang, fmt_spec)
+    # quiet_day는 '실제 위협' 기준 — 홍보 세그먼트를 붙이기 전에 판정한다.
     quiet = all(s["kind"] == "quiet" for s in segments)
+    segments = segments + [_promo_segment(fmt_spec, lang, today)]  # 작가가 뉴스 끝에 아이기론 소개
     headline, summary = _headline(data, lang, quiet, fmt_spec)
     ticker = _build_ticker(data, lang)
 

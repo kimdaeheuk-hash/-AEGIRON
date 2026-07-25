@@ -50,7 +50,8 @@ export default function NewsBroadcast() {
   if (error && !brief) return null; // 백엔드 미가동 시 홈 나머지는 정상 노출
 
   const seg: BriefSegment | undefined = brief?.segments[idx];
-  const accent = seg?.tier ? TIER_COLOR[seg.tier] ?? '#38bdf8' : '#34d399';
+  const accent = seg?.kind === 'promo' ? '#38bdf8'
+    : seg?.tier ? TIER_COLOR[seg.tier] ?? '#38bdf8' : '#34d399';
   const t = (ko: string, en: string) => (lang === 'ko' ? ko : en);
 
   return (
@@ -131,7 +132,7 @@ export default function NewsBroadcast() {
           <div style={{ position: 'absolute', left: 0, bottom: 44, display: 'flex', alignItems: 'stretch' }}>
             <div style={{ background: accent, color: '#04070d', fontFamily: 'var(--mono)', fontWeight: 800,
               fontSize: 11, letterSpacing: '.08em', padding: '9px 12px', display: 'grid', placeItems: 'center' }}>
-              {seg.kind === 'quiet' ? t('감시', 'WATCH') : t('속보', 'ALERT')}
+              {seg.kind === 'quiet' ? t('감시', 'WATCH') : seg.kind === 'promo' ? t('소개', 'ABOUT') : t('속보', 'ALERT')}
             </div>
             <div style={{ background: 'rgba(4,7,13,.82)', color: '#fff', fontFamily: 'var(--kr)', fontWeight: 700,
               fontSize: 'clamp(12px,1.4vw,15px)', padding: '9px 16px', borderRight: '1px solid rgba(255,255,255,.1)' }}>

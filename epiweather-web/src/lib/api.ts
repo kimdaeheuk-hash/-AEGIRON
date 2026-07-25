@@ -182,7 +182,7 @@ export async function fetchRiskQuantification(): Promise<RiskQuantification> {
 // 항상 false — UI에서도 '공식 경보 아님'을 반드시 그대로 노출해야 함.
 export interface BriefSegment {
   segment_id: string;
-  kind: 'threat' | 'quiet';
+  kind: 'threat' | 'quiet' | 'promo';
   anchor_script: string;
   lower_third: string;
   visual_cue: string;
@@ -191,6 +191,7 @@ export interface BriefSegment {
   sources: string[];
   countries: string[];
   dialogue?: { speaker: string; text: string }[];
+  is_future?: boolean;
 }
 
 export interface DailyBrief {

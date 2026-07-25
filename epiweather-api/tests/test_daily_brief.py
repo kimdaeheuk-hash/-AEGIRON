@@ -41,11 +41,13 @@ def test_active_day_builds_threat_segments():
 
 
 def test_quiet_day_stays_quiet():
-    """새 위협이 없으면 없다고 말한다 — 방송 채우려 위기 지어내지 않음."""
+    """새 위협이 없으면 없다고 말한다 — 방송 채우려 위기 지어내지 않음.
+    홍보(promo) 세그먼트가 붙어도 quiet_day는 실제 위협 기준으로 True 유지."""
     with patch("algorithms.daily_brief._gather", return_value=_QUIET):
         brief = generate_daily_brief(lang="ko")
     assert brief["quiet_day"] is True
-    assert len(brief["segments"]) == 1
+    kinds = [s["kind"] for s in brief["segments"]]
+    assert "threat" not in kinds
     assert brief["segments"][0]["kind"] == "quiet"
     assert "없" in brief["headline"] or "없" in brief["summary"]
 
@@ -127,6 +129,33 @@ def test_single_format_has_one_presenter():
     with patch("algorithms.daily_brief._gather", return_value=_ACTIVE):
         brief = generate_daily_brief(today="2026-07-25", fmt="breaking")
     assert len(brief["presenters"]) == 1
+
+
+def test_promo_segment_appended_and_separated_from_news():
+    """작가가 뉴스 끝에 아이기론을 홍보하되, 실제 발병 보도와 kind로 분리돼야 함."""
+    with patch("algorithms.daily_brief._gather", return_value=_ACTIVE):
+        brief = generate_daily_brief(lang="ko", today="2026-07-25")
+    promo = [s for s in brief["segments"] if s["kind"] == "promo"]
+    assert len(promo) == 1
+    assert promo[0]["segment_id"] == "about"
+    assert "아이기론" in promo[0]["lower_third"]  # 브랜드 자막으로 소개임을 명시
+    assert promo[0]["anchor_script"].strip()
+    # 홍보는 위협 등급·출처를 달지 않는다(가짜 경보로 안 보이게)
+    assert promo[0]["tier"] is None and promo[0]["sources"] == []
+
+
+def test_promo_point_rotates_and_marks_future_as_roadmap():
+    """홍보 포인트는 날짜별로 다르고, 미래 항목은 '계획'으로 정직하게 표시."""
+    with patch("algorithms.daily_brief._gather", return_value=_ACTIVE):
+        scripts = {generate_daily_brief(today=f"2026-07-{d:02d}")["segments"][-1]["anchor_script"]
+                   for d in range(1, 9)}
+        # 미래(로드맵) 포인트가 뜨는 날엔 '계획' 표기가 있어야 함
+        future_days = [generate_daily_brief(today=f"2026-07-{d:02d}")["segments"][-1]
+                       for d in range(1, 9)]
+    assert len(scripts) >= 4  # 8일치에 최소 4종 이상 홍보 포인트
+    for seg in future_days:
+        if seg.get("is_future"):
+            assert "계획" in seg["anchor_script"] or "roadmap" in seg["anchor_script"]
 
 
 def test_presenter_is_female_synthetic_and_neat():
