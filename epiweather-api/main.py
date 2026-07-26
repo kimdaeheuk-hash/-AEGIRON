@@ -863,6 +863,34 @@ def deforestation_signals_country(country: str):
         )
 
 
+@app.get("/api/trade-signals", tags=["GAI"])
+def trade_signals():
+    """
+    국제무역 선행지표(Phase 42) — 블루닷의 '항공권 데이터'에 대응하는 각도.
+    정부·의료기관이 공식 발표 전에 의료물자(마스크·방호장비·진단키트)를
+    대량 수입하기 시작하는 '준비 행동'을 UN Comtrade 관세통계로 포착.
+    수입액 자체는 실측이나 '발병 대비 행동'이라는 해석은 프록시임을 명시.
+    무역통계 특유의 신고지연(추정 2개월)이 있어 실시간 신호가 아니라
+    중기 선행지표임을 항상 표시. COMTRADE_API_KEY(무료) 없으면
+    data_available=False로 정직하게 표시.
+    """
+    from algorithms.comtrade_signals import trade_signals_all
+    return trade_signals_all()
+
+
+@app.get("/api/trade-signals/{country}", tags=["GAI"])
+def trade_signals_country(country: str):
+    """특정 국가(Tier-1 ISO3)의 의료물자 수입 선행지표 상세."""
+    from algorithms.comtrade_signals import compute_country_trade_signal, UN_M49_CODES
+    try:
+        return compute_country_trade_signal(country)
+    except KeyError:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Comtrade 미지원 국가. 지원 목록: {list(UN_M49_CODES)}",
+        )
+
+
 @app.get("/api/polar-watch", tags=["GAI"])
 def polar_watch():
     """
