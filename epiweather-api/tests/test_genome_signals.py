@@ -65,3 +65,32 @@ def test_low_complexity_sequence_flags_entropy():
     r = gs.screen_sequence("A" * 40)
     assert r["ok"] is True
     assert any(f["metric"] == "shannon_entropy" for f in r["flags"])
+
+
+# ── 새 각도: 국소 조성 이상 + 균등간격 시그니처 ──────────────────
+def test_window_composition_flags_local_insert():
+    """전체 평균엔 묻히는 국소 조성 이상(외래 삽입 후보)을 슬라이딩 윈도로 잡는다."""
+    seq = ("AT" * 150) + ("GC" * 150) + ("AT" * 150)  # 가운데만 GC-rich
+    r = gs.window_composition_anomaly(seq, window=100, step=50)
+    assert r["assessed"] is True
+    assert r["anomaly_count"] > 0   # GC-rich 삽입 구간이 잡힘
+
+
+def test_window_composition_uniform_no_anomaly():
+    r = gs.window_composition_anomaly("ATGC" * 200, window=100, step=50)
+    assert r["assessed"] is True
+    assert r["anomaly_count"] == 0  # 균질 서열 → 이상 없음
+
+
+def test_restriction_even_spacing_signature():
+    """BsaI 부위가 100bp 간격으로 균등 → 조립 시그니처로 플래그."""
+    seq = ("GGTCTC" + "A" * 94) * 5   # 100bp마다 BsaI, 5개
+    r = gs.restriction_even_spacing(seq)
+    assert "BsaI" in r["even_spacing_flagged"]
+    assert r["by_enzyme"]["BsaI"]["gap_cv"] == 0.0
+
+
+def test_restriction_even_spacing_irregular_not_flagged():
+    seq = "GGTCTC" + "A" * 10 + "GGTCTC" + "A" * 300 + "GGTCTC" + "A" * 30 + "GGTCTC"
+    r = gs.restriction_even_spacing(seq)
+    assert "BsaI" not in r["even_spacing_flagged"]  # 불규칙 간격 → 아님

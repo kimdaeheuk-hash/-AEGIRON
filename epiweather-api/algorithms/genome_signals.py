@@ -152,6 +152,66 @@ def cai(seq: str) -> dict | None:
     return {"cai": round(math.exp(sum(logs) / len(logs)), 4), "codons_scored": used}
 
 
+# Type IIS 제한효소(리버스제네틱스 조립에 흔히 쓰임) — 균등간격 시그니처 스캔용.
+_TYPE2S = {"BsaI": "GGTCTC", "BsmBI": "CGTCTC"}
+
+
+def window_composition_anomaly(seq: str, window: int = 120, step: int = 60,
+                               gc_delta: float = 0.15) -> dict:
+    """슬라이딩 윈도로 GC·CpG O/E를 재서, 전체 중앙값에서 크게 벗어난 구간을 찾는다.
+    국소 조성 이상 = 외래 삽입·재조합 후보(전체 점통계로는 안 보이는 신호). 방어 탐지."""
+    if len(seq) < window * 2:
+        return {"assessed": False, "reason": "윈도 2개 미만 — 구간분석 불가"}
+    wins = []
+    for start in range(0, len(seq) - window + 1, step):
+        w = seq[start:start + window]
+        wins.append({"start": start, "gc": gc_content(w), "cpg_oe": cpg_observed_expected(w)})
+    gcs = sorted(x["gc"] for x in wins if x["gc"] is not None)
+    median_gc = gcs[len(gcs) // 2] if gcs else 0.0
+    anomalies = [
+        {**w, "gc_deviation": round(abs(w["gc"] - median_gc), 4)}
+        for w in wins if w["gc"] is not None and abs(w["gc"] - median_gc) > gc_delta
+    ]
+    return {
+        "assessed": True,
+        "windows": len(wins),
+        "median_gc": round(median_gc, 4),
+        "anomalous_windows": anomalies,
+        "anomaly_count": len(anomalies),
+        "note": "국소 조성 이상은 외래 삽입·재조합 후보(방어 우선순위). 정렬·계통발생 확인 필요.",
+    }
+
+
+def restriction_even_spacing(seq: str) -> dict:
+    """Type IIS 부위(BsaI/BsmBI)의 간격이 '비정상적으로 균등'한지(조립 시그니처) 검사.
+    코로나 기원 논쟁(Bruttel et al. 2022)에서 쓰인 방어적 탐지법. 균등간격 + 적정
+    조각수면 리버스제네틱스(인공 조립) 흔적일 수 있음 — 판정 아닌 우선순위 신호."""
+    import statistics as _st
+    out = {}
+    for name, rec in _TYPE2S.items():
+        rc = _rc(rec)
+        pos = sorted(set(
+            [i for i in range(len(seq) - len(rec) + 1) if seq[i:i + len(rec)] == rec]
+            + [i for i in range(len(seq) - len(rc) + 1) if seq[i:i + len(rc)] == rc]
+        ))
+        gaps = [pos[i + 1] - pos[i] for i in range(len(pos) - 1)]
+        if len(gaps) >= 3:
+            mean_gap = _st.mean(gaps)
+            cv = round(_st.pstdev(gaps) / mean_gap, 4) if mean_gap else None
+            even = bool(cv is not None and cv < 0.30 and 20 <= mean_gap <= 8000)
+        else:
+            mean_gap, cv, even = (round(_st.mean(gaps), 1) if gaps else None), None, False
+        out[name] = {"sites": len(pos), "mean_gap": mean_gap, "gap_cv": cv,
+                     "even_spacing_signature": even}
+    flagged = [n for n, v in out.items() if v["even_spacing_signature"]]
+    return {
+        "by_enzyme": out,
+        "even_spacing_flagged": flagged,
+        "note": "균등간격 시그니처는 리버스제네틱스 조립 흔적일 수 있음(Bruttel 2022) — "
+                "판정이 아니라 방어 우선순위. 자연 서열도 우연히 나올 수 있음.",
+    }
+
+
 def restriction_scan(seq: str) -> dict:
     """흔한 제한효소 인식부위 카운트(양가닥). 클로닝 흔적 방어 스크리닝용."""
     rc = seq.translate(str.maketrans("ACGT", "TGCA"))[::-1]
@@ -197,6 +257,16 @@ def screen_sequence(raw: str) -> dict:
         flags.append({"metric": "dinucleotide_bias", "value": worst,
                       "note": f"{worst['dinucleotide']} O/E {worst['oe']} — 강한 다이뉴클레오타이드 편향"})
 
+    # 새 각도: 국소 조성 이상(삽입/재조합) + Type IIS 균등간격(조립 시그니처)
+    window_anomaly = window_composition_anomaly(seq)
+    even_spacing = restriction_even_spacing(seq)
+    if window_anomaly.get("anomaly_count", 0) > 0:
+        flags.append({"metric": "window_composition", "value": window_anomaly["anomaly_count"],
+                      "note": f"국소 조성 이상 구간 {window_anomaly['anomaly_count']}개 — 삽입·재조합 후보"})
+    if even_spacing["even_spacing_flagged"]:
+        flags.append({"metric": "restriction_even_spacing", "value": even_spacing["even_spacing_flagged"],
+                      "note": f"{even_spacing['even_spacing_flagged']} 균등간격 시그니처 — 조립 흔적 가능성"})
+
     return {
         "ok": True,
         "clean_length": len(seq),
@@ -206,6 +276,8 @@ def screen_sequence(raw: str) -> dict:
         "max_dinucleotide_deviation": worst,
         "cai_human": cai_res,      # 코딩서열 아니면 None
         "restriction_sites": restriction_scan(seq),
+        "window_composition_anomaly": window_anomaly,   # 삽입/재조합 후보
+        "restriction_even_spacing": even_spacing,        # 조립 시그니처
         "flags": flags,
         "flag_count": len(flags),
         # 판정이 아니라 우선순위 도구임을 못박는다.

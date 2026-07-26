@@ -49,3 +49,30 @@ def test_illustrative_is_flagged():
     r = br.illustrative_readiness()
     assert r["is_illustrative"] is True
     assert r["coverage"]["coverage_rate"] is not None
+
+
+# ── 새 각도: 회복력(단일故障점) + 물류(소진일수) ─────────────────
+def test_resilience_flags_single_point_of_failure():
+    """대응제가 딱 하나뿐인 위협은 단일故障점 — 커버리지만으론 안 보이는 취약성."""
+    r = br.compute_readiness(_CM, _THREATS)
+    res = r["resilience"]
+    # H5N1(국산항체 1개), Ebola(수입항체 1개) 각각 대응제 1개뿐
+    assert set(res["single_point_of_failure"]) == {"H5N1", "Ebola"}
+    assert res["import_only_covered"] == ["Ebola"]
+
+
+def test_logistics_computes_days_of_supply():
+    """비축 인분 vs 예상 수요로 커버 비율·부족분 계산. courses 없으면 제외."""
+    cm = [{"name": "타미플루", "type": "antiviral", "targets": ["H5N1"],
+           "declared_efficacy": 0.5, "domestic_producible": True,
+           "courses": 3_000_000, "population": 10_000_000, "attack_rate": 0.30}]
+    r = br.compute_readiness(cm, [{"pathogen": "H5N1"}])
+    item = r["logistics"]["items"][0]
+    assert item["projected_demand"] == 3_000_000    # 1000만 * 0.3
+    assert item["coverage_fraction"] == 1.0          # 300만 비축 = 수요
+    assert item["shortfall"] == 0
+
+
+def test_logistics_skips_when_no_courses():
+    r = br.compute_readiness(_CM, _THREATS)   # _CM엔 courses 없음
+    assert r["logistics"]["assessed"] == 0     # 지어내지 않고 제외

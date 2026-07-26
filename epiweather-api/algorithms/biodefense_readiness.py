@@ -64,6 +64,8 @@ def compute_readiness(countermeasures: list[dict], threats: list[dict]) -> dict:
 
     return {
         "threats_assessed": n,
+        "resilience": _resilience_analysis(countermeasures, threats),
+        "logistics": _stockpile_logistics(countermeasures, threats),
         "coverage": {
             "covered": covered_n,
             "uncovered": len(uncovered),
@@ -87,10 +89,59 @@ def compute_readiness(countermeasures: list[dict], threats: list[dict]) -> dict:
     }
 
 
+def _resilience_analysis(countermeasures: list[dict], threats: list[dict]) -> dict:
+    """새 각도: 커버리지'만'으론 안 보이는 취약성 — 대응제가 딱 하나뿐인 위협(단일
+    故障점)과, 커버되지만 전부 수입에만 의존하는 위협을 잡는다."""
+    single_point = []
+    import_only = []
+    for th in threats:
+        pathogen = th.get("pathogen")
+        covering = [cm for cm in countermeasures
+                    if pathogen in cm.get("targets", [])
+                    and (cm.get("declared_efficacy") or 0) >= COVERAGE_MIN_EFFICACY]
+        if len(covering) == 1:
+            single_point.append(pathogen)                       # 대응제 1개뿐 → 취약
+        if covering and not any(cm.get("domestic_producible") for cm in covering):
+            import_only.append(pathogen)                        # 전부 수입 의존
+    return {
+        "single_point_of_failure": single_point,
+        "single_point_count": len(single_point),
+        "import_only_covered": import_only,
+        "note": "대응제가 하나뿐인 위협은 그 하나가 실패(내성·escape·공급중단)하면 즉시 무방비.",
+    }
+
+
+def _stockpile_logistics(countermeasures: list[dict], threats: list[dict]) -> dict:
+    """새 각도: 비축 소진일수 — courses(비축 인분)와 예상 수요로 '며칠 버티나' 계산.
+    courses/population/attack_rate가 있는 대응제만 계산(없으면 지어내지 않고 skip)."""
+    rows = []
+    for cm in countermeasures:
+        courses = cm.get("courses")
+        if courses is None:
+            continue
+        pop = cm.get("population")
+        attack = cm.get("attack_rate")
+        demand = (pop * attack) if (pop and attack) else None
+        rows.append({
+            "name": cm["name"],
+            "courses": courses,
+            "projected_demand": round(demand) if demand else None,
+            "coverage_fraction": round(min(courses / demand, 1.0), 3) if demand else None,
+            "shortfall": round(demand - courses) if (demand and demand > courses) else 0,
+        })
+    return {
+        "assessed": len(rows),
+        "items": rows,
+        "note": "courses(비축 인분)·population·attack_rate가 입력된 대응제만 계산. "
+                "없으면 지어내지 않고 제외.",
+    }
+
+
 # 시연용 예시 데이터(실제 비축이 아니라 구조 설명용) — is_illustrative로 명시.
 _ILLUSTRATIVE_COUNTERMEASURES = [
     {"name": "타미플루(오셀타미비르) 비축", "type": "antiviral",
-     "targets": ["Influenza", "H5N1"], "declared_efficacy": 0.55, "domestic_producible": True},
+     "targets": ["Influenza", "H5N1"], "declared_efficacy": 0.55, "domestic_producible": True,
+     "courses": 10_000_000, "population": 51_000_000, "attack_rate": 0.30},
     {"name": "코로나 mRNA 백신 플랫폼", "type": "vaccine",
      "targets": ["SARS-CoV-2", "Novel"], "declared_efficacy": 0.6, "domestic_producible": True},
     {"name": "수입 단클론항체(에볼라)", "type": "mAb",
