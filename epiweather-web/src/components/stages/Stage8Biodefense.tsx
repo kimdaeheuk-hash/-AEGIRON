@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import ValhallaPanel from './ValhallaPanel';
 
 type Strategy = 'stockpile' | 'platform' | 'hybrid';
 
@@ -140,6 +141,9 @@ export default function Stage8Biodefense() {
         비축만으로는 부족하다. <em style={{ color: 'var(--violet)', fontStyle: 'normal', fontWeight: 600 }}>병원체는 진화한다.</em>{' '}
         변이를 예측하고 비축·플랫폼을 최적 혼합해 100일 안에 맞춤 대응하는 능력.
       </div>
+
+      {/* VALHALLA 실측 준비태세 — 백엔드 biodefense_readiness 실집계 */}
+      <ValhallaPanel />
 
       {/* 컨트롤 */}
       <div className="card" style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-end' }}>
