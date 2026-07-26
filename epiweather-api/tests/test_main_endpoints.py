@@ -344,3 +344,59 @@ def test_db_backup_returns_valid_sqlite_snapshot(client_with_key, tmp_path):
     assert "predictions" in tables
     assert "extracted_signals" in tables
     conn.close()
+
+
+def test_create_prediction_attaches_timestamp_proof_best_effort(client_with_key, monkeypatch):
+    """Phase 44 — 예측 생성 시 존재증명을 best-effort로 제출·부착."""
+    client, key = client_with_key
+    monkeypatch.setattr(
+        "algorithms.prediction_timestamp.submit_timestamp", lambda digest_hex: "aabbcc"
+    )
+    resp = client.post(
+        "/api/predictions",
+        json={"country": "KOR", "disease": "테스트", "risk_score": 50.0, "basis": ["근거1"]},
+        headers={"X-API-Key": key},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["content_hash"] is not None
+    assert body["ots_proof_hex"] == "aabbcc"
+    assert body["ots_submitted_at"] is not None
+
+
+def test_create_prediction_succeeds_even_when_timestamp_submission_fails(client_with_key, monkeypatch):
+    """캘린더 서버 전부 실패해도 예측 저장 자체는 절대 막히면 안 됨."""
+    client, key = client_with_key
+    monkeypatch.setattr(
+        "algorithms.prediction_timestamp.submit_timestamp",
+        lambda digest_hex: (_ for _ in ()).throw(Exception("network down")),
+    )
+    resp = client.post(
+        "/api/predictions",
+        json={"country": "KOR", "disease": "테스트", "risk_score": 50.0, "basis": ["근거1"]},
+        headers={"X-API-Key": key},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["ots_proof_hex"] is None
+
+
+def test_timestamp_proof_endpoint_public_and_reports_unsubmitted(client_with_key, monkeypatch):
+    """증명 조회는 공개 GET. 아직 제출 안 된 예측은 정직하게 unavailable."""
+    client, key = client_with_key
+    # 실제 캘린더 서버로 나가지 않게 명시적으로 실패시켜 '미제출' 경로를 검증.
+    monkeypatch.setattr("algorithms.prediction_timestamp.submit_timestamp", lambda digest_hex: None)
+    create_resp = client.post(
+        "/api/predictions",
+        json={"country": "KOR", "disease": "테스트", "risk_score": 50.0, "basis": ["근거1"]},
+        headers={"X-API-Key": key},
+    )
+    pred_id = create_resp.json()["id"]
+
+    resp = client.get(f"/api/predictions/{pred_id}/timestamp-proof")
+    assert resp.status_code == 200
+    assert resp.json()["data_available"] is False
+
+
+def test_timestamp_proof_endpoint_unknown_prediction_returns_404(client):
+    resp = client.get("/api/predictions/999999/timestamp-proof")
+    assert resp.status_code == 404

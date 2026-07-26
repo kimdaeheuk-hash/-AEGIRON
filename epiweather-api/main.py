@@ -1013,8 +1013,21 @@ def create_prediction(req: PredictionCreate):
     """
     예측 시점에 근거와 함께 기록.
     나중에 실제 결과가 나오면 /api/predictions/{id}/verify로 채점.
+
+    생성 직후 존재증명(Phase 44, OpenTimestamps/비트코인)을 best-effort로
+    제출한다 — 캘린더 서버가 느리거나 응답 없어도 예측 저장 자체는 절대
+    막지 않는다(실패해도 조용히 넘어가고, ots_proof_hex는 null로 남음).
     """
-    return db.create_prediction(req.country, req.disease, req.risk_score, req.basis)
+    prediction = db.create_prediction(req.country, req.disease, req.risk_score, req.basis)
+    try:
+        from algorithms.prediction_timestamp import canonical_hash, submit_timestamp
+        digest_hex = canonical_hash(prediction)
+        proof_hex = submit_timestamp(digest_hex)
+        if proof_hex:
+            prediction = db.set_prediction_timestamp(prediction["id"], digest_hex, proof_hex)
+    except Exception:
+        pass
+    return prediction
 
 
 @app.get("/api/predictions", tags=["예측 검증"])
@@ -1033,6 +1046,26 @@ class PredictionVerify(BaseModel):
     actual_result: str = Field(..., description="실제 발생 여부/내용")
     correct: bool = Field(..., description="예측이 맞았는지")
     lead_days: Optional[int] = Field(None, description="공식 발표 대비 선행 일수 (양수=먼저 감지)")
+
+@app.get("/api/predictions/{prediction_id}/timestamp-proof", tags=["예측 검증"])
+def prediction_timestamp_proof(prediction_id: int):
+    """
+    존재증명(Phase 44) 상태 조회 — 이 예측을 그 시각에 이미 갖고 있었다는
+    증명이 비트코인 블록체인에 새겨졌는지 확인. 제출 직후엔 며칠간 pending이
+    정상(비트코인 블록 확정에 몇 시간~하루 소요). '예측이 맞았다'와는 무관한
+    별개 증명임을 항상 note로 명시.
+    """
+    prediction = db.get_prediction(prediction_id)
+    if prediction is None:
+        raise HTTPException(status_code=404, detail="해당 prediction_id 없음")
+    if not prediction.get("ots_proof_hex"):
+        return {"data_available": False, "reason": "존재증명 미제출(생성 시 캘린더 서버 응답 없었음)"}
+
+    from algorithms.prediction_timestamp import check_timestamp
+    result = check_timestamp(prediction["content_hash"], prediction["ots_proof_hex"])
+    result["submitted_at"] = prediction.get("ots_submitted_at")
+    return result
+
 
 @app.post("/api/predictions/{prediction_id}/verify", tags=["예측 검증"], dependencies=_auth)
 def verify_prediction(prediction_id: int, req: PredictionVerify):

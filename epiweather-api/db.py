@@ -54,7 +54,10 @@ CREATE TABLE IF NOT EXISTS predictions (
     verified_at   TEXT,
     actual_result TEXT,
     lead_days     INTEGER,
-    correct       INTEGER
+    correct       INTEGER,
+    content_hash    TEXT,   -- 예측 핵심필드의 SHA-256(hex) — 존재증명 대상
+    ots_proof_hex   TEXT,   -- OpenTimestamps 미완성 증명(hex) — Phase 44
+    ots_submitted_at TEXT   -- 캘린더 서버 제출 시각
 );
 
 CREATE TABLE IF NOT EXISTS alerts (
@@ -129,6 +132,9 @@ def init_db() -> None:
             "ALTER TABLE sentinel_queue ADD COLUMN ai_confidence REAL",
             "ALTER TABLE alerts ADD COLUMN evidence TEXT",
             "ALTER TABLE extracted_signals ADD COLUMN country_iso3 TEXT",
+            "ALTER TABLE predictions ADD COLUMN content_hash TEXT",
+            "ALTER TABLE predictions ADD COLUMN ots_proof_hex TEXT",
+            "ALTER TABLE predictions ADD COLUMN ots_submitted_at TEXT",
         ):
             try:
                 conn.execute(ddl)
@@ -147,6 +153,22 @@ def create_prediction(country: str, disease: str, risk_score: float, basis: list
         )
         conn.commit()
         return get_prediction(cur.lastrowid)
+
+
+def set_prediction_timestamp(prediction_id: int, content_hash: str, ots_proof_hex: str) -> dict | None:
+    """예측에 존재증명(Phase 44)을 부착. 예측 생성 자체와 분리된 별도 호출로
+    두어, 캘린더 서버 제출이 느리거나 실패해도 예측 저장 자체는 막지 않는다."""
+    submitted_at = datetime.now(timezone.utc).isoformat()
+    with get_connection() as conn:
+        cur = conn.execute(
+            "UPDATE predictions SET content_hash = ?, ots_proof_hex = ?, ots_submitted_at = ? "
+            "WHERE id = ?",
+            (content_hash, ots_proof_hex, submitted_at, prediction_id),
+        )
+        conn.commit()
+        if cur.rowcount == 0:
+            return None
+        return get_prediction(prediction_id)
 
 
 def get_prediction(prediction_id: int) -> dict | None:
