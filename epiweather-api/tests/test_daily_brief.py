@@ -54,7 +54,7 @@ def test_quiet_day_stays_quiet():
 
 def test_english_version_uses_english_strings():
     with patch("algorithms.daily_brief._gather", return_value=_ACTIVE):
-        brief = generate_daily_brief(lang="en")
+        brief = generate_daily_brief(lang="en", fmt="breaking")  # 포맷 고정(날짜 무관 결정론적)
     assert brief["lang"] == "en"
     assert "AEGIRON" in brief["program_name"]
     assert "signal" in brief["segments"][0]["anchor_script"].lower()

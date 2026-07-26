@@ -268,6 +268,30 @@ def test_daily_brief_english_version(client, monkeypatch):
     assert "AEGIRON" in body["program_name"]
 
 
+def test_daily_brief_archive_empty_then_populated(client):
+    """아카이브는 공개 GET. 신규 DB엔 비어있고, 저장하면 목록·상세로 조회됨."""
+    empty = client.get("/api/daily-brief/archive")
+    assert empty.status_code == 200
+    assert empty.json()["briefs"] == []
+
+    import db
+    db.save_daily_brief("2026-07-25", "ko", {
+        "headline": "테스트 브리핑", "quiet_day": True,
+        "format": {"name": "속보 데스크"}, "segments": [],
+    })
+    lst = client.get("/api/daily-brief/archive")
+    assert lst.json()["briefs"][0]["date"] == "2026-07-25"
+
+    one = client.get("/api/daily-brief/archive/2026-07-25")
+    assert one.status_code == 200
+    assert one.json()["headline"] == "테스트 브리핑"
+
+
+def test_daily_brief_archive_missing_date_returns_404(client):
+    resp = client.get("/api/daily-brief/archive/1999-01-01")
+    assert resp.status_code == 404
+
+
 def test_db_backup_requires_auth(client):
     resp = client.get("/api/admin/db-backup")
     assert resp.status_code == 503  # 이 fixture는 키 미설정 상태

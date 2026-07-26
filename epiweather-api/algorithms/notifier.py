@@ -66,6 +66,27 @@ def notify_new_alerts(new_alerts: list[dict]) -> bool:
     return send_telegram_message(format_alert_message(new_alerts))
 
 
+def format_daily_brief_message(brief: dict) -> str:
+    """일일 브리핑을 텔레그램용 짧은 뉴스로 요약. 정직성 고지 포함."""
+    lines = [f"📰 <b>{brief.get('headline', '아이기론 역병예보')}</b>"]
+    summary = brief.get("summary")
+    if summary:
+        lines.append(summary)
+    for seg in brief.get("segments", []):
+        if seg.get("kind") == "threat" and seg.get("lower_third"):
+            lines.append(f"• {seg['lower_third']}")
+    lines.append("\n<i>공식 경보 아님 · AI 자동생성</i>")
+    return "\n".join(lines)
+
+
+def notify_daily_brief(brief: dict) -> bool:
+    """스케줄러가 매일 만든 브리핑을 텔레그램으로 발송. 채널 미설정이면 False.
+    조용한 날도 '오늘은 조용함'으로 그대로 보낸다(가짜 위기 X)."""
+    if not brief or not telegram_configured():
+        return False
+    return send_telegram_message(format_daily_brief_message(brief))
+
+
 def notify_source_degradation(failing_sources: list[str]) -> bool:
     """데이터 소스가 연속 실패로 죽었을 때 운영자에게 즉시 통보(㉔) — '조기경보
     시스템이 조용히 눈이 머는' 상황을 사람에게 알리는 게 목적. 소스 장애를

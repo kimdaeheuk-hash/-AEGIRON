@@ -230,9 +230,49 @@ async def _run_weekly_job() -> None:
     _save_last_weekly_run(dt.datetime.now(dt.timezone.utc))
 
 
+_DAILY_BRIEF_HOUR_UTC = 22   # 일일 브리핑 생성·발송: UTC 22시(KST 07시)경
+
+
+def _log_error(message: str) -> None:
+    """error_log.txt에 '<시각> | <출처> | <메시지>' 형식으로 한 줄 남김(/api/status가 읽음)."""
+    try:
+        data_dir = Path(__file__).parent / "data"
+        data_dir.mkdir(parents=True, exist_ok=True)
+        with open(data_dir / "error_log.txt", "a", encoding="utf-8") as f:
+            f.write(f"{dt.datetime.now(dt.timezone.utc).isoformat()} | scheduler | {message}\n")
+    except Exception:
+        pass
+
+
+async def _run_daily_brief_job(today: str) -> None:
+    """오늘자 일일 브리핑을 ko·en 둘 다 생성해 DB에 아카이브하고, 한국어판을
+    텔레그램으로 발송한다. 재시작에도 안전하도록 '오늘 ko가 이미 있으면 건너뜀'을
+    호출 측에서 판단한다(DB 기준이라 메모리 플래그와 달리 재시작에 살아남음)."""
+    try:
+        from algorithms.daily_brief import generate_daily_brief
+        from algorithms.notifier import notify_daily_brief
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        ko = await asyncio.to_thread(generate_daily_brief, "ko", api_key, today)
+        db.save_daily_brief(today, "ko", ko)
+        en = await asyncio.to_thread(generate_daily_brief, "en", api_key, today)
+        db.save_daily_brief(today, "en", en)
+        await asyncio.to_thread(notify_daily_brief, ko)
+    except Exception as e:
+        _log_error(f"daily_brief_job failed: {e}")
+
+
+async def _maybe_run_daily_brief() -> None:
+    """정해진 시각(UTC 22시)이 지났고 오늘자 브리핑이 아직 없으면 생성."""
+    now = dt.datetime.utcnow()
+    today = now.date().isoformat()
+    if now.hour >= _DAILY_BRIEF_HOUR_UTC and db.get_daily_brief(today, "ko") is None:
+        await _run_daily_brief_job(today)
+
+
 async def _scheduler_loop() -> None:
     last_ai_run_date: dt.date | None = None
     await _run_collector("free")
+    await _maybe_run_daily_brief()
 
     last_weekly = _load_last_weekly_run()
     now = dt.datetime.now(dt.timezone.utc)
@@ -247,6 +287,8 @@ async def _scheduler_loop() -> None:
         if now.hour == _AI_HOUR_UTC and last_ai_run_date != now.date():
             last_ai_run_date = now.date()
             await _run_collector("ai")
+
+        await _maybe_run_daily_brief()
 
         last_weekly = _load_last_weekly_run()
         now_utc = dt.datetime.now(dt.timezone.utc)
@@ -890,6 +932,22 @@ def daily_brief(lang: str = "ko", format: Optional[str] = None):
     from algorithms.daily_brief import generate_daily_brief
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     return generate_daily_brief(lang=lang, api_key=api_key, fmt=format)
+
+
+@app.get("/api/daily-brief/archive", tags=["GAI"])
+def daily_brief_archive(lang: str = "ko", limit: int = 30):
+    """스케줄러가 매일 자동 생성해 보관한 브리핑 이력(가벼운 메타). 브리핑
+    트랙레코드가 쌓이는 곳 — 페이퍼클립이 과거 방송을 다시 받아갈 수도 있다."""
+    return {"briefs": db.list_daily_briefs(lang=lang, limit=limit)}
+
+
+@app.get("/api/daily-brief/archive/{brief_date}", tags=["GAI"])
+def daily_brief_archive_one(brief_date: str, lang: str = "ko"):
+    """특정 날짜의 보관된 브리핑 전체(방송 러시트 그대로)."""
+    brief = db.get_daily_brief(brief_date, lang)
+    if brief is None:
+        raise HTTPException(status_code=404, detail=f"보관된 브리핑 없음: {brief_date} ({lang})")
+    return brief
 
 
 @app.get("/api/unexplained-signals", tags=["GAI"])

@@ -94,6 +94,14 @@ CREATE TABLE IF NOT EXISTS api_key_usage (
     endpoint   TEXT NOT NULL,
     called_at  TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS daily_briefs (
+    brief_date  TEXT NOT NULL,   -- YYYY-MM-DD
+    lang        TEXT NOT NULL,   -- ko | en
+    brief       TEXT NOT NULL,   -- 방송 러시트 JSON 전체
+    created_at  TEXT NOT NULL,
+    PRIMARY KEY (brief_date, lang)
+);
 """
 
 
@@ -201,6 +209,48 @@ def _row_to_dict(row: sqlite3.Row) -> dict:
     d["basis"] = json.loads(d["basis"])
     d["correct"] = bool(d["correct"]) if d["correct"] is not None else None
     return d
+
+
+# ── 일일 브리핑 아카이브 (daily_briefs) ──────────────────────────
+# 스케줄러가 매일 생성한 브리핑을 보관 → 브리핑 이력(트랙레코드)이 쌓이고,
+# 페이퍼클립이 특정 날짜 방송을 다시 받아갈 수 있다.
+def save_daily_brief(brief_date: str, lang: str, brief: dict) -> None:
+    created_at = datetime.now(timezone.utc).isoformat()
+    with get_connection() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO daily_briefs (brief_date, lang, brief, created_at) "
+            "VALUES (?, ?, ?, ?)",
+            (brief_date, lang, json.dumps(brief, ensure_ascii=False), created_at),
+        )
+        conn.commit()
+
+
+def get_daily_brief(brief_date: str, lang: str = "ko") -> dict | None:
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT brief FROM daily_briefs WHERE brief_date = ? AND lang = ?",
+            (brief_date, lang),
+        ).fetchone()
+        return json.loads(row["brief"]) if row else None
+
+
+def list_daily_briefs(lang: str = "ko", limit: int = 30) -> list[dict]:
+    """최근 브리핑 목록(가벼운 메타만) — 날짜 내림차순."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT brief_date, lang, brief, created_at FROM daily_briefs "
+            "WHERE lang = ? ORDER BY brief_date DESC LIMIT ?",
+            (lang, limit),
+        ).fetchall()
+    out = []
+    for r in rows:
+        b = json.loads(r["brief"])
+        out.append({
+            "date": r["brief_date"], "lang": r["lang"],
+            "headline": b.get("headline"), "format": b.get("format", {}).get("name"),
+            "quiet_day": b.get("quiet_day"), "created_at": r["created_at"],
+        })
+    return out
 
 
 # ── 경보 피로 방지 (alerts) ──────────────────────────────────
