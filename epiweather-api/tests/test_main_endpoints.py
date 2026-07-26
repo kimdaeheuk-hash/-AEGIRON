@@ -189,6 +189,21 @@ def test_land_signals_unknown_country_returns_404(client):
     assert resp.status_code == 404
 
 
+def test_travel_notices_endpoint_public_no_key_needed(client, monkeypatch):
+    """CDC 여행경보(신규 각도, 2026-07-27)는 키 없이도 바로 응답해야 함."""
+    monkeypatch.setattr(
+        "algorithms.cdc_travel_notices.fetch_travel_notices",
+        lambda: [{"level": 3, "headline": "Test Outbreak", "description": "",
+                  "link": "https://example.com", "pub_date": ""}],
+    )
+    resp = client.get("/api/travel-notices")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["data_available"] is True
+    assert body["by_level"] == {"1": 0, "2": 0, "3": 1, "4": 0}
+    assert set(body["level_meaning"]) == {"1", "2", "3", "4"}
+
+
 def test_trade_signals_endpoint_public_and_flags_proxy(client, monkeypatch):
     """국제무역 선행지표(Phase 42)는 공개 GET이고, 신고지연을 disclaimer로
     명시해야 함. 키 없으면 configured=False."""

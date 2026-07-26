@@ -891,6 +891,19 @@ def trade_signals_country(country: str):
         )
 
 
+@app.get("/api/travel-notices", tags=["GAI"])
+def travel_notices():
+    """
+    CDC 여행 건강경보(신규 각도 탐색, 2026-07-27) — 가입·키 불필요, 즉시 가동.
+    CDC Travelers' Health가 공식 4단계(Level 1~4)로 매긴 국가별 여행 위험
+    등급을 그대로 노출. 등급 자체는 실측이나, 이 피드엔 감염병 외 자연재해·
+    대규모 행사 등도 섞여 있을 수 있음을 note로 명시. 항공사 고객 프로파일과
+    특히 맞는 신호(customer_profiles.py).
+    """
+    from algorithms.cdc_travel_notices import travel_notices_summary
+    return travel_notices_summary()
+
+
 @app.get("/api/polar-watch", tags=["GAI"])
 def polar_watch():
     """
