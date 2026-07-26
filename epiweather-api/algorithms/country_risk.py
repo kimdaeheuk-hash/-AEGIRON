@@ -182,10 +182,43 @@ def _record_matches_country(record: dict, country_id: str, aliases: list[str]) -
     return _matches(record.get("location"), aliases)
 
 
+# 신호는 시간이 지나면 현재 위험에 대한 정보가치가 줄어든다 — 조기경보 엔진이라
+# 오래된(이미 잦아든) 발병이 오늘 위험을 계속 부풀리면 안 된다. 반감기 지수감쇠로
+# 최근 신호가 지배하게 한다(역학 nowcasting의 EWMA 철학). 반감기 14일: 2주 전
+# 신호는 절반 가중치. 같은 시점 신호들끼리면 기존 단순평균과 동일(하위호환).
+NLP_SIGNAL_HALFLIFE_DAYS = 14.0
+
+
+def _signal_age_days(record: dict) -> float:
+    """신호의 나이(일). 텍스트 기준일(signal_date) 우선, 없으면 추출시각(extracted_at)."""
+    now = dt.datetime.now(dt.timezone.utc)
+    for key in ("signal_date", "extracted_at"):
+        v = record.get(key)
+        if not v:
+            continue
+        try:
+            d = dt.datetime.fromisoformat(v)
+            if d.tzinfo is None:
+                d = d.replace(tzinfo=dt.timezone.utc)
+            return max(0.0, (now - d).total_seconds() / 86400.0)
+        except ValueError:
+            try:
+                d0 = dt.date.fromisoformat(str(v)[:10])
+                return max(0.0, float((now.date() - d0).days))
+            except ValueError:
+                continue
+    return 0.0
+
+
+def _recency_weight(age_days: float) -> float:
+    return 0.5 ** (age_days / NLP_SIGNAL_HALFLIFE_DAYS)
+
+
 def _nlp_raw_score(country_id: str) -> tuple[float | None, int]:
-    """extracted_signals 중 이 국가에 매칭되는 기록들의 신뢰도가중 평균 심각도.
-    country_id가 COUNTRIES(Tier-1)에 없으면(Tier-2) aliases가 비어있어
-    country_iso3 정확매칭만 동작 — 별칭사전 없이도 자동발견 국가가 집계됨."""
+    """extracted_signals 중 이 국가에 매칭되는 기록들의 '최근성·신뢰도 가중' 심각도.
+    가중치 = 신뢰도(source_trust) × 반감기 감쇠(_recency_weight). 오래된 신호일수록
+    현재 위험 기여가 줄어든다. country_id가 COUNTRIES(Tier-1)에 없으면(Tier-2)
+    aliases가 비어있어 country_iso3 정확매칭만 동작 — 별칭사전 없이도 집계됨."""
     aliases = COUNTRIES.get(country_id, {}).get("aliases", [])
     matched = [
         r for r in db.list_extracted_signals(limit=500)
@@ -193,8 +226,16 @@ def _nlp_raw_score(country_id: str) -> tuple[float | None, int]:
     ]
     if not matched:
         return None, 0
-    scores = [SIGNAL_TYPE_SEVERITY.get(r["signal_type"], 40) * r["source_trust"] for r in matched]
-    return round(statistics.mean(scores), 1), len(matched)
+    # 기존 값(심각도×신뢰도)의 '최근성 가중 평균' — 같은 시점 신호끼리면 단순평균과 동일.
+    num = 0.0
+    den = 0.0
+    for r in matched:
+        decay = _recency_weight(_signal_age_days(r))
+        num += decay * SIGNAL_TYPE_SEVERITY.get(r["signal_type"], 40) * r["source_trust"]
+        den += decay
+    if den == 0:
+        return None, len(matched)
+    return round(num / den, 1), len(matched)
 
 
 def discovered_tier2_countries(days: int = TIER2_DISCOVERY_WINDOW_DAYS, limit: int = 1000) -> set[str]:

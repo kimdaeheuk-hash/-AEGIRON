@@ -99,7 +99,35 @@ def test_nlp_raw_score_uses_country_iso3_even_with_unrelated_location_text(isola
     )
     score, count = _nlp_raw_score("COD")
     assert count == 1
-    assert score == 85.0  # 신규발생 severity(85) * trust(1.0)
+    assert score == 85.0  # 신규발생 severity(85) * trust(1.0), 단일 신호라 감쇠 무관
+
+
+def test_nlp_raw_score_recency_weights_recent_signals_higher(isolated_db, monkeypatch):
+    """조기경보 엔진: 오래된(이미 잦아든) 신호가 오늘 위험을 계속 부풀리면 안 된다.
+    최근 저위험 신호 + 오래된 고위험 신호 → 점수는 최근값 쪽으로 끌린다."""
+    import db as dbmod
+    import datetime as dt
+
+    today = dt.date.today()
+    old = (today - dt.timedelta(days=60)).isoformat()   # 60일 전(반감기 14일 → 가중치 미미)
+    recent = today.isoformat()
+
+    # 오래된 고위험(신규발생 85) + 최근 저위험(진행중 60)
+    dbmod.create_extracted_signal(
+        source="a", disease="x", location="l", signal_type="신규발생", severity=["spike"],
+        symptom=None, transmission=None, source_trust=1.0, signal_date=old,
+        raw_text="t", country_iso3="COD",
+    )
+    dbmod.create_extracted_signal(
+        source="b", disease="x", location="l", signal_type="진행중", severity=["mild"],
+        symptom=None, transmission=None, source_trust=1.0, signal_date=recent,
+        raw_text="t", country_iso3="COD",
+    )
+    score, count = _nlp_raw_score("COD")
+    assert count == 2
+    unweighted_mean = (85 + 60) / 2  # 감쇠 없으면 72.5
+    assert score < unweighted_mean          # 오래된 고위험이 약화됨
+    assert abs(score - 60) < abs(score - 85)  # 최근값(60) 쪽에 더 가까움
 
 
 # ── ⑱ Tier-2 전세계 국가 자동 커버리지 ────────────────────────────
