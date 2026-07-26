@@ -18,6 +18,28 @@ def test_unsupported_disease_returns_error():
     assert "error" in result
 
 
+def test_disease_graph_attaches_literature_basis_with_citation():
+    """하드코딩 lead_days 대신 '발표 연구 인용'을 붙여 '근거?' 지적을 없앤다.
+    각 문헌 근거는 출처(citation)와 estimate_basis='literature'를 반드시 가진다."""
+    single = get_disease_graph("Ebola")
+    assert "lead_days_note" in single
+    lit = single["literature_basis"]
+    assert len(lit) >= 1
+    for l in lit:
+        assert l["citation"]                       # 출처 명시
+        assert l["estimate_basis"] == "literature"  # 자체 실측 아님을 명시
+    # 전체 그래프 요약에도 질병마다 문헌 근거가 붙는다
+    summary = get_disease_graph()["summary"]
+    assert all("literature_basis" in s for s in summary)
+
+
+def test_novel_disease_uses_search_and_social_sensor_literature():
+    """신종은 검색지수(WeChat 16일)·소셜센서(~14.7일) 문헌을 근거로."""
+    lit = get_disease_graph("Novel")["literature_basis"]
+    cites = " ".join(l["citation"] for l in lit)
+    assert "e19589" in cites or "e12948" in cites
+
+
 def test_verify_chain_lead_time_no_data_returns_unverified(isolated_db):
     result = verify_chain_lead_time("Ebola")
     assert result["verified"] is False
