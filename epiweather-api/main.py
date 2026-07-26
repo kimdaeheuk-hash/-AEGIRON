@@ -1085,6 +1085,20 @@ def synthetic_threat_who():
     return {"items": fetch_who()}
 
 
+class GenomeScreenRequest(BaseModel):
+    sequence: str = Field(..., description="뉴클레오타이드 서열(FASTA 헤더·공백 허용, U→T 자동)")
+
+
+@app.post("/api/synthetic-threat/genome-screen", tags=["Stage 0: 합성위협 탐지"], dependencies=_auth)
+def synthetic_threat_genome_screen(req: GenomeScreenRequest):
+    """방어적 유전체 스크리닝 — 서열의 자연스러움 통계(CAI·CpG O/E·엔트로피·
+    다이뉴클레오타이드 편향·제한효소부위)를 '실제로 계산'해 인공 설계 신호를 플래그.
+    판정이 아니라 추가검토 우선순위 도구(is_screening_only=True) — 최종 판단은
+    전문가·계통발생·습식실험 확인 필요. 서열 설계·합성·회피는 제공하지 않음."""
+    from algorithms.genome_signals import screen_sequence
+    return screen_sequence(req.sequence)
+
+
 class SyntheticThreatAnalyzeRequest(BaseModel):
     summary: dict = Field(..., description="0단계 스캔 결과 요약 (종합점수, CI, 유전체/역학/인텔 점수 등)")
     api_key: Optional[str] = Field(None, description="Anthropic API 키 (없으면 환경변수)")

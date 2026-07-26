@@ -292,6 +292,27 @@ def test_daily_brief_archive_missing_date_returns_404(client):
     assert resp.status_code == 404
 
 
+def test_genome_screen_requires_auth(client):
+    """유전체 스크리닝은 POST라 쓰기 인증 필요(키 미설정 fixture → 503)."""
+    resp = client.post("/api/synthetic-threat/genome-screen", json={"sequence": "ACGT" * 20})
+    assert resp.status_code == 503
+
+
+def test_genome_screen_computes_real_metrics(client_with_key):
+    """Stage 0 실측 업그레이드: CAI·CpG·엔트로피를 실제로 계산해 반환하고,
+    판정이 아니라 방어 스크리닝임을 명시."""
+    client, key = client_with_key
+    seq = "ATGGCCATTGTAATGGGCCGCTGCAAAGGGTGCCCGATAGTT"
+    resp = client.post("/api/synthetic-threat/genome-screen",
+                       headers={"X-API-Key": key}, json={"sequence": seq})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ok"] is True
+    assert body["shannon_entropy_bits"] is not None
+    assert body["cpg_observed_expected"] is not None
+    assert body["is_screening_only"] is True
+
+
 def test_db_backup_requires_auth(client):
     resp = client.get("/api/admin/db-backup")
     assert resp.status_code == 503  # 이 fixture는 키 미설정 상태
