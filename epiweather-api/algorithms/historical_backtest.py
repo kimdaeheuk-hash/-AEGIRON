@@ -194,6 +194,8 @@ def backtest_all_known_events() -> dict:
     benchmarked = [r["bluedot_comparison"] for r in results if "bluedot_comparison" in r]
     measured_head_to_head = [c for c in benchmarked if c["aegiron_lead_days"] is not None]
 
+    from .surveillance_metrics import detection_summary
+
     return {
         "results": results,
         "summary": {
@@ -204,5 +206,8 @@ def backtest_all_known_events() -> dict:
             "bluedot_head_to_head_measured": len(measured_head_to_head),
             "bluedot_note": "블루닷 비교 중 aegiron_lead_days가 실측된 건만 실제 head-to-head. "
                             "코로나 등 아이기론 부재 시점 사건은 '목표 기준선'으로만 표기(실측 없음).",
+            # 반증 가능한 성능지표(감시역학 표준) — 'N일 먼저'만이 아니라 탐지율·민감도·
+            # 리드타임 분포를 함께. 특이도·FAR은 negative baseline 필요를 명시.
+            "surveillance_metrics": detection_summary(results),
         },
     }

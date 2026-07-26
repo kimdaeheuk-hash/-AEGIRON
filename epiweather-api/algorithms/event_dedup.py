@@ -21,6 +21,7 @@ country_iso3가 없는 구형 레코드만 location 자유문장 별칭매칭으
 """
 from __future__ import annotations
 import json
+import re
 from collections import Counter
 
 import db
@@ -51,6 +52,63 @@ def normalize_disease(raw: str | None) -> str | None:
 
 def _matched_countries(record: dict) -> list[str]:
     return [cid for cid, c in COUNTRIES.items() if _record_matches_country(record, cid, c["aliases"])]
+
+
+# ── JRC/EMM 방법론 준용(경쟁 벤치마크 (d.2)) ─────────────────────────
+# WHO EIOS의 기반기술인 EU JRC의 Europe Media Monitor(EMM)는 두 가지 공개
+# 알고리즘을 쓴다(arXiv 1309.5290). 아이기론이 이를 준용한다:
+#   1) medoid 대표 선정: 클러스터 중심에 가장 가까운(다른 멤버들과 가장 비슷한)
+#      신호를 클러스터 대표로. 최빈 질병명(label)과 별개로 '대표 신호'를 노출.
+#   2) 10% 중첩 연속성: 새 클러스터와 이전 라운드 클러스터가 기사(신호)의 10%
+#      이상을 공유하면 같은 사건으로 연결해 시간축 추적(link_clusters).
+CLUSTER_CONTINUITY_MIN_OVERLAP = 0.10  # JRC의 10% 규칙
+CLUSTER_METHOD_REF = "JRC EMM 준용: medoid 대표선정 + 10% 중첩 연속성(arXiv 1309.5290)"
+
+_TOKEN_RE = re.compile(r"[^\w]+", re.UNICODE)
+
+
+def _tokens(record: dict) -> set[str]:
+    text = " ".join(str(record.get(k) or "") for k in ("disease", "location", "raw_text"))
+    return {t for t in _TOKEN_RE.split(text.lower()) if t}
+
+
+def _jaccard(a: set, b: set) -> float:
+    if not a and not b:
+        return 0.0
+    union = a | b
+    return len(a & b) / len(union) if union else 0.0
+
+
+def _medoid(members: list[dict]) -> dict | None:
+    """클러스터 중심에 가장 가까운 멤버(다른 멤버들과 토큰 자카드 유사도 합이 최대).
+    JRC의 medoid 대표선정. 멤버가 1개면 그 멤버, 0개면 None."""
+    if not members:
+        return None
+    if len(members) == 1:
+        return members[0]
+    toks = [_tokens(m) for m in members]
+    best_idx, best_sim = 0, -1.0
+    for i in range(len(members)):
+        sim = sum(_jaccard(toks[i], toks[j]) for j in range(len(members)) if j != i)
+        if sim > best_sim:
+            best_idx, best_sim = i, sim
+    return members[best_idx]
+
+
+def link_clusters(prev_clusters: list[set], new_clusters: list[set],
+                  min_overlap: float = CLUSTER_CONTINUITY_MIN_OVERLAP) -> dict[int, int]:
+    """JRC 10% 연속성 규칙: 각 새 클러스터를 자카드 중첩이 min_overlap 이상인 이전
+    클러스터에 연결. {new_idx: prev_idx} 매핑(연결 안 되면 키 없음). 여러 개면 최대 중첩."""
+    mapping: dict[int, int] = {}
+    for ni, nc in enumerate(new_clusters):
+        best_pi, best_ov = None, min_overlap
+        for pi, pc in enumerate(prev_clusters):
+            ov = _jaccard(set(nc), set(pc))
+            if ov >= best_ov:
+                best_pi, best_ov = pi, ov
+        if best_pi is not None:
+            mapping[ni] = best_pi
+    return mapping
 
 
 CLUSTER_PROMPT = """다음은 감염병 감시 신호 목록이야(여러 언어·표기 섞여 있음). 같은 '실제 발병 사건'을
@@ -130,6 +188,15 @@ def _build_event(label: str | None, members: list[dict]) -> dict:
     merged_score = round(sum(s * t for s, t in scored) / weight_sum, 1) if weight_sum else None
     dates = [m["signal_date"] for m in members if m["signal_date"]]
 
+    # JRC medoid 대표선정: 클러스터 중심에 가장 가까운 신호를 '대표'로.
+    rep = _medoid(members)
+    representative = None
+    if rep is not None:
+        representative = {
+            "source": rep.get("source"), "disease": rep.get("disease"),
+            "location": rep.get("location"), "signal_date": rep.get("signal_date"),
+        }
+
     return {
         "disease": label,
         "countries": sorted(countries),
@@ -137,6 +204,8 @@ def _build_event(label: str | None, members: list[dict]) -> dict:
         "tier": _tier(merged_score) if merged_score is not None else None,
         "source_count": len(members),
         "sources": sorted({m["source"] for m in members}),
+        "representative": representative,       # JRC medoid — 클러스터 대표 신호
+        "cluster_method_ref": CLUSTER_METHOD_REF,
         "latest_signal_date": max(dates) if dates else None,
         "members": [
             {
