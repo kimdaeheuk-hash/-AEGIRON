@@ -25,6 +25,7 @@ import statistics
 from datetime import date, timedelta
 
 from .signal_metrics import iter_metric_series, load_records, MIN_HISTORY
+from . import ears
 
 BASELINE_WINDOW      = 30     # 기준선 계산에 쓸 과거 관측치 수
 # 2σ = 정규분포 단측 상위 ~2.3% — "통계적으로 유의한 급증"의 표준 관례.
@@ -94,15 +95,22 @@ def compute_anomalies() -> dict:
     anomalies: list[dict] = []
     all_metrics: list[dict] = []
 
+    ears_alarm_count = 0
     for layer_key, metric_id, trust_category, series in iter_metric_series(records):
         result = _zscore_anomaly(series)
         if result is None:
             continue
+        # 감시역학 표준(CDC EARS C1/C2/C3)을 나란히 계산해 각 지표에 붙인다.
+        # z-score(자체 척도)와 EARS(표준 방법)를 함께 노출해 심사에서 방어 가능.
+        ears_result = ears.evaluate(series)
+        if ears_result and ears_result["alarm"]:
+            ears_alarm_count += 1
         entry = {
             "layer":   layer_key,
             "metric":  metric_id,
             "trust":   trust_category,
             **result,
+            "ears":    ears_result,   # {c1,c2,c3,*_alarm,alarm,method} 또는 None(데이터 부족)
         }
         all_metrics.append(entry)
         if result["anomaly_score"] >= ANOMALY_THRESHOLD:
@@ -112,11 +120,14 @@ def compute_anomalies() -> dict:
 
     return {
         "anomaly_count":   len(anomalies),
+        "ears_alarm_count": ears_alarm_count,   # CDC EARS(C2 또는 C3) 경보 지표 수
         "metrics_checked": len(all_metrics),
         "threshold":       ANOMALY_THRESHOLD,
         # gai.py의 GAI, forecast_engine.py의 예측점수와 척도(0~100)는 같아도
         # 계산식이 다른 별개 모델 — 소비자가 섞어서 비교하지 않도록 명시.
-        "score_model":     "anomaly_engine_v2_zscore_vs_baseline",
+        # z-score는 자체 척도, EARS는 CDC 표준 — 각 지표의 "ears" 필드로 함께 제공.
+        "score_model":     "anomaly_engine_v3_zscore_plus_cdc_ears",
+        "detection_methods": ["zscore_vs_baseline", "cdc_ears_c1_c2_c3"],
         "anomalies":       anomalies,
         "symptom_clusters": _check_symptom_clusters(records),
     }

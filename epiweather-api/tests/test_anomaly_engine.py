@@ -60,7 +60,10 @@ def test_insufficient_history_returns_none():
     assert _zscore_anomaly([100.0]) is None
 
 
-def test_compute_anomalies_reports_v2_score_model():
+def test_compute_anomalies_reports_score_model_and_ears():
     result = ae.compute_anomalies()
-    assert result["score_model"] == "anomaly_engine_v2_zscore_vs_baseline"
+    assert result["score_model"] == "anomaly_engine_v3_zscore_plus_cdc_ears"
     assert result["threshold"] == ANOMALY_THRESHOLD
+    # CDC EARS를 z-score와 나란히 쓴다는 걸 명시(심사 방어용)
+    assert "cdc_ears_c1_c2_c3" in result["detection_methods"]
+    assert "ears_alarm_count" in result
