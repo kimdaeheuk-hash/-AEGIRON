@@ -1099,6 +1099,23 @@ def synthetic_threat_genome_screen(req: GenomeScreenRequest):
     return screen_sequence(req.sequence)
 
 
+class BiodefenseReadinessRequest(BaseModel):
+    countermeasures: Optional[list] = Field(None, description="비축 대응제 목록 [{name,type,targets,declared_efficacy,domestic_producible}]")
+    threats: Optional[list] = Field(None, description="위협 목록 [{pathogen,severity}]")
+
+
+@app.post("/api/biodefense/readiness", tags=["Stage 8: 바이오방어"])
+def biodefense_readiness(req: BiodefenseReadinessRequest):
+    """Stage 8 대응제 준비태세 — 가짜 분자 중화 예측이 아니라 '실제 커버리지·생산
+    주권 격차'를 선언 효능으로 집계. 어떤 위협을 비축이 못 막는가 + 막는 것 중 국산
+    생산이 안 되는 게 뭔가(주권 격차). 입력이 없으면 시연용 예시(is_illustrative).
+    변이별 분자 중화 예측은 Phase 2(BioNeMo·CEPI) 통합 — 지어내지 않음."""
+    from algorithms.biodefense_readiness import compute_readiness, illustrative_readiness
+    if req.countermeasures and req.threats:
+        return compute_readiness(req.countermeasures, req.threats)
+    return illustrative_readiness()
+
+
 class SyntheticThreatAnalyzeRequest(BaseModel):
     summary: dict = Field(..., description="0단계 스캔 결과 요약 (종합점수, CI, 유전체/역학/인텔 점수 등)")
     api_key: Optional[str] = Field(None, description="Anthropic API 키 (없으면 환경변수)")

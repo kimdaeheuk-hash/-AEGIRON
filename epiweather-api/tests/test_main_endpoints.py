@@ -313,6 +313,27 @@ def test_genome_screen_computes_real_metrics(client_with_key):
     assert body["is_screening_only"] is True
 
 
+def test_biodefense_readiness_illustrative_when_no_input(client):
+    """Stage 8: 입력 없으면 시연용 예시(공개 GET/POST). 실제 비축 아님을 명시."""
+    resp = client.post("/api/biodefense/readiness", json={})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["is_illustrative"] is True
+    assert "coverage" in body and "sovereignty" in body
+
+
+def test_biodefense_readiness_computes_gaps_from_input(client):
+    resp = client.post("/api/biodefense/readiness", json={
+        "countermeasures": [{"name": "국산항체", "type": "mAb", "targets": ["H5N1"],
+                             "declared_efficacy": 0.6, "domestic_producible": True}],
+        "threats": [{"pathogen": "H5N1"}, {"pathogen": "MERS"}],
+    })
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["coverage"]["covered"] == 1
+    assert body["coverage"]["uncovered_threats"] == ["MERS"]
+
+
 def test_db_backup_requires_auth(client):
     resp = client.get("/api/admin/db-backup")
     assert resp.status_code == 503  # 이 fixture는 키 미설정 상태
