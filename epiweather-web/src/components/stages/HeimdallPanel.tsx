@@ -47,7 +47,7 @@ export default function HeimdallPanel() {
           레퍼런스 서열(선택) — 같은 계통의 실제 공개 자연서열을 한 줄에 하나씩(3개 이상 권장). 넣으면 임의 임계값 대신 실측 z-score·백분위를 함께 계산.
         </div>
         <textarea value={refSeqText} onChange={e => setRefSeqText(e.target.value)} rows={2}
-          spellCheck={false} placeholder="서열1\n서열2\n서열3..."
+          spellCheck={false} placeholder={"서열1\n서열2\n서열3..."}
           style={{
             width: '100%', fontFamily: 'var(--mono)', fontSize: 10.5, lineHeight: 1.5,
             background: 'var(--panel2)', color: 'var(--txt)', border: '1px solid var(--line2)',
