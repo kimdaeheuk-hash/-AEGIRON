@@ -1188,7 +1188,7 @@ def biodefense_readiness(req: BiodefenseReadinessRequest):
     주권 격차'를 선언 효능으로 집계. 어떤 위협을 비축이 못 막는가 + 막는 것 중 국산
     생산이 안 되는 게 뭔가(주권 격차). 입력이 없으면 시연용 예시(is_illustrative).
     변이별 분자 중화 예측은 Phase 2(BioNeMo·CEPI) 통합 — 지어내지 않음.
-    [기밀·국가 바이오 사업] VALHALLA — 아이기론 국가바이오안보센터, 최고 보안등급(인증 필수)."""
+    [사내 R&D 프로그램] VALHALLA — 아이기론 R&D 연구센터, 사내 최고 보안등급(인증 필수)."""
     from algorithms.biodefense_readiness import compute_readiness, illustrative_readiness
     from algorithms.classified_programs import classification
     if req.countermeasures and req.threats:

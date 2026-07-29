@@ -360,8 +360,8 @@ def test_biodefense_readiness_illustrative_with_key(client_with_key):
     assert "coverage" in body and "sovereignty" in body
     # 기밀 프로그램 메타데이터가 붙어야 함
     assert body["classification"]["program_code"] == "VALHALLA"
-    assert "국가바이오안보센터" in body["classification"]["owning_center_ko"]
-    assert body["classification"]["designation_ko"] == "국가 바이오 사업"
+    assert "R&D 연구센터" in body["classification"]["owning_center_ko"]
+    assert body["classification"]["designation_ko"] == "사내 R&D 프로그램"
 
 
 def test_biodefense_readiness_computes_gaps_from_input(client_with_key):
@@ -385,7 +385,7 @@ def test_genome_screen_attaches_heimdall_classification(client_with_key):
     c = resp.json()["classification"]
     assert c["program_code"] == "HEIMDALL"
     assert "R&D 연구센터" in c["owning_center_ko"]
-    assert c["classification_ko"].startswith("최고 보안등급")
+    assert c["classification_ko"].startswith("사내 최고 보안등급")
     assert c["audit_logged"] is True
 
 
