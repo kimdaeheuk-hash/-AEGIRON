@@ -1,7 +1,8 @@
 'use client';
 import { useEffect } from 'react';
 import { useStore } from '@/lib/store';
-import { CITIES, THREAT, PRESETS, CIVIC, currentRt } from '@/lib/algorithms';
+import { THREAT, PRESETS, CIVIC, currentRt } from '@/lib/algorithms';
+import OriginSelector from './OriginSelector';
 import Stage0Synthetic from './stages/Stage0Synthetic';
 import Stage1PatientZero from './stages/Stage1PatientZero';
 import Stage2Civic from './stages/Stage2Civic';
@@ -28,13 +29,13 @@ const STAGES = [
 
 export default function Command() {
   const {
-    origin, threat, lev, stage, civicOn,
+    origin, originsCatalog, threat, lev, stage, civicOn,
     pz, glob, savedLives, rt,
-    setOrigin, setThreat, setPreset, setStage, recompute,
+    setOrigin, setThreat, setPreset, setStage, recompute, loadOrigins,
   } = useStore();
 
-  // 앱 시작 시 초기 계산
-  useEffect(() => { recompute(); }, []);
+  // 앱 시작 시 초기 계산 + 실제 전세계 국가 카탈로그 로드
+  useEffect(() => { recompute(); loadOrigins(); }, []);
 
   const civicLead = Math.max(...CIVIC.filter(s => civicOn[s.id]).map(s => s.lead), 0);
   const stageStats: Record<number, string> = {
@@ -52,7 +53,7 @@ export default function Command() {
   const rtSafe = currentRt(lev, threat);
   const estateText = rtSafe < 1 ? '✓ 방어 우세' : rtSafe < 1.5 ? '⚠ 억제' : '⚠ 확산 위험';
   const estateCol = rtSafe < 1 ? 'var(--ok)' : rtSafe < 1.5 ? '#fbbf24' : '#ef4444';
-  const city = CITIES.find(c => c.id === origin)!;
+  const city = originsCatalog.find(c => c.id === origin) ?? originsCatalog[0];
 
   const stageComponents = [
     <Stage0Synthetic key={0} />,
@@ -113,17 +114,12 @@ export default function Command() {
         margin: '16px 0 18px', padding: '14px 16px',
         background: 'var(--panel)', border: '1px solid var(--line)',
         borderRadius: 14, backdropFilter: 'blur(14px)',
+        position: 'relative', zIndex: 20,
       }}>
         {/* 발원지 */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <span style={{ fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.16em', color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>해외 발원지</span>
-          <select
-            value={origin}
-            onChange={e => setOrigin(e.target.value)}
-            style={{ fontFamily: 'var(--kr)', fontSize: 12.5, color: 'var(--txt)', background: 'var(--bg2)', border: '1px solid var(--line)', borderRadius: 9, padding: '8px 11px', cursor: 'pointer' }}
-          >
-            {CITIES.map(c => <option key={c.id} value={c.id}>{c.nm}</option>)}
-          </select>
+          <OriginSelector value={origin} origins={originsCatalog} onChange={setOrigin} />
         </div>
 
         {/* 위협 강도 */}

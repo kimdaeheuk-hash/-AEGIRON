@@ -59,7 +59,13 @@ def fetch_world_countries() -> dict[str, dict]:
             continue
 
         lat_raw, lng_raw = entry.get("latitude"), entry.get("longitude")
-        item: dict[str, Any] = {"name": name, "region": region.get("value"), "capital": entry.get("capitalCity")}
+        region_value = region.get("value")
+        item: dict[str, Any] = {
+            "name": name,
+            "region": region_value.strip() if region_value else region_value,
+            "capital": entry.get("capitalCity"),
+            "iso2": entry.get("iso2Code"),
+        }
         try:
             if lat_raw and lng_raw:
                 item["lat"] = float(lat_raw)

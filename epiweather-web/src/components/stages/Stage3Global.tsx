@@ -1,12 +1,18 @@
 'use client';
 import { useStore } from '@/lib/store';
-import { CITIES, proj, arc } from '@/lib/algorithms';
+import { proj, arc } from '@/lib/algorithms';
 
 const VW = 1000, VH = 400;
 const KR = { lon: 127, lat: 37 };
 
+// auto 국가명은 World Bank 외부 데이터라 dangerouslySetInnerHTML(SVG 문자열)에
+// 넣기 전 이스케이프 — curated 이름은 하드코딩이라 원래 안전하지만 통일 적용.
+function esc(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 export default function Stage3Global() {
-  const { glob } = useStore();
+  const { glob, originsCatalog } = useStore();
   if (!glob) return null;
 
   const kr = proj(KR.lon, KR.lat, VW, VH);
@@ -23,32 +29,45 @@ export default function Stage3Global() {
     gridLines.push(`<line x1="0" y1="${p.y}" x2="${VW}" y2="${p.y}" stroke="rgba(120,140,170,.05)"/>`);
   }
 
-  const arcs = CITIES.map(c => {
+  // 큐레이션 도시(실측 기반)는 항상 이름표와 함께 표시. World Bank 전세계
+  // 국가(auto, 210여개)는 점만 작고 흐리게 찍어 "전세계 커버리지"는 보이되
+  // 210개 이름표·화살표로 지도가 뒤죽박죽되지 않게 함. 선택된 발원지는
+  // auto든 curated든 항상 강조 표시.
+  const curated = originsCatalog.filter(c => c.tier === 'curated');
+  const auto = originsCatalog.filter(c => c.tier === 'auto' && c.id !== glob.city.id);
+
+  const originArc = (() => {
+    const c = glob.city;
     const a = proj(c.lon, c.lat, VW, VH);
     const lift = Math.abs(a.x - kr.x) * 0.18 + 30;
-    const w = 0.4 + c.pax * 2.6;
-    const isOrigin = c.id === glob.city.id;
-    const col = isOrigin ? 'rgba(244,63,94,.85)' : 'rgba(120,140,170,.18)';
-    let svg = `<path d="${arc(a.x, a.y, kr.x, kr.y, lift)}" fill="none" stroke="${col}" stroke-width="${isOrigin ? w + 0.6 : w}"/>`;
-    if (isOrigin) {
-      svg += `<circle r="4" fill="#fff"><animateMotion dur="2.4s" repeatCount="indefinite" path="${arc(a.x, a.y, kr.x, kr.y, lift)}"/></circle>`;
-    }
-    return svg;
+    const w = 0.4 + c.pax * 2.6 + 0.6;
+    const path = arc(a.x, a.y, kr.x, kr.y, lift);
+    return `<path d="${path}" fill="none" stroke="rgba(244,63,94,.85)" stroke-width="${w}"/>`
+      + `<circle r="4" fill="#fff"><animateMotion dur="2.4s" repeatCount="indefinite" path="${path}"/></circle>`;
+  })();
+
+  const curatedDots = curated.filter(c => c.id !== glob.city.id).map(c => {
+    const a = proj(c.lon, c.lat, VW, VH);
+    const col = c.er >= .75 ? '#fbbf24' : '#2a3647';
+    return `<circle cx="${a.x}" cy="${a.y}" r="5" fill="${col}" stroke="#0a0e14" stroke-width="1.5"/>`
+      + `<text x="${a.x}" y="${a.y - 8}" fill="var(--muted)" font-size="9" text-anchor="middle">${esc(c.nm)}</text>`;
   }).join('');
 
-  const dots = CITIES.map(c => {
+  const autoDots = auto.map(c => {
     const a = proj(c.lon, c.lat, VW, VH);
-    const isOrigin = c.id === glob.city.id;
-    let svg = '';
-    if (isOrigin) {
-      svg += `<circle cx="${a.x}" cy="${a.y}" r="14" fill="none" stroke="#f43f5e" stroke-width="1.5" opacity=".5"><animate attributeName="r" values="8;18;8" dur="2s" repeatCount="indefinite"/><animate attributeName="opacity" values=".6;0;.6" dur="2s" repeatCount="indefinite"/></circle>`;
-    }
-    const col = isOrigin ? '#f43f5e' : c.er >= .75 ? '#fbbf24' : '#2a3647';
-    const rad = isOrigin ? 8 : 5;
-    svg += `<circle cx="${a.x}" cy="${a.y}" r="${rad}" fill="${col}" stroke="#0a0e14" stroke-width="1.5"/>`;
-    svg += `<text x="${a.x}" y="${a.y - rad - 3}" fill="${isOrigin ? '#fff' : 'var(--muted)'}" font-size="${isOrigin ? 11 : 9}" font-weight="${isOrigin ? 700 : 400}" text-anchor="middle">${c.nm}</text>`;
-    return svg;
+    return `<circle cx="${a.x}" cy="${a.y}" r="2.2" fill="rgba(120,140,170,.35)"/>`;
   }).join('');
+
+  const originDot = (() => {
+    const c = glob.city;
+    const a = proj(c.lon, c.lat, VW, VH);
+    return `<circle cx="${a.x}" cy="${a.y}" r="14" fill="none" stroke="#f43f5e" stroke-width="1.5" opacity=".5"><animate attributeName="r" values="8;18;8" dur="2s" repeatCount="indefinite"/><animate attributeName="opacity" values=".6;0;.6" dur="2s" repeatCount="indefinite"/></circle>`
+      + `<circle cx="${a.x}" cy="${a.y}" r="8" fill="#f43f5e" stroke="#0a0e14" stroke-width="1.5"/>`
+      + `<text x="${a.x}" y="${a.y - 11}" fill="#fff" font-size="11" font-weight="700" text-anchor="middle">${esc(c.nm)}</text>`;
+  })();
+
+  const arcs = originArc;
+  const dots = autoDots + curatedDots + originDot;
 
   const krDot = `<circle cx="${kr.x}" cy="${kr.y}" r="9" fill="#38bdf8" stroke="#0a0e14" stroke-width="2"/><text x="${kr.x}" y="${kr.y + 20}" fill="#38bdf8" font-size="11" font-weight="700" text-anchor="middle">한국 ◎</text>`;
 

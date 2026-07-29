@@ -472,6 +472,18 @@ def patient_zero_local_signal(origin_id: str = "WUH"):
     return fetch_local_signal(origin_id)
 
 
+@app.get("/api/patient-zero/origins", tags=["Stage 0: 발원지"])
+def patient_zero_origins():
+    """
+    발원지 선택지 전체 목록 — 큐레이션 8개 도시(tier=curated, 실제 발병
+    역사 기반 위험도)에 World Bank 실제 국가 데이터(tier=auto, ~210개국)를
+    더한 것. auto 국가는 위험도(er)·여객량(pax)이 중립 기본값이고 실측이
+    아님을 note로 항상 명시 — 지어낸 정밀도로 오인되지 않게 함.
+    """
+    from algorithms.origin_catalog import build_origin_catalog
+    return {"origins": build_origin_catalog()}
+
+
 # ── Stage 1: 민간 신호 융합 ──────────────────────────────────
 class CivicRequest(BaseModel):
     active_ids: list[str] = Field(

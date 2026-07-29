@@ -25,6 +25,9 @@ def compute_import(origin_id: str, threat: str) -> dict:
     """
     city = CITY_MAP.get(origin_id)
     if city is None:
+        from .origin_catalog import get_origin_map
+        city = get_origin_map().get(origin_id)
+    if city is None:
         raise ValueError(f"알 수 없는 발원지: {origin_id}")
 
     novel = threat != "flu"

@@ -140,6 +140,21 @@ export async function fetchDashboard(): Promise<DashboardData> {
   return res.json() as Promise<DashboardData>;
 }
 
+// ── 발원지 카탈로그 — 큐레이션 8개 도시 + World Bank 실제 전세계 국가 ──
+// tier="auto" 국가는 위험도(er)·여객량(pax)이 중립 기본값이고 실측이 아님
+// (note 참고). curated만 실제 발병사례 기반 값.
+export interface OriginCity {
+  id: string; nm: string; iso2: string | null; region: string | null;
+  lon: number; lat: number; er: number; pax: number; hrs: number;
+  note: string; tier: 'curated' | 'auto';
+}
+
+export async function fetchOrigins(): Promise<OriginCity[]> {
+  const res = await fetch(`${BASE}/api/patient-zero/origins`, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`API ${res.status}`);
+  return (await res.json() as { origins: OriginCity[] }).origins;
+}
+
 // ── 팬데믹 리스크 계량화(㉓) ──────────────────────────────────
 // BlueDot의 '탐지'와 Metabiota의 '계량화' 사이 빈 시장. 노출 지수는 절대
 // 확률이 아니라 상대 비교용 모델 지표임(is_probability=false)을 UI에서도

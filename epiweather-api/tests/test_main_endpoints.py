@@ -400,6 +400,15 @@ def test_genome_screen_accepts_reference_sequences(client_with_key):
     assert "reference_comparison" in resp.json()
 
 
+def test_patient_zero_origins_is_public_and_includes_auto_countries(client):
+    resp = client.get("/api/patient-zero/origins")
+    assert resp.status_code == 200
+    origins = resp.json()["origins"]
+    tiers = {o["tier"] for o in origins}
+    assert "curated" in tiers
+    assert len(origins) > 8  # curated 8개보다 많아야(auto 국가 포함 확인)
+
+
 def test_db_backup_requires_auth(client):
     resp = client.get("/api/admin/db-backup")
     assert resp.status_code == 503  # 이 fixture는 키 미설정 상태
