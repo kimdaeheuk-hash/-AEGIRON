@@ -324,6 +324,71 @@ def test_daily_brief_archive_missing_date_returns_404(client):
     assert resp.status_code == 404
 
 
+def test_genome_screen_requires_auth(client):
+    """유전체 스크리닝은 POST라 쓰기 인증 필요(키 미설정 fixture → 503)."""
+    resp = client.post("/api/synthetic-threat/genome-screen", json={"sequence": "ACGT" * 20})
+    assert resp.status_code == 503
+
+
+def test_genome_screen_computes_real_metrics(client_with_key):
+    """Stage 0 실측 업그레이드: CAI·CpG·엔트로피를 실제로 계산해 반환하고,
+    판정이 아니라 방어 스크리닝임을 명시."""
+    client, key = client_with_key
+    seq = "ATGGCCATTGTAATGGGCCGCTGCAAAGGGTGCCCGATAGTT"
+    resp = client.post("/api/synthetic-threat/genome-screen",
+                       headers={"X-API-Key": key}, json={"sequence": seq})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ok"] is True
+    assert body["shannon_entropy_bits"] is not None
+    assert body["cpg_observed_expected"] is not None
+    assert body["is_screening_only"] is True
+
+
+def test_biodefense_readiness_requires_auth(client):
+    """Stage 8(VALHALLA)은 최고 보안등급 — 인증 필수(키 미설정 fixture → 503)."""
+    resp = client.post("/api/biodefense/readiness", json={})
+    assert resp.status_code == 503
+
+
+def test_biodefense_readiness_illustrative_with_key(client_with_key):
+    client, key = client_with_key
+    resp = client.post("/api/biodefense/readiness", headers={"X-API-Key": key}, json={})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["is_illustrative"] is True
+    assert "coverage" in body and "sovereignty" in body
+    # 기밀 프로그램 메타데이터가 붙어야 함
+    assert body["classification"]["program_code"] == "VALHALLA"
+    assert "국가바이오안보센터" in body["classification"]["owning_center_ko"]
+    assert body["classification"]["designation_ko"] == "국가 바이오 사업"
+
+
+def test_biodefense_readiness_computes_gaps_from_input(client_with_key):
+    client, key = client_with_key
+    resp = client.post("/api/biodefense/readiness", headers={"X-API-Key": key}, json={
+        "countermeasures": [{"name": "국산항체", "type": "mAb", "targets": ["H5N1"],
+                             "declared_efficacy": 0.6, "domestic_producible": True}],
+        "threats": [{"pathogen": "H5N1"}, {"pathogen": "MERS"}],
+    })
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["coverage"]["covered"] == 1
+    assert body["coverage"]["uncovered_threats"] == ["MERS"]
+
+
+def test_genome_screen_attaches_heimdall_classification(client_with_key):
+    """Stage 0(HEIMDALL)은 R&D 연구센터 관리·최고 보안등급 메타데이터가 붙어야 함."""
+    client, key = client_with_key
+    resp = client.post("/api/synthetic-threat/genome-screen",
+                       headers={"X-API-Key": key}, json={"sequence": "ATGC" * 20})
+    c = resp.json()["classification"]
+    assert c["program_code"] == "HEIMDALL"
+    assert "R&D 연구센터" in c["owning_center_ko"]
+    assert c["classification_ko"].startswith("최고 보안등급")
+    assert c["audit_logged"] is True
+
+
 def test_db_backup_requires_auth(client):
     resp = client.get("/api/admin/db-backup")
     assert resp.status_code == 503  # 이 fixture는 키 미설정 상태

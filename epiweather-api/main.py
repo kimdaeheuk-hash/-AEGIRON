@@ -1159,6 +1159,46 @@ def synthetic_threat_who():
     return {"items": fetch_who()}
 
 
+class GenomeScreenRequest(BaseModel):
+    sequence: str = Field(..., description="뉴클레오타이드 서열(FASTA 헤더·공백 허용, U→T 자동)")
+
+
+@app.post("/api/synthetic-threat/genome-screen", tags=["Stage 0: 합성위협 탐지"], dependencies=_auth)
+def synthetic_threat_genome_screen(req: GenomeScreenRequest):
+    """방어적 유전체 스크리닝 — 서열의 자연스러움 통계(CAI·CpG O/E·엔트로피·
+    다이뉴클레오타이드 편향·제한효소부위)를 '실제로 계산'해 인공 설계 신호를 플래그.
+    판정이 아니라 추가검토 우선순위 도구(is_screening_only=True) — 최종 판단은
+    전문가·계통발생·습식실험 확인 필요. 서열 설계·합성·회피는 제공하지 않음.
+    [기밀] HEIMDALL — 아이기론 R&D 연구센터·생물안보연구실, 최고 보안등급."""
+    from algorithms.genome_signals import screen_sequence
+    from algorithms.classified_programs import classification
+    result = screen_sequence(req.sequence)
+    result["classification"] = classification("stage0")
+    return result
+
+
+class BiodefenseReadinessRequest(BaseModel):
+    countermeasures: Optional[list] = Field(None, description="비축 대응제 목록 [{name,type,targets,declared_efficacy,domestic_producible}]")
+    threats: Optional[list] = Field(None, description="위협 목록 [{pathogen,severity}]")
+
+
+@app.post("/api/biodefense/readiness", tags=["Stage 8: 바이오방어"], dependencies=_auth)
+def biodefense_readiness(req: BiodefenseReadinessRequest):
+    """Stage 8 대응제 준비태세 — 가짜 분자 중화 예측이 아니라 '실제 커버리지·생산
+    주권 격차'를 선언 효능으로 집계. 어떤 위협을 비축이 못 막는가 + 막는 것 중 국산
+    생산이 안 되는 게 뭔가(주권 격차). 입력이 없으면 시연용 예시(is_illustrative).
+    변이별 분자 중화 예측은 Phase 2(BioNeMo·CEPI) 통합 — 지어내지 않음.
+    [기밀·국가 바이오 사업] VALHALLA — 아이기론 국가바이오안보센터, 최고 보안등급(인증 필수)."""
+    from algorithms.biodefense_readiness import compute_readiness, illustrative_readiness
+    from algorithms.classified_programs import classification
+    if req.countermeasures and req.threats:
+        result = compute_readiness(req.countermeasures, req.threats)
+    else:
+        result = illustrative_readiness()
+    result["classification"] = classification("stage8")
+    return result
+
+
 class SyntheticThreatAnalyzeRequest(BaseModel):
     summary: dict = Field(..., description="0단계 스캔 결과 요약 (종합점수, CI, 유전체/역학/인텔 점수 등)")
     api_key: Optional[str] = Field(None, description="Anthropic API 키 (없으면 환경변수)")

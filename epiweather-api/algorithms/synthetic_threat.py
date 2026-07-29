@@ -94,10 +94,19 @@ def fetch_biorxiv() -> list[dict]:
 
 
 def analyze_synthetic_threat(summary: dict, api_key: str | None = None) -> str:
-    """설계-탐지 이중성 관점에서 0단계 스캔 결과를 4문항으로 분석."""
+    """설계-탐지 이중성 관점에서 0단계 스캔 결과를 4문항으로 분석.
+    summary에 'sequence'가 있으면 유전체 신호를 '실제로 계산'해(genome_signals)
+    프롬프트에 넣는다 — Claude가 지어낸 숫자가 아니라 실측 지표를 해설하게 한다."""
     key = api_key or os.environ.get("ANTHROPIC_API_KEY")
     if not key:
         raise ValueError("ANTHROPIC_API_KEY 환경변수 또는 api_key 파라미터 필요")
+
+    # 서열이 있으면 CAI·CpG·엔트로피를 실제로 계산해 붙인다(장난감→실측).
+    summary = dict(summary)
+    seq = summary.pop("sequence", None)
+    if seq:
+        from .genome_signals import screen_sequence
+        summary["genome_signals_computed"] = screen_sequence(seq)
 
     import anthropic
 

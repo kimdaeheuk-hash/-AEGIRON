@@ -8,6 +8,7 @@ import {
   NCBIResult, PubMedPaper, BioRxivPaper, WHOItem,
 } from '@/lib/syntheticThreat';
 import { API_BASE as API, apiWriteHeaders } from '@/lib/api';
+import HeimdallPanel from './HeimdallPanel';
 
 interface ScanResult {
   total: number; ci: { lo: number; hi: number };
@@ -106,6 +107,9 @@ export default function Stage0Synthetic() {
         진단 이전, <em style={{ color: 'var(--violet)', fontStyle: 'normal', fontWeight: 600 }}>설계-탐지 이중성</em> 원리로
         유전체·역학·인텔 7신호를 Fisher&apos;s 결합해 합성/자연 기원을 가른다.
       </div>
+
+      {/* HEIMDALL 실측 스크리닝 — 백엔드 genome_signals 실계산 */}
+      <HeimdallPanel />
 
       {/* 입력 바 */}
       <div className="card" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>

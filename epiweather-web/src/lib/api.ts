@@ -231,6 +231,54 @@ export async function fetchDailyBrief(lang: 'ko' | 'en' = 'ko', format?: string)
   return res.json() as Promise<DailyBrief>;
 }
 
+// ── 기밀 프로그램(HEIMDALL / VALHALLA) — 실측 결과 ──────────────────
+// 두 엔드포인트 모두 인증 필수(apiWriteHeaders가 X-API-Key 부착). 응답에
+// classification(program_code·담당센터·보안등급)이 붙는다.
+export interface Classification {
+  program_code: string; program_name_ko: string; stage: number;
+  owning_center_ko: string; designation_ko: string;
+  classification_ko: string; is_classified: boolean;
+  access_control: string; audit_logged: boolean; access_note: string;
+}
+
+export interface GenomeScreen {
+  ok: boolean; reason?: string; clean_length?: number;
+  gc_content?: number; shannon_entropy_bits?: number; cpg_observed_expected?: number;
+  max_dinucleotide_deviation?: { dinucleotide: string; oe: number; deviation: number } | null;
+  cai_human?: { cai: number; codons_scored: number } | null;
+  window_composition_anomaly?: { assessed: boolean; anomaly_count?: number; median_gc?: number };
+  restriction_even_spacing?: { even_spacing_flagged: string[]; by_enzyme: Record<string, { sites: number; gap_cv: number | null; even_spacing_signature: boolean }> };
+  flags?: { metric: string; note: string }[];
+  flag_count?: number; is_screening_only?: boolean; disclaimer?: string;
+  classification?: Classification;
+}
+
+export async function fetchGenomeScreen(sequence: string): Promise<GenomeScreen> {
+  const res = await fetch(`${BASE}/api/synthetic-threat/genome-screen`, {
+    method: 'POST', headers: apiWriteHeaders(), body: JSON.stringify({ sequence }),
+  });
+  if (!res.ok) throw new Error(`API ${res.status}`);
+  return res.json() as Promise<GenomeScreen>;
+}
+
+export interface BiodefenseReadiness {
+  threats_assessed: number;
+  coverage: { covered: number; uncovered: number; coverage_rate: number | null; uncovered_threats: string[] };
+  sovereignty: { domestically_covered: number; import_dependent_covered: number; sovereignty_rate: number | null; import_dependent_threats: string[] };
+  resilience: { single_point_of_failure: string[]; single_point_count: number; import_only_covered: string[] };
+  logistics: { assessed: number; items: { name: string; courses: number; projected_demand: number | null; coverage_fraction: number | null; shortfall: number }[] };
+  matrix: { pathogen: string; covered: boolean; best_declared_efficacy: number | null; domestic_production: boolean }[];
+  is_illustrative?: boolean; disclaimer: string; classification?: Classification;
+}
+
+export async function fetchBiodefenseReadiness(): Promise<BiodefenseReadiness> {
+  const res = await fetch(`${BASE}/api/biodefense/readiness`, {
+    method: 'POST', headers: apiWriteHeaders(), body: JSON.stringify({}),
+  });
+  if (!res.ok) throw new Error(`API ${res.status}`);
+  return res.json() as Promise<BiodefenseReadiness>;
+}
+
 // http(s):// 베이스를 ws(s):// 대시보드 엔드포인트로 변환.
 export function dashboardWsUrl(): string | null {
   try {
