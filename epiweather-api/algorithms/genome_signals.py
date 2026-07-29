@@ -23,6 +23,7 @@
 """
 from __future__ import annotations
 import math
+import statistics
 from collections import Counter
 
 # 표준 유전암호(코돈→아미노산). '*'=종결.
@@ -80,6 +81,33 @@ def normalize_seq(raw: str) -> str:
     """대문자화, U→T, A/C/G/T만 남김(FASTA 헤더·공백·숫자 제거)."""
     up = (raw or "").upper().replace("U", "T")
     return "".join(c for c in up if c in "ACGT")
+
+
+def clean_segments(raw: str) -> list[str]:
+    """U→T 변환 후 모호 염기(N 등 IUPAC 코드)를 경계로 끊어 연속 ACGT 구간
+    리스트를 반환. `normalize_seq`처럼 이어붙이지 않는다 — N을 그냥 삭제하고
+    이어붙이면 실제 리딩프레임이 밀려 CAI·다이뉴클레오타이드 통계가 왜곡됨."""
+    up = (raw or "").upper().replace("U", "T")
+    segments: list[str] = []
+    current: list[str] = []
+    for c in up:
+        if c in "ACGT":
+            current.append(c)
+        else:
+            if current:
+                segments.append("".join(current))
+                current = []
+    if current:
+        segments.append("".join(current))
+    return segments
+
+
+def count_ambiguous_bases(raw: str) -> int:
+    """FASTA 헤더(>·; 로 시작하는 줄)·공백·숫자는 세지 않고, 실제 모호 염기
+    코드(N/R/Y/W/S/K/M 등)만 카운트."""
+    lines = [ln for ln in (raw or "").splitlines() if not ln.startswith((">", ";"))]
+    up = "\n".join(lines).upper().replace("U", "T")
+    return sum(1 for c in up if c.isalpha() and c not in "ACGT")
 
 
 def gc_content(seq: str) -> float | None:
@@ -150,6 +178,64 @@ def cai(seq: str) -> dict | None:
     if used < 1:
         return None
     return {"cai": round(math.exp(sum(logs) / len(logs)), 4), "codons_scored": used}
+
+
+_STOP_CODONS = {"TAA", "TAG", "TGA"}
+
+
+def _orfs_in_frame(seq: str, frame: int) -> list[dict]:
+    """한 프레임에서 ATG로 시작해 정지코돈으로 끝나는 모든 ORF(정지코돈 포함)."""
+    orfs = []
+    n = len(seq)
+    start = None
+    i = frame
+    while i + 3 <= n:
+        codon = seq[i:i + 3]
+        if start is None:
+            if codon == "ATG":
+                start = i
+        elif codon in _STOP_CODONS:
+            orfs.append({"start": start, "end": i + 3})
+            start = None
+        i += 3
+    return orfs
+
+
+def find_longest_orf(seq: str) -> dict | None:
+    """6-frame(순방향 3 + 역상보 3) 표준 ORF 탐색 — 가장 긴 ATG~정지코돈 구간을
+    찾는다(외부 라이브러리 불필요). 사용자가 정확한 CDS를 안 잘라 와도 CAI
+    계산이 가능하도록 자동으로 리딩프레임을 찾는 용도. 못 찾으면 None."""
+    best = None
+    for strand, s in (("+", seq), ("-", _rc(seq))):
+        for frame in range(3):
+            for orf in _orfs_in_frame(s, frame):
+                length = orf["end"] - orf["start"]
+                if best is None or length > best["length"]:
+                    best = {
+                        "strand": strand, "frame": frame,
+                        "start": orf["start"], "end": orf["end"],
+                        "length": length, "sequence": s[orf["start"]:orf["end"]],
+                    }
+    return best
+
+
+def cai_best_effort(seq: str) -> dict | None:
+    """CAI 계산 — 원본이 이미 올바른 리딩프레임(3의 배수)이면 그대로 쓰고,
+    아니면 6-frame에서 최장 ORF를 자동탐지해 그 구간으로 계산한다. 어느
+    구간을 썼는지는 항상 `orf_used`에 명시(자동탐지를 숨기지 않음)."""
+    direct = cai(seq)
+    if direct is not None:
+        return {**direct, "orf_used": None}
+    orf = find_longest_orf(seq)
+    if orf is None or orf["length"] < 6:
+        return None
+    result = cai(orf["sequence"])
+    if result is None:
+        return None
+    return {**result, "orf_used": {
+        "strand": orf["strand"], "frame": orf["frame"],
+        "start": orf["start"], "end": orf["end"], "length": orf["length"],
+    }}
 
 
 # Type IIS 제한효소(리버스제네틱스 조립에 흔히 쓰임) — 균등간격 시그니처 스캔용.
@@ -226,7 +312,9 @@ def _rc(s: str) -> str:
 
 
 # 자연 서열의 대략적 참고범위(휴리스틱) — 강한 이탈만 '주의'로 플래그.
-# 하드 판정선이 아니라 우선순위용 참고범위임을 결과에 명시한다.
+# 하드 판정선이 아니라 우선순위용 참고범위임을 결과에 명시한다. 바이러스과별로
+# 실제 검증된 값이 아니므로(가짜 정밀도 방지), 계통이 알려진 경우엔 아래
+# compare_to_reference()로 실제 공개 자연서열과 직접 비교할 것을 권장한다.
 _REF = {
     "shannon_min": 1.7,        # 이보다 낮으면 저복잡도·반복 의심
     "cpg_oe_low": 0.20,        # 극단적 CpG 억제
@@ -234,17 +322,59 @@ _REF = {
 }
 
 
-def screen_sequence(raw: str) -> dict:
-    """서열 하나에 대한 방어적 자연스러움 스크리닝. 지표 + 주의 플래그 + 고지."""
-    seq = normalize_seq(raw)
+def _empirical_zscore(target: float | None, values: list[float | None]) -> dict | None:
+    clean = [v for v in values if v is not None]
+    if target is None or len(clean) < 3:
+        return None
+    mean = statistics.mean(clean)
+    stdev = statistics.pstdev(clean)
+    z = round((target - mean) / stdev, 3) if stdev > 0 else 0.0
+    percentile = round(100 * sum(1 for v in clean if v <= target) / len(clean), 1)
+    return {"value": target, "reference_mean": round(mean, 4),
+            "reference_stdev": round(stdev, 4), "z_score": z, "percentile": percentile}
+
+
+def compare_to_reference(seq: str, reference_sequences: list[str]) -> dict | None:
+    """실제 공개 자연서열(레퍼런스 세트, 예: GenBank에서 가져온 같은 계통 서열들)
+    대비 GC·엔트로피·CpG O/E의 경험적 z-score·백분위. `_REF`의 전역 임계값과
+    달리 지어낸 기준이 아니라 사용자가 제공한 실측 데이터 기반 비교치다.
+    레퍼런스가 3개 미만이면 통계적으로 의미가 없어 None."""
+    refs = [c for c in (normalize_seq(r) for r in reference_sequences) if len(c) >= 30]
+    if len(refs) < 3:
+        return None
+    ref_gc = [gc_content(r) for r in refs]
+    ref_ent = [shannon_entropy(r) for r in refs]
+    ref_cpg = [cpg_observed_expected(r) for r in refs]
+    return {
+        "n_reference_sequences": len(refs),
+        "gc_content": _empirical_zscore(gc_content(seq), ref_gc),
+        "shannon_entropy_bits": _empirical_zscore(shannon_entropy(seq), ref_ent),
+        "cpg_observed_expected": _empirical_zscore(cpg_observed_expected(seq), ref_cpg),
+        "note": "레퍼런스 서열(사용자 제공, 실제 공개 자연서열)의 경험적 분포 대비 비교 — "
+                "전역 참고범위(_REF)와 달리 임의 임계값이 아니라 실측 비교치.",
+    }
+
+
+def screen_sequence(raw: str, reference_sequences: list[str] | None = None) -> dict:
+    """서열 하나에 대한 방어적 자연스러움 스크리닝. 지표 + 주의 플래그 + 고지.
+
+    모호 염기(N 등)는 조용히 삭제·이어붙이지 않고 연속 구간으로 나눠 가장 긴
+    구간만 분석 대상으로 쓴다(리딩프레임 밀림 방지) — 잘라낸 비율은 항상 명시.
+    reference_sequences(같은 계통의 실제 공개 자연서열)를 주면 실측 비교도 붙는다."""
+    segments = clean_segments(raw)
+    total_clean = sum(len(s) for s in segments)
+    seq = max(segments, key=len) if segments else ""
+
     if len(seq) < 30:
-        return {"ok": False, "reason": "유효 뉴클레오타이드 30개 미만 — 스크리닝 불가",
-                "clean_length": len(seq), "is_screening_only": True}
+        return {"ok": False, "reason": "유효 뉴클레오타이드 30개 미만(연속 구간 기준) — 스크리닝 불가",
+                "clean_length": total_clean, "is_screening_only": True}
+
+    ambiguous_removed = count_ambiguous_bases(raw)
 
     ent = shannon_entropy(seq)
     cpg = cpg_observed_expected(seq)
     worst = max_dinuc_deviation(seq)
-    cai_res = cai(seq)
+    cai_res = cai_best_effort(seq)
 
     flags: list[dict] = []
     if ent is not None and ent < _REF["shannon_min"]:
@@ -267,14 +397,19 @@ def screen_sequence(raw: str) -> dict:
         flags.append({"metric": "restriction_even_spacing", "value": even_spacing["even_spacing_flagged"],
                       "note": f"{even_spacing['even_spacing_flagged']} 균등간격 시그니처 — 조립 흔적 가능성"})
 
-    return {
+    result = {
         "ok": True,
-        "clean_length": len(seq),
+        "clean_length": total_clean,
+        "segments_found": len(segments),
+        "analyzed_segment_length": len(seq),
+        "ambiguous_bases_removed": ambiguous_removed,
+        "ambiguous_fraction": round(ambiguous_removed / (ambiguous_removed + total_clean), 4)
+                              if (ambiguous_removed + total_clean) else 0.0,
         "gc_content": gc_content(seq),
         "shannon_entropy_bits": ent,
         "cpg_observed_expected": cpg,
         "max_dinucleotide_deviation": worst,
-        "cai_human": cai_res,      # 코딩서열 아니면 None
+        "cai_human": cai_res,      # 코딩서열 아니면 None. orf_used로 자동탐지 여부 명시
         "restriction_sites": restriction_scan(seq),
         "window_composition_anomaly": window_anomaly,   # 삽입/재조합 후보
         "restriction_even_spacing": even_spacing,        # 조립 시그니처
@@ -288,8 +423,16 @@ def screen_sequence(raw: str) -> dict:
             "전문가·계통발생·습식실험 확인이 필요하다."
         ),
         "methods": {
-            "cai": "Sharp & Li 1987 (인간 코돈 사용표 기준)",
+            "cai": "Sharp & Li 1987 (인간 코돈 사용표 기준), 프레임 안 맞으면 6-frame 최장 ORF 자동탐지",
             "cpg_oe": "관측/기대 다이뉴클레오타이드 비(표준)",
             "reference_ranges": _REF,
         },
     }
+    if reference_sequences:
+        result["reference_comparison"] = compare_to_reference(seq, reference_sequences)
+    if segments and len(segments) > 1:
+        result["segments_note"] = (
+            f"모호 염기(N 등)로 서열이 {len(segments)}개 구간으로 나뉨 — "
+            "가장 긴 구간만 분석 대상으로 사용, 나머지는 프레임 왜곡 방지를 위해 제외."
+        )
+    return result

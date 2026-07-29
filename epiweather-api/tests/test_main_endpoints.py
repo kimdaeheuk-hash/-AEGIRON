@@ -389,9 +389,86 @@ def test_genome_screen_attaches_heimdall_classification(client_with_key):
     assert c["audit_logged"] is True
 
 
+def test_genome_screen_accepts_reference_sequences(client_with_key):
+    client, key = client_with_key
+    seq = "ATGGCCATTGTAATGGGCCGCTGCAAAGGGTGCCCGATAGTT"
+    resp = client.post("/api/synthetic-threat/genome-screen", headers={"X-API-Key": key}, json={
+        "sequence": seq,
+        "reference_sequences": [seq, seq[:-3] + "AAA", seq[:-6] + "AAAAAA"],
+    })
+    assert resp.status_code == 200
+    assert "reference_comparison" in resp.json()
+
+
 def test_db_backup_requires_auth(client):
     resp = client.get("/api/admin/db-backup")
     assert resp.status_code == 503  # 이 fixture는 키 미설정 상태
+
+
+# ── Stage 8 실제 재고 DB 연동 ─────────────────────────────────────
+def test_stockpile_list_is_public(client):
+    resp = client.get("/api/biodefense/stockpile")
+    assert resp.status_code == 200
+    assert resp.json()["items"] == []
+
+
+def test_stockpile_create_requires_auth(client):
+    resp = client.post("/api/biodefense/stockpile", json={
+        "name": "테스트 항체", "targets": ["H5N1"], "domestic_producible": True,
+    })
+    assert resp.status_code == 503
+
+
+def test_stockpile_create_and_list(client_with_key):
+    client, key = client_with_key
+    resp = client.post("/api/biodefense/stockpile", headers={"X-API-Key": key}, json={
+        "name": "국산 항바이러스", "type": "antiviral", "targets": ["H5N1"],
+        "declared_efficacy": 0.6, "domestic_producible": True,
+    })
+    assert resp.status_code == 200
+    created = resp.json()
+    assert created["name"] == "국산 항바이러스"
+    assert created["domestic_producible"] is True
+
+    listed = client.get("/api/biodefense/stockpile").json()["items"]
+    assert len(listed) == 1
+    assert listed[0]["targets"] == ["H5N1"]
+
+
+def test_stockpile_delete(client_with_key):
+    client, key = client_with_key
+    created = client.post("/api/biodefense/stockpile", headers={"X-API-Key": key}, json={
+        "name": "삭제될 항목", "targets": ["MERS"], "domestic_producible": False,
+    }).json()
+    resp = client.delete(f"/api/biodefense/stockpile/{created['id']}", headers={"X-API-Key": key})
+    assert resp.status_code == 200
+    assert client.get("/api/biodefense/stockpile").json()["items"] == []
+
+
+def test_stockpile_delete_missing_returns_404(client_with_key):
+    client, key = client_with_key
+    resp = client.delete("/api/biodefense/stockpile/9999", headers={"X-API-Key": key})
+    assert resp.status_code == 404
+
+
+def test_readiness_uses_stored_stockpile_when_no_body(client_with_key):
+    """등록된 실제 재고가 있으면 바디 없이 호출해도 예시 데이터가 아니라
+    실제 재고로 계산해야 함(is_illustrative=False)."""
+    client, key = client_with_key
+    client.post("/api/biodefense/stockpile", headers={"X-API-Key": key}, json={
+        "name": "국산 항바이러스", "targets": ["H5N1"],
+        "declared_efficacy": 0.6, "domestic_producible": True,
+    })
+    resp = client.post("/api/biodefense/readiness", headers={"X-API-Key": key}, json={})
+    body = resp.json()
+    assert body["is_illustrative"] is False
+    assert body["coverage"]["covered"] >= 1
+
+
+def test_readiness_falls_back_to_illustrative_when_no_stockpile(client_with_key):
+    client, key = client_with_key
+    resp = client.post("/api/biodefense/readiness", headers={"X-API-Key": key}, json={})
+    assert resp.json()["is_illustrative"] is True
 
 
 def test_db_backup_returns_valid_sqlite_snapshot(client_with_key, tmp_path):

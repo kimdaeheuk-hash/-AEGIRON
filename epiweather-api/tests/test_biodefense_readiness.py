@@ -76,3 +76,45 @@ def test_logistics_computes_days_of_supply():
 def test_logistics_skips_when_no_courses():
     r = br.compute_readiness(_CM, _THREATS)   # _CM엔 courses 없음
     assert r["logistics"]["assessed"] == 0     # 지어내지 않고 제외
+
+
+# ── severity(위협 심각도) 가중치 반영 ─────────────────────────────
+_CM_SEV = [
+    {"name": "국산 항바이러스", "type": "antiviral", "targets": ["H5N1"],
+     "declared_efficacy": 0.5, "domestic_producible": True},
+    {"name": "수입 항체", "type": "mAb", "targets": ["Ebola"],
+     "declared_efficacy": 0.7, "domestic_producible": False},
+]
+_THREATS_SEV = [
+    {"pathogen": "H5N1", "severity": 0.9},     # 고위험, 커버됨(국산)
+    {"pathogen": "Ebola", "severity": 0.3},    # 저위험, 커버됨(수입의존)
+    {"pathogen": "MERS", "severity": 0.95},    # 최고위험, 미커버 — 우선순위 1순위여야 함
+]
+
+
+def test_severity_weighted_coverage_rate_computed():
+    r = br.compute_readiness(_CM_SEV, _THREATS_SEV)
+    # 커버된 severity(0.9+0.3=1.2) / 전체(0.9+0.3+0.95=2.15)
+    assert r["coverage"]["severity_weighted_rate"] == round(1.2 / 2.15, 3)
+
+
+def test_priority_uncovered_threats_sorted_by_severity_desc():
+    r = br.compute_readiness(_CM_SEV, _THREATS_SEV)
+    priority = r["coverage"]["priority_uncovered_threats"]
+    assert priority[0]["pathogen"] == "MERS"   # 가장 위험한 미커버 위협이 1순위
+
+
+def test_severity_weighted_sovereignty_rate_computed():
+    r = br.compute_readiness(_CM_SEV, _THREATS_SEV)
+    # 커버된 것 중(H5N1 0.9 국산, Ebola 0.3 수입) → 국산비중 0.9/1.2
+    assert r["sovereignty"]["severity_weighted_sovereignty_rate"] == round(0.9 / 1.2, 3)
+
+
+def test_priority_import_dependent_threats_uses_severity_order():
+    r = br.compute_readiness(_CM_SEV, _THREATS_SEV)
+    assert r["sovereignty"]["priority_import_dependent_threats"][0]["pathogen"] == "Ebola"
+
+
+def test_severity_weighted_rate_treats_missing_severity_as_neutral():
+    r = br.compute_readiness(_CM, _THREATS)  # 기존 fixture, severity 필드 없음
+    assert r["coverage"]["severity_weighted_rate"] is not None

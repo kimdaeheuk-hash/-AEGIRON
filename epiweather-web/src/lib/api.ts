@@ -241,21 +241,41 @@ export interface Classification {
   access_control: string; audit_logged: boolean; access_note: string;
 }
 
+export interface ReferenceComparisonMetric {
+  value: number; reference_mean: number; reference_stdev: number;
+  z_score: number; percentile: number;
+}
+
+export interface ReferenceComparison {
+  n_reference_sequences: number;
+  gc_content: ReferenceComparisonMetric | null;
+  shannon_entropy_bits: ReferenceComparisonMetric | null;
+  cpg_observed_expected: ReferenceComparisonMetric | null;
+  note: string;
+}
+
 export interface GenomeScreen {
   ok: boolean; reason?: string; clean_length?: number;
+  segments_found?: number; analyzed_segment_length?: number;
+  ambiguous_bases_removed?: number; ambiguous_fraction?: number; segments_note?: string;
   gc_content?: number; shannon_entropy_bits?: number; cpg_observed_expected?: number;
   max_dinucleotide_deviation?: { dinucleotide: string; oe: number; deviation: number } | null;
-  cai_human?: { cai: number; codons_scored: number } | null;
+  cai_human?: {
+    cai: number; codons_scored: number;
+    orf_used?: { strand: '+' | '-'; frame: number; start: number; end: number; length: number } | null;
+  } | null;
   window_composition_anomaly?: { assessed: boolean; anomaly_count?: number; median_gc?: number };
   restriction_even_spacing?: { even_spacing_flagged: string[]; by_enzyme: Record<string, { sites: number; gap_cv: number | null; even_spacing_signature: boolean }> };
   flags?: { metric: string; note: string }[];
   flag_count?: number; is_screening_only?: boolean; disclaimer?: string;
+  reference_comparison?: ReferenceComparison | null;
   classification?: Classification;
 }
 
-export async function fetchGenomeScreen(sequence: string): Promise<GenomeScreen> {
+export async function fetchGenomeScreen(sequence: string, referenceSequences?: string[]): Promise<GenomeScreen> {
   const res = await fetch(`${BASE}/api/synthetic-threat/genome-screen`, {
-    method: 'POST', headers: apiWriteHeaders(), body: JSON.stringify({ sequence }),
+    method: 'POST', headers: apiWriteHeaders(),
+    body: JSON.stringify({ sequence, reference_sequences: referenceSequences?.length ? referenceSequences : undefined }),
   });
   if (!res.ok) throw new Error(`API ${res.status}`);
   return res.json() as Promise<GenomeScreen>;
@@ -263,12 +283,20 @@ export async function fetchGenomeScreen(sequence: string): Promise<GenomeScreen>
 
 export interface BiodefenseReadiness {
   threats_assessed: number;
-  coverage: { covered: number; uncovered: number; coverage_rate: number | null; uncovered_threats: string[] };
-  sovereignty: { domestically_covered: number; import_dependent_covered: number; sovereignty_rate: number | null; import_dependent_threats: string[] };
+  coverage: {
+    covered: number; uncovered: number; coverage_rate: number | null; uncovered_threats: string[];
+    severity_weighted_rate?: number | null;
+    priority_uncovered_threats?: { pathogen: string; severity: number | null }[];
+  };
+  sovereignty: {
+    domestically_covered: number; import_dependent_covered: number; sovereignty_rate: number | null; import_dependent_threats: string[];
+    severity_weighted_sovereignty_rate?: number | null;
+    priority_import_dependent_threats?: { pathogen: string; severity: number | null }[];
+  };
   resilience: { single_point_of_failure: string[]; single_point_count: number; import_only_covered: string[] };
   logistics: { assessed: number; items: { name: string; courses: number; projected_demand: number | null; coverage_fraction: number | null; shortfall: number }[] };
   matrix: { pathogen: string; covered: boolean; best_declared_efficacy: number | null; domestic_production: boolean }[];
-  is_illustrative?: boolean; disclaimer: string; classification?: Classification;
+  is_illustrative?: boolean; note?: string; disclaimer: string; classification?: Classification;
 }
 
 export async function fetchBiodefenseReadiness(): Promise<BiodefenseReadiness> {
@@ -277,6 +305,41 @@ export async function fetchBiodefenseReadiness(): Promise<BiodefenseReadiness> {
   });
   if (!res.ok) throw new Error(`API ${res.status}`);
   return res.json() as Promise<BiodefenseReadiness>;
+}
+
+// ── Stage 8 실제 대응제 비축 목록(영속 저장) ────────────────────────
+export interface CountermeasureItem {
+  id: number; name: string; type: string | null; targets: string[];
+  declared_efficacy: number | null; domestic_producible: boolean;
+  courses: number | null; population: number | null; attack_rate: number | null;
+  created_at: string; updated_at: string;
+}
+
+export interface CountermeasureCreateInput {
+  name: string; type?: string; targets: string[];
+  declared_efficacy?: number; domestic_producible: boolean;
+  courses?: number; population?: number; attack_rate?: number;
+}
+
+export async function fetchStockpile(): Promise<CountermeasureItem[]> {
+  const res = await fetch(`${BASE}/api/biodefense/stockpile`, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`API ${res.status}`);
+  return (await res.json() as { items: CountermeasureItem[] }).items;
+}
+
+export async function createStockpileItem(item: CountermeasureCreateInput): Promise<CountermeasureItem> {
+  const res = await fetch(`${BASE}/api/biodefense/stockpile`, {
+    method: 'POST', headers: apiWriteHeaders(), body: JSON.stringify(item),
+  });
+  if (!res.ok) throw new Error(`API ${res.status}`);
+  return res.json() as Promise<CountermeasureItem>;
+}
+
+export async function deleteStockpileItem(id: number): Promise<void> {
+  const res = await fetch(`${BASE}/api/biodefense/stockpile/${id}`, {
+    method: 'DELETE', headers: apiWriteHeaders(),
+  });
+  if (!res.ok) throw new Error(`API ${res.status}`);
 }
 
 // http(s):// 베이스를 ws(s):// 대시보드 엔드포인트로 변환.

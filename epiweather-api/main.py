@@ -1161,6 +1161,9 @@ def synthetic_threat_who():
 
 class GenomeScreenRequest(BaseModel):
     sequence: str = Field(..., description="뉴클레오타이드 서열(FASTA 헤더·공백 허용, U→T 자동)")
+    reference_sequences: Optional[list[str]] = Field(
+        None, description="같은 계통의 실제 공개 자연서열(GenBank 등, 3개 이상 권장). 주어지면 "
+                           "임의 전역 임계값 대신 이 서열 집합과의 실측 z-score·백분위를 함께 반환.")
 
 
 @app.post("/api/synthetic-threat/genome-screen", tags=["Stage 0: 합성위협 탐지"], dependencies=_auth)
@@ -1169,10 +1172,12 @@ def synthetic_threat_genome_screen(req: GenomeScreenRequest):
     다이뉴클레오타이드 편향·제한효소부위)를 '실제로 계산'해 인공 설계 신호를 플래그.
     판정이 아니라 추가검토 우선순위 도구(is_screening_only=True) — 최종 판단은
     전문가·계통발생·습식실험 확인 필요. 서열 설계·합성·회피는 제공하지 않음.
-    [기밀] HEIMDALL — 아이기론 R&D 연구센터·생물안보연구실, 최고 보안등급."""
+    리딩프레임이 안 맞아도 6-frame 최장 ORF를 자동탐지해 CAI를 계산하고,
+    모호 염기(N 등)는 조용히 삭제·이어붙이지 않고 가장 긴 연속 구간만 분석함.
+    [사내 R&D 프로그램] HEIMDALL — 아이기론 R&D 연구센터, 사내 최고 보안등급."""
     from algorithms.genome_signals import screen_sequence
     from algorithms.classified_programs import classification
-    result = screen_sequence(req.sequence)
+    result = screen_sequence(req.sequence, reference_sequences=req.reference_sequences)
     result["classification"] = classification("stage0")
     return result
 
@@ -1186,17 +1191,65 @@ class BiodefenseReadinessRequest(BaseModel):
 def biodefense_readiness(req: BiodefenseReadinessRequest):
     """Stage 8 대응제 준비태세 — 가짜 분자 중화 예측이 아니라 '실제 커버리지·생산
     주권 격차'를 선언 효능으로 집계. 어떤 위협을 비축이 못 막는가 + 막는 것 중 국산
-    생산이 안 되는 게 뭔가(주권 격차). 입력이 없으면 시연용 예시(is_illustrative).
-    변이별 분자 중화 예측은 Phase 2(BioNeMo·CEPI) 통합 — 지어내지 않음.
+    생산이 안 되는 게 뭔가(주권 격차). 요청 바디가 없으면: ①등록된 실제 비축
+    데이터(`/api/biodefense/stockpile`)가 있으면 그걸 사용, ②없으면 시연용
+    예시(is_illustrative)로 폴백. 변이별 분자 중화 예측은 Phase 2(BioNeMo·CEPI)
+    통합 — 지어내지 않음.
     [사내 R&D 프로그램] VALHALLA — 아이기론 R&D 연구센터, 사내 최고 보안등급(인증 필수)."""
     from algorithms.biodefense_readiness import compute_readiness, illustrative_readiness
     from algorithms.classified_programs import classification
+    from algorithms.knowledge_graph import DISEASE_GRAPH
     if req.countermeasures and req.threats:
         result = compute_readiness(req.countermeasures, req.threats)
     else:
-        result = illustrative_readiness()
+        stored = db.list_countermeasures()
+        if stored:
+            threats = req.threats or [{"pathogen": p} for p in DISEASE_GRAPH.keys()]
+            result = compute_readiness(stored, threats)
+            result["is_illustrative"] = False
+            result["note"] = (
+                "등록된 실제 비축 데이터 기반. 위협 목록: "
+                + ("요청값 사용" if req.threats else "기본 감시 병원체 목록(H5N1·Ebola·MERS·Dengue·Novel) 사용")
+            )
+        else:
+            result = illustrative_readiness()
     result["classification"] = classification("stage8")
     return result
+
+
+class CountermeasureCreate(BaseModel):
+    name: str = Field(..., description="대응제 이름")
+    type: Optional[str] = Field(None, description="유형 (antiviral/vaccine/mAb 등)")
+    targets: list[str] = Field(..., min_length=1, description="대응 병원체 목록")
+    declared_efficacy: Optional[float] = Field(None, description="선언된 효능(0~1, 라벨/문헌 근거)")
+    domestic_producible: bool = Field(False, description="국내 생산 가능 여부")
+    courses: Optional[int] = Field(None, description="비축 인분(선택)")
+    population: Optional[int] = Field(None, description="대상 인구(선택, 물류 계산용)")
+    attack_rate: Optional[float] = Field(None, description="예상 발병률(0~1, 선택, 물류 계산용)")
+
+
+@app.get("/api/biodefense/stockpile", tags=["Stage 8: 바이오방어"])
+def list_biodefense_stockpile():
+    """등록된 실제 대응제 비축 목록 조회(읽기 전용, 인증 불필요)."""
+    return {"items": db.list_countermeasures()}
+
+
+@app.post("/api/biodefense/stockpile", tags=["Stage 8: 바이오방어"], dependencies=_auth)
+def create_biodefense_stockpile(req: CountermeasureCreate):
+    """실제 대응제 비축 항목 등록 — 등록해두면 `/api/biodefense/readiness`가
+    요청 바디 없이도 이 데이터로 계산(더 이상 매번 통째로 안 넣어도 됨)."""
+    return db.create_countermeasure(
+        req.name, req.type, req.targets, req.declared_efficacy, req.domestic_producible,
+        req.courses, req.population, req.attack_rate,
+    )
+
+
+@app.delete("/api/biodefense/stockpile/{item_id}", tags=["Stage 8: 바이오방어"], dependencies=_auth)
+def delete_biodefense_stockpile(item_id: int):
+    """등록된 비축 항목 삭제."""
+    if not db.delete_countermeasure(item_id):
+        raise HTTPException(status_code=404, detail="해당 item_id 없음")
+    return {"deleted": True, "id": item_id}
 
 
 class SyntheticThreatAnalyzeRequest(BaseModel):

@@ -105,6 +105,20 @@ CREATE TABLE IF NOT EXISTS daily_briefs (
     created_at  TEXT NOT NULL,
     PRIMARY KEY (brief_date, lang)
 );
+
+CREATE TABLE IF NOT EXISTS countermeasure_stockpile (
+    id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+    name                 TEXT NOT NULL,
+    type                 TEXT,
+    targets              TEXT NOT NULL,           -- JSON 배열 (대응 병원체 목록)
+    declared_efficacy    REAL,
+    domestic_producible  INTEGER NOT NULL DEFAULT 0,
+    courses              INTEGER,                 -- 비축 인분(선택)
+    population           INTEGER,                 -- 대상 인구(선택)
+    attack_rate          REAL,                    -- 예상 발병률(선택)
+    created_at           TEXT NOT NULL,
+    updated_at           TEXT NOT NULL
+);
 """
 
 
@@ -608,6 +622,58 @@ def log_api_key_usage(key_label: str, endpoint: str) -> None:
             (key_label, endpoint, datetime.now(timezone.utc).isoformat()),
         )
         conn.commit()
+
+
+# ── Stage 8(VALHALLA) 실제 대응제 비축 목록 ──────────────────────
+# 기존엔 /api/biodefense/readiness가 매 요청마다 비축 목록을 통째로 받아야
+# 했고, 안 주면 항상 예시 데이터로 갔음. 실제 정부미팅용으로 쓰려면
+# "한 번 등록해두면 계속 쓰는" 구조가 필요해서 영속 저장으로 옮김.
+def create_countermeasure(
+    name: str, type_: str | None, targets: list[str], declared_efficacy: float | None,
+    domestic_producible: bool, courses: int | None = None,
+    population: int | None = None, attack_rate: float | None = None,
+) -> dict:
+    now = datetime.now(timezone.utc).isoformat()
+    with get_connection() as conn:
+        cur = conn.execute(
+            "INSERT INTO countermeasure_stockpile "
+            "(name, type, targets, declared_efficacy, domestic_producible, courses, "
+            "population, attack_rate, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (name, type_, json.dumps(targets, ensure_ascii=False), declared_efficacy,
+             int(domestic_producible), courses, population, attack_rate, now, now),
+        )
+        conn.commit()
+        return get_countermeasure(cur.lastrowid)
+
+
+def get_countermeasure(item_id: int) -> dict | None:
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT * FROM countermeasure_stockpile WHERE id = ?", (item_id,)
+        ).fetchone()
+        return _countermeasure_row_to_dict(row) if row else None
+
+
+def list_countermeasures() -> list[dict]:
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM countermeasure_stockpile ORDER BY created_at DESC"
+        ).fetchall()
+        return [_countermeasure_row_to_dict(r) for r in rows]
+
+
+def delete_countermeasure(item_id: int) -> bool:
+    with get_connection() as conn:
+        cur = conn.execute("DELETE FROM countermeasure_stockpile WHERE id = ?", (item_id,))
+        conn.commit()
+        return cur.rowcount > 0
+
+
+def _countermeasure_row_to_dict(row: sqlite3.Row) -> dict:
+    d = dict(row)
+    d["targets"] = json.loads(d["targets"])
+    d["domestic_producible"] = bool(d["domestic_producible"])
+    return d
 
 
 def api_key_usage_summary(days: int = 30) -> list[dict]:

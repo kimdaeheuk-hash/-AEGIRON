@@ -9,13 +9,15 @@ const SAMPLE = 'ATGTTTGTTTTTCTTGTTTTATTGCCACTAGTCTCTAGTCAGTGTGTTAATCTTACAACCAGAA
 
 export default function HeimdallPanel() {
   const [seq, setSeq] = useState(SAMPLE);
+  const [refSeqText, setRefSeqText] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [r, setR] = useState<GenomeScreen | null>(null);
 
   async function run() {
     setBusy(true); setErr(null); setR(null);
-    try { setR(await fetchGenomeScreen(seq)); }
+    const refs = refSeqText.split(/\n+/).map(s => s.trim()).filter(Boolean);
+    try { setR(await fetchGenomeScreen(seq, refs)); }
     catch (e) { setErr(String(e)); }
     finally { setBusy(false); }
   }
@@ -39,6 +41,20 @@ export default function HeimdallPanel() {
           background: 'var(--panel2)', color: 'var(--txt)', border: '1px solid var(--line2)',
           borderRadius: 8, padding: 10, resize: 'vertical',
         }} />
+
+      <div style={{ marginTop: 8 }}>
+        <div style={{ fontFamily: 'var(--kr)', fontSize: 10.5, color: 'var(--muted2)', marginBottom: 4 }}>
+          레퍼런스 서열(선택) — 같은 계통의 실제 공개 자연서열을 한 줄에 하나씩(3개 이상 권장). 넣으면 임의 임계값 대신 실측 z-score·백분위를 함께 계산.
+        </div>
+        <textarea value={refSeqText} onChange={e => setRefSeqText(e.target.value)} rows={2}
+          spellCheck={false} placeholder="서열1\n서열2\n서열3..."
+          style={{
+            width: '100%', fontFamily: 'var(--mono)', fontSize: 10.5, lineHeight: 1.5,
+            background: 'var(--panel2)', color: 'var(--txt)', border: '1px solid var(--line2)',
+            borderRadius: 8, padding: 8, resize: 'vertical',
+          }} />
+      </div>
+
       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
         <button onClick={run} disabled={busy} style={{
           cursor: busy ? 'default' : 'pointer', fontFamily: 'var(--kr)', fontWeight: 700, fontSize: 12,
@@ -60,6 +76,42 @@ export default function HeimdallPanel() {
             <Metric label="국소 조성 이상" v={`${r.window_composition_anomaly?.anomaly_count ?? 0}구간`} warn={(r.window_composition_anomaly?.anomaly_count ?? 0) > 0} />
             <Metric label="조립 시그니처" v={r.restriction_even_spacing?.even_spacing_flagged.length ? r.restriction_even_spacing.even_spacing_flagged.join(',') : '없음'} warn={!!r.restriction_even_spacing?.even_spacing_flagged.length} />
           </div>
+
+          {r.cai_human?.orf_used && (
+            <div style={{ marginTop: 8, fontFamily: 'var(--mono)', fontSize: 10.5, color: 'var(--muted2)' }}>
+              CAI는 원본 프레임이 안 맞아 자동탐지한 ORF({r.cai_human.orf_used.strand}가닥, 프레임 {r.cai_human.orf_used.frame}, {r.cai_human.orf_used.length}nt)로 계산됨
+            </div>
+          )}
+          {r.segments_note && (
+            <div style={{ marginTop: 8, fontFamily: 'var(--kr)', fontSize: 10.5, color: '#fbbf24' }}>
+              ⓘ {r.segments_note} (모호 염기 {r.ambiguous_bases_removed}개 제외, 분석 구간 {r.analyzed_segment_length}nt)
+            </div>
+          )}
+
+          {r.reference_comparison && (
+            <div style={{ marginTop: 12 }}>
+              <div style={{ fontFamily: 'var(--mono)', fontSize: 9.5, color: 'var(--muted2)', letterSpacing: '.08em', marginBottom: 6 }}>
+                레퍼런스 실측 비교 (n={r.reference_comparison.n_reference_sequences})
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(130px,1fr))', gap: 8 }}>
+                {(['gc_content', 'shannon_entropy_bits', 'cpg_observed_expected'] as const).map(k => {
+                  const m = r.reference_comparison?.[k];
+                  if (!m) return null;
+                  const label = k === 'gc_content' ? 'GC 함량' : k === 'shannon_entropy_bits' ? '엔트로피' : 'CpG O/E';
+                  return (
+                    <div key={k} style={{ background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: 8, padding: '9px 11px' }}>
+                      <div style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted2)' }}>{label} · z-score</div>
+                      <div style={{ fontFamily: 'var(--mono)', fontWeight: 800, fontSize: 15 }}>{m.z_score}</div>
+                      <div style={{ fontFamily: 'var(--kr)', fontSize: 10, color: 'var(--muted2)' }}>백분위 {m.percentile}%</div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ marginTop: 6, fontFamily: 'var(--kr)', fontSize: 10, color: 'var(--muted2)' }}>
+                {r.reference_comparison.note}
+              </div>
+            </div>
+          )}
 
           {r.flags && r.flags.length > 0 && (
             <div style={{ marginTop: 10 }}>

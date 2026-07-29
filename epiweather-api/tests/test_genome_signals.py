@@ -94,3 +94,76 @@ def test_restriction_even_spacing_irregular_not_flagged():
     seq = "GGTCTC" + "A" * 10 + "GGTCTC" + "A" * 300 + "GGTCTC" + "A" * 30 + "GGTCTC"
     r = gs.restriction_even_spacing(seq)
     assert "BsaI" not in r["even_spacing_flagged"]  # 불규칙 간격 → 아님
+
+
+# ── ORF 자동탐지(리딩프레임 안 맞아도 CAI 계산) ─────────────────
+_CODING_WITH_STOP = "ATGGGGAAGGTGAAGGTCGGAGTCAACGGATTTGGTCGTATTGGGCGCCTGGTCACCAGGTAA"  # 63nt, ATG~TAA
+
+
+def test_find_longest_orf_detects_shifted_frame():
+    shifted = "CC" + _CODING_WITH_STOP  # 프레임 2칸 밀림, 3의 배수 아님
+    orf = gs.find_longest_orf(shifted)
+    assert orf is not None
+    assert orf["sequence"] == _CODING_WITH_STOP
+    assert orf["frame"] == 2
+
+
+def test_cai_best_effort_falls_back_to_orf_when_frame_off():
+    shifted = "CC" + _CODING_WITH_STOP
+    assert gs.cai(shifted) is None                     # 직접 계산은 프레임 안 맞아 실패
+    r = gs.cai_best_effort(shifted)
+    assert r is not None
+    assert r["orf_used"] is not None                    # 자동탐지 사용했음을 숨기지 않음
+    assert r["orf_used"]["length"] == len(_CODING_WITH_STOP)
+
+
+def test_cai_best_effort_no_orf_flag_when_already_in_frame():
+    r = gs.cai_best_effort(_CODING_WITH_STOP)
+    assert r is not None
+    assert r["orf_used"] is None                        # 이미 프레임 맞음 → 자동탐지 안 씀
+
+
+# ── 모호 염기(N 등) 처리 — 조용히 삭제·이어붙이지 않음 ──────────
+def test_clean_segments_splits_on_ambiguous_bases():
+    seq = "ACGT" * 10 + "NNNNN" + "TGCA" * 10
+    segments = gs.clean_segments(seq)
+    assert len(segments) == 2
+    assert all(set(s) <= set("ACGT") for s in segments)
+
+
+def test_count_ambiguous_bases_ignores_headers_and_whitespace():
+    assert gs.count_ambiguous_bases(">seq1\nACGT NNN 123 acgt") == 3
+
+
+def test_screen_sequence_reports_ambiguous_and_uses_longest_segment():
+    long_segment = "ATGC" * 20          # 80nt, 분석 대상이 되어야 함
+    short_segment = "ACGT" * 5           # 20nt, 30 미만이라 단독으론 스크리닝 불가
+    seq = short_segment + ("N" * 10) + long_segment
+    r = gs.screen_sequence(seq)
+    assert r["ok"] is True
+    assert r["analyzed_segment_length"] == len(long_segment)
+    assert r["segments_found"] == 2
+    assert r["ambiguous_bases_removed"] == 10
+    assert "segments_note" in r
+
+
+# ── 레퍼런스 서열 비교(실측 z-score, 임의 임계값 아님) ───────────
+def test_compare_to_reference_needs_at_least_three_refs():
+    assert gs.compare_to_reference(_CODING_WITH_STOP, [_CODING_WITH_STOP, _CODING_WITH_STOP]) is None
+
+
+def test_compare_to_reference_returns_zscore_and_percentile():
+    refs = [_CODING_WITH_STOP, _CODING_WITH_STOP[:-3] + "AAA", _CODING_WITH_STOP[:-6] + "AAAAAA"]
+    r = gs.compare_to_reference(_CODING_WITH_STOP, refs)
+    assert r is not None
+    assert r["n_reference_sequences"] == 3
+    assert "z_score" in r["gc_content"]
+    assert "percentile" in r["gc_content"]
+
+
+def test_screen_sequence_attaches_reference_comparison_when_provided():
+    refs = [_CODING_WITH_STOP, _CODING_WITH_STOP[:-3] + "AAA", _CODING_WITH_STOP[:-6] + "AAAAAA"]
+    seq = _CODING_WITH_STOP + "ATGC" * 5   # >30nt
+    r = gs.screen_sequence(seq, reference_sequences=refs)
+    assert "reference_comparison" in r
+    assert r["reference_comparison"]["n_reference_sequences"] == 3

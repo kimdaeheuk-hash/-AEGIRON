@@ -62,6 +62,33 @@ def compute_readiness(countermeasures: list[dict], threats: list[dict]) -> dict:
     covered_n = sum(1 for r in threat_rows if r["covered"])
     domestic_n = sum(1 for r in threat_rows if r["covered"] and r["domestic_production"])
 
+    # severity 가중 지표 — severity 미입력 위협은 중립값 0.5로 처리(있는 것만
+    # 우대·없는 것만 불이익 주지 않기 위함). 정렬용으로만 -1(맨 뒤)을 따로 씀.
+    def _weighted_rate(rows: list[dict], predicate) -> float | None:
+        total = sum((r["severity"] if r["severity"] is not None else 0.5) for r in rows)
+        if total == 0:
+            return None
+        covered_weight = sum(
+            (r["severity"] if r["severity"] is not None else 0.5) for r in rows if predicate(r)
+        )
+        return round(covered_weight / total, 3)
+
+    severity_weighted_coverage_rate = _weighted_rate(threat_rows, lambda r: r["covered"])
+
+    uncovered_rows = [r for r in threat_rows if not r["covered"]]
+    priority_uncovered = sorted(
+        uncovered_rows, key=lambda r: r["severity"] if r["severity"] is not None else -1, reverse=True,
+    )
+
+    covered_rows = [r for r in threat_rows if r["covered"]]
+    severity_weighted_sovereignty_rate = (
+        _weighted_rate(covered_rows, lambda r: r["domestic_production"]) if covered_rows else None
+    )
+    import_dependent_rows = [r for r in covered_rows if not r["domestic_production"]]
+    priority_import_dependent = sorted(
+        import_dependent_rows, key=lambda r: r["severity"] if r["severity"] is not None else -1, reverse=True,
+    )
+
     return {
         "threats_assessed": n,
         "resilience": _resilience_analysis(countermeasures, threats),
@@ -71,12 +98,20 @@ def compute_readiness(countermeasures: list[dict], threats: list[dict]) -> dict:
             "uncovered": len(uncovered),
             "coverage_rate": round(covered_n / n, 3) if n else None,
             "uncovered_threats": uncovered,
+            "severity_weighted_rate": severity_weighted_coverage_rate,
+            "priority_uncovered_threats": [
+                {"pathogen": r["pathogen"], "severity": r["severity"]} for r in priority_uncovered
+            ],
         },
         "sovereignty": {
             "domestically_covered": domestic_n,
             "import_dependent_covered": len(sovereignty_gap),
             "sovereignty_rate": round(domestic_n / covered_n, 3) if covered_n else None,
             "import_dependent_threats": sovereignty_gap,
+            "severity_weighted_sovereignty_rate": severity_weighted_sovereignty_rate,
+            "priority_import_dependent_threats": [
+                {"pathogen": r["pathogen"], "severity": r["severity"]} for r in priority_import_dependent
+            ],
         },
         "matrix": threat_rows,
         "method": "declared_efficacy_coverage_v1",
@@ -84,7 +119,8 @@ def compute_readiness(countermeasures: list[dict], threats: list[dict]) -> dict:
         "disclaimer": (
             "효능은 '예측'이 아니라 각 대응제의 선언(라벨/문헌) 효능 집계다. 변이별 분자 "
             "중화 예측(escape)은 구조·면역 모델(BioNeMo·CEPI 표준) 연동이 필요한 Phase 2 "
-            "이며, 여기서는 지어내지 않는다. 커버리지 불명은 보수적으로 미커버 처리."
+            "이며, 여기서는 지어내지 않는다. 커버리지 불명은 보수적으로 미커버 처리. "
+            "severity_weighted 지표는 severity 미입력 위협을 중립값(0.5)으로 처리한다."
         ),
     }
 
