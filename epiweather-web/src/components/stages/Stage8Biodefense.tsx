@@ -197,15 +197,27 @@ export default function Stage8Biodefense() {
           <div className="card">
             <div className="card-h"><span className="lbl">변이 회피 예측 · 항원 드리프트</span><span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted2)' }}>BioNeMo 연동 지점</span></div>
             <VariantChart mutRate={mutRate} horizon={horizon} />
-            <div style={{ marginTop: 12, borderRadius: 12, padding: '12px 14px', background: 'linear-gradient(135deg,rgba(118,185,0,.08),rgba(14,22,35,.4))', border: '1px solid rgba(118,185,0,.3)', display: 'flex', gap: 10 }}>
-              <span style={{ fontSize: 20 }}>🧬</span>
-              <div>
-                <b style={{ fontFamily: 'var(--disp)', fontSize: 13, color: '#76b900' }}>여기가 엔비디아 BioNeMo와 만나는 지점</b>
-                <p style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.6, marginTop: 5 }}>
-                  현재는 단순 항원 드리프트 모델이지만, 실제 운영 시 BioNeMo 단백질·변이 예측 모델로{' '}
-                  <b style={{ color: 'var(--txt)' }}>병원체 유전체 → 미래 변이 → 비축 대응제 중화 여부</b>를 분자 수준으로 계산합니다.
-                </p>
+            <div style={{ marginTop: 12, borderRadius: 12, padding: '14px 16px', background: 'linear-gradient(135deg,rgba(118,185,0,.08),rgba(14,22,35,.4))', border: '1px solid rgba(118,185,0,.3)' }}>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <span style={{ fontSize: 20 }}>🧬</span>
+                <div>
+                  <b style={{ fontFamily: 'var(--disp)', fontSize: 13, color: '#76b900' }}>여기가 엔비디아 BioNeMo와 만나는 지점</b>
+                  <p style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.6, marginTop: 5 }}>
+                    지금은 결정론적 수식(위 항원 회피 곡선)이지만, 실제 운영 시 BioNeMo NIM 4단계 파이프라인으로 교체합니다 — 젠슨 황이
+                    "디지털 바이올로지"를 반도체·컴퓨팅에 버금가는 다음 혁명으로 꼽는 지점이 바로 이 계산 파이프라인입니다.
+                  </p>
+                </div>
               </div>
+              <ol style={{ margin: '10px 0 0', paddingLeft: 20, fontSize: 10.5, color: 'var(--muted)', lineHeight: 1.9 }}>
+                <li><b style={{ color: 'var(--txt)' }}>Evo2</b>(유전체 파운데이션 모델)로 병원체 유전체에서 실제 변이 발생 확률·위치 예측</li>
+                <li><b style={{ color: 'var(--txt)' }}>AlphaFold2-Multimer / OpenFold2</b> NIM으로 변이체 항원 단백질의 3D 구조 재계산</li>
+                <li>비축 항체·백신은 구조 기반 결합력 재평가, 소분자 치료제는 <b style={{ color: 'var(--txt)' }}>DiffDock</b>으로 결합 도킹 재시뮬레이션 → 중화 여부 판정</li>
+                <li>중화 실패 예측 시 <b style={{ color: 'var(--txt)' }}>RFDiffusion·ProteinMPNN</b>으로 차세대 대응제 후보 설계까지 자동 제안</li>
+              </ol>
+              <p style={{ fontSize: 9.5, color: 'var(--muted2)', marginTop: 8, lineHeight: 1.5 }}>
+                전부 NVIDIA BioNeMo 플랫폼에 실제 배포된 NIM 마이크로서비스(2025~2026 기준) — 지어낸 파이프라인이 아니라
+                실제 존재하는 도구를 연결하는 설계도입니다. 현재는 미연동(Phase 2), 연동 전까지는 위 결정론적 근사식으로 대체.
+              </p>
             </div>
           </div>
         </div>
@@ -288,7 +300,7 @@ export default function Stage8Biodefense() {
       </div>
 
       <div style={{ marginTop: 16, fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted2)', lineHeight: 1.7, borderTop: '1px solid var(--line)', paddingTop: 12 }}>
-        <b style={{ color: 'var(--muted)' }}>※ 8단계 — 비축에서 바이오 방어 설계로</b>: ①변이 회피 예측 ②비축 vs 플랫폼 혼합 최적화 ③대응제-병원체 분자 매칭 ④생산 주권. 모든 수치는 결정론적 모델로 직접 계산하며, 실제 운영 시 BioNeMo·유전체 데이터·CEPI 표준을 연동합니다.
+        <b style={{ color: 'var(--muted)' }}>※ 8단계 — 비축에서 바이오 방어 설계로</b>: ①변이 회피 예측 ②비축 vs 플랫폼 혼합 최적화 ③대응제-병원체 분자 매칭 ④생산 주권. 모든 수치는 결정론적 모델로 직접 계산하며, 실제 운영 시 BioNeMo NIM(Evo2·AlphaFold2-Multimer·DiffDock·RFDiffusion 등)·유전체 데이터·CEPI 표준을 연동합니다.
       </div>
     </div>
   );
