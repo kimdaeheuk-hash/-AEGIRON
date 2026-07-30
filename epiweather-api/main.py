@@ -1181,6 +1181,13 @@ class GenomeScreenRequest(BaseModel):
                            "CAI·CpG 같은 점통계는 조성만 보므로 조성은 자연스럽되 순서가 부자연스러운 "
                            "서열을 놓친다. 켜면 NVIDIA NIM을 호출하므로 수 초~수십 초 더 걸림. "
                            "최소 524bp(context 512 + 12) 이상 연속 구간 필요.")
+    organism_domain: str = Field(
+        "unknown", description="서열의 분류군 — Evo2 적용범위 판정용. "
+                               "bacteria_archaea(세균·고균: 탄저·페스트 등) / eukaryote(진핵) / "
+                               "phage(세균 감염 바이러스) 는 판정 가능. "
+                               "eukaryotic_virus(코로나·독감·에볼라 등 진핵숙주 감염 바이러스)는 "
+                               "Evo2 학습에서 제외되어 자연서열도 30%대라 판정 불가 — 점수만 참고로 "
+                               "보고하고 플래그는 올리지 않음. 미선언(unknown)도 같게 처리.")
 
 
 @app.post("/api/synthetic-threat/genome-screen", tags=["Stage 0: 합성위협 탐지"], dependencies=_auth)
@@ -1199,7 +1206,7 @@ def synthetic_threat_genome_screen(req: GenomeScreenRequest):
         # 점통계(조성)가 못 보는 '순서의 자연스러움'을 Evo2로 추가 실측.
         # 외부 API 장애가 순수 통계 결과까지 막지 않도록 실패는 결과에 담아 반환만 한다.
         from algorithms.evo2_naturalness import score_naturalness
-        evo2 = score_naturalness(req.sequence)
+        evo2 = score_naturalness(req.sequence, organism_domain=req.organism_domain)
         result["evo2_naturalness"] = evo2
         if evo2.get("ok"):
             result.setdefault("flags", []).extend(evo2.get("flags") or [])

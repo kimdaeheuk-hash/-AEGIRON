@@ -16,6 +16,27 @@
   조성이 완전히 같아도 순서가 깨지면 일치율이 51.7%p 떨어진다 — 점통계가 못 잡는
   각도를 실제로 잡는다는 뜻. 임계값은 이 실측에 근거해 잡았다.
 
+★★ 적용범위 한계(반드시 읽을 것) ★★
+Evo2는 **진핵숙주 감염 바이러스를 학습에서 제외**했다(Arc의 바이오안보 조치).
+그래서 코로나·독감·에볼라 같은 자연 그대로의 바이러스 유전체도 '셔플 수준'
+점수가 나온다 — 그대로 플래그하면 **감시 대상 병원체 전부가 오탐**이 된다.
+
+분류군별 실측(2026-07-30, 각 NCBI 레퍼런스 4kb, 자연서열 그대로):
+  박테리오파지 람다 NC_001416.1   일치율 100.0%  확신 0.998   ← 세균 감염 바이러스
+  인간 mtDNA      NC_012920.1    일치율  91.7%  확신 0.898
+  효모 16번염색체  NC_001148.4    일치율  90.3%  확신 0.944
+  대장균          NC_000913.3    일치율  87.5%  확신 0.882
+  SARS-CoV-2      NC_045512.2    일치율  33.3%  확신 0.443   ← 진핵 감염 바이러스
+  인플루엔자A HA   NC_026433.1    일치율  31.9%  확신 0.392   ← 진핵 감염 바이러스
+  에볼라 자이르    NC_002549.1    일치율  25.0%  확신 0.450   ← 진핵 감염 바이러스
+  진핵감염 바이러스 30.1% vs 그 외 92.4% (차이 62.3%p). 파지가 100%인데 진핵감염
+  바이러스만 바닥인 게 '학습 제외' 가설의 직접 증거다.
+
+따라서 organism_domain으로 적용범위를 **선언받아** 판정한다. 선언이 없거나
+진핵감염 바이러스면 점수는 계산·보고하되 플래그는 올리지 않는다(applicable=False).
+세균·고균(탄저·페스트·야토병 등 실제 생물무기 위협 다수)과 진핵 유전체,
+파지는 적용범위 안이라 정상 작동한다.
+
 ★ 안전 경계선(genome_signals.py와 동일) ★
 - **방어적 스크리닝 전용**: 주어진 서열이 자연 유전체 통계에서 벗어나는지 '탐지·
   플래그'만 한다. 서열을 설계·생성·최적화하거나 스크리닝 회피법은 제공하지 않는다.
@@ -35,11 +56,30 @@ TIMEOUT = 120
 
 # 실측 기반 참고범위(위 모듈 docstring의 검증값 기준).
 _REF = {
-    "match_rate_natural": 0.90,      # 실제 자연서열 실측
+    "match_rate_natural": 0.90,      # 실제 자연서열 실측(적용범위 안)
     "match_rate_shuffled": 0.38,     # 조성 동일 셔플 실측(= 순서정보 파괴 시 바닥)
     "match_rate_low": 0.55,          # 이보다 낮으면 '자연 유전체 통계에서 이탈' 플래그
     "window_confident_conf": 0.70,   # 모델이 이만큼 확신했는데
     "window_confident_wrong": 0.40,  # 일치율이 이보다 낮으면 = 확신하고 틀림 → 국소 이상
+}
+
+# 적용범위(applicability domain). Evo2 학습 구성에 따라 판정 가능 여부가 갈린다 —
+# 위 docstring의 분류군별 실측이 근거. 값은 호출측이 '선언'한다(서열만으로 분류군을
+# 추정하지 않는다 — 추정 실패가 곧 오탐이라 선언받는 게 정직하다).
+APPLICABILITY = {
+    "bacteria_archaea": {"applicable": True,  "measured_natural": 0.875,
+                         "note": "대장균 NC_000913.3 실측 87.5% — 탄저·페스트·야토병 등 세균 위협 포함"},
+    "eukaryote":        {"applicable": True,  "measured_natural": 0.903,
+                         "note": "효모 NC_001148.4 90.3%, 인간 mtDNA NC_012920.1 91.7% 실측"},
+    "phage":            {"applicable": True,  "measured_natural": 1.000,
+                         "note": "람다파지 NC_001416.1 실측 100% — 세균 감염 바이러스는 학습에 포함됨"},
+    "eukaryotic_virus": {"applicable": False, "measured_natural": 0.301,
+                         "note": "Evo2가 진핵숙주 감염 바이러스를 학습에서 제외(Arc 바이오안보 조치) — "
+                                 "자연서열도 30% 수준이라 인공 여부를 가릴 수 없음. "
+                                 "코로나·독감·에볼라 등이 여기 해당."},
+    "unknown":          {"applicable": False, "measured_natural": None,
+                         "note": "분류군 미선언 — 낮은 점수가 '인공'인지 '적용범위 밖'인지 "
+                                 "구분할 수 없어 플래그를 올리지 않음. organism_domain을 선언하면 판정함."},
 }
 
 
@@ -61,10 +101,15 @@ def _predict_next(prefix: str, n_tokens: int, api_key: str) -> tuple[str, list[f
 
 
 def score_naturalness(raw: str, api_key: str | None = None, n_windows: int = 6,
-                      context: int = 512, predict: int = 12) -> dict:
+                      context: int = 512, predict: int = 12,
+                      organism_domain: str = "unknown") -> dict:
     """서열의 자연스러움을 Evo2 next-token 일치율로 실측. 실패해도 예외를 던지지
     않고 {"ok": False, ...}를 돌려준다 — 외부 API 장애가 Stage 0 스크리닝 전체를
     막으면 안 되기 때문(genome_signals의 순수 통계는 그대로 유효하다).
+
+    organism_domain이 적용범위 밖(진핵감염 바이러스·미선언)이면 점수는 계산해
+    보고하되 플래그는 올리지 않는다 — Evo2가 그 분류군에서는 자연서열도 낮게
+    주기 때문에 플래그가 곧 오탐이 된다(APPLICABILITY 참조).
 
     n_windows개 지점을 서열 전체에 균등 배치해 각각 API 1회씩 호출한다."""
     key = api_key or os.environ.get("NVIDIA_API_KEY")
@@ -133,20 +178,26 @@ def score_naturalness(raw: str, api_key: str | None = None, n_windows: int = 6,
     mean_conf = round(sum(confs) / len(confs), 4) if confs else None
     anomalous = [w for w in windows if w.get("confidently_wrong")]
 
+    domain = APPLICABILITY.get(organism_domain) or APPLICABILITY["unknown"]
+    applicable = domain["applicable"]
+
+    # 적용범위 밖이면 점수는 그대로 보고하되 플래그는 올리지 않는다 — Evo2가
+    # 그 분류군에선 자연서열도 낮게 주므로 플래그가 곧 오탐이기 때문.
     flags: list[dict] = []
-    if match_rate < _REF["match_rate_low"]:
-        flags.append({
-            "metric": "evo2_match_rate", "value": match_rate,
-            "note": f"Evo2 예측 일치율 {match_rate:.1%} < 참고 {_REF['match_rate_low']:.0%} — "
-                    f"자연 유전체 통계에서 이탈(참고: 자연서열 실측 "
-                    f"{_REF['match_rate_natural']:.0%}, 셔플 {_REF['match_rate_shuffled']:.0%})",
-        })
-    if anomalous:
-        flags.append({
-            "metric": "evo2_local_anomaly",
-            "value": [w["position"] for w in anomalous],
-            "note": f"모델이 확신했는데 빗나간 구간 {len(anomalous)}개 — 삽입·재조합 경계 후보",
-        })
+    if applicable:
+        if match_rate < _REF["match_rate_low"]:
+            flags.append({
+                "metric": "evo2_match_rate", "value": match_rate,
+                "note": f"Evo2 예측 일치율 {match_rate:.1%} < 참고 {_REF['match_rate_low']:.0%} — "
+                        f"자연 유전체 통계에서 이탈(참고: 같은 분류군 자연서열 실측 "
+                        f"{domain['measured_natural']:.0%}, 셔플 {_REF['match_rate_shuffled']:.0%})",
+            })
+        if anomalous:
+            flags.append({
+                "metric": "evo2_local_anomaly",
+                "value": [w["position"] for w in anomalous],
+                "note": f"모델이 확신했는데 빗나간 구간 {len(anomalous)}개 — 삽입·재조합 경계 후보",
+            })
 
     return {
         "ok": True,
@@ -163,6 +214,15 @@ def score_naturalness(raw: str, api_key: str | None = None, n_windows: int = 6,
         "flags": flags,
         "flag_count": len(flags),
         "is_screening_only": True,
+        # 적용범위 판정 — 낮은 점수를 '인공 신호'로 읽어도 되는지 여부.
+        "organism_domain": organism_domain,
+        "applicable": applicable,
+        "applicability_note": domain["note"],
+        "domain_natural_baseline": domain["measured_natural"],
+        "suppressed_flags": None if applicable else (
+            f"적용범위 밖이라 플래그를 올리지 않음(일치율 {match_rate:.1%}는 참고값). "
+            f"{domain['note']}"
+        ),
         "reference_ranges": _REF,
         "method": (
             "teacher-forced next-token agreement — 서열 여러 지점에서 앞 "
@@ -172,6 +232,8 @@ def score_naturalness(raw: str, api_key: str | None = None, n_windows: int = 6,
         "disclaimer": (
             "낮은 일치율은 '인공 설계' 판정이 아니라 '자연 유전체 통계에서 벗어남'이라는 "
             "추가검토 우선순위 신호다. 학습 데이터에 드문 자연 계통·저품질 시퀀싱·반복영역도 "
-            "낮게 나올 수 있으며, 최종 판단은 전문가·계통발생·습식실험 확인이 필요하다."
+            "낮게 나올 수 있으며, 최종 판단은 전문가·계통발생·습식실험 확인이 필요하다. "
+            "특히 진핵숙주 감염 바이러스(코로나·독감·에볼라 등)는 Evo2 학습에서 제외되어 "
+            "자연서열도 30% 수준이므로 이 지표로 판정할 수 없다(applicable=False)."
         ),
     }
