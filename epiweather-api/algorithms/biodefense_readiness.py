@@ -20,6 +20,16 @@ from __future__ import annotations
 # 커버리지 판정 임계값(선언 효능이 이 이상이어야 '실질 커버'로 봄).
 COVERAGE_MIN_EFFICACY = 0.30
 
+# 기본 감시 위협목록 — severity는 WHO 실측 치명률(CFR, 확인일 2026-07-30).
+# Novel은 정의상 과거 발병 데이터가 없어 severity를 비워둠(지어내지 않음).
+DEFAULT_THREATS = [
+    {"pathogen": "H5N1", "severity": 0.48},     # WHO/CDC 1997~2025 누적 993례/477사망
+    {"pathogen": "Ebola", "severity": 0.50},    # WHO 팩트시트, 역대 평균(25~90% 범위)
+    {"pathogen": "MERS", "severity": 0.361},    # WHO 2012~2025.5 누적 2,626례/947사망
+    {"pathogen": "Dengue", "severity": 0.0004}, # WHO 연간 약 5천만 감염/2.2만 사망(경증 포함 전체 평균)
+    {"pathogen": "Novel"},                      # 정의상 과거 CFR 없음 — severity 비움
+]
+
 
 def compute_readiness(countermeasures: list[dict], threats: list[dict]) -> dict:
     """대응제(비축) × 위협 커버리지 매트릭스와 격차를 계산.

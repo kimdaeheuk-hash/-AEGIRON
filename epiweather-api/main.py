@@ -1208,15 +1208,14 @@ def biodefense_readiness(req: BiodefenseReadinessRequest):
     예시(is_illustrative)로 폴백. 변이별 분자 중화 예측은 Phase 2(BioNeMo·CEPI)
     통합 — 지어내지 않음.
     [사내 R&D 프로그램] VALHALLA — 아이기론 R&D 연구센터, 사내 최고 보안등급(인증 필수)."""
-    from algorithms.biodefense_readiness import compute_readiness, illustrative_readiness
+    from algorithms.biodefense_readiness import compute_readiness, illustrative_readiness, DEFAULT_THREATS
     from algorithms.classified_programs import classification
-    from algorithms.knowledge_graph import DISEASE_GRAPH
     if req.countermeasures and req.threats:
         result = compute_readiness(req.countermeasures, req.threats)
     else:
         stored = db.list_countermeasures()
         if stored:
-            threats = req.threats or [{"pathogen": p} for p in DISEASE_GRAPH.keys()]
+            threats = req.threats or DEFAULT_THREATS
             result = compute_readiness(stored, threats)
             result["is_illustrative"] = False
             result["note"] = (

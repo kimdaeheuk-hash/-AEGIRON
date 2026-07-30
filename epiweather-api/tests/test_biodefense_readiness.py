@@ -118,3 +118,29 @@ def test_priority_import_dependent_threats_uses_severity_order():
 def test_severity_weighted_rate_treats_missing_severity_as_neutral():
     r = br.compute_readiness(_CM, _THREATS)  # 기존 fixture, severity 필드 없음
     assert r["coverage"]["severity_weighted_rate"] is not None
+
+
+# ── 기본 위협목록(DEFAULT_THREATS) — 실측 WHO 치명률(CFR) 회귀 방지 ────────
+def test_default_threats_covers_five_pathogens():
+    pathogens = {t["pathogen"] for t in br.DEFAULT_THREATS}
+    assert pathogens == {"H5N1", "Ebola", "MERS", "Dengue", "Novel"}
+
+
+def test_default_threats_severity_reflects_real_cfr_ordering():
+    """H5N1·Ebola·MERS는 치명률이 높아 Dengue보다 훨씬 심각도가 높아야 함
+    (실제 WHO 수치 기반 — 임의 순서 아님)."""
+    by_pathogen = {t["pathogen"]: t.get("severity") for t in br.DEFAULT_THREATS}
+    assert by_pathogen["H5N1"] > by_pathogen["Dengue"]
+    assert by_pathogen["Ebola"] > by_pathogen["Dengue"]
+    assert by_pathogen["MERS"] > by_pathogen["Dengue"]
+    assert by_pathogen["Novel"] is None  # 정의상 과거 CFR 없음 — 지어내지 않음
+
+
+def test_default_threats_used_in_readiness_produce_meaningful_priority_order():
+    """DEFAULT_THREATS를 실제로 계산에 태우면 우선순위 미커버 목록이 치명률
+    순서를 따라야 함(H5N1·Ebola·MERS가 Dengue보다 먼저 나와야 함)."""
+    r = br.compute_readiness([], br.DEFAULT_THREATS)  # 대응제 없음 → 전부 미커버
+    order = [t["pathogen"] for t in r["coverage"]["priority_uncovered_threats"]]
+    assert order.index("Dengue") > order.index("H5N1")
+    assert order.index("Dengue") > order.index("Ebola")
+    assert order.index("Dengue") > order.index("MERS")
