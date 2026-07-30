@@ -30,16 +30,84 @@ HERA_CATEGORIES = {
     "cbrn": {"name_ko": "화생방핵(CBRN)", "tracked": False},
 }
 
-# 기본 감시 위협목록 — severity는 WHO 실측 치명률(CFR, 확인일 2026-07-30).
+# 기본 감시 위협목록 — severity는 WHO/CDC 실측 치명률(CFR, 확인일 2026-07-30).
 # Novel은 정의상 과거 발병 데이터가 없어 severity를 비워둠(지어내지 않음).
-# category는 전부 HERA의 "팬데믹 잠재력 병원체" 군에 해당.
+#
+# pathogen_domain은 유전체 파운데이션 모델(Evo2)의 적용범위 판정용 분류군이다
+# (algorithms.evo2_naturalness.APPLICABILITY와 같은 값 체계). Evo2는 진핵숙주
+# 감염 바이러스를 학습에서 제외해서, 바이러스 위협은 유전체 스크리닝으로 판정할
+# 수 없고 세균 위협은 가능하다 — 이 차이가 실제 탐지역량 격차라 명시적으로 든다.
 DEFAULT_THREATS = [
-    {"pathogen": "H5N1", "severity": 0.48, "category": "pandemic_pathogen"},     # WHO/CDC 1997~2025 누적 993례/477사망
-    {"pathogen": "Ebola", "severity": 0.50, "category": "pandemic_pathogen"},    # WHO 팩트시트, 역대 평균(25~90% 범위)
-    {"pathogen": "MERS", "severity": 0.361, "category": "pandemic_pathogen"},    # WHO 2012~2025.5 누적 2,626례/947사망
-    {"pathogen": "Dengue", "severity": 0.0004, "category": "pandemic_pathogen"}, # WHO 연간 약 5천만 감염/2.2만 사망(경증 포함 전체 평균)
+    {"pathogen": "H5N1", "severity": 0.48, "category": "pandemic_pathogen",
+     "pathogen_domain": "eukaryotic_virus"},    # WHO/CDC 1997~2025 누적 993례/477사망
+    {"pathogen": "Ebola", "severity": 0.50, "category": "pandemic_pathogen",
+     "pathogen_domain": "eukaryotic_virus"},    # WHO 팩트시트, 역대 평균(25~90% 범위)
+    {"pathogen": "MERS", "severity": 0.361, "category": "pandemic_pathogen",
+     "pathogen_domain": "eukaryotic_virus"},    # WHO 2012~2025.5 누적 2,626례/947사망
+    {"pathogen": "Dengue", "severity": 0.0004, "category": "pandemic_pathogen",
+     "pathogen_domain": "eukaryotic_virus"},    # WHO 연간 약 5천만 감염/2.2만 사망(경증 포함 전체 평균)
     {"pathogen": "Novel", "category": "pandemic_pathogen"},                      # 정의상 과거 CFR 없음 — severity 비움
+    # 세균 위협(CDC Category A 생물테러 인자) — HERA의 CBRN 군. 유전체 스크리닝
+    # 적용범위 안이라 Evo2 기반 Stage 0 판정이 실제로 작동하는 위협들이다.
+    {"pathogen": "Anthrax", "severity": 0.45, "category": "cbrn",
+     "pathogen_domain": "bacteria_archaea"},    # CDC: 2001 미국 우편물 공격 흡입탄저 11례/5사망 — 치료에도 45%
+    {"pathogen": "Plague", "severity": 0.65, "category": "cbrn",
+     "pathogen_domain": "bacteria_archaea"},    # WHO 팩트시트 미치료 30~100%(가래톳 30~60%, 폐페스트 사실상 100%)의 중간값
+    {"pathogen": "Tularemia", "severity": 0.45, "category": "cbrn",
+     "pathogen_domain": "bacteria_archaea"},    # CDC/문헌: 미치료 폐·티푸스형 30~60%의 중간값(치료 시 약 2%)
 ]
+
+# 유전체 스크리닝(Stage 0, Evo2 기반) 적용범위별 실측 기준선 — 근거는
+# algorithms.evo2_naturalness 모듈 docstring의 분류군별 실측(2026-07-30).
+_SCREENING_DOMAIN_NOTE = {
+    "bacteria_archaea": "세균·고균 — Evo2 적용범위 안(대장균 자연서열 실측 87.5%). 판정 가능.",
+    "eukaryote": "진핵 유전체 — Evo2 적용범위 안(효모 90.3%·인간 mtDNA 91.7% 실측). 판정 가능.",
+    "phage": "세균 감염 바이러스 — Evo2 적용범위 안(람다파지 100% 실측). 판정 가능.",
+    "eukaryotic_virus": "진핵숙주 감염 바이러스 — Evo2 학습에서 제외되어 자연서열도 30%대. "
+                        "유전체 스크리닝으로 인공 여부 판정 불가.",
+}
+
+
+def genomic_screening_capability(threats: list[dict]) -> dict:
+    """새 각도: 대응제 커버리지와 별개로 **'우리 유전체 스크리닝이 이 위협을 애초에
+    판정할 수 있는가'** 를 위협별로 집계한다(탐지역량 격차).
+
+    Stage 0의 Evo2 기반 스크리닝은 진핵숙주 감염 바이러스에 대해 원리적으로
+    작동하지 않는다(Arc가 바이오안보 목적으로 학습에서 제외 — evo2_naturalness의
+    분류군별 실측 참조). 그 한계를 화면 문구로만 얼버무리지 않고 위협별로 계산해
+    노출한다: 막을 수 있느냐(커버리지)와 별개로 '알아볼 수 있느냐'가 방어의 전제다.
+
+    pathogen_domain 미선언 위협은 판정 가능으로 세지 않는다(보수적 처리)."""
+    assessable, not_assessable, undeclared = [], [], []
+    for th in threats:
+        pathogen = th.get("pathogen")
+        domain = th.get("pathogen_domain")
+        if not domain:
+            undeclared.append(pathogen)
+        elif domain == "eukaryotic_virus":
+            not_assessable.append({"pathogen": pathogen, "pathogen_domain": domain,
+                                   "reason": _SCREENING_DOMAIN_NOTE[domain]})
+        elif domain in _SCREENING_DOMAIN_NOTE:
+            assessable.append({"pathogen": pathogen, "pathogen_domain": domain,
+                               "note": _SCREENING_DOMAIN_NOTE[domain]})
+        else:
+            undeclared.append(pathogen)     # 미지원 값도 보수적으로 미판정 처리
+
+    n = len(threats)
+    return {
+        "threats_assessed": n,
+        "genomically_assessable": len(assessable),
+        "assessable_rate": round(len(assessable) / n, 3) if n else None,
+        "assessable_threats": assessable,
+        "not_assessable_threats": not_assessable,
+        "undeclared_domain_threats": undeclared,
+        "basis": "evo2_naturalness 분류군별 실측(2026-07-30, evo2-40b NIM, NCBI 레퍼런스 자연서열)",
+        "note": (
+            "대응제 커버리지와 다른 축이다 — '막을 수 있는가'가 아니라 '유전체로 "
+            "알아볼 수 있는가'. 판정 불가 위협은 유전체 스크리닝 외의 경로(역학·임상·"
+            "인텔 신호)에 의존해야 한다는 뜻이며, 이 시스템의 실제 탐지 사각지대다."
+        ),
+    }
 
 
 def threat_category_coverage(threats: list[dict]) -> dict:
@@ -216,13 +284,17 @@ def compute_readiness(countermeasures: list[dict], threats: list[dict]) -> dict:
         "method": "declared_efficacy_coverage_v1",
         "coverage_min_efficacy": COVERAGE_MIN_EFFICACY,
         "threat_category_coverage": threat_category_coverage(threats),
+        "genomic_screening_capability": genomic_screening_capability(threats),
         "international_benchmark": international_benchmark(countermeasures),
         "international_reference_systems": REFERENCE_SYSTEMS,
         "disclaimer": (
             "효능은 '예측'이 아니라 각 대응제의 선언(라벨/문헌) 효능 집계다. 변이별 분자 "
             "중화 예측(escape)은 구조·면역 모델(BioNeMo·CEPI 표준) 연동이 필요한 Phase 2 "
             "이며, 여기서는 지어내지 않는다. 커버리지 불명은 보수적으로 미커버 처리. "
-            "severity_weighted 지표는 severity 미입력 위협을 중립값(0.5)으로 처리한다."
+            "severity_weighted 지표는 severity 미입력 위협을 중립값(0.5)으로 처리한다. "
+            "유전체 파운데이션 모델(Evo2)로 병원체 변이를 예측하는 경로는 진핵숙주 감염 "
+            "바이러스에 대해 실측상 작동하지 않는다(학습 제외) — genomic_screening_capability "
+            "참조. 세균 위협에는 적용 가능하므로 그 범위를 위협별로 명시한다."
         ),
     }
 
