@@ -121,9 +121,12 @@ def test_severity_weighted_rate_treats_missing_severity_as_neutral():
 
 
 # ── 기본 위협목록(DEFAULT_THREATS) — 실측 WHO 치명률(CFR) 회귀 방지 ────────
-def test_default_threats_covers_five_pathogens():
+def test_default_threats_covers_viral_and_bacterial_pathogens():
+    """바이러스 4종 + Novel + 세균 3종(CDC Category A). 세균 위협은 유전체
+    스크리닝 적용범위 안이라 실제로 판정 가능한 축을 만든다."""
     pathogens = {t["pathogen"] for t in br.DEFAULT_THREATS}
-    assert pathogens == {"H5N1", "Ebola", "MERS", "Dengue", "Novel"}
+    assert pathogens == {"H5N1", "Ebola", "MERS", "Dengue", "Novel",
+                         "Anthrax", "Plague", "Tularemia"}
 
 
 def test_default_threats_severity_reflects_real_cfr_ordering():
@@ -147,14 +150,17 @@ def test_default_threats_used_in_readiness_produce_meaningful_priority_order():
 
 
 # ── EU HERA 3대 위협군 분류 ────────────────────────────────────────
-def test_threat_category_coverage_marks_amr_cbrn_untracked():
+def test_threat_category_coverage_marks_amr_untracked_cbrn_tracked():
+    """세균 위협(탄저·페스트·야토병) 추가로 HERA의 CBRN 군이 실제 추적 대상이
+    됐다. AMR은 여전히 추적 항목이 하나도 없어 tracked=False로 정직하게 남는다."""
     r = br.compute_readiness(_CM, br.DEFAULT_THREATS)
     cats = {c["category"]: c for c in r["threat_category_coverage"]["categories"]}
     assert cats["pandemic_pathogen"]["tracked"] is True
     assert cats["pandemic_pathogen"]["threats_assessed"] == 5
     assert cats["amr"]["tracked"] is False
     assert cats["amr"]["threats_assessed"] == 0
-    assert cats["cbrn"]["tracked"] is False
+    assert cats["cbrn"]["tracked"] is True
+    assert cats["cbrn"]["threats_assessed"] == 3
 
 
 def test_threat_category_coverage_handles_empty_threats():
@@ -197,3 +203,43 @@ def test_compute_readiness_includes_reference_systems():
     r = br.compute_readiness(_CM, _THREATS)
     regions = {s["region"] for s in r["international_reference_systems"]}
     assert regions == {"EU", "US", "Japan"}
+
+
+# ── 유전체 스크리닝 탐지역량 격차 ──────────────────────────────────
+def test_genomic_screening_capability_splits_bacteria_from_viruses():
+    """Evo2는 진핵숙주 감염 바이러스를 학습에서 제외해 판정할 수 없고 세균은
+    가능하다 — 이 실측 한계가 위협별로 정확히 갈려 나와야 한다."""
+    cap = br.genomic_screening_capability(br.DEFAULT_THREATS)
+    assessable = {t["pathogen"] for t in cap["assessable_threats"]}
+    not_assessable = {t["pathogen"] for t in cap["not_assessable_threats"]}
+    assert assessable == {"Anthrax", "Plague", "Tularemia"}
+    assert not_assessable == {"H5N1", "Ebola", "MERS", "Dengue"}
+    assert cap["undeclared_domain_threats"] == ["Novel"]   # 미선언은 보수적 처리
+
+
+def test_genomic_screening_capability_reports_reason_for_viruses():
+    cap = br.genomic_screening_capability(br.DEFAULT_THREATS)
+    reason = cap["not_assessable_threats"][0]["reason"]
+    assert "학습에서 제외" in reason and "판정 불가" in reason
+
+
+def test_genomic_screening_capability_rate_excludes_undeclared():
+    """미선언(Novel)은 판정 가능으로 세지 않는다 — 8개 중 세균 3개만."""
+    cap = br.genomic_screening_capability(br.DEFAULT_THREATS)
+    assert cap["threats_assessed"] == 8
+    assert cap["genomically_assessable"] == 3
+    assert cap["assessable_rate"] == round(3 / 8, 3)
+
+
+def test_genomic_screening_capability_handles_empty_and_unknown_domain():
+    empty = br.genomic_screening_capability([])
+    assert empty["genomically_assessable"] == 0 and empty["assessable_rate"] is None
+    weird = br.genomic_screening_capability([{"pathogen": "X", "pathogen_domain": "오타"}])
+    assert weird["genomically_assessable"] == 0
+    assert weird["undeclared_domain_threats"] == ["X"]
+
+
+def test_compute_readiness_exposes_screening_capability():
+    r = br.compute_readiness(_CM, br.DEFAULT_THREATS)
+    assert r["genomic_screening_capability"]["genomically_assessable"] == 3
+    assert "Evo2" in r["disclaimer"]

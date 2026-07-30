@@ -209,14 +209,31 @@ export default function Stage8Biodefense() {
                 </div>
               </div>
               <ol style={{ margin: '10px 0 0', paddingLeft: 20, fontSize: 10.5, color: 'var(--muted)', lineHeight: 1.9 }}>
-                <li><b style={{ color: 'var(--txt)' }}>Evo2</b>(유전체 파운데이션 모델)로 병원체 유전체에서 실제 변이 발생 확률·위치 예측</li>
+                <li>
+                  <b style={{ color: 'var(--txt)' }}>Evo2</b>(유전체 파운데이션 모델)로 유전체의 자연스러움 이탈·국소 이상 탐지
+                  <b style={{ color: '#76b900' }}> — 세균 위협(탄저·페스트·야토병) 연동 완료</b>
+                </li>
                 <li><b style={{ color: 'var(--txt)' }}>AlphaFold2-Multimer / OpenFold2</b> NIM으로 변이체 항원 단백질의 3D 구조 재계산</li>
                 <li>비축 항체·백신은 구조 기반 결합력 재평가, 소분자 치료제는 <b style={{ color: 'var(--txt)' }}>DiffDock</b>으로 결합 도킹 재시뮬레이션 → 중화 여부 판정</li>
                 <li>중화 실패 예측 시 <b style={{ color: 'var(--txt)' }}>RFDiffusion·ProteinMPNN</b>으로 차세대 대응제 후보 설계까지 자동 제안</li>
               </ol>
+              <div style={{ marginTop: 10, borderRadius: 8, padding: '10px 12px', background: 'rgba(244,63,94,.07)', border: '1px solid rgba(244,63,94,.28)' }}>
+                <b style={{ fontFamily: 'var(--disp)', fontSize: 11, color: '#f43f5e' }}>실측으로 확인한 적용범위 한계</b>
+                <p style={{ fontSize: 10, color: 'var(--muted)', lineHeight: 1.65, marginTop: 4 }}>
+                  Evo2는 <b style={{ color: 'var(--txt)' }}>진핵숙주 감염 바이러스를 학습에서 제외</b>했습니다(Arc의 바이오안보 조치).
+                  실제로 NIM에 자연서열을 넣어 측정한 결과, 세균·진핵·파지는 87~100%인데 코로나·독감·에볼라는 25~33%로
+                  <b style={{ color: 'var(--txt)' }}> 자연서열조차 판정이 안 됩니다</b>. 따라서 1단계는 바이러스 위협에 적용하지 않고,
+                  세균 위협에만 적용합니다 — 위 곡선은 여전히 결정론적 근사식입니다.
+                </p>
+                <p style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted2)', lineHeight: 1.6, marginTop: 6 }}>
+                  측정 2026-07-30 · evo2-40b NIM · NCBI 레퍼런스 자연서열 4kb ·
+                  람다파지 100% / 인간 mtDNA 91.7% / 효모 90.3% / 대장균 87.5% ·
+                  SARS-CoV-2 33.3% / 인플루엔자A 31.9% / 에볼라 25.0%
+                </p>
+              </div>
               <p style={{ fontSize: 9.5, color: 'var(--muted2)', marginTop: 8, lineHeight: 1.5 }}>
                 전부 NVIDIA BioNeMo 플랫폼에 실제 배포된 NIM 마이크로서비스(2025~2026 기준) — 지어낸 파이프라인이 아니라
-                실제 존재하는 도구를 연결하는 설계도입니다. 현재는 미연동(Phase 2), 연동 전까지는 위 결정론적 근사식으로 대체.
+                실제 존재하는 도구를 연결하는 설계도입니다. 2~4단계는 미연동(Phase 2), 연동 전까지는 위 결정론적 근사식으로 대체.
               </p>
             </div>
           </div>
@@ -300,7 +317,7 @@ export default function Stage8Biodefense() {
       </div>
 
       <div style={{ marginTop: 16, fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted2)', lineHeight: 1.7, borderTop: '1px solid var(--line)', paddingTop: 12 }}>
-        <b style={{ color: 'var(--muted)' }}>※ 8단계 — 비축에서 바이오 방어 설계로</b>: ①변이 회피 예측 ②비축 vs 플랫폼 혼합 최적화 ③대응제-병원체 분자 매칭 ④생산 주권. 모든 수치는 결정론적 모델로 직접 계산하며, 실제 운영 시 BioNeMo NIM(Evo2·AlphaFold2-Multimer·DiffDock·RFDiffusion 등)·유전체 데이터·CEPI 표준을 연동합니다.
+        <b style={{ color: 'var(--muted)' }}>※ 8단계 — 비축에서 바이오 방어 설계로</b>: ①변이 회피 예측 ②비축 vs 플랫폼 혼합 최적화 ③대응제-병원체 분자 매칭 ④생산 주권. 모든 수치는 결정론적 모델로 직접 계산하며, 실제 운영 시 BioNeMo NIM(Evo2·AlphaFold2-Multimer·DiffDock·RFDiffusion 등)·유전체 데이터·CEPI 표준을 연동합니다. Evo2는 세균 위협에 한해 연동 완료 — 진핵숙주 감염 바이러스는 모델 학습 제외로 판정 불가(실측 근거는 위 카드).
       </div>
     </div>
   );
