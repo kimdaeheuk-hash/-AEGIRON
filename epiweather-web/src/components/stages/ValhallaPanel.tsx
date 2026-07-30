@@ -118,6 +118,8 @@ export default function ValhallaPanel() {
             </div>
           )}
 
+          <InternationalBenchmark r={r} />
+
           <div style={{ marginTop: 10, fontFamily: 'var(--kr)', fontSize: 10.5, color: 'var(--muted2)', lineHeight: 1.6 }}>
             {r.disclaimer}
           </div>
@@ -125,6 +127,89 @@ export default function ValhallaPanel() {
       )}
 
       <StockpileManager items={stockpile} onChanged={reload} />
+    </div>
+  );
+}
+
+function InternationalBenchmark({ r }: { r: BiodefenseReadiness }) {
+  const bm = r.international_benchmark;
+  const cats = r.threat_category_coverage?.categories;
+  const refs = r.international_reference_systems;
+  if (!bm && !cats && !refs) return null;
+
+  return (
+    <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--line)' }}>
+      <div style={{ fontFamily: 'var(--mono)', fontSize: 9.5, color: 'var(--muted2)', letterSpacing: '.08em', marginBottom: 8 }}>
+        국제 벤치마크
+      </div>
+
+      {bm && (
+        bm.assessed ? (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+            padding: '10px 12px', borderRadius: 8, background: 'var(--panel2)',
+            border: `1px solid ${bm.meets_target ? 'rgba(52,211,153,.4)' : 'rgba(251,146,60,.4)'}`,
+          }}>
+            <span style={{ fontFamily: 'var(--kr)', fontSize: 12, fontWeight: 700 }}>
+              항바이러스제 인구 비축률
+            </span>
+            <span style={{ fontFamily: 'var(--mono)', fontWeight: 800, fontSize: 18, color: bm.meets_target ? '#34d399' : '#fb923c' }}>
+              {((bm.population_coverage_pct ?? 0) * 100).toFixed(1)}%
+            </span>
+            <span style={{ fontFamily: 'var(--kr)', fontSize: 10.5, color: 'var(--muted2)' }}>
+              국제권고 {((bm.international_target_pct ?? 0) * 100).toFixed(0)}% 대비
+            </span>
+            <span style={{
+              marginLeft: 'auto', fontFamily: 'var(--mono)', fontSize: 10, fontWeight: 700,
+              color: bm.meets_target ? '#34d399' : '#fb923c',
+              border: `1px solid ${bm.meets_target ? 'rgba(52,211,153,.4)' : 'rgba(251,146,60,.4)'}`,
+              borderRadius: 5, padding: '2px 8px',
+            }}>
+              {bm.meets_target ? '충족' : '미충족'}
+            </span>
+          </div>
+        ) : (
+          <div style={{ fontFamily: 'var(--kr)', fontSize: 11, color: 'var(--muted2)' }}>
+            ⓘ {bm.reason ?? '항바이러스제 비축 데이터 없음'} — 국제기준 비교 불가
+          </div>
+        )
+      )}
+
+      {cats && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+          {cats.map(c => (
+            <span key={c.category} style={{
+              fontFamily: 'var(--kr)', fontSize: 11, padding: '4px 10px', borderRadius: 6,
+              background: 'var(--panel2)', border: `1px solid ${c.tracked ? 'var(--line)' : 'rgba(244,63,94,.3)'}`,
+              color: c.tracked ? 'var(--txt)' : 'var(--muted2)',
+            }}>
+              {c.name_ko} {c.tracked ? `(${c.threats_assessed}개 추적 중)` : '— 미추적'}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {refs && (
+        <div style={{ marginTop: 10 }}>
+          {refs.map(s => (
+            <div key={s.region} style={{
+              padding: '7px 10px', marginTop: 4, borderRadius: 7,
+              background: 'var(--panel2)', border: '1px solid var(--line)',
+            }}>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 10.5, fontWeight: 700, color: '#a78bfa' }}>
+                {s.region}
+              </span>{' '}
+              <span style={{ fontFamily: 'var(--kr)', fontSize: 11.5, fontWeight: 700 }}>{s.name}</span>
+              {s.established && (
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted2)' }}> · {s.established}~</span>
+              )}
+              <div style={{ fontFamily: 'var(--kr)', fontSize: 10.5, color: 'var(--muted2)', marginTop: 2 }}>
+                {s.summary}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

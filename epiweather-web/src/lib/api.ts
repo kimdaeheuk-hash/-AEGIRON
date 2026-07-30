@@ -311,6 +311,19 @@ export interface BiodefenseReadiness {
   resilience: { single_point_of_failure: string[]; single_point_count: number; import_only_covered: string[] };
   logistics: { assessed: number; items: { name: string; courses: number; projected_demand: number | null; coverage_fraction: number | null; shortfall: number }[] };
   matrix: { pathogen: string; covered: boolean; best_declared_efficacy: number | null; domestic_production: boolean }[];
+  threat_category_coverage?: {
+    framework: string;
+    categories: { category: string; name_ko: string; tracked: boolean; threats_assessed: number }[];
+  };
+  international_benchmark?: {
+    assessed: boolean; reason?: string;
+    population?: number; population_source?: string;
+    total_antiviral_courses?: number; population_coverage_pct?: number;
+    international_target_pct?: number; meets_target?: boolean; note?: string;
+  };
+  international_reference_systems?: {
+    region: string; name: string; established: number | null; summary: string; source: string;
+  }[];
   is_illustrative?: boolean; note?: string; disclaimer: string; classification?: Classification;
 }
 

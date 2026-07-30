@@ -20,14 +20,103 @@ from __future__ import annotations
 # 커버리지 판정 임계값(선언 효능이 이 이상이어야 '실질 커버'로 봄).
 COVERAGE_MIN_EFFICACY = 0.30
 
+# EU HERA(2021년 신설)의 3대 위협군 분류 체계 참고(확인일 2026-07-30) —
+# 16개 회원국 22개 rescEU 비축소가 이 3개 군으로 나눠 관리됨. AMR·CBRN은
+# 이 시스템이 아직 추적하는 대응제·위협이 하나도 없어 tracked=False로
+# 정직하게 표시한다(가짜 위협 항목을 만들어 채우지 않음).
+HERA_CATEGORIES = {
+    "pandemic_pathogen": {"name_ko": "팬데믹 잠재력 병원체", "tracked": True},
+    "amr": {"name_ko": "항생제 내성(AMR)", "tracked": False},
+    "cbrn": {"name_ko": "화생방핵(CBRN)", "tracked": False},
+}
+
 # 기본 감시 위협목록 — severity는 WHO 실측 치명률(CFR, 확인일 2026-07-30).
 # Novel은 정의상 과거 발병 데이터가 없어 severity를 비워둠(지어내지 않음).
+# category는 전부 HERA의 "팬데믹 잠재력 병원체" 군에 해당.
 DEFAULT_THREATS = [
-    {"pathogen": "H5N1", "severity": 0.48},     # WHO/CDC 1997~2025 누적 993례/477사망
-    {"pathogen": "Ebola", "severity": 0.50},    # WHO 팩트시트, 역대 평균(25~90% 범위)
-    {"pathogen": "MERS", "severity": 0.361},    # WHO 2012~2025.5 누적 2,626례/947사망
-    {"pathogen": "Dengue", "severity": 0.0004}, # WHO 연간 약 5천만 감염/2.2만 사망(경증 포함 전체 평균)
-    {"pathogen": "Novel"},                      # 정의상 과거 CFR 없음 — severity 비움
+    {"pathogen": "H5N1", "severity": 0.48, "category": "pandemic_pathogen"},     # WHO/CDC 1997~2025 누적 993례/477사망
+    {"pathogen": "Ebola", "severity": 0.50, "category": "pandemic_pathogen"},    # WHO 팩트시트, 역대 평균(25~90% 범위)
+    {"pathogen": "MERS", "severity": 0.361, "category": "pandemic_pathogen"},    # WHO 2012~2025.5 누적 2,626례/947사망
+    {"pathogen": "Dengue", "severity": 0.0004, "category": "pandemic_pathogen"}, # WHO 연간 약 5천만 감염/2.2만 사망(경증 포함 전체 평균)
+    {"pathogen": "Novel", "category": "pandemic_pathogen"},                      # 정의상 과거 CFR 없음 — severity 비움
+]
+
+
+def threat_category_coverage(threats: list[dict]) -> dict:
+    """EU HERA 3대 위협군 기준으로 지금 뭘 추적 중이고 뭘 아예 안 보고 있는지
+    요약. AMR·CBRN은 실제로 추적하는 항목이 없으므로 threats_assessed=0,
+    tracked=False로 정직하게 노출(HERA_CATEGORIES와 별개로 실제 입력값 기준)."""
+    counts: dict[str, int] = {cat: 0 for cat in HERA_CATEGORIES}
+    for th in threats:
+        cat = th.get("category")
+        if cat in counts:
+            counts[cat] += 1
+    return {
+        "framework": "EU HERA 3대 위협군 기준(2026-07-30 확인)",
+        "categories": [
+            {
+                "category": cat,
+                "name_ko": meta["name_ko"],
+                "tracked": counts[cat] > 0,
+                "threats_assessed": counts[cat],
+            }
+            for cat, meta in HERA_CATEGORIES.items()
+        ],
+    }
+
+
+# 통계청 2025년 추계인구(확인일 2026-07-30). 각국 팬데믹계획(일본 등)에서
+# 공통적으로 쓰이는 항바이러스제 인구비축 국제 권고치(WHO 팬데믹 대비 지침 기반).
+KOREA_POPULATION_2025 = 51_684_564
+INTL_ANTIVIRAL_TARGET_PCT = 0.25
+
+
+def international_benchmark(countermeasures: list[dict], population: int = KOREA_POPULATION_2025) -> dict:
+    """국제 팬데믹 대비계획 공통 권고치(항바이러스제 인구 25% 비축)와 실제
+    등록된 항바이러스제 비축량을 비교. courses가 있는 antiviral만 집계 —
+    없으면 지어내지 않고 assessed=False. 백신·PPE 등 다른 유형엔 이 25%
+    기준 자체가 적용되지 않으므로 포함하지 않는다."""
+    antivirals = [cm for cm in countermeasures if cm.get("type") == "antiviral" and cm.get("courses")]
+    if not antivirals:
+        return {
+            "assessed": False,
+            "reason": "courses(비축 인분)가 입력된 항바이러스제 없음",
+        }
+    total_courses = sum(cm["courses"] for cm in antivirals)
+    coverage_pct = round(total_courses / population, 4)
+    return {
+        "assessed": True,
+        "population": population,
+        "population_source": "통계청 2025년 추계인구(2026-07-30 확인)",
+        "total_antiviral_courses": total_courses,
+        "population_coverage_pct": coverage_pct,
+        "international_target_pct": INTL_ANTIVIRAL_TARGET_PCT,
+        "meets_target": coverage_pct >= INTL_ANTIVIRAL_TARGET_PCT,
+        "note": "각국 팬데믹 대비계획에서 공통적으로 쓰이는 인구 25% 항바이러스제 "
+                "비축 권고치와 비교. 백신·PPE 등 다른 대응제 유형엔 이 기준이 적용되지 않음.",
+    }
+
+
+# 해외 체계 요약(정적 참고자료, 계산값 아님 — 확인일 2026-07-30).
+REFERENCE_SYSTEMS = [
+    {
+        "region": "EU", "name": "HERA + rescEU", "established": 2021,
+        "summary": "16개 회원국에 22개 rescEU 비축소(17개 가동) 운영. 팬데믹 잠재력 "
+                   "병원체·항생제내성(AMR)·화생방핵(CBRN) 3대 위협군으로 분류해 공동조달·비축.",
+        "source": "EU HERA 공식 발표",
+    },
+    {
+        "region": "US", "name": "SNS(전략적 국가비축) + BARDA", "established": None,
+        "summary": "대규모 연방 비축(Strategic National Stockpile), Project BioShield로 "
+                   "조달·개발. 공개된 통합 커버리지 대시보드는 확인 안 됨.",
+        "source": "ASPR/BARDA 공식자료",
+    },
+    {
+        "region": "Japan", "name": "신종인플루엔자 등 대책 특별조치법", "established": 2012,
+        "summary": "팬데믹 대비를 전담 법률로 명문화. 항바이러스제 인구 25% 비축 등 "
+                   "국제 공통 권고치의 근거가 되는 체계.",
+        "source": "일본 후생노동성",
+    },
 ]
 
 
@@ -126,6 +215,9 @@ def compute_readiness(countermeasures: list[dict], threats: list[dict]) -> dict:
         "matrix": threat_rows,
         "method": "declared_efficacy_coverage_v1",
         "coverage_min_efficacy": COVERAGE_MIN_EFFICACY,
+        "threat_category_coverage": threat_category_coverage(threats),
+        "international_benchmark": international_benchmark(countermeasures),
+        "international_reference_systems": REFERENCE_SYSTEMS,
         "disclaimer": (
             "효능은 '예측'이 아니라 각 대응제의 선언(라벨/문헌) 효능 집계다. 변이별 분자 "
             "중화 예측(escape)은 구조·면역 모델(BioNeMo·CEPI 표준) 연동이 필요한 Phase 2 "

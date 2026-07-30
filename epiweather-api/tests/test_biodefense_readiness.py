@@ -144,3 +144,56 @@ def test_default_threats_used_in_readiness_produce_meaningful_priority_order():
     assert order.index("Dengue") > order.index("H5N1")
     assert order.index("Dengue") > order.index("Ebola")
     assert order.index("Dengue") > order.index("MERS")
+
+
+# ── EU HERA 3대 위협군 분류 ────────────────────────────────────────
+def test_threat_category_coverage_marks_amr_cbrn_untracked():
+    r = br.compute_readiness(_CM, br.DEFAULT_THREATS)
+    cats = {c["category"]: c for c in r["threat_category_coverage"]["categories"]}
+    assert cats["pandemic_pathogen"]["tracked"] is True
+    assert cats["pandemic_pathogen"]["threats_assessed"] == 5
+    assert cats["amr"]["tracked"] is False
+    assert cats["amr"]["threats_assessed"] == 0
+    assert cats["cbrn"]["tracked"] is False
+
+
+def test_threat_category_coverage_handles_empty_threats():
+    cov = br.threat_category_coverage([])
+    for c in cov["categories"]:
+        assert c["tracked"] is False
+        assert c["threats_assessed"] == 0
+
+
+# ── 국제기준(항바이러스제 인구 25% 비축) 벤치마크 ───────────────────
+def test_international_benchmark_not_assessed_without_antiviral_courses():
+    r = br.international_benchmark(_CM)  # _CM의 antiviral 항목엔 courses 없음
+    assert r["assessed"] is False
+
+
+def test_international_benchmark_computes_real_population_coverage():
+    cm = [{"name": "국가 비축 항바이러스제", "type": "antiviral", "targets": ["H5N1"],
+           "domestic_producible": True, "courses": 12_920_000}]
+    r = br.international_benchmark(cm, population=51_684_564)
+    assert r["assessed"] is True
+    assert r["population_coverage_pct"] == round(12_920_000 / 51_684_564, 4)
+    assert r["meets_target"] is True  # 약 25% ≈ 국제권고 25% 충족
+
+
+def test_international_benchmark_below_target_flagged_false():
+    cm = [{"name": "소량 비축", "type": "antiviral", "targets": ["H5N1"],
+           "domestic_producible": True, "courses": 1_000_000}]
+    r = br.international_benchmark(cm, population=51_684_564)
+    assert r["meets_target"] is False
+
+
+def test_international_benchmark_ignores_non_antiviral_types():
+    cm = [{"name": "백신", "type": "vaccine", "targets": ["Novel"],
+           "domestic_producible": True, "courses": 50_000_000}]
+    r = br.international_benchmark(cm)
+    assert r["assessed"] is False
+
+
+def test_compute_readiness_includes_reference_systems():
+    r = br.compute_readiness(_CM, _THREATS)
+    regions = {s["region"] for s in r["international_reference_systems"]}
+    assert regions == {"EU", "US", "Japan"}
