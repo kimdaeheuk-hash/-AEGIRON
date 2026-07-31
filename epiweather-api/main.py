@@ -1181,6 +1181,12 @@ class GenomeScreenRequest(BaseModel):
                            "CAI·CpG 같은 점통계는 조성만 보므로 조성은 자연스럽되 순서가 부자연스러운 "
                            "서열을 놓친다. 켜면 NVIDIA NIM을 호출하므로 수 초~수십 초 더 걸림. "
                            "최소 524bp(context 512 + 12) 이상 연속 구간 필요.")
+    use_msa: bool = Field(
+        False, description="자연 상동체 커버리지를 상동성 DB 검색으로 실측할지. "
+                           "'자연계에 이 서열 전체를 설명하는 단백질이 있는가'를 보고, 없으면 "
+                           "여러 출처를 이어붙인 재조합·키메라 후보로 플래그. Evo2와 달리 "
+                           "학습 모델이 아니라 DB 검색이라 **바이러스에도 유효**함(실측 확인). "
+                           "최장 ORF를 자동 번역해 검색하며, 1회에 약 40초 걸림.")
     organism_domain: str = Field(
         "unknown", description="서열의 분류군 — Evo2 적용범위 판정용. "
                                "bacteria_archaea(세균·고균: 탄저·페스트 등) / eukaryote(진핵) / "
@@ -1210,6 +1216,14 @@ def synthetic_threat_genome_screen(req: GenomeScreenRequest):
         result["evo2_naturalness"] = evo2
         if evo2.get("ok"):
             result.setdefault("flags", []).extend(evo2.get("flags") or [])
+            result["flag_count"] = len(result["flags"])
+    if req.use_msa:
+        # Evo2가 못 보는 바이러스도 커버하는 축 — 자연 상동체가 전장을 덮는가.
+        from algorithms.msa_homology import assess_from_nucleotide
+        msa = assess_from_nucleotide(req.sequence)
+        result["msa_homology"] = msa
+        if msa.get("ok"):
+            result.setdefault("flags", []).extend(msa.get("flags") or [])
             result["flag_count"] = len(result["flags"])
     result["classification"] = classification("stage0")
     return result
