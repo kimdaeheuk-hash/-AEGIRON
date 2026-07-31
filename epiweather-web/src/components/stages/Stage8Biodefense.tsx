@@ -225,10 +225,17 @@ export default function Stage8Biodefense() {
                   <b style={{ color: 'var(--txt)' }}> 자연서열조차 판정이 안 됩니다</b>. 따라서 1단계는 바이러스 위협에 적용하지 않고,
                   세균 위협에만 적용합니다 — 위 곡선은 여전히 결정론적 근사식입니다.
                 </p>
+                <p style={{ fontSize: 10, color: 'var(--muted)', lineHeight: 1.65, marginTop: 6 }}>
+                  &quot;바이러스끼리 상대비교하면 되지 않나&quot;도 성공기준을 미리 정해놓고 검증했고, 실패했습니다 —
+                  자연 vs 조성동일 셔플 차이 <b style={{ color: 'var(--txt)' }}>+3.2%</b>(기준 15%p),
+                  뎅기는 셔플이 오히려 높았고 키메라 접합부도 부호가 반대였습니다.
+                  자연 바이러스 평균 33.3%는 <b style={{ color: 'var(--txt)' }}>무작위로 찍는 25%</b>보다 8.3%p 위에 불과합니다.
+                </p>
                 <p style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted2)', lineHeight: 1.6, marginTop: 6 }}>
-                  측정 2026-07-30 · evo2-40b NIM · NCBI 레퍼런스 자연서열 4kb ·
+                  측정 2026-07-30~31 · evo2-40b NIM · NCBI 레퍼런스 자연서열 4kb ·
                   람다파지 100% / 인간 mtDNA 91.7% / 효모 90.3% / 대장균 87.5% ·
-                  SARS-CoV-2 33.3% / 인플루엔자A 31.9% / 에볼라 25.0%
+                  SARS-CoV-2 33.3% / 인플루엔자A 31.9% / 에볼라 25.0% ·
+                  재현: scripts/validate_evo2_applicability.py
                 </p>
               </div>
               <p style={{ fontSize: 9.5, color: 'var(--muted2)', marginTop: 8, lineHeight: 1.5 }}>

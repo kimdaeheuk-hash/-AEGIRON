@@ -63,7 +63,9 @@ _SCREENING_DOMAIN_NOTE = {
     "bacteria_archaea": "세균·고균 — Evo2 적용범위 안(대장균 자연서열 실측 87.5%). 판정 가능.",
     "eukaryote": "진핵 유전체 — Evo2 적용범위 안(효모 90.3%·인간 mtDNA 91.7% 실측). 판정 가능.",
     "phage": "세균 감염 바이러스 — Evo2 적용범위 안(람다파지 100% 실측). 판정 가능.",
-    "eukaryotic_virus": "진핵숙주 감염 바이러스 — Evo2 학습에서 제외되어 자연서열도 30%대. "
+    "eukaryotic_virus": "진핵숙주 감염 바이러스 — Evo2 학습에서 제외되어 자연서열도 30%대"
+                        "(무작위 25%와 근접). 바이러스끼리 상대비교로도 판정 실패함"
+                        "(2026-07-31 실측, scripts/validate_evo2_applicability.py로 재현 가능). "
                         "유전체 스크리닝으로 인공 여부 판정 불가.",
 }
 
@@ -101,7 +103,8 @@ def genomic_screening_capability(threats: list[dict]) -> dict:
         "assessable_threats": assessable,
         "not_assessable_threats": not_assessable,
         "undeclared_domain_threats": undeclared,
-        "basis": "evo2_naturalness 분류군별 실측(2026-07-30, evo2-40b NIM, NCBI 레퍼런스 자연서열)",
+        "basis": "evo2_naturalness 분류군별 실측(2026-07-30) + 바이러스 상대기준선 검증 실패"
+                 "(2026-07-31). 둘 다 scripts/validate_evo2_applicability.py로 재현 가능.",
         "note": (
             "대응제 커버리지와 다른 축이다 — '막을 수 있는가'가 아니라 '유전체로 "
             "알아볼 수 있는가'. 판정 불가 위협은 유전체 스크리닝 외의 경로(역학·임상·"
