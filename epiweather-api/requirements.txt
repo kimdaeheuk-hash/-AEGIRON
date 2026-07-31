@@ -9,6 +9,7 @@ requests>=2.31.0
 anthropic>=0.40.0
 pytrends>=4.9.0
 opentimestamps>=0.4.5
+pymupdf>=1.24.0        # 보건 보고서 PDF → 페이지 이미지(표 구조 추출용)
 
 # dev/test
 pytest>=8.0.0

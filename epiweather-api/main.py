@@ -1229,6 +1229,37 @@ def synthetic_threat_genome_screen(req: GenomeScreenRequest):
     return result
 
 
+class BulletinTableRequest(BaseModel):
+    url: str = Field(..., description="보건 보고서 PDF 주소(WHO AFRO 주간 상황보고서, "
+                                      "각국 보건부 역학주보 등). 공개 문서만.")
+    max_pages: int = Field(3, ge=1, le=10, description="앞에서부터 파싱할 페이지 수. "
+                                                       "페이지마다 VLM 호출 1회라 기본값을 작게 둠.")
+
+
+@app.post("/api/bulletin/extract-tables", tags=["데이터 수집"], dependencies=_auth)
+def bulletin_extract_tables(req: BulletinTableRequest):
+    """보건 보고서 PDF의 '표'를 구조화 추출 — 지금까지 못 읽던 신호를 연다.
+
+    WHO AFRO 주간보고서 같은 문서엔 국가·질병별 확진자·사망자·치명률이 표로
+    들어있는데, 기존 텍스트 추출은 글자가 깨지고(multiple→mul2ple) 표가 뭉개져서
+    숫자를 신호로 쓸 수 없었다. VLM(nemotron-parse)으로 표 구조를 복원하고,
+    뽑은 숫자를 pdftotext 원문과 교차검증해 오독 후보를 표시한다.
+    기계 추출값이므로 is_machine_extracted=True — 사람 검증본이 아니다."""
+    import requests as _rq
+    from algorithms.pdf_table_extract import extract_tables
+
+    if not req.url.lower().startswith(("http://", "https://")):
+        raise HTTPException(status_code=422, detail="http(s) 주소만 허용")
+    try:
+        r = _rq.get(req.url, timeout=120, headers={"User-Agent": "Mozilla/5.0 (EpiWeather/1.0)"})
+        r.raise_for_status()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"PDF 내려받기 실패: {e}")
+    if not r.content[:5].startswith(b"%PDF"):
+        raise HTTPException(status_code=422, detail="PDF 파일이 아님")
+    return extract_tables(r.content, max_pages=req.max_pages)
+
+
 class BiodefenseReadinessRequest(BaseModel):
     countermeasures: Optional[list] = Field(None, description="비축 대응제 목록 [{name,type,targets,declared_efficacy,domestic_producible}]")
     threats: Optional[list] = Field(None, description="위협 목록 [{pathogen,severity}]")
