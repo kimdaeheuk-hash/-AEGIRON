@@ -195,6 +195,31 @@ def _save_last_weekly_run(when: dt.datetime) -> None:
         json.dump({"last_run": when.isoformat()}, f)
 
 
+async def _run_bulletin_collection() -> None:
+    """WHO 상황보고서 자동 수집 — 하루 1회 확인, 새 회차가 있을 때만 파싱.
+
+    확인 자체는 IRIS API 호출 몇 번이라 사실상 공짜다. 비용은 표 추출(회차당 VLM
+    4회 호출)에 걸려 있는데, 이미 적재한 회차는 PDF를 열지도 않으므로 새 보고서가
+    없는 날은 비용이 0이다. 보고서는 주 1회 나오므로 실제 파싱도 주 1회다.
+    NVIDIA_API_KEY가 없으면 조용히 건너뛴다(키 없는 환경에서 로그만 더럽히지 않게)."""
+    import collector
+
+    if not os.environ.get("NVIDIA_API_KEY"):
+        return
+    try:
+        from algorithms.bulletin_collect import collect_new_reports
+        result = await asyncio.to_thread(collect_new_reports, db)
+        if result.get("parsed"):
+            collector.log(
+                f"WHO 상황보고서: 새 회차 {result['parsed']}건 파싱, "
+                f"신호 {result['inserted']}건 적재 "
+                f"(기존 {result['skipped_existing']}건은 건너뜀)"
+            )
+            await _broadcast_dashboard()
+    except Exception as e:
+        collector.log_error("scheduler_bulletin", e)
+
+
 async def _run_weekly_job() -> None:
     """
     기준선(collect_baseline)·국가지표(refresh_country_indicators) 갱신.
@@ -287,6 +312,8 @@ async def _scheduler_loop() -> None:
         if now.hour == _AI_HOUR_UTC and last_ai_run_date != now.date():
             last_ai_run_date = now.date()
             await _run_collector("ai")
+            # 같은 하루 1회 슬롯에서 함께 확인 — 새 회차가 없으면 비용이 들지 않는다.
+            await _run_bulletin_collection()
 
         await _maybe_run_daily_brief()
 
@@ -1310,6 +1337,21 @@ def bulletin_ingest(req: BulletinIngestRequest):
     result["signals_found"] = found["signal_count"]
     result.pop("rows", None)          # 응답이 너무 길어지지 않게 요약만
     return result
+
+
+@app.post("/api/bulletin/collect", tags=["데이터 수집"], dependencies=_auth)
+def bulletin_collect(source: str = "who_sitrep_bundibugyo",
+                     topic: Optional[str] = "Bundibugyo",
+                     limit: int = 6, max_new: int = 2):
+    """새로 올라온 WHO 상황보고서만 수집·적재(스케줄러가 하루 1회 부르는 것과 동일).
+
+    이미 적재한 회차는 PDF를 열지 않으므로 새 보고서가 없으면 비용이 0이다.
+    max_new로 한 번에 파싱할 회차 수를 묶는다 — 과거분을 채우려면 여러 번 호출."""
+    from algorithms.bulletin_collect import collect_new_reports
+
+    db.init_db()
+    return collect_new_reports(db, source=source, topic=topic,
+                               limit=limit, max_new=max_new)
 
 
 @app.get("/api/bulletin/trend", tags=["데이터 수집"])
