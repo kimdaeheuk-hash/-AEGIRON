@@ -76,3 +76,12 @@ def test_logistics_computes_days_of_supply():
 def test_logistics_skips_when_no_courses():
     r = br.compute_readiness(_CM, _THREATS)   # _CM엔 courses 없음
     assert r["logistics"]["assessed"] == 0     # 지어내지 않고 제외
+
+
+def test_illustrative_reflects_real_bundibugyo_gap():
+    """실사례 검증: 2026 DRC 분디부조형 에볼라는 백신 없음 → VALHALLA가 미커버로 잡는다.
+    자이르형은 백신(Ervebo) 있어 커버되지만 수입의존(주권 격차)."""
+    r = br.illustrative_readiness()
+    assert "Ebola_Bundibugyo" in r["coverage"]["uncovered_threats"]   # 백신 없음 → 미커버
+    assert "Ebola_Zaire" in r["resilience"]["import_only_covered"]     # 백신 있으나 수입
+    assert "분디부조" in r["real_case_note"]
