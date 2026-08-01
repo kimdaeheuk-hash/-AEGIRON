@@ -14,17 +14,20 @@ WHO가 자체 추출한 텍스트라, pdf_table_extract의 숫자 교차검증 �
 있다(로컬에 pdftotext가 없어도 됨). 다만 그 텍스트도 표는 뭉개져 있어서(실측 확인)
 구조 복원은 여전히 pdf_table_extract가 필요하다 — 교차검증용 원문으로만 쓴다.
 
-★★ 신선도 한계(반드시 알고 쓸 것) ★★
-IRIS 리포지터리 자체는 최신이다(2026-08-01 확인 시 전날 발행물까지 색인됨).
-그런데 **발병 주간보고서 시리즈만 최신분이 빠져 있다**: IRIS에서 찾히는 최신은
-2026년 12주차(3월)인데, afro.who.int에는 같은 시점에 28주차(7월)가 올라와 있었다.
-메타데이터도 흔들린다(제목 "Week 21"인데 dc.date.issued가 2026-03-24).
+★★ 문서 계열마다 신선도가 다르다(2026-08-01 정정) ★★
+처음엔 "IRIS는 아카이브용이고 최신분이 없다"고 판단했는데 **틀렸다**. 찾는 제목이
+잘못됐던 것이다. 계열별로 정리하면:
 
-따라서 역할을 나눈다:
-  - IRIS          : **과거 아카이브 축적용**. 2025년치까지 주차별로 촘촘히 있어
-                    기준선(baseline) 확대에 적합하다. API라 수집이 안정적이다.
-  - afro.who.int  : 최신분 확보용. 단 URL 패턴이 일반화되지 않아 수집이 불안정하다.
-실시간 조기경보를 IRIS만으로 돌리면 몇 달 늦는다 — 이 점을 착각하면 안 된다.
+  ① "Weekly Bulletin on Outbreak and other Emergencies" (지역 종합, OEW*.pdf)
+     IRIS 최신이 2026년 12주차(3월)에서 멈춘다. 아프리카 전역 감시 이벤트 표가
+     들어있어 **과거 기준선 축적에 좋다**. 메타데이터가 흔들리는 항목이 있다
+     (제목 "Week 21"인데 dc.date.issued가 2026-03-24).
+  ② "Weekly External Situation Report" (개별 발병 대응, 예: 분디부조 에볼라)
+     **최신이다.** 2026-08-01 확인 시 07-26자 11호까지 주간 연속으로 올라와 있다.
+     실시간 조기경보는 이쪽을 봐야 한다.
+
+afro.who.int의 발행물 페이지도 결국 다운로드 링크가 iris.who.int/bitstreams/…를
+가리킨다(실측 확인). 즉 원본은 IRIS 한 곳이고, 스크래핑할 이유가 없다.
 
 주간보고서 파일명 규칙(실측): OEW{주차}-{시작일}{종료일}{연도}.pdf
   예) OEW12-1622032026.pdf = 12주차, 2026년 3월 16~22일
@@ -130,6 +133,41 @@ def latest_outbreak_bulletins(limit: int = 5, search_size: int = 25) -> list[dic
         if not pdf or not BULLETIN_FILE.match(pdf["name"]):
             continue                       # OEW 규칙에 안 맞으면 다른 간행물로 본다
         results.append({**item, "pdf": pdf, "text": files.get("text")})
+        if len(results) >= limit:
+            break
+    return results
+
+
+# 개별 발병 대응 상황보고서 — 실시간 조기경보용(주간 갱신, IRIS에 최신분 있음).
+SITREP_TITLE = re.compile(r"external situation report", re.I)
+SITREP_NUMBER = re.compile(r"situation report\s*(\d+)", re.I)
+
+
+def latest_situation_reports(limit: int = 5, search_size: int = 30,
+                             topic: str | None = None) -> list[dict]:
+    """최신 '주간 외부 상황보고서'를 PDF 링크까지 붙여 반환 — 실시간 감시용.
+
+    지역 종합 주간보고서(latest_outbreak_bulletins)는 IRIS에서 3월에 멈춰 있지만
+    이 계열은 최신이다(2026-08-01 확인 시 07-26자까지). 특정 발병만 보려면
+    topic에 키워드를 준다(예: "Bundibugyo").
+
+    topic은 검색어로만 쓰고 제목 대조는 하지 않는다 — 이 계열 제목엔 병명이 아예
+    안 들어간다("Weekly External Situation Report 11, Data as of 26 July 2026 -
+    Democratic Republic of the Congo and Uganda"). 제목으로 거르면 전부 탈락한다
+    (실제로 겪음). 대신 계열 자체는 제목으로 확인해 다른 정기간행물을 배제한다."""
+    query = '"Weekly External Situation Report"'
+    if topic:
+        query = f'{query} {topic}'
+    results = []
+    for item in search_items(query, size=search_size):
+        if not SITREP_TITLE.search(item["title"]):
+            continue
+        files = item_files(item["uuid"])
+        if not files.get("pdf"):
+            continue
+        number = SITREP_NUMBER.search(item["title"])
+        results.append({**item, "report_number": int(number.group(1)) if number else None,
+                        "pdf": files["pdf"], "text": files.get("text")})
         if len(results) >= limit:
             break
     return results

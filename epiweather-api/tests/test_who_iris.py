@@ -115,3 +115,38 @@ def test_bulletin_archive_extracts_week_number(monkeypatch):
     ])
     archive = wi.bulletin_archive()
     assert len(archive) == 1 and archive[0]["week"] == 21
+
+
+# ── 상황보고서 계열(실시간 감시용) ────────────────────────────────
+SITREP_TITLE = ("Weekly External Situation Report 11, Data as of 26 July 2026 - "
+                "Democratic Republic of the Congo and Uganda")
+
+
+def test_latest_situation_reports_extracts_report_number(monkeypatch):
+    monkeypatch.setattr(wi, "search_items", lambda q, size=30: [
+        {"uuid": "u1", "title": SITREP_TITLE, "issued": "2026-07-26", "language": "en"}])
+    monkeypatch.setattr(wi, "item_files",
+                        lambda uuid: {"pdf": _bs("Wk_Ext_SitRep_1126072026.pdf"),
+                                      "text": None, "all": []})
+    got = wi.latest_situation_reports(limit=3)
+    assert len(got) == 1 and got[0]["report_number"] == 11
+
+
+def test_latest_situation_reports_does_not_filter_topic_by_title(monkeypatch):
+    """★회귀★ 이 계열 제목엔 병명이 안 들어간다 — 제목으로 topic을 거르면
+    전부 탈락한다(실제로 겪음). topic은 검색어로만 쓴다."""
+    monkeypatch.setattr(wi, "search_items", lambda q, size=30: [
+        {"uuid": "u1", "title": SITREP_TITLE, "issued": "2026-07-26", "language": "en"}])
+    monkeypatch.setattr(wi, "item_files",
+                        lambda uuid: {"pdf": _bs("Wk_Ext_SitRep_11.pdf"), "text": None, "all": []})
+    assert len(wi.latest_situation_reports(limit=3, topic="Bundibugyo")) == 1
+
+
+def test_latest_situation_reports_excludes_other_series(monkeypatch):
+    """다른 정기간행물이 검색에 섞여 나와도 계열 제목으로 걸러야 한다."""
+    monkeypatch.setattr(wi, "search_items", lambda q, size=30: [
+        {"uuid": "u1", "title": "Weekly Epidemiological Record, 2026, vol. 101",
+         "issued": "2026-07-10", "language": "en"}])
+    monkeypatch.setattr(wi, "item_files",
+                        lambda uuid: {"pdf": _bs("WER.pdf"), "text": None, "all": []})
+    assert wi.latest_situation_reports(limit=3) == []

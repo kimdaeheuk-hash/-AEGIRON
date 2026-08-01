@@ -153,3 +153,28 @@ def test_ingest_survives_dedup_query_failure():
 
     out = bi.ingest([_signal()], dbmod=NoList())
     assert out["inserted"] == 1        # 중복조회 실패가 적재를 막으면 안 된다
+
+
+# ── signal_type 판정 근거 ─────────────────────────────────────────
+def test_signal_type_ongoing_when_new_cases_reported():
+    """★핵심★ '최근 7일 신규 확진 567명'은 진행 중이라는 문서의 직접 진술이다.
+    이걸 '불명'으로 두면 위험도가 3분의 2로 깎여 실제 발병이 저평가된다."""
+    sig = _signal(layout=None, metrics={"confirmed": 3262, "deaths": 1437,
+                                        "new_confirmed": 567, "new_deaths": 296})
+    assert bi.signal_type_for(sig) == "진행중"
+
+
+def test_signal_type_unknown_when_no_new_cases_this_period():
+    """신규 0이면 잦아드는 중인지 보고 지연인지 알 수 없다 — 우간다가 그 경우."""
+    sig = _signal(layout=None, metrics={"confirmed": 20, "deaths": 2,
+                                        "new_confirmed": 0, "new_deaths": 0})
+    assert bi.signal_type_for(sig) == "불명"
+
+
+def test_signal_type_unknown_without_recent_columns():
+    """신규 열 자체가 없으면 판단 근거가 없다."""
+    assert bi.signal_type_for(_signal(layout=None, metrics={"confirmed": 100})) == "불명"
+
+
+def test_signal_type_ongoing_for_monitored_events_table():
+    assert bi.signal_type_for(_signal(layout="who_afro_events")) == "진행중"

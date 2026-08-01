@@ -304,3 +304,56 @@ def test_normalized_disease_keeps_original_in_signal():
     rows = [["Event", "Deaths"], ["Colera", "3"]]
     sig = bs.rows_to_signals(rows)[0]
     assert sig["disease"] == "Cholera" and sig["disease_raw"] == "Colera"
+
+
+# ── 누적 vs 신규 열 구분 (실제 상황보고서 표) ─────────────────────
+_BS = chr(92)   # 역슬래시 리터럴 — 소스에 직접 쓰면 따옴표를 이스케이프해버린다
+SITREP_HEADER = ['Country', 'New Confirmed Cases (Last 7 days)',
+                 'New Confirmed Deaths (Last 7 days)', 'Confirmed Cases (total)',
+                 'Confirmed Deaths (total)', 'Probable Cases', 'Probable Deaths',
+                 '**Total Cases (Confirmed ' + _BS, 'Probable)**',
+                 '**Total Deaths (Confirmed ' + _BS, 'Probable)**',
+                 '**CFR (%) Confirmed ' + _BS, 'Probable**']
+SITREP_ROW = ['Democratic Republic of the Congo', '567', '296', '3 262', '1 437',
+              '-', '-', '3 262', '1 437', '44.1%']
+
+
+def test_wrapped_header_cells_are_merged():
+    """★회귀★ 헤더가 줄바꿈으로 쪼개져 13칸인데 데이터는 10칸이었다 — 위치 정렬이
+    통째로 깨진다."""
+    merged = bs.merge_wrapped_header(SITREP_HEADER)
+    assert len(merged) == len(SITREP_ROW) == 10
+    assert merged[7] == "**Total Cases (Confirmed Probable)**"
+
+
+def test_cumulative_column_preferred_over_recent():
+    """★핵심 회귀★ '최근 7일 신규 사망 296'을 누적 사망으로 보고하던 문제.
+    실제 누적은 1,437 — 5배 축소였다."""
+    sig = bs.rows_to_signals([SITREP_HEADER, SITREP_ROW])[0]
+    assert sig["metrics"]["deaths"] == 1437
+    assert sig["metrics"]["confirmed"] == 3262
+    assert sig["metrics"]["cfr"] == 0.441
+
+
+def test_recent_columns_kept_separately_not_discarded():
+    """주간 신규는 그 자체로 좋은 조기경보 신호 — 버리지 말고 따로 담는다."""
+    sig = bs.rows_to_signals([SITREP_HEADER, SITREP_ROW])[0]
+    assert sig["metrics"]["new_deaths"] == 296
+    assert sig["metrics"]["new_confirmed"] == 567
+
+
+def test_probable_column_does_not_become_total():
+    """'Probable Cases'가 total_cases로 잡히면 추정 환자를 확진 총계로 보고하게 된다."""
+    header = ["Country", "Probable Cases", "Confirmed Deaths (total)"]
+    row = ["Uganda", "88", "2"]
+    sig = bs.rows_to_signals([header, row])[0]
+    assert sig["metrics"].get("probable_total_cases") == 88
+    assert "total_cases" not in sig["metrics"]
+    assert sig["metrics"]["deaths"] == 2
+
+
+def test_combined_confirmed_plus_probable_is_not_treated_as_probable_only():
+    """★회귀★ 'CFR (%) Confirmed + Probable'은 합산 열이지 추정 전용이 아니다 —
+    추정으로 밀어내면 정상 CFR을 통째로 잃는다."""
+    assert bs._column_priority("**CFR (%) Confirmed Probable**") == 0
+    assert bs._column_priority("Probable Cases") == 3

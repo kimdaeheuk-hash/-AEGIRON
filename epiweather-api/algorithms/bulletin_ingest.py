@@ -96,6 +96,26 @@ def severity_keywords(signal: dict) -> list[str]:
     return []
 
 
+def signal_type_for(signal: dict) -> str:
+    """문서가 실제로 말한 것에서만 signal_type을 정한다.
+
+    두 가지 근거만 쓴다:
+    1) WHO AFRO '감시 중인 이벤트' 표 — 문서가 그 표를 '진행 중'으로 정의한다.
+    2) 보고 기간 신규 환자·사망이 0보다 큼 — 이번 주에 새 환자가 나왔다는
+       문서의 직접 진술이므로 진행 중이 사실이다(실측: DRC 7일 신규 확진 567명).
+    신규가 0이면 잦아드는 중인지 보고 지연인지 구분할 수 없어 '불명'으로 둔다
+    — 실제로 우간다가 그 경우다(누적 20명, 이번 주 신규 0).
+
+    급증·감소는 이전 회차와 비교해야 알 수 있는데 지금은 비교 대상이 없어 쓰지 않는다."""
+    if signal.get("layout") == "who_afro_events":
+        return "진행중"
+    metrics = signal.get("metrics") or {}
+    recent = [v for key, v in metrics.items() if key.startswith("new_")]
+    if recent and any(v > 0 for v in recent):
+        return "진행중"
+    return "불명"
+
+
 def trust_category(signal: dict) -> str:
     """교차검증 결과로 신뢰도 카테고리를 정한다."""
     cross = signal.get("cross_check") or {}
@@ -123,9 +143,7 @@ def to_extracted_signal(signal: dict, source: str | None = None) -> dict | None:
         "source": source or signal.get("source") or "who_bulletin",
         "disease": disease,
         "location": location,
-        # 문서가 '감시 중 이벤트'로 정의한 표에서 온 것만 진행중. 급증·감소는
-        # 이전 회차 비교가 있어야 알 수 있으므로 쓰지 않는다.
-        "signal_type": "진행중" if signal.get("layout") == "who_afro_events" else "불명",
+        "signal_type": signal_type_for(signal),
         "severity": severity_keywords(signal),
         "symptom": None,
         "transmission": None,

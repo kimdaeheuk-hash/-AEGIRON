@@ -76,25 +76,85 @@ def _to_ratio(cell: str) -> float | None:
         return None
 
 
+# 헤더 셀이 줄바꿈으로 쪼개져 오는 경우(LaTeX 줄바꿈 '\'가 끝에 남는다):
+#   '**Total Cases (Confirmed \', 'Probable)**'  → 두 칸이 사실 한 칸이다.
+# 안 합치면 헤더가 13칸인데 데이터는 10칸이 되어 위치 정렬이 통째로 깨진다(실측).
+_HEADER_CONTINUES = re.compile(r"\\\s*$")
+
+# '최근 7일 신규' 같은 기간 한정 열 vs '누적' 열. 둘 다 "deaths"에 걸리므로
+# 구분하지 않으면 신규(296)를 누적(1,437)으로 잘못 보고한다 — 실측에서 5배 축소됐다.
+_RECENT_QUALIFIER = re.compile(r"\bnew\b|last \d+ day|past \d+ day|\b24 hour|this week", re.I)
+_TOTAL_QUALIFIER = re.compile(r"total|cumulative", re.I)
+# '추정(probable)·의심(suspected)' 열은 확진과 다른 축이다. 'Probable Cases'가
+# total_cases로 잡히면 추정 환자를 확진 총계로 보고하게 된다 — 별도로 담는다.
+# 단 "Total Cases (Confirmed + Probable)"처럼 total이 함께 붙으면 그건 진짜 총계다.
+_PROBABLE_QUALIFIER = re.compile(r"probable|suspect", re.I)
+
+
+def _column_priority(raw: str) -> int:
+    """낮을수록 canonical 필드로 쓰기 좋다. 2 이상은 접두어를 붙여 따로 담는다."""
+    if _TOTAL_QUALIFIER.search(raw):
+        return 0
+    # "CFR (%) Confirmed + Probable"처럼 확진과 함께 묶인 건 추정 전용이 아니라
+    # 합산 열이다 — 이걸 추정으로 밀어내면 정상 CFR을 통째로 잃는다(실측에서 겪음).
+    if _PROBABLE_QUALIFIER.search(raw) and re.search(r"confirmed", raw, re.I):
+        return 0
+    if _RECENT_QUALIFIER.search(raw):
+        return 2
+    if _PROBABLE_QUALIFIER.search(raw):
+        return 3
+    return 1
+
+
+_PRIORITY_PREFIX = {2: "new_", 3: "probable_"}
+
+
+def merge_wrapped_header(header: list[str]) -> list[str]:
+    """줄바꿈으로 쪼개진 헤더 칸을 다시 합친다."""
+    merged: list[str] = []
+    for cell in header:
+        if merged and _HEADER_CONTINUES.search(merged[-1]):
+            merged[-1] = f"{_HEADER_CONTINUES.sub('', merged[-1]).strip()} {cell.strip()}".strip()
+        else:
+            merged.append(cell)
+    return merged
+
+
 def map_header(header: list[str]) -> dict:
-    """헤더 행 → {필드: 열 인덱스}. 못 알아본 열은 넣지 않는다(위치 추측 금지)."""
-    mapping: dict[str, int] = {}
+    """헤더 행 → {필드: 열 인덱스}. 못 알아본 열은 넣지 않는다(위치 추측 금지).
+
+    같은 필드에 여러 열이 걸리면 **누적 열을 우선**한다. 기간 한정 열('최근 7일
+    신규')은 버리지 않고 new_ 접두어로 따로 담는다 — 주간 신규는 그 자체로 좋은
+    조기경보 신호인데 누적과 섞이면 안 되기 때문이다."""
+    header = merge_wrapped_header(header)
+    mapping: dict = {}
+    candidates: dict[str, list[tuple[int, int]]] = {}   # field → [(우선순위, idx)]
+
     for idx, raw in enumerate(header):
         cell = _norm(raw)
         if not cell:
             continue
         if "label" not in mapping and any(k in cell for k in _DISEASE_HEADER):
-            mapping["label"], mapping["label_kind"] = idx, "disease"   # type: ignore[assignment]
+            mapping["label"], mapping["label_kind"] = idx, "disease"
             continue
         if "label" not in mapping and any(k in cell for k in _COUNTRY_HEADER):
-            mapping["label"], mapping["label_kind"] = idx, "country"   # type: ignore[assignment]
+            mapping["label"], mapping["label_kind"] = idx, "country"
             continue
         for field, keywords in _HEADER_MAP:
-            if field in mapping:
-                continue
             if any(k in cell for k in keywords):
-                mapping[field] = idx
+                candidates.setdefault(field, []).append((_column_priority(raw), idx))
                 break
+
+    for field, found in candidates.items():
+        found.sort()
+        best_priority, best_idx = found[0]
+        if best_priority < 2:
+            mapping[field] = best_idx
+        # 기간한정·추정 열은 접두어를 붙여 따로 — canonical이 없어도 대용하지 않는다.
+        for priority, prefix in _PRIORITY_PREFIX.items():
+            hit = [idx for p, idx in found if p == priority]
+            if hit:
+                mapping[f"{prefix}{field}"] = hit[0]
     return mapping
 
 
@@ -277,12 +337,14 @@ def rows_to_signals(rows: list[list[str]], source: str = "who_bulletin",
             continue                    # 빈 칸이거나 숫자면 라벨이 아니다
 
         metrics: dict[str, float] = {}
-        for field, _ in _HEADER_MAP:
+        wanted = [f for f, _ in _HEADER_MAP] + [
+            f"{prefix}{f}" for prefix in _PRIORITY_PREFIX.values() for f, _ in _HEADER_MAP]
+        for field in wanted:
             idx = mapping.get(field)
             if idx is None or idx >= len(row):
                 continue
             cell = row[idx] or ""
-            if field == "cfr":
+            if field.endswith("cfr"):
                 value = _to_ratio(cell)
             elif "%" in cell:
                 # 개수 칸에 퍼센트가 들어있으면 그건 '비율'이지 '수'가 아니다.
