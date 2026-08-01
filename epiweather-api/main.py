@@ -1312,6 +1312,24 @@ def bulletin_ingest(req: BulletinIngestRequest):
     return result
 
 
+@app.get("/api/bulletin/trend", tags=["데이터 수집"])
+def bulletin_trend(source: str = "who_sitrep_bundibugyo", disease: Optional[str] = None,
+                   metric: str = "confirmed", days: int = 180, limit: int = 500):
+    """적재된 보고서 신호로 지역별 추이를 낸다 — "지금 몇 명"이 아니라 "늘고 있느냐".
+
+    적재 시점엔 비교 대상이 없어 급증·감소를 쓰지 않지만(진행중/불명만), 회차가
+    쌓이면 여기서 판정한다. 누적이 줄어든 경우는 '재조정'으로 표시한다 — WHO가
+    사례 재분류로 누적을 하향하는 일이 있어 호전으로 읽으면 안 되기 때문.
+    회차가 2개 미만인 지역은 판정하지 않는다(assessed=False)."""
+    from algorithms.bulletin_trend import assess
+
+    rows = db.list_recent_signals_by_source(source, days=days, limit=limit)
+    if not rows:
+        return {"ok": False, "reason": f"'{source}' 출처의 최근 {days}일 신호 없음",
+                "results": []}
+    return assess(rows, disease=disease, metric=metric)
+
+
 class BiodefenseReadinessRequest(BaseModel):
     countermeasures: Optional[list] = Field(None, description="비축 대응제 목록 [{name,type,targets,declared_efficacy,domestic_producible}]")
     threats: Optional[list] = Field(None, description="위협 목록 [{pathogen,severity}]")

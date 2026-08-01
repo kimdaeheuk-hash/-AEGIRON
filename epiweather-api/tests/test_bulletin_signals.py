@@ -357,3 +357,19 @@ def test_combined_confirmed_plus_probable_is_not_treated_as_probable_only():
     추정으로 밀어내면 정상 CFR을 통째로 잃는다."""
     assert bs._column_priority("**CFR (%) Confirmed Probable**") == 0
     assert bs._column_priority("Probable Cases") == 3
+
+
+def test_summary_total_row_is_not_a_location():
+    """★회귀★ 표 합계 행이 국가로 잡혀 'Total'이라는 나라가 생겼다 —
+    추이 분석에 유령 지역이 끼어든다(실제 상황보고서 적재에서 발생)."""
+    rows = [["Country", "Confirmed Cases (total)", "Confirmed Deaths (total)"],
+            ["DRC", "3 262", "1 437"],
+            ["Total", "3 283", "1 439"]]
+    got = bs.rows_to_signals(rows)
+    assert [s["location"] for s in got] == ["DRC"]
+
+
+def test_summary_label_variants_are_excluded():
+    for label in ("Total", "TOTAL", "Grand Total", "Sub-total", "합계"):
+        rows = [["Country", "Deaths"], [label, "5"]]
+        assert bs.rows_to_signals(rows) == []

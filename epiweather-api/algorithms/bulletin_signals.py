@@ -36,6 +36,10 @@ _HEADER_MAP: list[tuple[str, tuple[str, ...]]] = [
 _DISEASE_HEADER = ("event", "disease", "condition", "outbreak")
 _COUNTRY_HEADER = ("country", "countries", "province", "region", "county")
 
+# 표 합계 행 — 국가·질병이 아니다. 그대로 두면 'Total'이라는 나라가 생겨
+# 추이 분석에 유령 지역이 끼어든다(실제 상황보고서 적재에서 발생).
+_SUMMARY_LABEL = re.compile(r"^(grand\s+)?(total|sub[\s-]?total|all\s+\w+|합계|총계)", re.I)
+
 _NUM = re.compile(r"-?\d[\d,\s]*\.?\d*")
 _PCT = re.compile(r"(\d+\.?\d*)\s*%")
 
@@ -332,9 +336,11 @@ def rows_to_signals(rows: list[list[str]], source: str = "who_bulletin",
     for row in rows[1:]:
         if label_idx >= len(row):
             continue
-        label = (row[label_idx] or "").strip()
+        label = _flatten(row[label_idx])
         if not label or _to_number(label) is not None:
             continue                    # 빈 칸이거나 숫자면 라벨이 아니다
+        if _SUMMARY_LABEL.match(label):
+            continue                    # 표 합계 행 — 국가·질병이 아니다
 
         metrics: dict[str, float] = {}
         wanted = [f for f, _ in _HEADER_MAP] + [
