@@ -64,6 +64,45 @@ def page_count(pdf_bytes: bytes) -> int:
         return 0
 
 
+_EPI_KEYWORD = re.compile(r"case fatality|cfr|deaths|cases|confirmed|outbreak", re.I)
+_BIG_NUMBER = re.compile(r"\b\d[\d,]{2,}\b")
+
+
+def find_table_pages(pdf_bytes: bytes, min_numbers: int = 8,
+                     min_keywords: int = 3, limit: int = 8) -> list[int]:
+    """VLM에 보낼 가치가 있는 페이지만 **로컬에서 공짜로** 골라낸다(0-based).
+
+    왜 필요한가: 페이지마다 VLM 호출 1회라 16페이지짜리 보고서를 통째로 넣으면
+    비용·시간이 그만큼 든다. 그런데 실측해보니 WHO AFRO 지역 주간보고서는 앞부분이
+    지도·목차라 표가 없고 역학 표는 뒤쪽(9~14p)에 몰려 있었다 — 앞에서부터 3장만
+    보는 기본값으로는 데이터를 통째로 놓친다(실제로 신호 0건이 났다).
+
+    판별은 pymupdf 텍스트만 쓴다: 큰 숫자 밀도와 역학 키워드가 둘 다 높은 페이지가
+    표 페이지다. 텍스트 추출이 깨져 있어도(합자 문제) 숫자와 영단어는 남으므로
+    이 용도엔 충분하다. 후보가 없으면 앞에서부터 채워 최소한 시도는 하게 한다."""
+    try:
+        import fitz
+    except ImportError:
+        return list(range(min(limit, page_count(pdf_bytes))))
+    try:
+        with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
+            scored = []
+            for idx, page in enumerate(doc):
+                text = page.get_text()
+                numbers = len(_BIG_NUMBER.findall(text))
+                keywords = len(_EPI_KEYWORD.findall(text))
+                if numbers >= min_numbers and keywords >= min_keywords:
+                    scored.append((numbers + keywords, idx))
+            total = doc.page_count
+    except Exception:
+        return list(range(min(limit, page_count(pdf_bytes))))
+
+    if not scored:
+        return list(range(min(limit, total)))
+    scored.sort(reverse=True)                      # 점수 높은 페이지 우선
+    return sorted(idx for _score, idx in scored[:limit])
+
+
 def _parse_page(png: bytes, api_key: str) -> list[dict]:
     """nemotron-parse 호출 → 블록 목록. 응답은 content가 아니라 tool_calls의
     markdown_bbox 함수 인자로 온다(실측 확인)."""
@@ -180,9 +219,12 @@ def cross_check_numbers(rows: list[list[str]], raw_text: str) -> dict:
 
 
 def extract_tables(pdf_bytes: bytes, api_key: str | None = None,
-                   max_pages: int = 3, pages: list[int] | None = None) -> dict:
+                   max_pages: int = 3, pages: list[int] | None = None,
+                   auto_select: bool = True) -> dict:
     """PDF에서 표를 구조화 추출하고 원문과 교차검증. 실패해도 예외를 던지지 않는다.
 
+    auto_select=True면 find_table_pages로 표가 있을 법한 페이지만 고른다 —
+    앞에서부터 N장 방식은 표가 뒤쪽에 몰린 문서에서 데이터를 통째로 놓친다.
     max_pages: 페이지마다 API 1회(수 초~수십 초)라 기본값을 작게 둔다."""
     key = api_key or os.environ.get("NVIDIA_API_KEY")
     if not key:
@@ -191,7 +233,12 @@ def extract_tables(pdf_bytes: bytes, api_key: str | None = None,
     if total_pages == 0:
         return {"ok": False, "reason": "PDF를 열 수 없음(pymupdf 미설치 또는 손상)"}
 
-    targets = pages if pages is not None else list(range(min(max_pages, total_pages)))
+    if pages is not None:
+        targets = pages
+    elif auto_select:
+        targets = find_table_pages(pdf_bytes, limit=max_pages)
+    else:
+        targets = list(range(min(max_pages, total_pages)))
     raw_text = pdftotext_raw(pdf_bytes)
 
     results, errors = [], 0
@@ -225,6 +272,7 @@ def extract_tables(pdf_bytes: bytes, api_key: str | None = None,
         "ok": bool(parsed),
         "model": MODEL,
         "pdf_pages": total_pages,
+        "pages_selected": [i + 1 for i in targets],   # 1-based, 사람이 보는 페이지 번호
         "pages_attempted": len(targets),
         "pages_parsed": len(parsed),
         "pages_failed": errors,

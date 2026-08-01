@@ -132,3 +132,48 @@ def test_extract_tables_marks_machine_extracted(monkeypatch):
     out = pt.extract_tables(b"%PDF", max_pages=1)
     assert out["is_machine_extracted"] is True
     assert "오독" in out["disclaimer"]
+
+
+# ── 표 페이지 자동 선택 ───────────────────────────────────────────
+def test_find_table_pages_prefers_dense_epi_pages(monkeypatch):
+    """★회귀★ 앞에서부터 N장 방식은 표가 뒤쪽에 몰린 문서를 통째로 놓친다
+    (실제 WHO 지역 주간보고서에서 신호 0건이 났던 원인)."""
+    class FakePage:
+        def __init__(self, text): self._t = text
+        def get_text(self): return self._t
+
+    class FakeDoc:
+        def __init__(self, pages): self._p = pages; self.page_count = len(pages)
+        def __iter__(self): return iter(self._p)
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+
+    thin = FakePage("표지와 목차뿐")
+    dense = FakePage(" ".join(["1,234"] * 12) + " cases deaths confirmed case fatality outbreak")
+    pages = [thin, thin, dense, thin, dense]
+
+    import types
+    fake_fitz = types.SimpleNamespace(open=lambda **kw: FakeDoc(pages))
+    monkeypatch.setitem(__import__("sys").modules, "fitz", fake_fitz)
+    assert pt.find_table_pages(b"%PDF", limit=8) == [2, 4]
+
+
+def test_find_table_pages_falls_back_when_no_candidate(monkeypatch):
+    """후보가 없으면 최소한 앞쪽이라도 시도한다 — 조용히 아무것도 안 하면 안 된다."""
+    monkeypatch.setattr(pt, "page_count", lambda b: 5)
+    import types
+    class FakeDoc:
+        page_count = 5
+        def __iter__(self): return iter([])
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+    monkeypatch.setitem(__import__("sys").modules, "fitz",
+                        types.SimpleNamespace(open=lambda **kw: FakeDoc()))
+    assert pt.find_table_pages(b"%PDF", limit=3) == [0, 1, 2]
+
+
+def test_extract_tables_reports_selected_pages(monkeypatch):
+    _stub(monkeypatch, [{"type": "Table", "text": REAL_TABLE}], pages=16)
+    monkeypatch.setattr(pt, "find_table_pages", lambda b, limit=8: [8, 9, 10])
+    out = pt.extract_tables(b"%PDF", max_pages=3)
+    assert out["pages_selected"] == [9, 10, 11]      # 1-based로 노출
