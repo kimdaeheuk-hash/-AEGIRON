@@ -1260,6 +1260,58 @@ def bulletin_extract_tables(req: BulletinTableRequest):
     return extract_tables(r.content, max_pages=req.max_pages)
 
 
+class BulletinIngestRequest(BaseModel):
+    url: str = Field(..., description="보건 보고서 PDF 주소(WHO AFRO 주간보고서 등). 공개 문서만.")
+    max_pages: int = Field(4, ge=1, le=10, description="파싱할 페이지 수. 표가 있을 법한 페이지를 자동 선택함.")
+    source: str = Field("who_afro_bulletin", description="신호 출처 라벨(중복 판정 단위).")
+    signal_date: Optional[str] = Field(None, description="보고서 기준일(YYYY-MM-DD). 없으면 비움.")
+    dry_run: bool = Field(False, description="True면 DB에 넣지 않고 무엇이 들어갈지만 돌려줌.")
+
+
+@app.post("/api/bulletin/ingest", tags=["데이터 수집"], dependencies=_auth)
+def bulletin_ingest(req: BulletinIngestRequest):
+    """보건 보고서 PDF → 표 추출 → 신호 정규화 → extracted_signals 적재(한 번에).
+
+    지금까지 기계가 못 읽던 표 속 수치(국가·질병별 확진·사망·치명률)를 경보
+    엔진이 보는 신호로 만든다. 비질병 이벤트(사이클론·인도적 위기)는 적재하지
+    않는다 — known_disease가 '설명 불가 → 즉시경보'를 뜻하는 스키마라 그대로
+    넣으면 가짜 경보가 나기 때문. 같은 보고서를 두 번 넣어도 중복은 걸러진다.
+    신뢰도는 숫자 교차검증 결과에 따라 갈린다(전부 일치 0.90 / 미검증 섞임 0.70)."""
+    import requests as _rq
+    from algorithms.pdf_table_extract import extract_tables
+    from algorithms.bulletin_signals import extract_signals
+    from algorithms.bulletin_ingest import ingest, to_extracted_signal
+
+    if not req.url.lower().startswith(("http://", "https://")):
+        raise HTTPException(status_code=422, detail="http(s) 주소만 허용")
+    try:
+        r = _rq.get(req.url, timeout=120, headers={"User-Agent": "Mozilla/5.0 (EpiWeather/1.0)"})
+        r.raise_for_status()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"PDF 내려받기 실패: {e}")
+    if not r.content[:5].startswith(b"%PDF"):
+        raise HTTPException(status_code=422, detail="PDF 파일이 아님")
+
+    parsed = extract_tables(r.content, max_pages=req.max_pages)
+    if not parsed.get("ok"):
+        return {"ok": False, "stage": "extract_tables", "reason": parsed.get("reason")}
+    found = extract_signals(parsed, source=req.source, signal_date=req.signal_date)
+
+    if req.dry_run:
+        preview = [p for p in (to_extracted_signal(s, source=req.source)
+                               for s in found["signals"]) if p]
+        return {"ok": True, "dry_run": True, "pages_selected": parsed.get("pages_selected"),
+                "signals_found": found["signal_count"], "would_insert": len(preview),
+                "preview": preview[:20]}
+
+    db.init_db()
+    result = ingest(found["signals"], source=req.source, dbmod=db)
+    result["pages_selected"] = parsed.get("pages_selected")
+    result["signals_found"] = found["signal_count"]
+    result.pop("rows", None)          # 응답이 너무 길어지지 않게 요약만
+    return result
+
+
 class BiodefenseReadinessRequest(BaseModel):
     countermeasures: Optional[list] = Field(None, description="비축 대응제 목록 [{name,type,targets,declared_efficacy,domestic_producible}]")
     threats: Optional[list] = Field(None, description="위협 목록 [{pathogen,severity}]")

@@ -167,9 +167,11 @@ def afro_rows_to_signals(rows: list[list[str]], source: str, signal_date: str | 
         parsed = parse_afro_event_row(row)
         if not parsed:
             continue
+        disease, disease_raw = normalize_disease(parsed["disease"])
         signals.append({
             "source": source,
-            "disease": parsed["disease"],
+            "disease": disease,
+            "disease_raw": disease_raw,
             "location": parsed["country"],
             "grade": parsed["grade"],
             "metrics": parsed["metrics"],
@@ -193,6 +195,33 @@ _KNOWN_DISEASES = [
 ]
 
 
+def normalize_disease(label: str | None) -> tuple[str | None, str | None]:
+    """VLM 오독으로 살짝 틀어진 병명을 알려진 병명으로 바로잡는다.
+    (교정된 이름, 원본) 튜플. 교정 안 했으면 원본은 None.
+
+    왜 필요한가: 같은 페이지를 두 번 돌리면 결과가 흔들린다(실측: "Cholera"가
+    "Colera"로, "Mpox"가 "Mpx"로 나옴). 철자가 한 글자 틀리면 하류 질병 매칭이
+    통째로 안 걸려서 파이프라인 목적이 무너진다. 숫자는 교차검증이 잡아주지만
+    글자는 못 잡으므로 여기서 처리한다.
+
+    과교정을 막는 장치: 알려진 병명 사전에 있는 것으로만 바꾸고, 유사도가 충분히
+    높은 후보가 '하나뿐'일 때만 교정하며, 원본을 항상 남긴다."""
+    if not label:
+        return label, None
+    import difflib
+
+    cleaned = _flatten(label)
+    low = cleaned.lower()
+    if any(known in low for known in _KNOWN_DISEASES):
+        return cleaned, None                       # 이미 알려진 병명을 포함 — 그대로
+
+    first = low.split("(")[0].strip()              # "Poliomyelitis (cVDPV2)" 같은 꼬리 제거
+    candidates = difflib.get_close_matches(first, _KNOWN_DISEASES, n=2, cutoff=0.85)
+    if len(candidates) == 1:
+        return candidates[0].title(), cleaned
+    return cleaned, None
+
+
 def disease_from_header(header: str | None) -> str | None:
     """섹션 제목에서 알려진 병명을 찾아 돌려준다. 없으면 None.
 
@@ -207,6 +236,21 @@ def disease_from_header(header: str | None) -> str | None:
         return None
     # 'bundibugyo ebola'처럼 여러 개 걸리면 더 구체적인(긴) 쪽을 쓴다.
     return max(matches, key=len).title()
+
+
+def location_from_header(header: str | None) -> str | None:
+    """섹션 제목에서 알려진 국가명을 찾는다. 없으면 None.
+
+    질병 축 표는 국가 열이 없다 — 국가별 보고서라 문맥에만 있기 때문이다
+    (예: "Summary of Ongoing Public Health Emergencies in Kenya, June 2026").
+    병명 보강과 같은 원칙: 사전에 있는 국가명일 때만 쓰고 출처를 남긴다."""
+    if not header:
+        return None
+    from .bulletin_ingest import _ISO3            # 국가명 사전은 한 곳에만 둔다
+
+    low = re.sub(r"[^a-z ]+", " ", header.lower())
+    matches = [name for name in _ISO3 if len(name) >= 4 and name in low]
+    return max(matches, key=len).title() if matches else None
 
 
 def rows_to_signals(rows: list[list[str]], source: str = "who_bulletin",
@@ -237,7 +281,16 @@ def rows_to_signals(rows: list[list[str]], source: str = "who_bulletin",
             idx = mapping.get(field)
             if idx is None or idx >= len(row):
                 continue
-            value = _to_ratio(row[idx]) if field == "cfr" else _to_number(row[idx])
+            cell = row[idx] or ""
+            if field == "cfr":
+                value = _to_ratio(cell)
+            elif "%" in cell:
+                # 개수 칸에 퍼센트가 들어있으면 그건 '비율'이지 '수'가 아니다.
+                # 실측: "Contact Follow-up 81.5%"가 contacts=81.5(명)로 저장돼
+                # 접촉자 81.5명처럼 읽히던 문제. 개수로는 취하지 않는다.
+                value = None
+            else:
+                value = _to_number(cell)
             if value is not None:
                 metrics[field] = value
         if not metrics:
@@ -245,6 +298,9 @@ def rows_to_signals(rows: list[list[str]], source: str = "who_bulletin",
 
         disease = label if label_kind == "disease" else None
         disease_source = "table_column" if disease else None
+        disease_raw = None
+        if disease:
+            disease, disease_raw = normalize_disease(disease)
         if disease is None:
             # 국가 축 표는 병명이 표에 없다 — 섹션 제목에서 가져오되 출처를 남긴다.
             # 바로 앞 제목에 병명이 없으면 같은 페이지의 앞선 제목들을 뒤로 거슬러
@@ -257,11 +313,25 @@ def rows_to_signals(rows: list[list[str]], source: str = "who_bulletin",
             if from_header:
                 disease, disease_source = from_header, "section_header"
 
+        location = label if label_kind == "country" else None
+        location_source = "table_column" if location else None
+        if location is None:
+            # 질병 축 표는 국가 열이 없다 — 제목에서 가져오되 출처를 남긴다.
+            from_header = location_from_header(context_header)
+            for candidate in reversed(context_headers or []):
+                if from_header:
+                    break
+                from_header = location_from_header(candidate)
+            if from_header:
+                location, location_source = from_header, "section_header"
+
         signals.append({
             "source": source,
             "disease": disease,
             "disease_source": disease_source,
-            "location": label if label_kind == "country" else None,
+            "disease_raw": disease_raw,
+            "location": location,
+            "location_source": location_source,
             "metrics": metrics,
             "signal_date": signal_date,
             "context_header": context_header,

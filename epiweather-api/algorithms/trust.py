@@ -15,6 +15,12 @@ SOURCE_TRUST = {
     "academic": 0.85,        # CIDRAP·InfoDengue — 학계 큐레이션/연구기관 (ProMED급)
     "behavioral_api": 0.90,  # 네이버·Wikipedia·PubMed — 측정값 자체는 1차 데이터(검색·열람행태)
     "ai_extracted": 0.65,    # Perplexity/Tavily 자유문장에서 AI가 추출한 수치 — 원 출처는 공식이어도 추출 과정에서 오차 가능
+    # WHO 주간보고서 같은 공식 문서의 '표'를 VLM으로 구조화 추출한 값.
+    # ai_extracted(자유문장)보다 높은 이유: 구조화된 표에서 뽑고 숫자를 원문과
+    # 교차검증한다. who(1.00)보다 낮은 이유: 실제로 오독을 관찰했다(요약상자
+    # 'Grade 3'→'Grade 1', 본문 'from'→'rom'). 아래 둘은 교차검증 결과로 갈린다.
+    "document_extracted": 0.90,              # 표의 숫자가 전부 원문과 일치
+    "document_extracted_unverified": 0.70,   # 원문에 없는 숫자가 섞임 — 사람 확인 필요
     "prediction_market": 0.35,  # Polymarket — 구조화된 데이터지만 질병 발생의 직접 증거는 아닌 군중 추측
     "unknown": 0.10,
 }

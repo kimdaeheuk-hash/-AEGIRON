@@ -248,3 +248,59 @@ def test_lookback_stops_when_no_disease_anywhere():
     signals = bs.rows_to_signals(COUNTRY_TABLE, context_header="### Actions",
                                  context_headers=["## Overview", "### Actions"])
     assert signals[0]["disease"] is None
+
+
+def test_percent_cell_not_stored_as_count():
+    """★회귀★ 'Contact Follow-up 81.5%'가 contacts=81.5(명)로 저장돼 접촉자
+    81.5명처럼 읽히던 문제. 퍼센트 칸은 개수로 취하지 않는다."""
+    signals = bs.rows_to_signals(COUNTRY_TABLE)
+    drc = signals[0]
+    assert "contacts" not in drc["metrics"]
+    assert drc["metrics"]["confirmed"] == 1963 and drc["metrics"]["deaths"] == 719
+
+
+def test_location_from_header_for_disease_axis_table():
+    """질병 축 표엔 국가 열이 없다 — 국가별 보고서라 제목에만 있다."""
+    header = "Summary of Ongoing Public Health Emergencies in Kenya, June 2026"
+    signals = bs.rows_to_signals(DISEASE_TABLE, context_header=header)
+    assert signals[0]["location"] == "Kenya"
+    assert signals[0]["location_source"] == "section_header"
+
+
+def test_table_column_location_wins_over_header():
+    signals = bs.rows_to_signals(COUNTRY_TABLE, context_header="... in Kenya ...")
+    assert signals[0]["location"] == "DRC"
+    assert signals[0]["location_source"] == "table_column"
+
+
+def test_location_stays_none_without_known_country_in_header():
+    signals = bs.rows_to_signals(DISEASE_TABLE, context_header="Summary of ongoing events")
+    assert signals[0]["location"] is None and signals[0]["location_source"] is None
+
+
+# ── VLM 오독 병명 정규화 ──────────────────────────────────────────
+def test_normalize_disease_fixes_observed_misreads():
+    """★회귀★ 같은 페이지를 두 번 돌리면 결과가 흔들린다(실측: Cholera→Colera,
+    Mpox→Mpx). 한 글자 틀리면 하류 질병 매칭이 통째로 안 걸린다."""
+    assert bs.normalize_disease("Colera") == ("Cholera", "Colera")
+    assert bs.normalize_disease("Mpx") == ("Mpox", "Mpx")
+
+
+def test_normalize_disease_leaves_correct_names_untouched():
+    assert bs.normalize_disease("Cholera") == ("Cholera", None)
+    assert bs.normalize_disease("Lassa fever") == ("Lassa fever", None)
+    assert bs.normalize_disease("Poliomyelitis (cVDPV2)") == ("Poliomyelitis (cVDPV2)", None)
+
+
+def test_normalize_disease_does_not_overcorrect_unknown_labels():
+    """모르는 라벨을 억지로 병명에 끼워맞추면 안 된다."""
+    for label in ("Cyclone Gezani", "Complex Humanitarian crisis", "Landslide"):
+        name, raw = bs.normalize_disease(label)
+        assert name == label and raw is None
+
+
+def test_normalized_disease_keeps_original_in_signal():
+    """교정했으면 원본을 남겨 사람이 대조할 수 있어야 한다."""
+    rows = [["Event", "Deaths"], ["Colera", "3"]]
+    sig = bs.rows_to_signals(rows)[0]
+    assert sig["disease"] == "Cholera" and sig["disease_raw"] == "Colera"
