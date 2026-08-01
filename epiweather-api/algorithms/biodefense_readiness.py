@@ -350,27 +350,39 @@ def _stockpile_logistics(countermeasures: list[dict], threats: list[dict]) -> di
     }
 
 
-# 시연용 예시 데이터(실제 비축이 아니라 구조 설명용) — is_illustrative로 명시.
+# 시연용 예시 데이터 — 대부분 예시지만 에볼라 항목은 2026 DRC 실사례를 반영한다.
+# 실사례: 자이르형 에볼라는 백신(Ervebo)이 있으나 분디부조(Bundibugyo)형은 백신·
+# 치료제가 모두 없음 → VALHALLA가 '분디부조 = 미커버'로 정확히 잡는다(서울신문
+# 2026-08-01: 확진 3,532·사망 1,556·치명률 44.1%, 백신·치료제 부재).
 _ILLUSTRATIVE_COUNTERMEASURES = [
     {"name": "타미플루(오셀타미비르) 비축", "type": "antiviral",
      "targets": ["Influenza", "H5N1"], "declared_efficacy": 0.55, "domestic_producible": True,
      "courses": 10_000_000, "population": 51_000_000, "attack_rate": 0.30},
     {"name": "코로나 mRNA 백신 플랫폼", "type": "vaccine",
      "targets": ["SARS-CoV-2", "Novel"], "declared_efficacy": 0.6, "domestic_producible": True},
-    {"name": "수입 단클론항체(에볼라)", "type": "mAb",
-     "targets": ["Ebola"], "declared_efficacy": 0.7, "domestic_producible": False},
+    {"name": "Ervebo(자이르형 에볼라 백신, 수입)", "type": "vaccine",
+     "targets": ["Ebola_Zaire"], "declared_efficacy": 0.9, "domestic_producible": False},
+    # 분디부조형 대응제는 존재하지 않음 → 아래 위협에서 미커버로 드러남.
 ]
 _ILLUSTRATIVE_THREATS = [
     {"pathogen": "H5N1", "severity": 0.8},
     {"pathogen": "SARS-CoV-2", "severity": 0.6},
-    {"pathogen": "Ebola", "severity": 0.9},
-    {"pathogen": "MERS", "severity": 0.7},        # 비축 없음 → 미커버
+    {"pathogen": "Ebola_Zaire", "severity": 0.6},
+    {"pathogen": "Ebola_Bundibugyo", "severity": 0.44},  # 실사례: 백신·치료제 없음 → 미커버
+    {"pathogen": "MERS", "severity": 0.7},               # 비축 없음 → 미커버
 ]
+
+_REAL_CASE_NOTE = (
+    "에볼라 항목은 실사례 반영: 2026 DRC 분디부조형 에볼라(확진 3,532·사망 1,556·"
+    "치명률 44.1%, 서울신문 2026-08-01)는 백신·치료제가 모두 없어 VALHALLA가 "
+    "'Ebola_Bundibugyo = 미커버'로 정확히 잡는다. 나머지 항목은 구조 설명용 예시."
+)
 
 
 def illustrative_readiness() -> dict:
-    """입력 없이 구조를 보여주는 시연용. is_illustrative=True로 실제 비축이 아님을 명시."""
+    """입력 없이 구조를 보여주는 시연용. 에볼라 항목은 2026 DRC 실사례 반영."""
     result = compute_readiness(_ILLUSTRATIVE_COUNTERMEASURES, _ILLUSTRATIVE_THREATS)
     result["is_illustrative"] = True
-    result["note"] = "예시 데이터입니다. 실제 운영 시 국가 비축 목록·선언 효능을 입력하세요."
+    result["real_case_note"] = _REAL_CASE_NOTE
+    result["note"] = "실제 운영 시 국가 비축 목록·선언 효능을 입력하세요."
     return result

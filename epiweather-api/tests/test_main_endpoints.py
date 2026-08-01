@@ -551,3 +551,14 @@ def test_timestamp_proof_endpoint_public_and_reports_unsubmitted(client_with_key
 def test_timestamp_proof_endpoint_unknown_prediction_returns_404(client):
     resp = client.get("/api/predictions/999999/timestamp-proof")
     assert resp.status_code == 404
+
+def test_backtest_covers_drc_ebola_2026_bundibugyo(client):
+    """① 2026 DRC 분디부조 에볼라가 실이력 백테스트 대상에 등록되고, 공식 선언
+    마일스톤(5/15)이 잡힌다. (격리 테스트DB엔 신호가 없어 verified=False가 정상 —
+    지어내지 않음. declaration_date가 잡히는 것으로 '대상 등록'을 확인.)"""
+    resp = client.get("/api/backtest/historical/ebola_drc_2026")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["declaration_date"] == "2026-05-15"
+    # 이벤트 자체는 인식됨(등록 안 됨이 아니라 '신호 없음'이 이유)
+    assert "등록된 이벤트 없음" not in body.get("reason", "")

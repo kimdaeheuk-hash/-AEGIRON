@@ -1477,12 +1477,15 @@ def timeline_add(req: TimelineMilestone):
 def _seed_known_timelines():
     """인수인계서 Part8 — 현재 진행 중인 발병의 시드 데이터."""
     known = [
-        ("ebola_drc_2026", "에볼라 DRC 2026", [
+        ("ebola_drc_2026", "에볼라 DRC 2026 (분디부조형)", [
             ("2026-05-09", "msf_first_alert",   "MSF 현장 첫 경보", "MSF 보고서", "media"),
-            ("2026-05-15", "drc_official",       "DRC 보건부 공식 선언", "DRC Ministry of Health", "who"),
+            ("2026-05-15", "drc_official",       "DRC·우간다 보건부 공식 선언 — 분디부조(Bundibugyo)형", "DRC Ministry of Health", "who"),
             ("2026-05-16", "who_pheic",          "WHO PHEIC 선언", "WHO DON", "who"),
             ("2026-05-17", "wiki_spike",         "Wikipedia 영어판 조회수 급증", "Wikimedia API", "ai_detected"),
             ("2026-06-25", "status_update",      "확진 896명·사망 232명", "WHO Situation Report", "who"),
+            # 서울신문 2026-08-01 보도(2026-07-29 기준): 역대 콩고 최대·전세계 2위 규모,
+            # 2018년比 6배 빠른 확산. 분디부조형은 백신·치료제 모두 없음.
+            ("2026-07-29", "status_update",      "확진 3,532명·사망 1,556명·치명률 44.1% (2018년比 6배 빠름)", "서울신문/WHO·Africa CDC", "media"),
         ]),
         ("mers_saudi_2026", "MERS 사우디아라비아 2026", [
             ("2026-01-01", "year_start",         "2026년 감시 시작", "WHO DON591", "who"),
