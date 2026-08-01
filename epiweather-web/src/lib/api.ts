@@ -284,13 +284,57 @@ export interface GenomeScreen {
   flags?: { metric: string; note: string }[];
   flag_count?: number; is_screening_only?: boolean; disclaimer?: string;
   reference_comparison?: ReferenceComparison | null;
+  evo2_naturalness?: Evo2Naturalness | null;
+  msa_homology?: MsaHomology | null;
   classification?: Classification;
 }
 
-export async function fetchGenomeScreen(sequence: string, referenceSequences?: string[]): Promise<GenomeScreen> {
+// Evo2(유전체 파운데이션 모델) 순서 자연스러움. 진핵숙주 감염 바이러스는 학습에서
+// 제외돼 판정 불가라 applicable=false로 오고, 그때는 플래그를 올리지 않는다.
+export interface Evo2Naturalness {
+  ok: boolean; reason?: string;
+  match_rate?: number; mean_confidence?: number; bases_compared?: number;
+  windows_scored?: number; windows_failed?: number;
+  local_anomaly_positions?: number[];
+  organism_domain?: string; applicable?: boolean;
+  applicability_note?: string; domain_natural_baseline?: number | null;
+  suppressed_flags?: string | null;
+  flags?: { metric: string; note: string }[];
+  flag_count?: number; disclaimer?: string;
+}
+
+// 상동성 커버리지 — "자연계에 이 서열 전체를 설명하는 단백질이 있는가".
+// DB 검색이라 Evo2와 달리 바이러스에도 유효하다.
+export interface MsaHomology {
+  ok: boolean; reason?: string;
+  best_coverage?: number; total_hits?: number;
+  query_length_aa?: number; protein_length_aa?: number;
+  hits_by_database?: Record<string, number>;
+  top_hits?: { id: string; database: string; coverage: number; identity: number; e_value: number }[];
+  translated_region?: { strand: '+' | '-'; frame: number; start: number; end: number; length_bp: number };
+  applies_to_viruses?: boolean;
+  flags?: { metric: string; note: string }[];
+  flag_count?: number; disclaimer?: string;
+}
+
+export interface GenomeScreenOptions {
+  referenceSequences?: string[];
+  useEvo2?: boolean;
+  useMsa?: boolean;
+  organismDomain?: string;
+}
+
+export async function fetchGenomeScreen(sequence: string, opts: GenomeScreenOptions = {}): Promise<GenomeScreen> {
+  const { referenceSequences, useEvo2, useMsa, organismDomain } = opts;
   const res = await fetch(`${BASE}/api/synthetic-threat/genome-screen`, {
     method: 'POST', headers: apiWriteHeaders(),
-    body: JSON.stringify({ sequence, reference_sequences: referenceSequences?.length ? referenceSequences : undefined }),
+    body: JSON.stringify({
+      sequence,
+      reference_sequences: referenceSequences?.length ? referenceSequences : undefined,
+      use_evo2: useEvo2 || undefined,
+      use_msa: useMsa || undefined,
+      organism_domain: organismDomain || undefined,
+    }),
   });
   if (!res.ok) throw new Error(`API ${res.status}`);
   return res.json() as Promise<GenomeScreen>;
