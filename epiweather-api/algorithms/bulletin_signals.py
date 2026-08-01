@@ -182,9 +182,38 @@ def afro_rows_to_signals(rows: list[list[str]], source: str, signal_date: str | 
     return signals
 
 
+# 섹션 제목에서 질병명을 찾을 때 쓰는 사전. 임의 문자열을 병명으로 삼으면
+# "Summary of ongoing emergencies" 같은 제목이 병명이 되어 신호가 오염되므로,
+# 알려진 병명이 제목에 실제로 있을 때만 쓴다.
+_KNOWN_DISEASES = [
+    "bundibugyo", "ebola", "marburg", "cholera", "measles", "mpox", "monkeypox",
+    "polio", "poliomyelitis", "diphtheria", "lassa", "dengue", "chikungunya",
+    "yellow fever", "meningitis", "hepatitis", "malaria", "plague", "anthrax",
+    "influenza", "covid", "rift valley fever", "typhoid", "rabies", "tuberculosis",
+]
+
+
+def disease_from_header(header: str | None) -> str | None:
+    """섹션 제목에서 알려진 병명을 찾아 돌려준다. 없으면 None.
+
+    WHO 보고서의 국가별 표는 질병 열이 없고 병명이 위쪽 제목에만 있다
+    (예: "## Bundibugyo Virus Disease (BVD) outbreak in the DRC and Uganda").
+    제목을 통째로 병명으로 쓰면 오염되므로 사전에 있는 병명만 취한다."""
+    if not header:
+        return None
+    low = header.lower()
+    matches = [d for d in _KNOWN_DISEASES if d in low]
+    if not matches:
+        return None
+    # 'bundibugyo ebola'처럼 여러 개 걸리면 더 구체적인(긴) 쪽을 쓴다.
+    return max(matches, key=len).title()
+
+
 def rows_to_signals(rows: list[list[str]], source: str = "who_bulletin",
                     signal_date: str | None = None,
-                    cross_check: dict | None = None) -> list[dict]:
+                    cross_check: dict | None = None,
+                    context_header: str | None = None,
+                    context_headers: list[str] | None = None) -> list[dict]:
     """표 한 개 → 신호 목록. 역학 표가 아니면 빈 목록.
 
     헤더 있는 표(케냐 국가보고서 형식)를 먼저 보고, 아니면 헤더 없는 AFRO 이벤트
@@ -214,12 +243,28 @@ def rows_to_signals(rows: list[list[str]], source: str = "who_bulletin",
         if not metrics:
             continue                    # 숫자가 하나도 없으면 신호가 아니다
 
+        disease = label if label_kind == "disease" else None
+        disease_source = "table_column" if disease else None
+        if disease is None:
+            # 국가 축 표는 병명이 표에 없다 — 섹션 제목에서 가져오되 출처를 남긴다.
+            # 바로 앞 제목에 병명이 없으면 같은 페이지의 앞선 제목들을 뒤로 거슬러
+            # 찾는다(병명 제목과 표 사이에 다른 소제목이 끼어드는 경우가 있음).
+            from_header = disease_from_header(context_header)
+            for candidate in reversed(context_headers or []):
+                if from_header:
+                    break
+                from_header = disease_from_header(candidate)
+            if from_header:
+                disease, disease_source = from_header, "section_header"
+
         signals.append({
             "source": source,
-            "disease": label if label_kind == "disease" else None,
+            "disease": disease,
+            "disease_source": disease_source,
             "location": label if label_kind == "country" else None,
             "metrics": metrics,
             "signal_date": signal_date,
+            "context_header": context_header,
             "raw_text": " | ".join(c for c in row if c).strip(),
             # 기계 추출값임을 신호 자체가 들고 다니게 한다.
             "is_machine_extracted": True,
@@ -245,7 +290,9 @@ def extract_signals(parsed: dict, source: str = "who_bulletin",
         for table in page.get("tables", []):
             rows = table.get("rows") or []
             got = rows_to_signals(rows, source=source, signal_date=signal_date,
-                                  cross_check=table.get("cross_check"))
+                                  cross_check=table.get("cross_check"),
+                                  context_header=table.get("context_header"),
+                                  context_headers=table.get("context_headers"))
             if got:
                 epi_tables += 1
                 for signal in got:

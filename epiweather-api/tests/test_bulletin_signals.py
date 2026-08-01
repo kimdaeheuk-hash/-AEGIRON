@@ -183,3 +183,68 @@ def test_afro_layout_flattens_wrapped_labels():
     sig = bs.rows_to_signals(row)[0]
     assert sig["disease"] == "Impact of Sudan crisis"
     assert sig["metrics"]["total_cases"] == 918000
+
+
+# ── 섹션 제목에서 병명 보강 ────────────────────────────────────────
+BVD_HEADER = "## Bundibugyo Virus Disease (BVD) outbreak in the Democratic Republic of Congo and Uganda"
+
+
+def test_disease_from_header_finds_known_disease():
+    assert bs.disease_from_header(BVD_HEADER) == "Bundibugyo"
+    assert bs.disease_from_header("Cholera situation update") == "Cholera"
+
+
+def test_disease_from_header_ignores_unrelated_titles():
+    """아무 제목이나 병명으로 삼으면 신호가 오염된다 — 사전에 있을 때만."""
+    assert bs.disease_from_header("Summary of Ongoing Public Health Emergencies") is None
+    assert bs.disease_from_header(None) is None
+
+
+def test_country_table_gets_disease_from_section_header():
+    """★핵심 회귀★ 국가 축 표는 병명이 표에 없고 위쪽 제목에만 있다. 이걸 못
+    물려주면 DRC 719사망을 잡고도 무슨 병인지 몰라 질병별 경보가 안 뜬다
+    (실제 WHO 28주차 분디부조 표에서 확인된 문제)."""
+    signals = bs.rows_to_signals(COUNTRY_TABLE, context_header=BVD_HEADER)
+    drc = signals[0]
+    assert drc["location"] == "DRC"
+    assert drc["disease"] == "Bundibugyo"
+    assert drc["disease_source"] == "section_header"   # 어디서 온 이름인지 투명하게
+    assert drc["metrics"]["deaths"] == 719
+
+
+def test_table_column_disease_wins_over_header():
+    """표에 병명 열이 있으면 그게 우선 — 제목으로 덮어쓰면 안 된다."""
+    signals = bs.rows_to_signals(DISEASE_TABLE, context_header=BVD_HEADER)
+    assert signals[0]["disease"] == "Mpox"
+    assert signals[0]["disease_source"] == "table_column"
+
+
+def test_country_table_without_header_still_leaves_disease_none():
+    """제목이 없으면 여전히 비운다 — 추측 금지 원칙은 그대로."""
+    signals = bs.rows_to_signals(COUNTRY_TABLE)
+    assert signals[0]["disease"] is None and signals[0]["disease_source"] is None
+
+
+def test_extract_signals_passes_context_header_through():
+    parsed = {"ok": True, "pages": [{"page": 2, "ok": True, "table_count": 1, "tables": [
+        {"rows": COUNTRY_TABLE, "cross_check": None, "context_header": BVD_HEADER}]}]}
+    out = bs.extract_signals(parsed)
+    assert out["signals"][0]["disease"] == "Bundibugyo"
+
+
+def test_disease_header_found_by_looking_back_past_intervening_header():
+    """★핵심 회귀★ 병명 제목과 표 사이에 다른 소제목이 끼어드는 실제 사례
+    (BVD 제목 → "Kenya Preparedness and Readiness Actions" → 표). 바로 앞
+    제목만 보면 분디부조를 놓쳐 719사망이 '미상'으로 남는다."""
+    signals = bs.rows_to_signals(
+        COUNTRY_TABLE,
+        context_header="### Kenya Preparedness and Readiness Actions",
+        context_headers=["## Overview", BVD_HEADER, "### Kenya Preparedness and Readiness Actions"])
+    assert signals[0]["disease"] == "Bundibugyo"
+    assert signals[0]["disease_source"] == "section_header"
+
+
+def test_lookback_stops_when_no_disease_anywhere():
+    signals = bs.rows_to_signals(COUNTRY_TABLE, context_header="### Actions",
+                                 context_headers=["## Overview", "### Actions"])
+    assert signals[0]["disease"] is None

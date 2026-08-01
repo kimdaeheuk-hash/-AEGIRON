@@ -253,14 +253,27 @@ def extract_tables(pdf_bytes: bytes, api_key: str | None = None,
             errors += 1
             results.append({"page": idx + 1, "ok": False, "error": type(e).__name__})
             continue
+        # 블록은 문서 읽기 순서대로 온다 — 표 바로 앞의 섹션 제목을 문맥으로 붙인다.
+        # 실측 근거: WHO 보고서의 국가별 표는 질병 열이 없고 병명이 위쪽 제목에만
+        # 있다("## Bundibugyo Virus Disease (BVD) outbreak in the DRC and Uganda").
+        # 이걸 안 물려주면 숫자는 잡는데 무슨 병인지 몰라 질병별 경보가 안 뜬다.
+        # 바로 앞 제목만 보면 놓친다: 병명 제목과 표 사이에 다른 소제목이 끼어드는
+        # 경우가 있다(실측: "## Bundibugyo Virus Disease..." 다음에 "### Kenya
+        # Preparedness..."가 오고 그 뒤에 표). 그래서 같은 페이지에서 지금까지 나온
+        # 제목을 순서대로 함께 넘겨, 소비측이 뒤로 거슬러 찾을 수 있게 한다.
         tables, texts = [], []
+        headers_so_far: list[str] = []
         for b in blocks:
             btype, btext = b.get("type"), (b.get("text") or "").strip()
+            if btype in ("Section-header", "Title") and btext:
+                headers_so_far.append(_clean_cell(btext))
             if btype == "Table":
                 rows = parse_latex_table(btext)
                 if rows:
                     tables.append({"rows": rows, "row_count": len(rows),
                                    "column_count": max(len(r) for r in rows),
+                                   "context_header": headers_so_far[-1] if headers_so_far else None,
+                                   "context_headers": list(headers_so_far),
                                    "cross_check": cross_check_numbers(rows, raw_text)})
             elif btext:
                 texts.append({"type": btype, "text": btext})
