@@ -44,24 +44,16 @@ country_iso3는 location이 가리키는 국가의 ISO 3166-1 alpha-3 코드(예
 {text}"""
 
 
-def extract_signal(raw_text: str, source: str, api_key: str) -> dict | None:
-    """자유문장 1건 → 구조화 dict. 모델 호출/파싱 실패 시 None."""
-    import anthropic
+def build_prompt(raw_text: str) -> str:
+    """추출 프롬프트를 완성해 반환. Claude·NIM 등 모든 백엔드가 동일 프롬프트를 쓴다."""
+    return EXTRACT_PROMPT.format(today=dt.date.today().isoformat(), text=raw_text[:2000])
 
-    client = anthropic.Anthropic(api_key=api_key)
+
+def parse_extraction(model_text: str, raw_text: str, source: str) -> dict | None:
+    """모델의 원시 응답 문자열 → 구조화 dict. 코드펜스·정규화·검증을 한 곳에서 처리.
+    어떤 백엔드(Claude/NIM/로컬)가 만들었든 출력 스키마와 방어 로직이 동일하게 적용된다."""
     try:
-        response = client.messages.create(
-            model=MODEL,
-            max_tokens=250,
-            messages=[{
-                "role": "user",
-                "content": EXTRACT_PROMPT.format(
-                    today=dt.date.today().isoformat(), text=raw_text[:2000]
-                ),
-            }],
-        )
-        raw = "".join(b.text for b in response.content if b.type == "text").strip()
-        raw = raw.strip("`")
+        raw = (model_text or "").strip().strip("`")
         if raw.lower().startswith("json"):
             raw = raw[4:].strip()
         data = json.loads(raw)
@@ -95,6 +87,24 @@ def extract_signal(raw_text: str, source: str, api_key: str) -> dict | None:
         "known_disease": bool(data.get("known_disease", True)),
         "raw_text": raw_text,
     }
+
+
+def extract_signal(raw_text: str, source: str, api_key: str) -> dict | None:
+    """자유문장 1건 → 구조화 dict. 모델 호출/파싱 실패 시 None."""
+    import anthropic
+
+    client = anthropic.Anthropic(api_key=api_key)
+    try:
+        response = client.messages.create(
+            model=MODEL,
+            max_tokens=250,
+            messages=[{"role": "user", "content": build_prompt(raw_text)}],
+        )
+        raw = "".join(b.text for b in response.content if b.type == "text")
+    except Exception:
+        return None
+
+    return parse_extraction(raw, raw_text, source)
 
 
 EXTRACTION_DEDUP_WINDOW_DAYS = 3  # 같은 source의 원문이 이 기간 내 그대로 재수집되면 재추출 안 함

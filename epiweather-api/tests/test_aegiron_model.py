@@ -12,6 +12,10 @@ def _reset(monkeypatch):
     am._LOCAL_TRIED = False
     monkeypatch.delenv(am.LOCAL_MODEL_PATH_ENV, raising=False)
     monkeypatch.delenv(am.REQUIRE_LOCAL_ENV, raising=False)
+    monkeypatch.delenv(am.NIM_BASE_URL_ENV, raising=False)
+    monkeypatch.delenv(am.NIM_MODEL_ENV, raising=False)
+    for env in am.NIM_API_KEY_ENVS:
+        monkeypatch.delenv(env, raising=False)
 
 
 def test_provider_status_falls_back_when_no_local(monkeypatch):
@@ -48,3 +52,89 @@ def test_no_key_and_no_local_reports_unavailable(monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     r = am.extract_signal("텍스트")
     assert r["ai_provider"] == "unavailable"
+
+
+# ── NVIDIA NIM 경로 ──
+
+def _nim_response(payload_json: str):
+    """requests.post가 돌려줄 가짜 응답(OpenAI 호환 스키마)."""
+    class _Resp:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"choices": [{"message": {"content": payload_json}}]}
+    return _Resp()
+
+
+_NIM_JSON = ('{"disease": "에볼라", "location": "DRC", "country_iso3": "COD", '
+             '"signal_type": "신규발생", "severity": ["spike"], "symptom": null, '
+             '"transmission": null, "date": null, "known_disease": true}')
+
+
+def test_hosted_nim_extracts_and_tags_semisovereign(monkeypatch):
+    """NVIDIA 호스팅 NIM(기본 엔드포인트) → 추출 성공, data_sovereign=False로 정직 표시."""
+    _reset(monkeypatch)
+    monkeypatch.setenv("NVIDIA_API_KEY", "nim-key")
+    with patch("requests.post", return_value=_nim_response(_NIM_JSON)) as m:
+        r = am.extract_signal("DRC 에볼라 신규발생", source="who")
+    m.assert_called_once()
+    assert r["disease"] == "에볼라"
+    assert r["country_iso3"] == "COD"
+    assert r["ai_provider"] == "nvidia_nim_hosted"
+    assert r["data_sovereign"] is False
+
+
+def test_selfhosted_nim_is_sovereign(monkeypatch):
+    """온프렘 base_url이면 완전 주권(data_sovereign=True)으로 표시."""
+    _reset(monkeypatch)
+    monkeypatch.setenv("AEGIRON_NIM_API_KEY", "nim-key")
+    monkeypatch.setenv(am.NIM_BASE_URL_ENV, "https://nim.internal.aegiron.local/v1")
+    with patch("requests.post", return_value=_nim_response(_NIM_JSON)):
+        r = am.extract_signal("DRC 에볼라", source="who")
+    assert r["ai_provider"] == "aegiron_nim_selfhosted"
+    assert r["data_sovereign"] is True
+
+
+def test_sensitive_blocked_before_hosted_nim_call(monkeypatch):
+    """민감 데이터 + REQUIRE_LOCAL이면 호스팅 NIM(외부 클라우드)으로 '보내기 전에' 차단."""
+    _reset(monkeypatch)
+    monkeypatch.setenv("NVIDIA_API_KEY", "nim-key")
+    monkeypatch.setenv(am.REQUIRE_LOCAL_ENV, "on")
+    with patch("requests.post") as m:
+        r = am.extract_signal("민감 유전체 데이터", sensitive=True)
+    m.assert_not_called()                       # 외부로 한 번도 안 나감
+    assert r["blocked"] is True
+    assert r["ai_provider"] == "local_required_unavailable"
+
+
+def test_sensitive_allowed_on_selfhosted_nim(monkeypatch):
+    """민감 데이터라도 자체 호스팅(완전 주권) NIM이면 통과."""
+    _reset(monkeypatch)
+    monkeypatch.setenv("AEGIRON_NIM_API_KEY", "nim-key")
+    monkeypatch.setenv(am.NIM_BASE_URL_ENV, "https://nim.internal.aegiron.local/v1")
+    monkeypatch.setenv(am.REQUIRE_LOCAL_ENV, "on")
+    with patch("requests.post", return_value=_nim_response(_NIM_JSON)):
+        r = am.extract_signal("민감 유전체 데이터", sensitive=True)
+    assert r["ai_provider"] == "aegiron_nim_selfhosted"
+    assert r.get("blocked") is not True
+
+
+def test_nim_failure_falls_back_to_llm(monkeypatch):
+    """NIM 호출이 실패하면(네트워크 등) 비민감 데이터는 외부 LLM으로 폴백."""
+    _reset(monkeypatch)
+    monkeypatch.setenv("NVIDIA_API_KEY", "nim-key")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "k")
+    with patch("requests.post", side_effect=RuntimeError("nim down")), \
+         patch("algorithms.nlp_extract.extract_signal", return_value={"disease": "에볼라"}):
+        r = am.extract_signal("DRC 에볼라", source="who")
+    assert r["ai_provider"] == "external_llm_fallback"
+
+
+def test_provider_status_reports_nim(monkeypatch):
+    _reset(monkeypatch)
+    monkeypatch.setenv("NVIDIA_API_KEY", "nim-key")
+    s = am.provider_status()
+    assert s["active_provider"] == "nvidia_nim_hosted"
+    assert s["nim_configured"] is True
+    assert s["nim_sovereign"] is False
