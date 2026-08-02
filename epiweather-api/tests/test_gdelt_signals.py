@@ -84,3 +84,56 @@ def test_reconstruct_event_fetch_failure_flags_unavailable():
         result = gdelt_reconstruct_event("covid19_wuhan_2019", dt.date(2019, 12, 31))
     assert result["available"] is False
     assert "조회 실패" in result["reason"]
+
+
+# ── 속도제한·429 재시도 ───────────────────────────────────────────
+def test_rate_limited_response_is_retried(monkeypatch):
+    """★핵심 회귀★ GDELT는 '5초에 1회'를 요구하고 어기면 429를 준다. 재시도 없이
+    None을 돌려주면 호출측이 '자료 없음'과 '속도초과'를 구분 못 해, 백필 16건 중
+    14건이 조용히 비었다."""
+    import algorithms.gdelt_signals as gs
+
+    calls = []
+
+    class Resp:
+        def __init__(self, code): self.status_code = code
+        def json(self):
+            return {"timeline": [{"data": [{"date": "20240101T000000Z", "value": 1.0}]}]}
+
+    def fake_get(url, **kw):
+        calls.append(1)
+        return Resp(429 if len(calls) < 3 else 200)
+
+    monkeypatch.setattr(gs.requests, "get", fake_get)
+    monkeypatch.setattr(gs.time, "sleep", lambda s: None)      # 테스트는 실제로 안 잔다
+    monkeypatch.setattr(gs, "_gdelt_last_call", 0.0)
+    out = gs.fetch_coverage_timeline("q", dt.date(2024, 1, 1), dt.date(2024, 2, 1))
+    assert len(calls) == 3          # 429 두 번 받고 세 번째에 성공
+    assert out and len(out) == 1
+
+
+def test_persistent_rate_limit_gives_up_and_returns_none(monkeypatch):
+    """계속 429면 무한재시도하지 않고 None — 호출측이 건너뛰도록."""
+    import algorithms.gdelt_signals as gs
+
+    class Resp:
+        status_code = 429
+
+    calls = []
+    monkeypatch.setattr(gs.requests, "get", lambda url, **kw: (calls.append(1), Resp())[1])
+    monkeypatch.setattr(gs.time, "sleep", lambda s: None)
+    monkeypatch.setattr(gs, "_gdelt_last_call", 0.0)
+    assert gs.fetch_coverage_timeline("q", dt.date(2024, 1, 1), dt.date(2024, 2, 1)) is None
+    assert len(calls) == gs._GDELT_MAX_RETRIES
+
+
+def test_throttle_enforces_minimum_interval(monkeypatch):
+    """호출 간격이 실제로 벌어져야 한다 — 안 그러면 재시도만으로는 부족하다."""
+    import algorithms.gdelt_signals as gs
+
+    slept = []
+    monkeypatch.setattr(gs.time, "sleep", lambda s: slept.append(s))
+    monkeypatch.setattr(gs.time, "monotonic", lambda: 100.0)   # 시간이 안 흐른 상황
+    monkeypatch.setattr(gs, "_gdelt_last_call", 100.0)
+    gs._gdelt_throttle()
+    assert slept and slept[0] >= gs._GDELT_MIN_INTERVAL_SEC - 0.01
