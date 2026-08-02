@@ -33,6 +33,11 @@ import tempfile
 
 import requests
 
+from . import nvidia as _nvidia
+
+# 기본 엔드포인트(NVIDIA 클라우드). 실제 호출 URL은 요청 시점에 nvidia.parse_url()로
+# 해석 — AEGIRON_NVIDIA_ONPREM_BASE 설정 시 온프렘으로 라우팅된다. 이 층을 라우팅에서
+# 빠뜨리면 문서 이미지가 클라우드로 나가는데도 '완전 주권'으로 보고된다(실제로 그랬음).
 PARSE_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 MODEL = "nvidia/nemotron-parse"
 MAX_TOKENS = 8000        # 이 모델의 컨텍스트 상한이 9000 — 넘기면 400
@@ -110,7 +115,7 @@ def _parse_page(png: bytes, api_key: str) -> list[dict]:
 
     b64 = base64.b64encode(png).decode()
     r = requests.post(
-        PARSE_URL,
+        _nvidia.parse_url(),
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         json={
             "model": MODEL,

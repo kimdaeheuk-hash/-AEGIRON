@@ -83,3 +83,55 @@ def test_text_only_onprem_is_partial(monkeypatch):
     monkeypatch.setenv(nvidia.TEXT_BASE_URL_ENV, "https://nim.internal.aegiron.gov/v1")
     assert nvidia.sovereignty_posture() == "partial"
     assert nvidia.is_fully_sovereign() is False
+
+
+# ── 문서(PDF 표 추출) 층 주권 라우팅 ──────────────────────────────
+def test_document_layer_routes_to_onprem(monkeypatch):
+    """★회귀★ PDF 표 추출이 라우팅에서 빠져 있었다 — PARSE_URL이 클라우드로
+    하드코딩돼 온프렘을 켜도 문서 이미지가 NVIDIA로 나갔다."""
+    _clear(monkeypatch)
+    monkeypatch.setenv(nvidia.ONPREM_BASE_ENV, "https://nim.internal.aegiron.gov")
+    assert nvidia.parse_url() == "https://nim.internal.aegiron.gov/v1/chat/completions"
+    assert nvidia.is_host_sovereign(nvidia.parse_url()) is True
+
+
+def test_document_layer_defaults_to_cloud(monkeypatch):
+    _clear(monkeypatch)
+    assert "integrate.api.nvidia.com" in nvidia.parse_url()
+    assert nvidia.is_host_sovereign(nvidia.parse_url()) is False
+
+
+def test_sovereignty_counts_document_layer(monkeypatch):
+    """★핵심 회귀★ 유전체·텍스트만 온프렘이고 문서 층이 클라우드로 남으면
+    'full_onprem'이라고 보고하면 안 된다 — 거짓 주권 보증이 된다."""
+    _clear(monkeypatch)
+    monkeypatch.setenv(nvidia.TEXT_BASE_URL_ENV, "https://nim.internal.aegiron.gov/v1")
+    # 텍스트만 온프렘 → 유전체·문서는 클라우드 → partial이어야 한다
+    assert nvidia.sovereignty_posture() == "partial"
+    assert nvidia.is_fully_sovereign() is False
+
+
+def test_text_override_does_not_move_document_layer(monkeypatch):
+    """텍스트 전용 오버라이드는 '텍스트 LLM만' 옮기라는 뜻이다 — 문서 파서까지
+    따라가면 실제로는 클라우드에 있는데 주권으로 오인된다."""
+    _clear(monkeypatch)
+    monkeypatch.setenv(nvidia.TEXT_BASE_URL_ENV, "https://nim.internal.aegiron.gov/v1")
+    assert "integrate.api.nvidia.com" in nvidia.document_base_url()
+
+
+def test_status_exposes_document_endpoint(monkeypatch):
+    """운영 가시성 — 문서 층이 어디로 나가는지 상태에 드러나야 한다."""
+    _clear(monkeypatch)
+    status = nvidia.nvidia_status()
+    assert "document_parse" in status["layer_endpoints"]
+    pdf = [s for s in status["services"] if s["id"] == "pdf_table_extract"][0]
+    assert "nvidia.com" in pdf["endpoint"]      # 클라우드임이 카탈로그에 드러난다
+
+
+def test_full_onprem_now_requires_all_three_layers(monkeypatch):
+    _clear(monkeypatch)
+    monkeypatch.setenv(nvidia.ONPREM_BASE_ENV, "https://nim.internal.aegiron.gov")
+    for url in (nvidia.evo2_url(), nvidia.msa_url(),
+                nvidia.parse_url(), nvidia.text_base_url()):
+        assert url.startswith("https://nim.internal.aegiron.gov")
+    assert nvidia.sovereignty_posture() == "full_onprem"

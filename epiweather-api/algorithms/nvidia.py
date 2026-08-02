@@ -1,9 +1,12 @@
 """NVIDIA 자격증명·서비스 규약의 단일 소스(single source of truth).
 
-배경: AEGIRON은 NVIDIA를 두 층에서 쓴다.
-  (A) 유전체/문서 층 — Evo2(서열 자연스러움), ColabFold MSA(상동성),
-      PDF 표 추출. health.api.nvidia.com 계열 NIM. 키 = NVIDIA_API_KEY.
-  (B) 텍스트 층 — 뉴스→신호 추출 NIM(aegiron_model). 기본
+배경: AEGIRON은 NVIDIA를 세 층에서 쓴다. **베이스 호스트가 층마다 다르다** —
+이걸 뭉뚱그리면 라우팅에서 한 층이 조용히 빠진다(실제로 문서 층이 빠져 있었다).
+  (A) 유전체 층 — Evo2(서열 자연스러움), ColabFold MSA(상동성).
+      health.api.nvidia.com 계열 NIM. 키 = NVIDIA_API_KEY.
+  (B) 문서 층 — PDF 표 추출(nemotron-parse). OpenAI 호환 chat/completions라
+      health.api가 아니라 integrate.api.nvidia.com 계열이다. 키 = 공유 NVIDIA_API_KEY.
+  (C) 텍스트 층 — 뉴스→신호 추출 NIM(aegiron_model). 기본
       integrate.api.nvidia.com(LLM), 온프렘 자체호스팅 가능. 키 = 공유
       NVIDIA_API_KEY, 필요 시 AEGIRON_NIM_API_KEY로 텍스트 전용 오버라이드.
 
@@ -37,6 +40,9 @@ CLOUD_HEALTH_BASE = "https://health.api.nvidia.com"
 CLOUD_LLM_BASE = "https://integrate.api.nvidia.com/v1"
 EVO2_PATH = "/v1/biology/arc/evo2-40b/generate"
 MSA_PATH = "/v1/biology/colabfold/msa-search/predict"
+# PDF 표 추출(nemotron-parse)은 OpenAI 호환 chat/completions로 부르므로
+# 유전체(health.api)가 아니라 LLM 계열 베이스를 쓴다.
+PARSE_PATH = "/chat/completions"
 
 
 def onprem_base() -> str | None:
@@ -63,6 +69,21 @@ def text_base_url() -> str:
     return (os.environ.get(TEXT_BASE_URL_ENV) or onprem_base() or CLOUD_LLM_BASE).rstrip("/")
 
 
+def document_base_url() -> str:
+    """문서(PDF 표 추출) 층 베이스 — 온프렘 있으면 온프렘, 없으면 클라우드 LLM.
+
+    텍스트 전용 오버라이드(AEGIRON_NIM_BASE_URL)는 따르지 않는다. 그건 '텍스트
+    추출 LLM만 다른 호스트로'라는 뜻이지 문서 파서까지 그리 보내라는 뜻이 아니라서다.
+    텍스트만 온프렘으로 돌리면 문서 층은 클라우드에 남고, sovereignty_posture가
+    그걸 partial로 정직하게 잡는다."""
+    base = onprem_base()
+    return f"{base}/v1" if base else CLOUD_LLM_BASE
+
+
+def parse_url() -> str:
+    return document_base_url() + PARSE_PATH
+
+
 def is_host_sovereign(url: str) -> bool:
     """NVIDIA 공용 클라우드가 아니면(온프렘/사설) 주권 경로로 본다."""
     return "api.nvidia.com" not in url
@@ -70,8 +91,13 @@ def is_host_sovereign(url: str) -> bool:
 
 def sovereignty_posture() -> str:
     """전 층을 종합한 주권 태세: full_onprem / partial / cloud.
-    어느 한 층이라도 NVIDIA 클라우드로 나가면 '완전 주권'이 아니다."""
-    layers = [health_base_url(), text_base_url()]
+    어느 한 층이라도 NVIDIA 클라우드로 나가면 '완전 주권'이 아니다.
+
+    ★ 문서 층을 반드시 포함할 것 ★ 처음엔 유전체·텍스트만 검사해서, 온프렘을
+    켜면 PDF 페이지 이미지가 그대로 NVIDIA 클라우드로 나가는데도 full_onprem으로
+    보고했다. '데이터 국외반출 금지' 요건을 겨냥한 기능에서 거짓 보증은 기능
+    하나가 아니라 신뢰 전체를 깎는다."""
+    layers = [health_base_url(), document_base_url(), text_base_url()]
     if all(is_host_sovereign(u) for u in layers):
         return "full_onprem"      # 전 층 온프렘 → 완전 주권
     if any(is_host_sovereign(u) for u in layers):
@@ -90,7 +116,7 @@ NVIDIA_SERVICES = (
     {"id": "msa_homology", "layer": "genome",
      "endpoint": "health.api.nvidia.com/v1/biology/colabfold/msa-search"},
     {"id": "pdf_table_extract", "layer": "document",
-     "endpoint": "NVIDIA NIM"},
+     "endpoint": "integrate.api.nvidia.com/v1 (또는 온프렘)"},
     {"id": "text_signal_extraction", "layer": "text",
      "endpoint": "integrate.api.nvidia.com/v1 (또는 자체호스팅)",
      "text_override": True},
@@ -131,6 +157,7 @@ def nvidia_status() -> dict:
         "fully_sovereign": posture == "full_onprem",
         "layer_endpoints": {
             "genome_health": health_base_url(),
+            "document_parse": document_base_url(),
             "text_nim": text_base_url(),
         },
         "convention": (
