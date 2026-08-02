@@ -437,6 +437,23 @@ def test_ai_nowcast_train_refuses_insufficient_with_key(client_with_key):
     assert resp.json()["trained"] is False   # 데이터 부족 → 학습 거부(정직)
 
 
+def test_ai_nowcast_backfill_train_requires_auth(client):
+    resp = client.post("/api/ai/nowcast/backfill-train")
+    assert resp.status_code == 503
+
+
+def test_ai_nowcast_backfill_train_honest_when_gdelt_blocked(client_with_key):
+    """GDELT 차단 환경(이 테스트도 네트워크 없음)이면 신호를 지어내지 않고 학습 거부."""
+    client, key = client_with_key
+    with patch("algorithms.nowcast_backfill.fetch_coverage_timeline", return_value=None):
+        resp = client.post("/api/ai/nowcast/backfill-train", headers={"X-API-Key": key})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["backfill"]["signals_created"] == 0
+    assert body["backfill"]["gdelt_reachable"] is False
+    assert body["training"]["trained"] is False
+
+
 def test_genome_screen_accepts_reference_sequences(client_with_key):
     client, key = client_with_key
     seq = "ATGGCCATTGTAATGGGCCGCTGCAAAGGGTGCCCGATAGTT"

@@ -823,6 +823,16 @@ def ai_nowcast_train(horizon_days: int = 30, lookback_days: int = 30):
     return train_baseline(rows)
 
 
+@app.post("/api/ai/nowcast/backfill-train", tags=["AI"], dependencies=_auth)
+def ai_nowcast_backfill_train(min_volume: float = 0.0):
+    """과거 공식 발병 선언(라벨) + 그 시점 GDELT 실제 뉴스량(특징)을 백필해 Tier 2를
+    '지금' 학습한다 — 몇 년 대기를 명령어 하나로 압축. GDELT를 못 가져오면 신호를
+    지어내지 않고 건너뛰므로(정직), GDELT가 열리는 환경에서 실행해야 실제 학습된다.
+    학습 정확도는 'retrospective(과거적합)'로 라벨링 — 전향적 검증 전 실전대체 금지."""
+    from algorithms.nowcast_backfill import run_backfill_and_train
+    return run_backfill_and_train(min_volume=min_volume)
+
+
 # ── 국가별 위험지수 ───────────────────────────────────────────
 @app.get("/api/risk-index", tags=["GAI"])
 def risk_index():
