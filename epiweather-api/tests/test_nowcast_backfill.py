@@ -71,3 +71,57 @@ def test_gdelt_blocked_yields_no_training(isolated_db):
     assert out["backfill"]["signals_created"] == 0
     assert out["backfill"]["gdelt_reachable"] is False
     assert out["training"]["trained"] is False
+
+
+# ── 커버리지 정직성(GDELT 속도제한으로 대다수가 비는 경우) ────────
+def _fake_fetch(succeed_for: set):
+    """지정한 사건만 데이터를 주고 나머지는 None(429·차단 상황 재현)."""
+    import datetime as dt
+
+    def fetch(query, start, end):
+        if not any(k in query for k in succeed_for):
+            return None
+        return [(start + dt.timedelta(days=i), float(i)) for i in range(30)]
+    return fetch
+
+
+def test_low_event_coverage_is_reported_not_called_complete(monkeypatch, isolated_db):
+    """★핵심 회귀★ 16건 중 2건만 수집됐는데 총 신호 수가 0이 아니라는 이유로
+    'gdelt_reachable=True, 수집 완료'로 보고됐다. 라벨 87.5%가 비었으면 완료가 아니다."""
+    import algorithms.nowcast_backfill as nb
+    monkeypatch.setattr(nb, "fetch_coverage_timeline", _fake_fetch({"Kivu", "Guinea"}))
+    out = nb.run_backfill()
+    assert out["signals_created"] > 0          # 신호는 있지만
+    assert out["coverage_sufficient"] is False  # 커버리지는 불충분
+    assert out["event_coverage"] < 0.6
+    assert "⚠" in out["note"] and "불충분" in out["note"]
+    assert len(out["events_missing"]) > 10
+
+
+def test_sufficient_coverage_reports_cleanly(monkeypatch, isolated_db):
+    import algorithms.nowcast_backfill as nb
+    monkeypatch.setattr(nb, "fetch_coverage_timeline", _fake_fetch({'"'}))  # 전부 매칭
+    out = nb.run_backfill()
+    assert out["coverage_sufficient"] is True
+    assert out["event_coverage"] == 1.0
+    assert "⚠" not in out["note"]
+
+
+def test_zero_coverage_distinguished_from_partial(monkeypatch, isolated_db):
+    """한 건도 못 받은 것과 일부만 받은 것은 다른 상태다."""
+    import algorithms.nowcast_backfill as nb
+    monkeypatch.setattr(nb, "fetch_coverage_timeline", lambda q, s, e: None)
+    out = nb.run_backfill()
+    assert out["gdelt_reachable"] is False and out["events_covered"] == 0
+    assert "한 건도" in out["note"]
+
+
+def test_training_carries_coverage_warning(monkeypatch, isolated_db):
+    """소수 사건으로 학습해도 trained=True는 그대로 뜬다 — 경고가 결과에 붙어야 한다."""
+    import algorithms.nowcast_backfill as nb
+    monkeypatch.setattr(nb, "fetch_coverage_timeline", _fake_fetch({"Kivu"}))
+    out = nb.run_backfill_and_train()
+    training = out["training"]
+    if training.get("trained"):
+        assert "coverage_warning" in training
+        assert training["caveats"][0] == training["coverage_warning"]

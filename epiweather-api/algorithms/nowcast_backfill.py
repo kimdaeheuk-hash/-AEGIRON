@@ -29,6 +29,8 @@ BACKFILL_SOURCE = "gdelt_backfill"      # provenance 태그(라이브 신호와 
 BACKFILL_TRUST = 0.5                    # 뉴스량 프록시 — 라이브 추출(0.65)보다 낮게
 LOOKBACK_DAYS = 120                     # 선언 전 관찰 창
 POST_DAYS = 21                          # 선언 직후(양성 라벨 확정용 여유)
+# 사건 커버리지 최소 기준. 라벨 대다수가 특징 없이 비면 '학습됐다'가 무의미하다.
+MIN_EVENT_COVERAGE = 0.60
 
 
 def _parse(d: str) -> dt.date:
@@ -102,14 +104,38 @@ def run_backfill(min_volume: float = 0.0) -> dict:
         c = backfill_signals_for(o, min_volume=min_volume)
         per_event[o["event_id"]] = c
         total += c
+    # 사건 단위 커버리지를 따로 센다. 총 신호 수만 보면 '몇 건이 통째로 비었는지'가
+    # 안 보인다 — 실측에서 16건 중 2건만 성공했는데 총 39건이라 '수집 완료'로
+    # 보고됐다. 라벨의 87.5%가 특징 없이 비어 있으면 그건 완료가 아니다.
+    covered = [e for e, c in per_event.items() if c > 0]
+    missing = [e for e, c in per_event.items() if c == 0]
+    coverage = round(len(covered) / len(per_event), 3) if per_event else 0.0
+    sufficient = coverage >= MIN_EVENT_COVERAGE
+
+    if not covered:
+        note = ("GDELT를 한 건도 가져오지 못함(속도제한·네트워크 차단 등) — 신호를 "
+                "지어내지 않고 건너뜀. GDELT가 열리는 환경에서 실행해야 학습됨.")
+    elif not sufficient:
+        note = (f"⚠ 사건 커버리지 {coverage:.0%}({len(covered)}/{len(per_event)}) — "
+                f"기준 {MIN_EVENT_COVERAGE:.0%} 미만이라 학습셋으로 불충분하다. "
+                f"대부분 GDELT 속도제한(429)으로 비었을 가능성이 크다. 미수집 사건: "
+                f"{', '.join(missing[:6])}{' 외' if len(missing) > 6 else ''}. "
+                "이 상태로 학습하면 소수 사건에만 맞춘 모델이 된다.")
+    else:
+        note = (f"GDELT 신호 수집 — 사건 커버리지 {coverage:.0%}"
+                f"({len(covered)}/{len(per_event)}), 실제 뉴스량 기반.")
+
     return {
         "timeline_events_loaded": events,
         "signals_created": total,
         "per_event_signals": per_event,
-        "gdelt_reachable": total > 0,
-        "note": ("GDELT 신호 수집 완료 — 실제 뉴스량 기반." if total > 0 else
-                 "GDELT를 가져오지 못함(네트워크 차단 등) — 신호를 지어내지 않고 건너뜀. "
-                 "GDELT가 열리는 환경(로컬/운영)에서 실행해야 학습됨."),
+        "events_covered": len(covered),
+        "events_missing": missing,
+        "event_coverage": coverage,
+        "coverage_sufficient": sufficient,
+        # 한 건이라도 받았으면 네트워크는 열린 것 — 커버리지 부족과 구분해서 본다.
+        "gdelt_reachable": bool(covered),
+        "note": note,
     }
 
 
@@ -126,4 +152,14 @@ def run_backfill_and_train(min_volume: float = 0.0) -> dict:
             "다수 음성이 무신호 창이라 정확도가 낙관적일 수 있음.",
             "전향적(prospective) 검증 전 z-score/EARS 대체 금지.",
         ]
+        # 커버리지가 모자라면 '학습됨'만 보이고 넘어가지 않게 결과에 붙여 보낸다.
+        # 16건 중 2건으로 학습해도 trained=True는 그대로 뜨기 때문이다.
+        training["event_coverage"] = backfill.get("event_coverage")
+        if not backfill.get("coverage_sufficient"):
+            training["coverage_warning"] = (
+                f"사건 커버리지 {backfill.get('event_coverage', 0):.0%} — "
+                f"라벨 대다수가 특징 없이 비었다. 이 모델은 소수 사건에만 맞춰져 있으니 "
+                f"GDELT 속도제한이 풀린 환경에서 다시 백필한 뒤 재학습할 것."
+            )
+            training["caveats"].insert(0, training["coverage_warning"])
     return {"backfill": backfill, "readiness": readiness, "training": training}

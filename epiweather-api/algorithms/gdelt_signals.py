@@ -24,6 +24,7 @@ Phase 21 실이력 백테스트(extracted_signals 기반)의 '과거 재구성�
 from __future__ import annotations
 import datetime as dt
 import statistics
+import time
 
 import requests
 
@@ -59,16 +60,43 @@ def _parse_gdelt_date(s: str) -> dt.date | None:
     return None
 
 
+# GDELT는 "5초에 1회"를 명시적으로 요구하고, 어기면 429 + 안내문을 돌려준다.
+# 백필처럼 여러 사건을 연달아 긁으면 대부분 429가 나는데 실패가 조용해서(None 반환)
+# '수집됐다'고 착각하기 쉽다 — 실측에서 16건 중 14건이 그렇게 비었다.
+# 그래서 호출 간격을 강제하고 429는 물러났다 재시도한다.
+_GDELT_MIN_INTERVAL_SEC = 5.5
+_GDELT_MAX_RETRIES = 3
+_gdelt_last_call = 0.0
+
+
+def _gdelt_throttle() -> None:
+    """직전 호출로부터 최소 간격을 보장(프로세스 내 전역)."""
+    global _gdelt_last_call
+    wait = _GDELT_MIN_INTERVAL_SEC - (time.monotonic() - _gdelt_last_call)
+    if wait > 0:
+        time.sleep(wait)
+    _gdelt_last_call = time.monotonic()
+
+
 def fetch_coverage_timeline(query: str, start: dt.date, end: dt.date) -> list[tuple[dt.date, float]] | None:
-    """GDELT DOC 2.0 커버리지 볼륨 타임라인. (날짜, 볼륨) 리스트. 실패 시 None."""
+    """GDELT DOC 2.0 커버리지 볼륨 타임라인. (날짜, 볼륨) 리스트. 실패 시 None.
+
+    429(속도초과)는 간격을 늘려가며 재시도한다 — 조용히 None을 돌려주면 호출측이
+    '자료 없음'과 '속도제한'을 구분하지 못한다."""
     params = {
         "query": query, "mode": "timelinevol", "format": "json",
         "startdatetime": start.strftime("%Y%m%d") + "000000",
         "enddatetime": end.strftime("%Y%m%d") + "235959",
     }
     try:
-        resp = requests.get(GDELT_DOC_URL, params=params, headers=USER_AGENT, timeout=TIMEOUT)
-        if resp.status_code != 200:
+        resp = None
+        for attempt in range(_GDELT_MAX_RETRIES):
+            _gdelt_throttle()
+            resp = requests.get(GDELT_DOC_URL, params=params, headers=USER_AGENT, timeout=TIMEOUT)
+            if resp.status_code != 429:
+                break
+            time.sleep(_GDELT_MIN_INTERVAL_SEC * (attempt + 2))   # 물러나며 재시도
+        if resp is None or resp.status_code != 200:
             return None
         data = resp.json()
         timeline = data.get("timeline")
