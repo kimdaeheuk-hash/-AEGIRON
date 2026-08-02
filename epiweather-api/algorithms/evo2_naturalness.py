@@ -63,6 +63,10 @@ import os
 
 import requests
 
+from . import nvidia as _nvidia
+
+# 기본 엔드포인트(NVIDIA 클라우드). 실제 호출 URL은 요청 시점에 nvidia.evo2_url()로
+# 해석 — AEGIRON_NVIDIA_ONPREM_BASE가 설정되면 온프렘으로 라우팅(완전 주권).
 NIM_URL = "https://health.api.nvidia.com/v1/biology/arc/evo2-40b/generate"
 MODEL = "evo2-40b"
 TIMEOUT = 120
@@ -104,7 +108,7 @@ def _predict_next(prefix: str, n_tokens: int, api_key: str) -> tuple[str, list[f
     top_k=1로 고정하는 이유: 여기서 필요한 건 '모델이 가장 자연스럽다고 보는 다음
     염기'와 실제의 일치 여부이지 다양한 후보 생성이 아니다. 생성물은 대조에만 쓴다."""
     r = requests.post(
-        NIM_URL,
+        _nvidia.evo2_url(),
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         json={"sequence": prefix, "num_tokens": n_tokens, "top_k": 1,
               "enable_sampled_probs": True},

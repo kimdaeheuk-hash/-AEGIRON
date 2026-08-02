@@ -14,6 +14,7 @@ def _reset(monkeypatch):
     monkeypatch.delenv(am.REQUIRE_LOCAL_ENV, raising=False)
     monkeypatch.delenv(am.NIM_BASE_URL_ENV, raising=False)
     monkeypatch.delenv(am.NIM_MODEL_ENV, raising=False)
+    monkeypatch.delenv(am._nvidia.ONPREM_BASE_ENV, raising=False)
     for env in am.NIM_API_KEY_ENVS:
         monkeypatch.delenv(env, raising=False)
 
@@ -138,3 +139,28 @@ def test_provider_status_reports_nim(monkeypatch):
     assert s["active_provider"] == "nvidia_nim_hosted"
     assert s["nim_configured"] is True
     assert s["nim_sovereign"] is False
+
+
+def test_require_local_blocks_external_even_for_nonsensitive(monkeypatch):
+    """완전 주권 모드: 주권 경로 없으면 '공개 뉴스'(비민감)도 외부 LLM 폴백 차단.
+    온프렘 다운 시 미국 API로 새어나가지 않는다는 실질 보장."""
+    _reset(monkeypatch)
+    monkeypatch.setenv(am.REQUIRE_LOCAL_ENV, "on")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "k")
+    with patch("algorithms.nlp_extract.extract_signal") as m:
+        r = am.extract_signal("공개 뉴스 텍스트", sensitive=False)  # 민감 아님
+    m.assert_not_called()                        # 외부로 한 번도 안 나감
+    assert r["blocked"] is True
+    assert r["ai_provider"] == "local_required_unavailable"
+
+
+def test_onprem_base_makes_text_path_sovereign(monkeypatch):
+    """공유 온프렘(AEGIRON_NVIDIA_ONPREM_BASE) 하나로 텍스트 추출도 완전 주권 경로."""
+    _reset(monkeypatch)
+    monkeypatch.setenv("NVIDIA_API_KEY", "nim-key")
+    monkeypatch.setenv(am._nvidia.ONPREM_BASE_ENV, "https://nim.internal.aegiron.gov")
+    with patch("requests.post", return_value=_nim_response(_NIM_JSON)):
+        r = am.extract_signal("DRC 에볼라", source="who")
+    assert r["ai_provider"] == "aegiron_nim_selfhosted"
+    assert r["data_sovereign"] is True
+    assert am.provider_status()["nvidia"]["fully_sovereign"] is True

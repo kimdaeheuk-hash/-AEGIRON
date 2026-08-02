@@ -87,7 +87,8 @@ def _nim_key() -> str | None:
 
 
 def _nim_base_url() -> str:
-    return (os.environ.get(NIM_BASE_URL_ENV) or NIM_HOSTED_BASE_URL).rstrip("/")
+    # 텍스트 전용 URL → 온프렘 공통(AEGIRON_NVIDIA_ONPREM_BASE) → NVIDIA 호스팅.
+    return _nvidia.text_base_url()
 
 
 def _nim_is_sovereign(base_url: str) -> bool:
@@ -139,26 +140,28 @@ def _nim_extract(text: str, source: str, conf: dict) -> dict | None:
     return parse_extraction(content, text, source)
 
 
-def _blocked_sensitive(via: str) -> dict:
+def _blocked_sovereign(via: str) -> dict:
     return {
         "ai_provider": "local_required_unavailable",
         "blocked": True,
-        "reason": f"민감 데이터 — 완전 주권 경로만 허용(AEGIRON_REQUIRE_LOCAL). {via} 차단.",
+        "reason": f"완전 주권 모드(AEGIRON_REQUIRE_LOCAL=on) — 주권 경로만 허용. {via} 차단.",
     }
 
 
 def extract_signal(text: str, source: str = "aegiron_model",
                    api_key: str | None = None, sensitive: bool = False) -> dict | None:
-    """추출 단일 진입점. NIM/로컬 우선 → 외부 LLM 폴백. sensitive면 주권 게이팅.
-    반환 dict에 ai_provider를 붙여 어느 경로로 처리됐는지 항상 표시한다."""
+    """추출 단일 진입점. NIM/로컬 우선 → 외부 LLM 폴백.
+    AEGIRON_REQUIRE_LOCAL=on이면 '주권 전용 모드' — 비주권 경로(호스팅 NIM·외부
+    LLM)는 데이터를 보내기 전에 모두 fail-closed 차단(민감 여부 무관). sensitive는
+    감사·표시용으로만 유지. 반환 dict의 ai_provider로 처리 경로를 항상 표시한다."""
     require_local = _require_local()
 
     # ① NIM 경로(자체 GPU/온프렘 = 완전 주권, NVIDIA 호스팅 = 준주권).
     conf = _nim_config()
     if conf is not None:
-        # 민감 데이터인데 비주권(호스팅) NIM이면 '보내기 전에' 차단(국외유출 방지).
-        if sensitive and require_local and not conf["sovereign"]:
-            return _blocked_sensitive("NVIDIA 호스팅 NIM(외부 클라우드)")
+        # 주권 전용 모드인데 비주권(호스팅) NIM이면 '보내기 전에' 차단(국외유출 방지).
+        if require_local and not conf["sovereign"]:
+            return _blocked_sovereign("NVIDIA 호스팅 NIM(외부 클라우드)")
         result = _nim_extract(text, source, conf)
         if result is not None:
             result["ai_provider"] = conf["provider"]
@@ -171,9 +174,10 @@ def extract_signal(text: str, source: str = "aegiron_model",
     if local is not None:
         return {**local, "ai_provider": "aegiron_local", "data_sovereign": True}
 
-    # ③ 주권 경로가 하나도 안 됐음: 민감 데이터면 외부 폴백 차단(fail-closed).
-    if sensitive and require_local:
-        return _blocked_sensitive("외부 LLM 폴백")
+    # ③ 주권 경로가 하나도 안 됐음: 주권 전용 모드면 외부 폴백 차단(fail-closed).
+    #    공개 뉴스라도 미국 API로 안 나가게 — "완전 주권"의 실질 보장.
+    if require_local:
+        return _blocked_sovereign("외부 LLM 폴백")
 
     key = api_key or os.environ.get("ANTHROPIC_API_KEY")
     if not key:

@@ -23,6 +23,65 @@ SHARED_KEY_ENV = "NVIDIA_API_KEY"
 # 텍스트 추출 전용 오버라이드(선택). 없으면 공유 키로 폴백.
 TEXT_KEY_OVERRIDE_ENV = "AEGIRON_NIM_API_KEY"
 
+# ── 완전 주권 온프렘 ──
+# 이 하나만 설정하면 전 NVIDIA 층(유전체 Evo2/MSA + 텍스트 NIM)이 온프렘 NIM
+# 클러스터로 라우팅되어 '어떤 데이터도 NVIDIA 클라우드로 나가지 않는다'(완전 주권).
+# 예: AEGIRON_NVIDIA_ONPREM_BASE=https://nim.internal.aegiron.gov
+# 자체호스팅 방법: NVIDIA BioNeMo/NIM 컨테이너를 사설 GPU에 배포(NGC 카탈로그).
+ONPREM_BASE_ENV = "AEGIRON_NVIDIA_ONPREM_BASE"
+# 텍스트 층 전용 base_url(온프렘 공통과 별개로 텍스트만 다른 호스트를 쓸 때).
+TEXT_BASE_URL_ENV = "AEGIRON_NIM_BASE_URL"
+
+# NVIDIA 클라우드 기본 엔드포인트(온프렘 미설정 시).
+CLOUD_HEALTH_BASE = "https://health.api.nvidia.com"
+CLOUD_LLM_BASE = "https://integrate.api.nvidia.com/v1"
+EVO2_PATH = "/v1/biology/arc/evo2-40b/generate"
+MSA_PATH = "/v1/biology/colabfold/msa-search/predict"
+
+
+def onprem_base() -> str | None:
+    """설정된 온프렘 NIM 베이스 URL(없으면 None)."""
+    b = os.environ.get(ONPREM_BASE_ENV)
+    return b.rstrip("/") if b else None
+
+
+def health_base_url() -> str:
+    """유전체(Evo2/MSA·health.api 계열) 베이스 — 온프렘 있으면 온프렘, 없으면 클라우드."""
+    return onprem_base() or CLOUD_HEALTH_BASE
+
+
+def evo2_url() -> str:
+    return health_base_url() + EVO2_PATH
+
+
+def msa_url() -> str:
+    return health_base_url() + MSA_PATH
+
+
+def text_base_url() -> str:
+    """텍스트 NIM 베이스 — 텍스트 전용 URL 우선 → 온프렘 공통 → 클라우드 LLM."""
+    return (os.environ.get(TEXT_BASE_URL_ENV) or onprem_base() or CLOUD_LLM_BASE).rstrip("/")
+
+
+def is_host_sovereign(url: str) -> bool:
+    """NVIDIA 공용 클라우드가 아니면(온프렘/사설) 주권 경로로 본다."""
+    return "api.nvidia.com" not in url
+
+
+def sovereignty_posture() -> str:
+    """전 층을 종합한 주권 태세: full_onprem / partial / cloud.
+    어느 한 층이라도 NVIDIA 클라우드로 나가면 '완전 주권'이 아니다."""
+    layers = [health_base_url(), text_base_url()]
+    if all(is_host_sovereign(u) for u in layers):
+        return "full_onprem"      # 전 층 온프렘 → 완전 주권
+    if any(is_host_sovereign(u) for u in layers):
+        return "partial"          # 일부만 온프렘
+    return "cloud"                # 전부 NVIDIA 클라우드
+
+
+def is_fully_sovereign() -> bool:
+    return sovereignty_posture() == "full_onprem"
+
 # 서비스 카탈로그 — 가시성/상태 리포트용. 엔드포인트 실물은 각 모듈이 소유하되
 # "어떤 키를 쓰는가"의 규약은 여기서 못박는다.
 NVIDIA_SERVICES = (
@@ -53,6 +112,7 @@ def nvidia_status() -> dict:
     확보했는지 한눈에 — 유전체·텍스트를 같은 키 규약으로 묶어 보여준다."""
     shared = bool(nvidia_api_key())
     override = bool(os.environ.get(TEXT_KEY_OVERRIDE_ENV))
+    posture = sovereignty_posture()
     services = []
     for s in NVIDIA_SERVICES:
         key_available = (shared or override) if s.get("text_override") else shared
@@ -64,8 +124,18 @@ def nvidia_status() -> dict:
         "text_key_override_present": override,
         "any_nvidia_active": shared or override,
         "services": services,
+        # 주권 태세: 온프렘 설정 여부에 따른 데이터 국외유출 판정.
+        "onprem_base_env": ONPREM_BASE_ENV,
+        "onprem_configured": bool(onprem_base()),
+        "sovereignty_posture": posture,
+        "fully_sovereign": posture == "full_onprem",
+        "layer_endpoints": {
+            "genome_health": health_base_url(),
+            "text_nim": text_base_url(),
+        },
         "convention": (
             "NVIDIA_API_KEY 하나로 전 NVIDIA 서비스(유전체 Evo2/MSA + PDF 표 + 텍스트 NIM)가 "
-            "동작한다. AEGIRON_NIM_API_KEY는 텍스트 층 전용 선택 오버라이드일 뿐이다."
+            "동작한다. AEGIRON_NIM_API_KEY는 텍스트 층 전용 선택 오버라이드. "
+            "AEGIRON_NVIDIA_ONPREM_BASE를 설정하면 전 층이 온프렘으로 라우팅되어 완전 주권."
         ),
     }
