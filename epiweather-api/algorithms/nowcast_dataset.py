@@ -223,6 +223,12 @@ def train_baseline(rows: list[dict], iters: int = 300, lr: float = 0.1) -> dict:
         "positive_precision": precision,
         "positives": pos_total,
         "weights": {FEATURE_KEYS[j]: round(w[j], 4) for j in range(d)},
+        # 표준화 파라미터와 절편 — 이게 없으면 학습 밖에서 같은 점수를 재현할 수 없어
+        # 임계값 곡선을 그릴 수 없다(nowcast_threshold가 쓴다).
+        "bias": round(b, 6),
+        "feature_means": {FEATURE_KEYS[j]: round(means[j], 6) for j in range(d)},
+        "feature_stds": {FEATURE_KEYS[j]: round(stds[j], 6) for j in range(d)},
+        "decision_threshold": 0.5,
         "readiness": readiness,
         "warning": "학습 정확도만 보지 말 것 — 발병은 희귀사건이라 정확도가 base_rate에 "
                    "가까우면 '다수 음성만 찍는 것'과 다를 바 없다. 양성 재현율/정밀도로 "

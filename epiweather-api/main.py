@@ -842,6 +842,24 @@ def ai_nowcast_readiness(horizon_days: int = 30, lookback_days: int = 30):
     return dataset_readiness(rows)
 
 
+@app.get("/api/ai/nowcast/threshold", tags=["AI"], dependencies=_auth)
+def ai_nowcast_threshold(horizon_days: int = 30, lookback_days: int = 30):
+    """임계값 운영특성 곡선 — 재현율과 오경보율의 균형을 '고를 수 있게' 보여준다.
+
+    정답 임계값을 고르지 않는다. 적정 FAR은 기술이 아니라 운영 정책이라(하루 몇 건을
+    사람이 검토할 수 있는가, 발병을 놓치는 비용이 헛경보의 몇 배인가) 조직이 정해야
+    한다. 곡선과 FAR 예산별 선택지를 제시하고, alerts_per_100_windows로 실제 운영
+    부담을 가늠하게 한다.
+    diagnosis에서 '임계값 조정으로 될 문제인지'를 먼저 판정한다 — 곡선이 평평하면
+    임계값을 만질 게 아니라 특징·라벨 커버리지를 손봐야 한다."""
+    from algorithms.nowcast_dataset import assemble_dataset, train_baseline
+    from algorithms.nowcast_threshold import analyze
+
+    rows = assemble_dataset(horizon_days=horizon_days, lookback_days=lookback_days)
+    model = train_baseline(rows)
+    return analyze(rows, model)
+
+
 @app.get("/api/ai/nowcast/train", tags=["AI"], dependencies=_auth)
 def ai_nowcast_train(horizon_days: int = 30, lookback_days: int = 30):
     """Tier 2 베이스라인 학습(순수 파이썬 로지스틱). 데이터 부족이면 학습 거부.
