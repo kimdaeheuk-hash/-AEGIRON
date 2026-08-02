@@ -381,6 +381,27 @@ def test_ai_training_data_export_requires_auth(client):
     assert resp.status_code == 503
 
 
+def test_ai_nowcast_readiness_public_and_honest_when_insufficient(client):
+    """Tier 2: 신규 DB엔 성과 라벨이 없어 sufficient_data=False가 정상(안 지어냄)."""
+    resp = client.get("/api/ai/nowcast/readiness")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["sufficient_data"] is False
+    assert "feature_keys" in body
+
+
+def test_ai_nowcast_train_requires_auth(client):
+    resp = client.get("/api/ai/nowcast/train")
+    assert resp.status_code == 503
+
+
+def test_ai_nowcast_train_refuses_insufficient_with_key(client_with_key):
+    client, key = client_with_key
+    resp = client.get("/api/ai/nowcast/train", headers={"X-API-Key": key})
+    assert resp.status_code == 200
+    assert resp.json()["trained"] is False   # 데이터 부족 → 학습 거부(정직)
+
+
 def test_db_backup_requires_auth(client):
     resp = client.get("/api/admin/db-backup")
     assert resp.status_code == 503  # 이 fixture는 키 미설정 상태

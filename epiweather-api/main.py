@@ -765,6 +765,25 @@ def ai_training_data_export(limit: int = 5000):
     }
 
 
+@app.get("/api/ai/nowcast/readiness", tags=["AI"])
+def ai_nowcast_readiness(horizon_days: int = 30, lookback_days: int = 30):
+    """Tier 2 프레임워크 — '신호→실제 발병' 성과 학습셋의 학습 가능 여부. 표본·클래스
+    부족이면 sufficient_data=False로 정직하게 표시(지어낸 성능 없음). 운영이 지속되며
+    성과 라벨이 쌓이면 자동으로 충족된다."""
+    from algorithms.nowcast_dataset import assemble_dataset, dataset_readiness
+    rows = assemble_dataset(horizon_days=horizon_days, lookback_days=lookback_days)
+    return dataset_readiness(rows)
+
+
+@app.get("/api/ai/nowcast/train", tags=["AI"], dependencies=_auth)
+def ai_nowcast_train(horizon_days: int = 30, lookback_days: int = 30):
+    """Tier 2 베이스라인 학습(순수 파이썬 로지스틱). 데이터 부족이면 학습 거부.
+    학습돼도 정확도는 참고용 — 전향적 검증 전엔 신뢰 금지(z-score/EARS 대체 '자리' 증명)."""
+    from algorithms.nowcast_dataset import assemble_dataset, train_baseline
+    rows = assemble_dataset(horizon_days=horizon_days, lookback_days=lookback_days)
+    return train_baseline(rows)
+
+
 # ── 국가별 위험지수 ───────────────────────────────────────────
 @app.get("/api/risk-index", tags=["GAI"])
 def risk_index():
