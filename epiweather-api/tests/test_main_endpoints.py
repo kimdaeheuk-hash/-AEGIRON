@@ -357,6 +357,30 @@ def test_genome_screen_attaches_heimdall_classification(client_with_key):
     assert c["audit_logged"] is True
 
 
+def test_ai_provider_status_public_and_reports_fallback(client, monkeypatch):
+    """독자 API 구조: 로컬 모델 없으면 외부 LLM 폴백임을 정직하게 표시."""
+    monkeypatch.delenv("AEGIRON_LOCAL_MODEL", raising=False)
+    resp = client.get("/api/ai/provider-status")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["active_provider"] == "external_llm_fallback"
+    assert "data_sovereignty" in body
+
+
+def test_ai_training_data_stats_public(client):
+    resp = client.get("/api/ai/training-data/stats")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["task"] == "news_text_to_structured_signal"
+    assert "total_pairs" in body
+
+
+def test_ai_training_data_export_requires_auth(client):
+    """학습셋 export는 독자 자산이라 인증 필수(키 미설정 fixture → 503)."""
+    resp = client.get("/api/ai/training-data/export")
+    assert resp.status_code == 503
+
+
 def test_db_backup_requires_auth(client):
     resp = client.get("/api/admin/db-backup")
     assert resp.status_code == 503  # 이 fixture는 키 미설정 상태
