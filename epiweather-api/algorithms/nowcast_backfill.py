@@ -119,7 +119,8 @@ def already_backfilled() -> set[str]:
     return done
 
 
-def run_backfill(min_volume: float = 0.0, force: bool = False) -> dict:
+def run_backfill(min_volume: float = 0.0, force: bool = False,
+                 max_events: int | None = None) -> dict:
     """전체 백필 실행(타임라인 라벨 + GDELT 신호). 수집 결과 요약 반환.
 
     GDELT 속도제한 때문에 한 번에 다 못 채우는 경우가 많다(실측 6/16). 그래서
@@ -131,11 +132,20 @@ def run_backfill(min_volume: float = 0.0, force: bool = False) -> dict:
     per_event = {}
     skipped_existing = []
     total = 0
+    attempted = 0
+    deferred = []
     for o in ho.OUTBREAKS:
         if o["event_id"] in done:
             skipped_existing.append(o["event_id"])
             per_event[o["event_id"]] = 0
             continue
+        # 한 번에 다 긁으면 GDELT 속도제한 탓에 회차가 12~17분씩 걸린다.
+        # 스케줄러가 부를 땐 회차당 작업량을 묶고 나머지는 다음 회차로 미룬다.
+        if max_events is not None and attempted >= max_events:
+            deferred.append(o["event_id"])
+            per_event[o["event_id"]] = 0
+            continue
+        attempted += 1
         c = backfill_signals_for(o, min_volume=min_volume)
         per_event[o["event_id"]] = c
         total += c
@@ -168,6 +178,8 @@ def run_backfill(min_volume: float = 0.0, force: bool = False) -> dict:
         "per_event_signals": per_event,
         "events_covered": len(covered),
         "skipped_already_backfilled": skipped_existing,
+        "deferred_to_next_run": deferred,
+        "events_attempted": attempted,
         "events_missing": missing,
         "event_coverage": coverage,
         "coverage_sufficient": sufficient,
@@ -201,3 +213,38 @@ def run_backfill_and_train(min_volume: float = 0.0) -> dict:
             )
             training["caveats"].insert(0, training["coverage_warning"])
     return {"backfill": backfill, "readiness": readiness, "training": training}
+
+
+def maintain(max_events: int = 4, min_volume: float = 0.0) -> dict:
+    """스케줄러용 — 커버리지가 기준에 닿을 때까지만 조금씩 채우고, 차면 멈춘다.
+
+    설계 이유:
+    - 이미 채운 사건은 GDELT를 부르지 않으므로 **다 차면 비용이 0이다**. 매일 불러도
+      기준을 넘긴 뒤에는 조회조차 안 한다.
+    - 한 번에 16건을 긁으면 속도제한 탓에 12~17분이 걸린다. max_events로 회차당
+      작업량을 묶어 나눠 채운다(빈 사건이 없어질 때까지 며칠에 걸쳐).
+    - 새로 채운 게 있을 때만 재학습한다 — 같은 데이터로 반복 학습할 이유가 없다.
+    """
+    done = already_backfilled()
+    coverage = round(len(done) / len(ho.OUTBREAKS), 3) if ho.OUTBREAKS else 0.0
+    if coverage >= MIN_EVENT_COVERAGE:
+        return {"ok": True, "action": "skipped", "event_coverage": coverage,
+                "reason": f"커버리지 {coverage:.0%} — 기준 충족, GDELT 호출 없음(비용 0)."}
+
+    backfill = run_backfill(min_volume=min_volume, max_events=max_events)
+    result = {"ok": True, "action": "backfilled", "backfill": backfill}
+    if backfill["signals_created"] > 0:
+        rows = nd.assemble_dataset()
+        result["readiness"] = nd.dataset_readiness(rows)
+        training = nd.train_baseline(rows)
+        training["event_coverage"] = backfill["event_coverage"]
+        if not backfill["coverage_sufficient"]:
+            training["coverage_warning"] = (
+                f"사건 커버리지 {backfill['event_coverage']:.0%} — 아직 기준 미달. "
+                f"남은 사건은 다음 회차에 채워진다(자동)."
+            )
+        result["training"] = training
+    else:
+        result["training"] = {"trained": False,
+                              "reason": "이번 회차에 새로 채운 신호 없음 — 재학습 생략"}
+    return result

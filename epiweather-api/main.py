@@ -220,6 +220,32 @@ async def _run_bulletin_collection() -> None:
         collector.log_error("scheduler_bulletin", e)
 
 
+async def _run_nowcast_maintenance() -> None:
+    """Tier 2 학습셋 백필 — 커버리지가 찰 때까지만 조금씩, 차면 스스로 멈춘다.
+
+    GDELT 속도제한 탓에 16건을 한 번에 못 채운다(실측 커버리지 38~56%). 그래서
+    회차당 4건씩만 시도하고 나머지는 다음 날로 미룬다. 이미 채운 사건은 GDELT를
+    아예 안 부르므로 **기준을 넘긴 뒤에는 비용이 0이다**.
+    새로 채운 게 있을 때만 재학습한다 — 같은 데이터로 반복 학습할 이유가 없다."""
+    import collector
+
+    try:
+        from algorithms.nowcast_backfill import maintain
+        result = await asyncio.to_thread(maintain, 4)
+        if result.get("action") == "backfilled":
+            bf = result["backfill"]
+            training = result.get("training") or {}
+            collector.log(
+                f"Tier2 백필: 신호 {bf['signals_created']}건 추가, "
+                f"커버리지 {bf['event_coverage']:.0%}"
+                f"({bf['events_covered']}/{len(bf['per_event_signals'])})"
+                f"{' — 재학습 완료' if training.get('trained') else ''}"
+                f"{', 다음 회차로 ' + str(len(bf.get('deferred_to_next_run', []))) + '건 이월' if bf.get('deferred_to_next_run') else ''}"
+            )
+    except Exception as e:
+        collector.log_error("scheduler_nowcast_backfill", e)
+
+
 async def _run_weekly_job() -> None:
     """
     기준선(collect_baseline)·국가지표(refresh_country_indicators) 갱신.
@@ -314,6 +340,8 @@ async def _scheduler_loop() -> None:
             await _run_collector("ai")
             # 같은 하루 1회 슬롯에서 함께 확인 — 새 회차가 없으면 비용이 들지 않는다.
             await _run_bulletin_collection()
+            # 학습셋 백필도 같은 슬롯에서. 커버리지가 차면 GDELT를 아예 안 부른다.
+            await _run_nowcast_maintenance()
 
         await _maybe_run_daily_brief()
 

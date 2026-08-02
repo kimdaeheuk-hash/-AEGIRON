@@ -168,3 +168,52 @@ def test_force_refetches_everything(isolated_db, monkeypatch):
     forced = nb.run_backfill(force=True)
     assert forced["signals_created"] > 0
     assert forced["skipped_already_backfilled"] == []
+
+
+# ── 스케줄러용 maintain(다 차면 멈춤) ─────────────────────────────
+def test_maintain_skips_entirely_when_coverage_sufficient(monkeypatch, isolated_db):
+    """★비용 핵심★ 커버리지가 차면 GDELT를 아예 부르지 않아야 한다 —
+    매일 불러도 비용이 0이어야 스케줄러에 물릴 수 있다."""
+    import algorithms.nowcast_backfill as nb
+    calls = []
+    monkeypatch.setattr(nb, "already_backfilled",
+                        lambda: {o["event_id"] for o in nb.ho.OUTBREAKS})
+    monkeypatch.setattr(nb, "fetch_coverage_timeline",
+                        lambda q, s, e: calls.append(q))
+    out = nb.maintain()
+    assert out["action"] == "skipped" and calls == []
+    assert out["event_coverage"] >= nb.MIN_EVENT_COVERAGE
+
+
+def test_maintain_caps_events_per_run(monkeypatch, isolated_db):
+    """한 번에 16건을 긁으면 12~17분 걸린다 — 회차당 작업량을 묶고 나머지는 이월."""
+    import algorithms.nowcast_backfill as nb
+    calls = []
+
+    def fetch(query, start, end):
+        calls.append(query)
+        return _fake_fetch({'"'})(query, start, end)
+
+    monkeypatch.setattr(nb, "fetch_coverage_timeline", fetch)
+    out = nb.maintain(max_events=3)
+    assert len(calls) == 3
+    assert len(out["backfill"]["deferred_to_next_run"]) == len(nb.ho.OUTBREAKS) - 3
+
+
+def test_maintain_retrains_only_when_new_signals(monkeypatch, isolated_db):
+    """새로 채운 게 없으면 재학습을 건너뛴다 — 같은 데이터로 반복 학습할 이유가 없다."""
+    import algorithms.nowcast_backfill as nb
+    monkeypatch.setattr(nb, "fetch_coverage_timeline", lambda q, s, e: None)
+    out = nb.maintain(max_events=2)
+    assert out["training"]["trained"] is False
+    assert "재학습 생략" in out["training"]["reason"]
+
+
+def test_maintain_marks_coverage_still_short(monkeypatch, isolated_db):
+    """기준에 못 미치면 학습 결과에 '아직 미달'이 붙어야 한다."""
+    import algorithms.nowcast_backfill as nb
+    monkeypatch.setattr(nb, "fetch_coverage_timeline", _fake_fetch({"Kivu"}))
+    out = nb.maintain(max_events=16)
+    training = out.get("training") or {}
+    if training.get("trained"):
+        assert "기준 미달" in training.get("coverage_warning", "")
