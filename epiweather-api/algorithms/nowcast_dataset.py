@@ -68,11 +68,24 @@ def extract_features(window_signals: list[dict], as_of: dt.date) -> dict:
     }
 
 
+def _event_country_map() -> dict[str, str]:
+    """event_id → ISO3. 시드(EVENT_COUNTRY) + 과거 백필 레지스트리를 병합.
+    백필로 등재된 과거 공식 선언도 라벨로 잡히게 한다(하위호환: 시드는 그대로)."""
+    m = dict(EVENT_COUNTRY)
+    try:
+        from .historical_outbreaks import event_country_map
+        m.update(event_country_map())
+    except Exception:
+        pass
+    return m
+
+
 def _country_declarations() -> dict[str, list[dt.date]]:
     """국가별 공식 발병 선언일(라벨 소스)."""
     out: dict[str, list[dt.date]] = {}
+    country_map = _event_country_map()
     for e in db.list_timeline_events():
-        country = EVENT_COUNTRY.get(e["event_id"])
+        country = country_map.get(e["event_id"])
         if not country:
             continue
         for m in db.get_timeline(e["event_id"]).get("milestones", []):
@@ -158,6 +171,16 @@ def train_baseline(rows: list[dict], iters: int = 300, lr: float = 0.1) -> dict:
     stds = [math.sqrt(sum((row[j] - means[j]) ** 2 for row in X) / n) or 1.0 for j in range(d)]
     Xs = [[(row[j] - means[j]) / stds[j] for j in range(d)] for row in X]
 
+    # ★ 클래스 가중치(balanced): 발병은 희귀사건 → 무가중이면 학습기가 다수 음성만
+    #   찍는다(양성 재현율≈0). 소수 양성을 neg/pos 비율로 키워 실제로 잡게 한다.
+    #   표준 기법이며 데이터를 조작하는 게 아니다.
+    pos_total = sum(y)
+    neg_total = n - pos_total
+    pos_w = (n / (2.0 * pos_total)) if pos_total else 1.0
+    neg_w = (n / (2.0 * neg_total)) if neg_total else 1.0
+    cw = [pos_w if yi >= 0.5 else neg_w for yi in y]
+    wsum = sum(cw) or 1.0
+
     w = [0.0] * d
     b = 0.0
     for _ in range(iters):
@@ -166,26 +189,43 @@ def train_baseline(rows: list[dict], iters: int = 300, lr: float = 0.1) -> dict:
         for i in range(n):
             z = b + sum(w[j] * Xs[i][j] for j in range(d))
             p = 1.0 / (1.0 + math.exp(-max(-30, min(30, z))))
-            err = p - y[i]
+            err = (p - y[i]) * cw[i]
             for j in range(d):
                 gw[j] += err * Xs[i][j]
             gb += err
         for j in range(d):
-            w[j] -= lr * gw[j] / n
-        b -= lr * gb / n
+            w[j] -= lr * gw[j] / wsum
+        b -= lr * gb / wsum
 
-    correct = 0
+    correct = tp = fp = fn = 0
+    pos_total = int(sum(y))
     for i in range(n):
         z = b + sum(w[j] * Xs[i][j] for j in range(d))
         pred = 1 if z >= 0 else 0
-        correct += (pred == int(y[i]))
+        yi = int(y[i])
+        correct += (pred == yi)
+        tp += (pred == 1 and yi == 1)
+        fp += (pred == 1 and yi == 0)
+        fn += (pred == 0 and yi == 1)
+    # ★ 정직성: 발병은 희귀사건 → 정확도는 기저율(다수 음성 비율)에 가까워 무의미할 수
+    #   있다. '다수 클래스만 찍어도 나오는 정확도'(base_rate)와 반드시 비교하고, 실제
+    #   판별력은 양성 클래스 재현율/정밀도로 본다.
+    base_rate = round(max(pos_total, n - pos_total) / n, 3) if n else 0.0
+    recall = round(tp / (tp + fn), 3) if (tp + fn) else None      # 실제 발병을 잡은 비율
+    precision = round(tp / (tp + fp), 3) if (tp + fp) else None   # 발병경보의 적중률
     return {
         "trained": True,
         "model": "pure_python_logistic_regression",
         "n": n,
         "train_accuracy": round(correct / n, 3),
+        "majority_class_base_rate": base_rate,
+        "positive_recall": recall,
+        "positive_precision": precision,
+        "positives": pos_total,
         "weights": {FEATURE_KEYS[j]: round(w[j], 4) for j in range(d)},
         "readiness": readiness,
-        "warning": "학습 정확도는 참고용 — 전향적(prospective) 검증 전엔 신뢰 금지. "
+        "warning": "학습 정확도만 보지 말 것 — 발병은 희귀사건이라 정확도가 base_rate에 "
+                   "가까우면 '다수 음성만 찍는 것'과 다를 바 없다. 양성 재현율/정밀도로 "
+                   "판별력을 보고, 전향적(prospective) 검증 전엔 신뢰 금지. "
                    "이건 z-score/EARS를 대체할 '자리'를 증명하는 베이스라인이다.",
     }
