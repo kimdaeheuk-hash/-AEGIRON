@@ -19,6 +19,7 @@
 """
 from __future__ import annotations
 import datetime as dt
+import re
 
 import db
 from . import historical_outbreaks as ho
@@ -31,6 +32,8 @@ LOOKBACK_DAYS = 120                     # 선언 전 관찰 창
 POST_DAYS = 21                          # 선언 직후(양성 라벨 확정용 여유)
 # 사건 커버리지 최소 기준. 라벨 대다수가 특징 없이 비면 '학습됐다'가 무의미하다.
 MIN_EVENT_COVERAGE = 0.60
+# raw_text에 심어둔 사건 태그 — 재실행 시 이미 채운 사건을 가리는 키.
+_EVENT_TAG = re.compile(r"\[event=([^\]]+)\]")
 
 
 def _parse(d: str) -> dt.date:
@@ -88,27 +91,61 @@ def backfill_signals_for(outbreak: dict, *, min_volume: float = 0.0) -> int:
             source=BACKFILL_SOURCE, disease=outbreak["disease"], location=outbreak["iso3"],
             signal_type=stype, severity=[], symptom=None, transmission=None,
             source_trust=BACKFILL_TRUST, signal_date=wk.isoformat(),
-            raw_text=f"[GDELT 뉴스량 프록시] {outbreak['disease']} {outbreak['iso3']} 주간볼륨={round(v,3)}",
+            # event_id를 실어둔다 — 재실행 시 이미 채운 사건을 건너뛰는 키가 된다.
+            raw_text=(f"[GDELT 뉴스량 프록시][event={outbreak['event_id']}] "
+                      f"{outbreak['disease']} {outbreak['iso3']} 주간볼륨={round(v,3)}"),
             known_disease=True, country_iso3=outbreak["iso3"],
         )
         created += 1
     return created
 
 
-def run_backfill(min_volume: float = 0.0) -> dict:
-    """전체 백필 실행(타임라인 라벨 + GDELT 신호). 수집 결과 요약 반환."""
+def already_backfilled() -> set[str]:
+    """이미 신호가 적재된 event_id 집합. raw_text에 심어둔 [event=...]로 판정한다.
+
+    태그 도입 이전에 적재된 신호는 인식되지 않는다 — 그 경우 첫 실행에서 한 번
+    중복이 생긴다. 이 기능 자체가 오늘 만들어져 운영 적재분이 없으므로 마이그레이션
+    로직을 따로 두지 않았다. 과거 적재분이 있는 DB라면 gdelt_backfill 출처 신호를
+    지우고 한 번 다시 돌리는 게 깔끔하다."""
+    try:
+        rows = db.list_recent_signals_by_source(BACKFILL_SOURCE, days=40000, limit=100000)
+    except Exception:
+        return set()
+    done = set()
+    for r in rows:
+        m = _EVENT_TAG.search(r.get("raw_text") or "")
+        if m:
+            done.add(m.group(1))
+    return done
+
+
+def run_backfill(min_volume: float = 0.0, force: bool = False) -> dict:
+    """전체 백필 실행(타임라인 라벨 + GDELT 신호). 수집 결과 요약 반환.
+
+    GDELT 속도제한 때문에 한 번에 다 못 채우는 경우가 많다(실측 6/16). 그래서
+    **이미 채운 사건은 GDELT를 다시 부르지 않는다** — 나눠 여러 번 돌려 빈 곳만
+    메우는 게 정상 사용법이고, 그때 중복 신호가 쌓이면 학습셋이 왜곡되기 때문이다.
+    force=True면 무시하고 전부 다시 긁는다."""
     events = backfill_timeline()
+    done = set() if force else already_backfilled()
     per_event = {}
+    skipped_existing = []
     total = 0
     for o in ho.OUTBREAKS:
+        if o["event_id"] in done:
+            skipped_existing.append(o["event_id"])
+            per_event[o["event_id"]] = 0
+            continue
         c = backfill_signals_for(o, min_volume=min_volume)
         per_event[o["event_id"]] = c
         total += c
     # 사건 단위 커버리지를 따로 센다. 총 신호 수만 보면 '몇 건이 통째로 비었는지'가
     # 안 보인다 — 실측에서 16건 중 2건만 성공했는데 총 39건이라 '수집 완료'로
     # 보고됐다. 라벨의 87.5%가 특징 없이 비어 있으면 그건 완료가 아니다.
-    covered = [e for e, c in per_event.items() if c > 0]
-    missing = [e for e, c in per_event.items() if c == 0]
+    # 이번에 새로 채운 것 + 이전 실행에서 이미 채운 것 = 커버된 사건.
+    # 건너뛴 걸 미수집으로 세면 나눠 돌릴수록 커버리지가 떨어져 보인다.
+    covered = [e for e, c in per_event.items() if c > 0 or e in done]
+    missing = [e for e in per_event if e not in covered]
     coverage = round(len(covered) / len(per_event), 3) if per_event else 0.0
     sufficient = coverage >= MIN_EVENT_COVERAGE
 
@@ -130,6 +167,7 @@ def run_backfill(min_volume: float = 0.0) -> dict:
         "signals_created": total,
         "per_event_signals": per_event,
         "events_covered": len(covered),
+        "skipped_already_backfilled": skipped_existing,
         "events_missing": missing,
         "event_coverage": coverage,
         "coverage_sufficient": sufficient,

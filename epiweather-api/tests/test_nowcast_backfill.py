@@ -125,3 +125,46 @@ def test_training_carries_coverage_warning(monkeypatch, isolated_db):
     if training.get("trained"):
         assert "coverage_warning" in training
         assert training["caveats"][0] == training["coverage_warning"]
+
+
+# ── 증분 실행(속도제한 때문에 나눠 돌려야 함) ────────────────────
+def test_second_run_skips_already_backfilled_events(monkeypatch, isolated_db):
+    """★핵심★ GDELT 속도제한으로 한 번에 다 못 채운다(실측 6/16). 나눠 돌려
+    빈 곳만 메워야 하는데, 이미 채운 사건을 다시 긁으면 신호가 중복돼 학습셋이
+    왜곡되고 GDELT 호출도 낭비된다."""
+    import algorithms.nowcast_backfill as nb
+    calls = []
+
+    def counting_fetch(query, start, end):
+        calls.append(query)
+        return _fake_fetch({"Kivu"})(query, start, end)
+
+    monkeypatch.setattr(nb, "fetch_coverage_timeline", counting_fetch)
+    first = nb.run_backfill()
+    assert first["signals_created"] > 0
+    calls_after_first = len(calls)
+
+    second = nb.run_backfill()
+    assert second["signals_created"] == 0                  # 새로 만든 신호 없음
+    assert "ebola_cod_kivu_2018" in second["skipped_already_backfilled"]
+    # 이미 채운 사건은 GDELT를 다시 부르지 않는다
+    assert len(calls) == calls_after_first + (16 - 1)
+
+
+def test_covered_events_stay_covered_across_runs(isolated_db, monkeypatch):
+    """건너뛴 사건이 '미수집'으로 세지면 나눠 돌릴수록 커버리지가 떨어져 보인다."""
+    import algorithms.nowcast_backfill as nb
+    monkeypatch.setattr(nb, "fetch_coverage_timeline", _fake_fetch({"Kivu"}))
+    nb.run_backfill()
+    second = nb.run_backfill()
+    assert "ebola_cod_kivu_2018" not in second["events_missing"]
+    assert second["events_covered"] >= 1
+
+
+def test_force_refetches_everything(isolated_db, monkeypatch):
+    import algorithms.nowcast_backfill as nb
+    monkeypatch.setattr(nb, "fetch_coverage_timeline", _fake_fetch({"Kivu"}))
+    nb.run_backfill()
+    forced = nb.run_backfill(force=True)
+    assert forced["signals_created"] > 0
+    assert forced["skipped_already_backfilled"] == []
