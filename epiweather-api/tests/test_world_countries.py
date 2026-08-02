@@ -49,3 +49,19 @@ def test_fetch_world_countries_returns_empty_on_http_error():
     with patch("algorithms.world_countries.requests.get") as mock_get:
         mock_get.return_value = MagicMock(status_code=503)
         assert fetch_world_countries() == {}
+
+
+def test_fetch_world_countries_includes_iso2():
+    """Intl.DisplayNames(프론트)가 ISO2로 국가명을 한글화하므로 iso2가 항상 있어야 함."""
+    with patch("algorithms.world_countries.requests.get") as mock_get:
+        mock_get.return_value = MagicMock(status_code=200, json=lambda: SAMPLE_RESPONSE)
+        result = fetch_world_countries()
+    assert result["KOR"]["iso2"] == "KR"
+    assert result["COD"]["iso2"] == "CD"
+
+
+def test_fetch_world_countries_strips_region_whitespace():
+    with patch("algorithms.world_countries.requests.get") as mock_get:
+        mock_get.return_value = MagicMock(status_code=200, json=lambda: SAMPLE_RESPONSE)
+        result = fetch_world_countries()
+    assert result["KOR"]["region"] == "East Asia & Pacific"

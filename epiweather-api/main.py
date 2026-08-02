@@ -195,6 +195,31 @@ def _save_last_weekly_run(when: dt.datetime) -> None:
         json.dump({"last_run": when.isoformat()}, f)
 
 
+async def _run_bulletin_collection() -> None:
+    """WHO 상황보고서 자동 수집 — 하루 1회 확인, 새 회차가 있을 때만 파싱.
+
+    확인 자체는 IRIS API 호출 몇 번이라 사실상 공짜다. 비용은 표 추출(회차당 VLM
+    4회 호출)에 걸려 있는데, 이미 적재한 회차는 PDF를 열지도 않으므로 새 보고서가
+    없는 날은 비용이 0이다. 보고서는 주 1회 나오므로 실제 파싱도 주 1회다.
+    NVIDIA_API_KEY가 없으면 조용히 건너뛴다(키 없는 환경에서 로그만 더럽히지 않게)."""
+    import collector
+
+    if not os.environ.get("NVIDIA_API_KEY"):
+        return
+    try:
+        from algorithms.bulletin_collect import collect_new_reports
+        result = await asyncio.to_thread(collect_new_reports, db)
+        if result.get("parsed"):
+            collector.log(
+                f"WHO 상황보고서: 새 회차 {result['parsed']}건 파싱, "
+                f"신호 {result['inserted']}건 적재 "
+                f"(기존 {result['skipped_existing']}건은 건너뜀)"
+            )
+            await _broadcast_dashboard()
+    except Exception as e:
+        collector.log_error("scheduler_bulletin", e)
+
+
 async def _run_weekly_job() -> None:
     """
     기준선(collect_baseline)·국가지표(refresh_country_indicators) 갱신.
@@ -287,6 +312,8 @@ async def _scheduler_loop() -> None:
         if now.hour == _AI_HOUR_UTC and last_ai_run_date != now.date():
             last_ai_run_date = now.date()
             await _run_collector("ai")
+            # 같은 하루 1회 슬롯에서 함께 확인 — 새 회차가 없으면 비용이 들지 않는다.
+            await _run_bulletin_collection()
 
         await _maybe_run_daily_brief()
 
@@ -470,6 +497,18 @@ def patient_zero_local_signal(origin_id: str = "WUH"):
     """
     from algorithms.local_signal import fetch_local_signal
     return fetch_local_signal(origin_id)
+
+
+@app.get("/api/patient-zero/origins", tags=["Stage 0: 발원지"])
+def patient_zero_origins():
+    """
+    발원지 선택지 전체 목록 — 큐레이션 8개 도시(tier=curated, 실제 발병
+    역사 기반 위험도)에 World Bank 실제 국가 데이터(tier=auto, ~210개국)를
+    더한 것. auto 국가는 위험도(er)·여객량(pax)이 중립 기본값이고 실측이
+    아님을 note로 항상 명시 — 지어낸 정밀도로 오인되지 않게 함.
+    """
+    from algorithms.origin_catalog import build_origin_catalog
+    return {"origins": build_origin_catalog()}
 
 
 # ── Stage 1: 민간 신호 융합 ──────────────────────────────────
@@ -915,6 +954,47 @@ def deforestation_signals_country(country: str):
         )
 
 
+@app.get("/api/trade-signals", tags=["GAI"])
+def trade_signals():
+    """
+    국제무역 선행지표(Phase 42) — 블루닷의 '항공권 데이터'에 대응하는 각도.
+    정부·의료기관이 공식 발표 전에 의료물자(마스크·방호장비·진단키트)를
+    대량 수입하기 시작하는 '준비 행동'을 UN Comtrade 관세통계로 포착.
+    수입액 자체는 실측이나 '발병 대비 행동'이라는 해석은 프록시임을 명시.
+    무역통계 특유의 신고지연(추정 2개월)이 있어 실시간 신호가 아니라
+    중기 선행지표임을 항상 표시. COMTRADE_API_KEY(무료) 없으면
+    data_available=False로 정직하게 표시.
+    """
+    from algorithms.comtrade_signals import trade_signals_all
+    return trade_signals_all()
+
+
+@app.get("/api/trade-signals/{country}", tags=["GAI"])
+def trade_signals_country(country: str):
+    """특정 국가(Tier-1 ISO3)의 의료물자 수입 선행지표 상세."""
+    from algorithms.comtrade_signals import compute_country_trade_signal, UN_M49_CODES
+    try:
+        return compute_country_trade_signal(country)
+    except KeyError:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Comtrade 미지원 국가. 지원 목록: {list(UN_M49_CODES)}",
+        )
+
+
+@app.get("/api/travel-notices", tags=["GAI"])
+def travel_notices():
+    """
+    CDC 여행 건강경보(신규 각도 탐색, 2026-07-27) — 가입·키 불필요, 즉시 가동.
+    CDC Travelers' Health가 공식 4단계(Level 1~4)로 매긴 국가별 여행 위험
+    등급을 그대로 노출. 등급 자체는 실측이나, 이 피드엔 감염병 외 자연재해·
+    대규모 행사 등도 섞여 있을 수 있음을 note로 명시. 항공사 고객 프로파일과
+    특히 맞는 신호(customer_profiles.py).
+    """
+    from algorithms.cdc_travel_notices import travel_notices_summary
+    return travel_notices_summary()
+
+
 @app.get("/api/polar-watch", tags=["GAI"])
 def polar_watch():
     """
@@ -1024,8 +1104,21 @@ def create_prediction(req: PredictionCreate):
     """
     예측 시점에 근거와 함께 기록.
     나중에 실제 결과가 나오면 /api/predictions/{id}/verify로 채점.
+
+    생성 직후 존재증명(Phase 44, OpenTimestamps/비트코인)을 best-effort로
+    제출한다 — 캘린더 서버가 느리거나 응답 없어도 예측 저장 자체는 절대
+    막지 않는다(실패해도 조용히 넘어가고, ots_proof_hex는 null로 남음).
     """
-    return db.create_prediction(req.country, req.disease, req.risk_score, req.basis)
+    prediction = db.create_prediction(req.country, req.disease, req.risk_score, req.basis)
+    try:
+        from algorithms.prediction_timestamp import canonical_hash, submit_timestamp
+        digest_hex = canonical_hash(prediction)
+        proof_hex = submit_timestamp(digest_hex)
+        if proof_hex:
+            prediction = db.set_prediction_timestamp(prediction["id"], digest_hex, proof_hex)
+    except Exception:
+        pass
+    return prediction
 
 
 @app.get("/api/predictions", tags=["예측 검증"])
@@ -1044,6 +1137,26 @@ class PredictionVerify(BaseModel):
     actual_result: str = Field(..., description="실제 발생 여부/내용")
     correct: bool = Field(..., description="예측이 맞았는지")
     lead_days: Optional[int] = Field(None, description="공식 발표 대비 선행 일수 (양수=먼저 감지)")
+
+@app.get("/api/predictions/{prediction_id}/timestamp-proof", tags=["예측 검증"])
+def prediction_timestamp_proof(prediction_id: int):
+    """
+    존재증명(Phase 44) 상태 조회 — 이 예측을 그 시각에 이미 갖고 있었다는
+    증명이 비트코인 블록체인에 새겨졌는지 확인. 제출 직후엔 며칠간 pending이
+    정상(비트코인 블록 확정에 몇 시간~하루 소요). '예측이 맞았다'와는 무관한
+    별개 증명임을 항상 note로 명시.
+    """
+    prediction = db.get_prediction(prediction_id)
+    if prediction is None:
+        raise HTTPException(status_code=404, detail="해당 prediction_id 없음")
+    if not prediction.get("ots_proof_hex"):
+        return {"data_available": False, "reason": "존재증명 미제출(생성 시 캘린더 서버 응답 없었음)"}
+
+    from algorithms.prediction_timestamp import check_timestamp
+    result = check_timestamp(prediction["content_hash"], prediction["ots_proof_hex"])
+    result["submitted_at"] = prediction.get("ots_submitted_at")
+    return result
+
 
 @app.post("/api/predictions/{prediction_id}/verify", tags=["예측 검증"], dependencies=_auth)
 def verify_prediction(prediction_id: int, req: PredictionVerify):
@@ -1139,6 +1252,27 @@ def synthetic_threat_who():
 
 class GenomeScreenRequest(BaseModel):
     sequence: str = Field(..., description="뉴클레오타이드 서열(FASTA 헤더·공백 허용, U→T 자동)")
+    reference_sequences: Optional[list[str]] = Field(
+        None, description="같은 계통의 실제 공개 자연서열(GenBank 등, 3개 이상 권장). 주어지면 "
+                           "임의 전역 임계값 대신 이 서열 집합과의 실측 z-score·백분위를 함께 반환.")
+    use_evo2: bool = Field(
+        False, description="Evo2(유전체 파운데이션 모델)로 '순서의 자연스러움'을 추가 실측할지. "
+                           "CAI·CpG 같은 점통계는 조성만 보므로 조성은 자연스럽되 순서가 부자연스러운 "
+                           "서열을 놓친다. 켜면 NVIDIA NIM을 호출하므로 수 초~수십 초 더 걸림. "
+                           "최소 524bp(context 512 + 12) 이상 연속 구간 필요.")
+    use_msa: bool = Field(
+        False, description="자연 상동체 커버리지를 상동성 DB 검색으로 실측할지. "
+                           "'자연계에 이 서열 전체를 설명하는 단백질이 있는가'를 보고, 없으면 "
+                           "여러 출처를 이어붙인 재조합·키메라 후보로 플래그. Evo2와 달리 "
+                           "학습 모델이 아니라 DB 검색이라 **바이러스에도 유효**함(실측 확인). "
+                           "최장 ORF를 자동 번역해 검색하며, 1회에 약 40초 걸림.")
+    organism_domain: str = Field(
+        "unknown", description="서열의 분류군 — Evo2 적용범위 판정용. "
+                               "bacteria_archaea(세균·고균: 탄저·페스트 등) / eukaryote(진핵) / "
+                               "phage(세균 감염 바이러스) 는 판정 가능. "
+                               "eukaryotic_virus(코로나·독감·에볼라 등 진핵숙주 감염 바이러스)는 "
+                               "Evo2 학습에서 제외되어 자연서열도 30%대라 판정 불가 — 점수만 참고로 "
+                               "보고하고 플래그는 올리지 않음. 미선언(unknown)도 같게 처리.")
 
 
 @app.post("/api/synthetic-threat/genome-screen", tags=["Stage 0: 합성위협 탐지"], dependencies=_auth)
@@ -1147,12 +1281,147 @@ def synthetic_threat_genome_screen(req: GenomeScreenRequest):
     다이뉴클레오타이드 편향·제한효소부위)를 '실제로 계산'해 인공 설계 신호를 플래그.
     판정이 아니라 추가검토 우선순위 도구(is_screening_only=True) — 최종 판단은
     전문가·계통발생·습식실험 확인 필요. 서열 설계·합성·회피는 제공하지 않음.
-    [기밀] HEIMDALL — 아이기론 R&D 연구센터·생물안보연구실, 최고 보안등급."""
+    리딩프레임이 안 맞아도 6-frame 최장 ORF를 자동탐지해 CAI를 계산하고,
+    모호 염기(N 등)는 조용히 삭제·이어붙이지 않고 가장 긴 연속 구간만 분석함.
+    [사내 R&D 프로그램] HEIMDALL — 아이기론 R&D 연구센터, 사내 최고 보안등급."""
     from algorithms.genome_signals import screen_sequence
     from algorithms.classified_programs import classification
-    result = screen_sequence(req.sequence)
+    result = screen_sequence(req.sequence, reference_sequences=req.reference_sequences)
+    if req.use_evo2:
+        # 점통계(조성)가 못 보는 '순서의 자연스러움'을 Evo2로 추가 실측.
+        # 외부 API 장애가 순수 통계 결과까지 막지 않도록 실패는 결과에 담아 반환만 한다.
+        from algorithms.evo2_naturalness import score_naturalness
+        evo2 = score_naturalness(req.sequence, organism_domain=req.organism_domain)
+        result["evo2_naturalness"] = evo2
+        if evo2.get("ok"):
+            result.setdefault("flags", []).extend(evo2.get("flags") or [])
+            result["flag_count"] = len(result["flags"])
+    if req.use_msa:
+        # Evo2가 못 보는 바이러스도 커버하는 축 — 자연 상동체가 전장을 덮는가.
+        from algorithms.msa_homology import assess_from_nucleotide
+        msa = assess_from_nucleotide(req.sequence)
+        result["msa_homology"] = msa
+        if msa.get("ok"):
+            result.setdefault("flags", []).extend(msa.get("flags") or [])
+            result["flag_count"] = len(result["flags"])
     result["classification"] = classification("stage0")
     return result
+
+
+class BulletinTableRequest(BaseModel):
+    url: str = Field(..., description="보건 보고서 PDF 주소(WHO AFRO 주간 상황보고서, "
+                                      "각국 보건부 역학주보 등). 공개 문서만.")
+    max_pages: int = Field(3, ge=1, le=10, description="앞에서부터 파싱할 페이지 수. "
+                                                       "페이지마다 VLM 호출 1회라 기본값을 작게 둠.")
+
+
+@app.post("/api/bulletin/extract-tables", tags=["데이터 수집"], dependencies=_auth)
+def bulletin_extract_tables(req: BulletinTableRequest):
+    """보건 보고서 PDF의 '표'를 구조화 추출 — 지금까지 못 읽던 신호를 연다.
+
+    WHO AFRO 주간보고서 같은 문서엔 국가·질병별 확진자·사망자·치명률이 표로
+    들어있는데, 기존 텍스트 추출은 글자가 깨지고(multiple→mul2ple) 표가 뭉개져서
+    숫자를 신호로 쓸 수 없었다. VLM(nemotron-parse)으로 표 구조를 복원하고,
+    뽑은 숫자를 pdftotext 원문과 교차검증해 오독 후보를 표시한다.
+    기계 추출값이므로 is_machine_extracted=True — 사람 검증본이 아니다."""
+    import requests as _rq
+    from algorithms.pdf_table_extract import extract_tables
+
+    if not req.url.lower().startswith(("http://", "https://")):
+        raise HTTPException(status_code=422, detail="http(s) 주소만 허용")
+    try:
+        r = _rq.get(req.url, timeout=120, headers={"User-Agent": "Mozilla/5.0 (EpiWeather/1.0)"})
+        r.raise_for_status()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"PDF 내려받기 실패: {e}")
+    if not r.content[:5].startswith(b"%PDF"):
+        raise HTTPException(status_code=422, detail="PDF 파일이 아님")
+    return extract_tables(r.content, max_pages=req.max_pages)
+
+
+class BulletinIngestRequest(BaseModel):
+    url: str = Field(..., description="보건 보고서 PDF 주소(WHO AFRO 주간보고서 등). 공개 문서만.")
+    max_pages: int = Field(4, ge=1, le=10, description="파싱할 페이지 수. 표가 있을 법한 페이지를 자동 선택함.")
+    source: str = Field("who_afro_bulletin", description="신호 출처 라벨(중복 판정 단위).")
+    signal_date: Optional[str] = Field(None, description="보고서 기준일(YYYY-MM-DD). 없으면 비움.")
+    dry_run: bool = Field(False, description="True면 DB에 넣지 않고 무엇이 들어갈지만 돌려줌.")
+
+
+@app.post("/api/bulletin/ingest", tags=["데이터 수집"], dependencies=_auth)
+def bulletin_ingest(req: BulletinIngestRequest):
+    """보건 보고서 PDF → 표 추출 → 신호 정규화 → extracted_signals 적재(한 번에).
+
+    지금까지 기계가 못 읽던 표 속 수치(국가·질병별 확진·사망·치명률)를 경보
+    엔진이 보는 신호로 만든다. 비질병 이벤트(사이클론·인도적 위기)는 적재하지
+    않는다 — known_disease가 '설명 불가 → 즉시경보'를 뜻하는 스키마라 그대로
+    넣으면 가짜 경보가 나기 때문. 같은 보고서를 두 번 넣어도 중복은 걸러진다.
+    신뢰도는 숫자 교차검증 결과에 따라 갈린다(전부 일치 0.90 / 미검증 섞임 0.70)."""
+    import requests as _rq
+    from algorithms.pdf_table_extract import extract_tables
+    from algorithms.bulletin_signals import extract_signals
+    from algorithms.bulletin_ingest import ingest, to_extracted_signal
+
+    if not req.url.lower().startswith(("http://", "https://")):
+        raise HTTPException(status_code=422, detail="http(s) 주소만 허용")
+    try:
+        r = _rq.get(req.url, timeout=120, headers={"User-Agent": "Mozilla/5.0 (EpiWeather/1.0)"})
+        r.raise_for_status()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"PDF 내려받기 실패: {e}")
+    if not r.content[:5].startswith(b"%PDF"):
+        raise HTTPException(status_code=422, detail="PDF 파일이 아님")
+
+    parsed = extract_tables(r.content, max_pages=req.max_pages)
+    if not parsed.get("ok"):
+        return {"ok": False, "stage": "extract_tables", "reason": parsed.get("reason")}
+    found = extract_signals(parsed, source=req.source, signal_date=req.signal_date)
+
+    if req.dry_run:
+        preview = [p for p in (to_extracted_signal(s, source=req.source)
+                               for s in found["signals"]) if p]
+        return {"ok": True, "dry_run": True, "pages_selected": parsed.get("pages_selected"),
+                "signals_found": found["signal_count"], "would_insert": len(preview),
+                "preview": preview[:20]}
+
+    db.init_db()
+    result = ingest(found["signals"], source=req.source, dbmod=db)
+    result["pages_selected"] = parsed.get("pages_selected")
+    result["signals_found"] = found["signal_count"]
+    result.pop("rows", None)          # 응답이 너무 길어지지 않게 요약만
+    return result
+
+
+@app.post("/api/bulletin/collect", tags=["데이터 수집"], dependencies=_auth)
+def bulletin_collect(source: str = "who_sitrep_bundibugyo",
+                     topic: Optional[str] = "Bundibugyo",
+                     limit: int = 6, max_new: int = 2):
+    """새로 올라온 WHO 상황보고서만 수집·적재(스케줄러가 하루 1회 부르는 것과 동일).
+
+    이미 적재한 회차는 PDF를 열지 않으므로 새 보고서가 없으면 비용이 0이다.
+    max_new로 한 번에 파싱할 회차 수를 묶는다 — 과거분을 채우려면 여러 번 호출."""
+    from algorithms.bulletin_collect import collect_new_reports
+
+    db.init_db()
+    return collect_new_reports(db, source=source, topic=topic,
+                               limit=limit, max_new=max_new)
+
+
+@app.get("/api/bulletin/trend", tags=["데이터 수집"])
+def bulletin_trend(source: str = "who_sitrep_bundibugyo", disease: Optional[str] = None,
+                   metric: str = "confirmed", days: int = 180, limit: int = 500):
+    """적재된 보고서 신호로 지역별 추이를 낸다 — "지금 몇 명"이 아니라 "늘고 있느냐".
+
+    적재 시점엔 비교 대상이 없어 급증·감소를 쓰지 않지만(진행중/불명만), 회차가
+    쌓이면 여기서 판정한다. 누적이 줄어든 경우는 '재조정'으로 표시한다 — WHO가
+    사례 재분류로 누적을 하향하는 일이 있어 호전으로 읽으면 안 되기 때문.
+    회차가 2개 미만인 지역은 판정하지 않는다(assessed=False)."""
+    from algorithms.bulletin_trend import assess
+
+    rows = db.list_recent_signals_by_source(source, days=days, limit=limit)
+    if not rows:
+        return {"ok": False, "reason": f"'{source}' 출처의 최근 {days}일 신호 없음",
+                "results": []}
+    return assess(rows, disease=disease, metric=metric)
 
 
 class BiodefenseReadinessRequest(BaseModel):
@@ -1164,17 +1433,64 @@ class BiodefenseReadinessRequest(BaseModel):
 def biodefense_readiness(req: BiodefenseReadinessRequest):
     """Stage 8 대응제 준비태세 — 가짜 분자 중화 예측이 아니라 '실제 커버리지·생산
     주권 격차'를 선언 효능으로 집계. 어떤 위협을 비축이 못 막는가 + 막는 것 중 국산
-    생산이 안 되는 게 뭔가(주권 격차). 입력이 없으면 시연용 예시(is_illustrative).
-    변이별 분자 중화 예측은 Phase 2(BioNeMo·CEPI) 통합 — 지어내지 않음.
-    [기밀·국가 바이오 사업] VALHALLA — 아이기론 국가바이오안보센터, 최고 보안등급(인증 필수)."""
-    from algorithms.biodefense_readiness import compute_readiness, illustrative_readiness
+    생산이 안 되는 게 뭔가(주권 격차). 요청 바디가 없으면: ①등록된 실제 비축
+    데이터(`/api/biodefense/stockpile`)가 있으면 그걸 사용, ②없으면 시연용
+    예시(is_illustrative)로 폴백. 변이별 분자 중화 예측은 Phase 2(BioNeMo·CEPI)
+    통합 — 지어내지 않음.
+    [사내 R&D 프로그램] VALHALLA — 아이기론 R&D 연구센터, 사내 최고 보안등급(인증 필수)."""
+    from algorithms.biodefense_readiness import compute_readiness, illustrative_readiness, DEFAULT_THREATS
     from algorithms.classified_programs import classification
     if req.countermeasures and req.threats:
         result = compute_readiness(req.countermeasures, req.threats)
     else:
-        result = illustrative_readiness()
+        stored = db.list_countermeasures()
+        if stored:
+            threats = req.threats or DEFAULT_THREATS
+            result = compute_readiness(stored, threats)
+            result["is_illustrative"] = False
+            result["note"] = (
+                "등록된 실제 비축 데이터 기반. 위협 목록: "
+                + ("요청값 사용" if req.threats else "기본 감시 병원체 목록(H5N1·Ebola·MERS·Dengue·Novel) 사용")
+            )
+        else:
+            result = illustrative_readiness()
     result["classification"] = classification("stage8")
     return result
+
+
+class CountermeasureCreate(BaseModel):
+    name: str = Field(..., description="대응제 이름")
+    type: Optional[str] = Field(None, description="유형 (antiviral/vaccine/mAb 등)")
+    targets: list[str] = Field(..., min_length=1, description="대응 병원체 목록")
+    declared_efficacy: Optional[float] = Field(None, description="선언된 효능(0~1, 라벨/문헌 근거)")
+    domestic_producible: bool = Field(False, description="국내 생산 가능 여부")
+    courses: Optional[int] = Field(None, description="비축 인분(선택)")
+    population: Optional[int] = Field(None, description="대상 인구(선택, 물류 계산용)")
+    attack_rate: Optional[float] = Field(None, description="예상 발병률(0~1, 선택, 물류 계산용)")
+
+
+@app.get("/api/biodefense/stockpile", tags=["Stage 8: 바이오방어"])
+def list_biodefense_stockpile():
+    """등록된 실제 대응제 비축 목록 조회(읽기 전용, 인증 불필요)."""
+    return {"items": db.list_countermeasures()}
+
+
+@app.post("/api/biodefense/stockpile", tags=["Stage 8: 바이오방어"], dependencies=_auth)
+def create_biodefense_stockpile(req: CountermeasureCreate):
+    """실제 대응제 비축 항목 등록 — 등록해두면 `/api/biodefense/readiness`가
+    요청 바디 없이도 이 데이터로 계산(더 이상 매번 통째로 안 넣어도 됨)."""
+    return db.create_countermeasure(
+        req.name, req.type, req.targets, req.declared_efficacy, req.domestic_producible,
+        req.courses, req.population, req.attack_rate,
+    )
+
+
+@app.delete("/api/biodefense/stockpile/{item_id}", tags=["Stage 8: 바이오방어"], dependencies=_auth)
+def delete_biodefense_stockpile(item_id: int):
+    """등록된 비축 항목 삭제."""
+    if not db.delete_countermeasure(item_id):
+        raise HTTPException(status_code=404, detail="해당 item_id 없음")
+    return {"deleted": True, "id": item_id}
 
 
 class SyntheticThreatAnalyzeRequest(BaseModel):

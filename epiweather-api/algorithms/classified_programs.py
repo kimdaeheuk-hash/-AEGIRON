@@ -1,12 +1,13 @@
-"""기밀 프로그램 거버넌스 — Stage 0/8을 '최고 보안등급 프로그램'으로 승격.
+"""사내 프로그램 거버넌스 — Stage 0/8을 '사내 최고 보안등급 프로그램'으로 관리.
 
-Stage 0(설계-탐지 이중성 유전체 스크리닝)과 Stage 8(국가 대응제 주권)은 일반
+Stage 0(설계-탐지 이중성 유전체 스크리닝)과 Stage 8(대응제 준비태세)은 일반
 감시 층과 성격이 다르다 — 민감도가 높아 담당 조직·프로그램 코드명·보안등급을
 명시적으로 분리한다. 이 모듈은 그 거버넌스 메타데이터를 한 곳에서 관리하고,
-각 기밀 엔드포인트 응답에 부착한다.
+각 사내 제한 엔드포인트 응답에 부착한다.
 
-주의: 프로그램명·조직명은 아이기론 내부 구조 정의다(제안 기본값 — 한 단어로 교체
-가능). 보안등급은 라벨만이 아니라 실제 접근통제(인증 필수)와 함께 강제한다.
+주의: 프로그램명·조직명·등급은 전부 아이기론(AEGIRON) 자체 내부 구조 정의이며,
+실제 정부기관 소속이나 공식 기밀등급이 아니다(사업자등록·정부협약 이전 단계).
+보안등급은 라벨만이 아니라 실제 접근통제(인증 필수)와 함께 강제한다.
 """
 from __future__ import annotations
 
@@ -22,25 +23,25 @@ CLASSIFIED_PROGRAMS = {
         "owning_center_en": "AEGIRON R&D Center · Biosecurity Lab",
         "designation_ko": "사내 R&D 프로그램",
         "classification": "AEGIRON-RESTRICTED",
-        "classification_ko": "최고 보안등급(대외비)",
+        "classification_ko": "사내 최고 보안등급",
     },
     "stage8": {
         "program_code": "VALHALLA",
         "program_name_ko": "발할라",
         "stage": 8,
-        "mission_ko": "국가 대응제 주권 — 비축 커버리지·생산 주권·회복력 격차 정량화",
-        "owning_center_ko": "아이기론 국가바이오안보센터",
-        "owning_unit_ko": "대응제주권실",
-        "owning_center_en": "AEGIRON National Biosecurity Center",
-        "designation_ko": "국가 바이오 사업",
+        "mission_ko": "대응제 준비태세 — 비축 커버리지·생산 주권·회복력 격차 정량화",
+        "owning_center_ko": "아이기론 R&D 연구센터",
+        "owning_unit_ko": "대응제연구실",
+        "owning_center_en": "AEGIRON R&D Center · Countermeasures Lab",
+        "designation_ko": "사내 R&D 프로그램",
         "classification": "AEGIRON-RESTRICTED",
-        "classification_ko": "최고 보안등급(대외비)",
+        "classification_ko": "사내 최고 보안등급",
     },
 }
 
 _ACCESS_NOTE_KO = (
-    "본 프로그램은 최고 보안등급(대외비)으로, 인증(API 키) 필수·모든 접근이 "
-    "감사로그(api_key_usage) 대상이다. 결과의 대외 공개·재배포는 담당 센터 승인 필요."
+    "본 프로그램은 사내 최고 보안등급으로, 인증(API 키) 필수·모든 접근이 "
+    "감사로그(api_key_usage) 대상이다. 결과의 대외 공개·재배포는 담당 부서 승인 필요."
 )
 
 

@@ -1,13 +1,15 @@
 import { create } from 'zustand';
 import {
-  PRESETS, ThreatKey, PresetKey, Levers,
+  PRESETS, ThreatKey, PresetKey, Levers, CITIES,
   genPatientZero, computeGlobal, computeDomestic, simulate, currentRt,
   PatientZeroResult, GlobalResult, DomesticResult, SimResult,
 } from './algorithms';
+import { fetchOrigins, OriginCity } from './api';
 
 interface AppState {
   // 시나리오 파라미터
   origin: string;
+  originsCatalog: OriginCity[];
   threat: ThreatKey;
   lev: Levers;
   stage: number;
@@ -38,19 +40,26 @@ interface AppState {
   setZSel: (cell: PatientZeroResult['cells'][0]) => void;
   toggleCivic: (id: string) => void;
   recompute: (defOnly?: boolean) => void;
+  loadOrigins: () => void;
 }
 
 const initLev = { ...PRESETS.strong };
 
+const DEFAULT_ORIGINS_CATALOG: OriginCity[] = CITIES.map(c => ({
+  id: c.id, nm: c.nm, iso2: null, region: null,
+  lon: c.lon, lat: c.lat, er: c.er, pax: c.pax, hrs: c.hrs,
+  note: c.note, tier: 'curated' as const,
+}));
+
 function doRecompute(state: AppState, defOnly: boolean): Partial<AppState> {
-  const { origin, threat, lev } = state;
+  const { origin, threat, lev, originsCatalog } = state;
   let pz = state.pz;
   let glob = state.glob;
   let dom = state.dom;
 
   if (!defOnly) {
     pz = genPatientZero(42, origin);
-    glob = computeGlobal(origin, threat);
+    glob = computeGlobal(origin, threat, originsCatalog);
     dom = computeDomestic(threat);
   }
 
@@ -66,6 +75,7 @@ function doRecompute(state: AppState, defOnly: boolean): Partial<AppState> {
 
 export const useStore = create<AppState>((set, get) => ({
   origin: 'WUH',
+  originsCatalog: DEFAULT_ORIGINS_CATALOG,
   threat: 'novel',
   lev: initLev,
   stage: 0,
@@ -92,4 +102,13 @@ export const useStore = create<AppState>((set, get) => ({
   setZSel: (cell) => set({ zsel: cell }),
   toggleCivic: (id) => set((s) => ({ civicOn: { ...s.civicOn, [id]: !s.civicOn[id] } })),
   recompute: (defOnly = false) => set((s) => doRecompute(s, defOnly)),
+  loadOrigins: () => {
+    fetchOrigins()
+      .then((origins) => {
+        if (!origins.length) return;
+        set({ originsCatalog: origins });
+        get().recompute(false);
+      })
+      .catch(() => {}); // 실패해도 큐레이션 8개 기본값으로 계속 동작
+  },
 }));

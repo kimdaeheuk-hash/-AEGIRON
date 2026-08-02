@@ -175,8 +175,8 @@ function importDay(pax: number, hrs: number, novel: boolean) {
   return -1;
 }
 
-export function computeGlobal(originId: string, threat: ThreatKey): GlobalResult {
-  const city = CITIES.find(c => c.id === originId)!;
+export function computeGlobal(originId: string, threat: ThreatKey, catalog: typeof CITIES = CITIES): GlobalResult {
+  const city = catalog.find(c => c.id === originId) ?? CITIES[0];
   const novel = threat !== 'flu';
   const arrival = importDay(city.pax, city.hrs, novel);
   const risk = Math.round(clamp(city.er * 38 + city.pax * 52 + (novel ? 8 : 0), 5, 99));
