@@ -771,6 +771,58 @@ def extracted_signals(disease: Optional[str] = None, limit: int = 50):
     return {"records": db.list_extracted_signals(disease=disease, limit=limit)}
 
 
+# ── 독자 모델 IP 준비: 학습데이터 축적 + 모델 추상화 계층 ──────────
+@app.get("/api/ai/provider-status", tags=["AI"])
+def ai_provider_status():
+    """현재 활성 AI 제공자(로컬 자체모델 vs 외부 LLM 폴백)와 데이터 주권 태세.
+    자체 모델이 준비되면 AEGIRON_LOCAL_MODEL 설정만으로 독자 모델로 전환 —
+    호출부 변경 없음(주권 대비 설계)."""
+    from algorithms.aegiron_model import provider_status
+    return provider_status()
+
+
+@app.get("/api/ai/training-data/stats", tags=["AI"])
+def ai_training_data_stats(limit: int = 5000):
+    """매일 쌓이는 LLM 추출 결과를 '독자 모델 학습셋' 관점으로 집계 — 규모·라벨
+    품질(실버/골드)·질병 분포. '운영이 곧 데이터 해자 축적'의 근거 숫자."""
+    from algorithms.training_data import dataset_stats
+    return dataset_stats(limit=limit)
+
+
+@app.get("/api/ai/training-data/export", tags=["AI"], dependencies=_auth)
+def ai_training_data_export(limit: int = 5000):
+    """증류 학습쌍(원문 → 구조화 정답) export — 작은 오픈 모델 파인튜닝용.
+    독자 자산이라 인증 필수. 라벨은 Claude 증류(실버)+사람검증(골드)로 구분."""
+    from algorithms.training_data import export_extraction_pairs
+    pairs = export_extraction_pairs(limit=limit)
+    return {
+        "count": len(pairs),
+        "task": "news_text_to_structured_signal",
+        "pairs": pairs,
+        "label_note": "실버(Claude 증류)+골드(사람검증). 이 데이터로 파인튜닝하면 "
+                      "외부 API 의존 없는 독자 모델이 된다.",
+    }
+
+
+@app.get("/api/ai/nowcast/readiness", tags=["AI"])
+def ai_nowcast_readiness(horizon_days: int = 30, lookback_days: int = 30):
+    """Tier 2 프레임워크 — '신호→실제 발병' 성과 학습셋의 학습 가능 여부. 표본·클래스
+    부족이면 sufficient_data=False로 정직하게 표시(지어낸 성능 없음). 운영이 지속되며
+    성과 라벨이 쌓이면 자동으로 충족된다."""
+    from algorithms.nowcast_dataset import assemble_dataset, dataset_readiness
+    rows = assemble_dataset(horizon_days=horizon_days, lookback_days=lookback_days)
+    return dataset_readiness(rows)
+
+
+@app.get("/api/ai/nowcast/train", tags=["AI"], dependencies=_auth)
+def ai_nowcast_train(horizon_days: int = 30, lookback_days: int = 30):
+    """Tier 2 베이스라인 학습(순수 파이썬 로지스틱). 데이터 부족이면 학습 거부.
+    학습돼도 정확도는 참고용 — 전향적 검증 전엔 신뢰 금지(z-score/EARS 대체 '자리' 증명)."""
+    from algorithms.nowcast_dataset import assemble_dataset, train_baseline
+    rows = assemble_dataset(horizon_days=horizon_days, lookback_days=lookback_days)
+    return train_baseline(rows)
+
+
 # ── 국가별 위험지수 ───────────────────────────────────────────
 @app.get("/api/risk-index", tags=["GAI"])
 def risk_index():

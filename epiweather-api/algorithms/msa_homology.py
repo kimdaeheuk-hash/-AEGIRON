@@ -38,6 +38,10 @@ import os
 
 import requests
 
+from . import nvidia as _nvidia
+
+# 기본 엔드포인트(NVIDIA 클라우드). 실제 호출 URL은 요청 시점에 nvidia.msa_url()로
+# 해석 — AEGIRON_NVIDIA_ONPREM_BASE 설정 시 온프렘 라우팅(완전 주권).
 MSA_URL = "https://health.api.nvidia.com/v1/biology/colabfold/msa-search/predict"
 TIMEOUT = 900          # 검색 1회에 약 40초. 여유를 크게 둔다.
 MIN_AA = 50            # 너무 짧으면 상동성 검색이 의미 없음
@@ -121,7 +125,7 @@ def protein_from_nucleotide(raw: str) -> dict:
 
 def _search(protein: str, api_key: str) -> dict:
     r = requests.post(
-        MSA_URL,
+        _nvidia.msa_url(),
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         json={"sequence": protein},
         timeout=TIMEOUT,

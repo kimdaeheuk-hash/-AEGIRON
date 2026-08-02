@@ -10,6 +10,7 @@ TestClient로 실제 앱 인스턴스를 띄우되, 스케줄러(백그라운드
 from __future__ import annotations
 import os
 import sqlite3
+from unittest.mock import patch
 
 import pytest
 
@@ -389,6 +390,53 @@ def test_genome_screen_attaches_heimdall_classification(client_with_key):
     assert c["audit_logged"] is True
 
 
+def test_ai_provider_status_public_and_reports_fallback(client, monkeypatch):
+    """독자 API 구조: 로컬 모델/NIM 없으면 외부 LLM 폴백임을 정직하게 표시."""
+    monkeypatch.delenv("AEGIRON_LOCAL_MODEL", raising=False)
+    monkeypatch.delenv("AEGIRON_NIM_API_KEY", raising=False)
+    monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
+    resp = client.get("/api/ai/provider-status")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["active_provider"] == "external_llm_fallback"
+    assert "data_sovereignty" in body
+
+
+def test_ai_training_data_stats_public(client):
+    resp = client.get("/api/ai/training-data/stats")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["task"] == "news_text_to_structured_signal"
+    assert "total_pairs" in body
+
+
+def test_ai_training_data_export_requires_auth(client):
+    """학습셋 export는 독자 자산이라 인증 필수(키 미설정 fixture → 503)."""
+    resp = client.get("/api/ai/training-data/export")
+    assert resp.status_code == 503
+
+
+def test_ai_nowcast_readiness_public_and_honest_when_insufficient(client):
+    """Tier 2: 신규 DB엔 성과 라벨이 없어 sufficient_data=False가 정상(안 지어냄)."""
+    resp = client.get("/api/ai/nowcast/readiness")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["sufficient_data"] is False
+    assert "feature_keys" in body
+
+
+def test_ai_nowcast_train_requires_auth(client):
+    resp = client.get("/api/ai/nowcast/train")
+    assert resp.status_code == 503
+
+
+def test_ai_nowcast_train_refuses_insufficient_with_key(client_with_key):
+    client, key = client_with_key
+    resp = client.get("/api/ai/nowcast/train", headers={"X-API-Key": key})
+    assert resp.status_code == 200
+    assert resp.json()["trained"] is False   # 데이터 부족 → 학습 거부(정직)
+
+
 def test_genome_screen_accepts_reference_sequences(client_with_key):
     client, key = client_with_key
     seq = "ATGGCCATTGTAATGGGCCGCTGCAAAGGGTGCCCGATAGTT"
@@ -401,12 +449,23 @@ def test_genome_screen_accepts_reference_sequences(client_with_key):
 
 
 def test_patient_zero_origins_is_public_and_includes_auto_countries(client):
-    resp = client.get("/api/patient-zero/origins")
+    # auto 국가는 런타임 캐시(world_countries_cache.json)에서 오는데 테스트/CI 환경엔
+    # 없다 → 다른 origin_catalog 테스트와 동일하게 load_world_countries를 mock해
+    # 결정론적으로 검증(캐시 유무에 흔들리지 않게).
+    sample = {
+        "VNM": {"name": "Viet Nam", "region": "East Asia & Pacific", "capital": "Hanoi",
+                "iso2": "VN", "lat": 21.0069, "lng": 105.8194},
+        "COD": {"name": "Congo, Dem. Rep.", "region": "Sub-Saharan Africa", "capital": "Kinshasa",
+                "iso2": "CD", "lat": -4.4419, "lng": 15.2663},
+    }
+    with patch("algorithms.origin_catalog.load_world_countries", return_value=sample):
+        resp = client.get("/api/patient-zero/origins")
     assert resp.status_code == 200
     origins = resp.json()["origins"]
     tiers = {o["tier"] for o in origins}
     assert "curated" in tiers
-    assert len(origins) > 8  # curated 8개보다 많아야(auto 국가 포함 확인)
+    assert "auto" in tiers               # auto 국가가 병합됐는지
+    assert len(origins) > 8              # curated 8개 + auto 최소 1개 이상
 
 
 def test_db_backup_requires_auth(client):
