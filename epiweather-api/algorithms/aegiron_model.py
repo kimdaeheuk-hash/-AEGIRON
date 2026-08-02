@@ -31,8 +31,11 @@ LOCAL_MODEL_PATH_ENV = "AEGIRON_LOCAL_MODEL"
 REQUIRE_LOCAL_ENV = "AEGIRON_REQUIRE_LOCAL"
 
 # ── NVIDIA NIM(OpenAI 호환) 설정 ──
-# 키는 NVIDIA_API_KEY 또는 AEGIRON_NIM_API_KEY 중 아무거나.
-NIM_API_KEY_ENVS = ("AEGIRON_NIM_API_KEY", "NVIDIA_API_KEY")
+# 키 규약은 algorithms/nvidia.py(단일 소스)에 정의 — 여기서 재노출만 한다.
+# 텍스트 추출은 AEGIRON_NIM_API_KEY(전용 오버라이드) → NVIDIA_API_KEY(공유) 순.
+from . import nvidia as _nvidia
+
+NIM_API_KEY_ENVS = (_nvidia.TEXT_KEY_OVERRIDE_ENV, _nvidia.SHARED_KEY_ENV)
 NIM_BASE_URL_ENV = "AEGIRON_NIM_BASE_URL"      # 자체 호스팅이면 여기에 온프렘 URL
 NIM_MODEL_ENV = "AEGIRON_NIM_MODEL"
 # NVIDIA 호스팅 기본 엔드포인트(설정 없으면 여기 — 준주권으로 표시).
@@ -80,11 +83,7 @@ def _require_local() -> bool:
 
 
 def _nim_key() -> str | None:
-    for env in NIM_API_KEY_ENVS:
-        v = os.environ.get(env)
-        if v:
-            return v
-    return None
+    return _nvidia.text_nim_key()
 
 
 def _nim_base_url() -> str:
@@ -223,6 +222,8 @@ def provider_status() -> dict:
         "local_model_loaded": local_loaded,
         "require_local_for_sensitive": _require_local(),
         "data_sovereignty": sovereignty,
+        # 유전체(Evo2/MSA)·문서·텍스트 NIM을 같은 키 규약으로 묶어 보여줌(단일 소스).
+        "nvidia": _nvidia.nvidia_status(),
         "note": "NIM(NVIDIA_API_KEY/AEGIRON_NIM_API_KEY) 설정 시 추출이 NIM으로 전환된다. "
                 "자체 호스팅 URL(AEGIRON_NIM_BASE_URL)이면 완전 주권, NVIDIA 호스팅이면 준주권. "
                 "호출부 변경 없이 환경변수만으로 독자 모델 경로가 활성화된다.",
