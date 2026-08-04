@@ -108,3 +108,76 @@ def test_enrich_alerts_attaches_npi_summary():
     assert "npi_summary" in out[0]
     assert "개입 브리핑" in out[0]["npi_summary"]
     assert out[0]["npi_brief"]["assumed_threat"] == "severe"
+
+
+# ── 발병률 상한(87배 과대추정 회귀) ──────────────────────────────
+def test_ebola_no_action_stays_near_historical_scale():
+    """★핵심 회귀★ 상한 없는 SEIR가 에볼라 무대응 사망을 989,509명으로 냈다 —
+    역사상 최대 발병(서아프리카 2014~16, 11,325명)의 87배다. R0 1.8은 '초기·대응 전'
+    값이라 인구 500만 전체 유행곡선에 그대로 쓰면 안 된다."""
+    from algorithms.alert_intervention import intervention_brief
+    b = intervention_brief("에볼라", "COD", "critical", 85.0)
+    deaths = b["scenarios"]["no_action"]["total_deaths"]
+    assert deaths < 100_000, f"에볼라 무대응 사망 {deaths:,} — 역사 규모를 크게 벗어남"
+    assert b["plausibility"]["ratio_vs_historical"] < 5
+
+
+def test_contact_limited_pathogens_do_not_burn_whole_population():
+    """접촉 제한 병원체는 인구 전체를 태우면 안 된다 — 도달 가능 인구가 제한된다."""
+    from algorithms.defense import simulate, N
+    from algorithms.common import PRESETS
+    from algorithms import disease_params as dp
+    out = simulate(PRESETS["none"], "severe",
+                   params=dp.as_threat_params(dp.lookup("에볼라")))
+    assert out["attack_rate_capped"] is True
+    assert out["population_modeled"] < N        # 전체 인구가 아니다
+
+
+def test_sustained_transmission_pathogens_use_full_population():
+    """홍역처럼 실제로 일반 유행을 만드는 병원체는 상한을 걸지 않는다 —
+    그건 SEIR가 맞는 모델이다."""
+    from algorithms.defense import simulate, N
+    from algorithms.common import PRESETS
+    from algorithms import disease_params as dp
+    out = simulate(PRESETS["none"], "severe",
+                   params=dp.as_threat_params(dp.lookup("홍역")))
+    assert out["attack_rate_capped"] is False
+    assert out["population_modeled"] == N
+
+
+def test_all_registered_diseases_stay_within_plausible_range():
+    """등재된 모든 질병이 역사 대조를 통과해야 한다 — 상한값이 판단치라
+    하나를 고치다 다른 게 틀어질 수 있다."""
+    from algorithms.alert_intervention import intervention_brief
+    from algorithms.disease_params import DISEASE_PARAMS
+    bad = []
+    for key, p in DISEASE_PARAMS.items():
+        b = intervention_brief(p["nm"], "COD", "critical", 85.0)
+        pl = b["plausibility"]
+        if pl.get("checked") and pl.get("implausible"):
+            bad.append(f"{p['nm']}={pl['ratio_vs_historical']}x")
+    assert not bad, f"역사 대조 실패: {', '.join(bad)}"
+
+
+def test_plausibility_travels_in_the_payload():
+    """경고가 docstring에만 있으면 숫자만 떨어져 나가 화면·자료에서 그대로 쓰인다."""
+    from algorithms.alert_intervention import intervention_brief
+    b = intervention_brief("에볼라", "COD", "critical", 85.0)
+    pl = b["plausibility"]
+    assert pl["checked"] is True
+    assert pl["historical_max_deaths"] == 11325
+    assert "역사상 최대" in pl["note"]
+
+
+def test_plausibility_flags_implausible_output():
+    """상한이 잘못 잡혀 모델값이 역사 최대의 10배를 넘으면 자동으로 잡아야 한다."""
+    from algorithms.disease_params import plausibility
+    out = plausibility("ebola", 989_509)          # 상한 적용 전 실측값
+    assert out["implausible"] is True
+    assert out["ratio_vs_historical"] > 80
+    assert "대외 자료에 쓰지 말 것" in out["note"]
+
+
+def test_plausibility_skips_unknown_disease():
+    from algorithms.disease_params import plausibility
+    assert plausibility(None, 1000)["checked"] is False

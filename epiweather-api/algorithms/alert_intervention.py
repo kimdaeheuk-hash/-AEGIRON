@@ -119,6 +119,10 @@ def intervention_brief(disease: str | None, country: str | None,
         f"병상초과 {rec_view['hosp_overflow_days']}일). "
         f"{'질병별 실측 캘리브레이션' if measured else '모델 추정(generic)'}."
     )
+    # 모델값을 역사상 최대 발병과 자동 대조한다. 발병률 상한으로 1차 교정하지만
+    # 상한 자체가 판단치라 놓치는 게 남는다 — 그걸 여기서 드러낸다.
+    plaus = dp.plausibility(measured.get("key") if measured else None,
+                            no_action["total_deaths"])
     return {
         "disease": disease,
         "country": country,
@@ -144,6 +148,9 @@ def intervention_brief(disease: str | None, country: str | None,
         "recommended_saved_lives": rec_view["saved_lives"],
         "headline": headline,
         "disclaimer": disclaimer,
+        # 역사 대조 결과를 숫자와 같이 실어 보낸다 — 경고가 docstring에만 있으면
+        # 숫자만 떨어져 나가 화면·자료에서 그대로 쓰인다.
+        "plausibility": plaus,
         "is_modeled_scenario": True,
     }
 
