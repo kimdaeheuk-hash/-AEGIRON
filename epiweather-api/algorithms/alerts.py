@@ -165,6 +165,11 @@ def refresh_alerts(today: str | None = None) -> dict:
         r for r in visible_rows
         if r["tier"] in ("critical", "high") and r["source"] not in already_seen_today
     ]
+    # 경보→NPI 자동연결: 신규 critical/high에 '무대응 vs 개입' 반사실 요약을 붙여
+    # 알림이 "무엇이 온다"를 넘어 "뭘 하면 어떻게 바뀐다"까지 답하게 한다.
+    # (봉인은 대량 알림에서 생략 — 단건 조회 엔드포인트에서 OpenTimestamps 수행)
+    from .alert_intervention import enrich_alerts_with_briefs
+    new_critical_high = enrich_alerts_with_briefs(new_critical_high, seal=False)
     notify_new_alerts(new_critical_high)
 
     dashboard_top = visible_rows[:DASHBOARD_TOP_N]

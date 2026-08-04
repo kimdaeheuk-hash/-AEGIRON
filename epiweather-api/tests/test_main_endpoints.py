@@ -454,6 +454,36 @@ def test_ai_nowcast_backfill_train_honest_when_gdelt_blocked(client_with_key):
     assert body["training"]["trained"] is False
 
 
+def test_intervention_brief_requires_auth(client):
+    resp = client.post("/api/alerts/intervention-brief", json={"disease": "에볼라", "tier": "critical"})
+    assert resp.status_code == 503
+
+
+def test_intervention_brief_returns_decision_layer(client_with_key):
+    """경보→NPI: 무대응/개입 반사실 + disclaimer + 봉인 다이제스트를 정직하게 반환."""
+    client, key = client_with_key
+    with patch("algorithms.prediction_timestamp.submit_timestamp", return_value=None):
+        resp = client.post("/api/alerts/intervention-brief",
+                           headers={"X-API-Key": key},
+                           json={"disease": "에볼라", "country": "COD",
+                                 "tier": "critical", "score": 88, "seal": True})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["assumed_threat"] == "severe"
+    assert set(body["scenarios"]) == {"no_action", "mild", "strong"}
+    assert body["scenarios"]["strong"]["total_deaths"] <= body["scenarios"]["no_action"]["total_deaths"]
+    assert "모델" in body["disclaimer"]
+    assert body["timestamp"]["sealed"] is False        # 네트워크 없음 → 정직
+    assert len(body["timestamp"]["digest_sha256"]) == 64
+
+
+def test_intervention_brief_rejects_bad_threat(client_with_key):
+    client, key = client_with_key
+    resp = client.post("/api/alerts/intervention-brief", headers={"X-API-Key": key},
+                       json={"disease": "에볼라", "tier": "high", "threat": "nonsense"})
+    assert resp.status_code == 422
+
+
 def test_genome_screen_accepts_reference_sequences(client_with_key):
     client, key = client_with_key
     seq = "ATGGCCATTGTAATGGGCCGCTGCAAAGGGTGCCCGATAGTT"

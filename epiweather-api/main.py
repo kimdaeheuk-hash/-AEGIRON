@@ -657,6 +657,26 @@ def seir_simulate(req: DefenseRequest):
     return run_defense(lev, req.threat)
 
 
+# ── 경보 → NPI 반사실 브리핑 (예측→의사결정) ─────────────────
+class InterventionBriefRequest(BaseModel):
+    disease: Optional[str] = Field(None, description="질병명 (위협 시나리오 추정에 사용)")
+    country: Optional[str] = Field(None, description="국가 ISO3")
+    tier: str = Field("high", description="경보 등급 critical|high")
+    score: float = Field(0, description="위험 점수")
+    threat: Optional[str] = Field(None, description="위협 시나리오 명시 flu|novel|severe (없으면 질병에서 추정)")
+    seal: bool = Field(True, description="OpenTimestamps 봉인 시도 여부")
+
+@app.post("/api/alerts/intervention-brief", tags=["Stage 5: 방어 시뮬레이션"], dependencies=_auth)
+def alert_intervention_brief(req: InterventionBriefRequest):
+    """경보를 '무대응 vs 개입' 반사실 브리핑으로 승격(예측→의사결정) + OpenTimestamps
+    봉인(검증 가능한 트랙레코드 자동 축적). 반사실 수치는 표준 SEIR 모델 시나리오이며
+    disclaimer로 '방향성 참고'임을 항상 명시(‘구할 생명’은 모델 추정, 실측·보장 아님)."""
+    from algorithms.alert_intervention import sealed_brief
+    if req.threat is not None and req.threat not in THREAT:
+        raise HTTPException(status_code=422, detail="threat는 flu|novel|severe 중 하나")
+    return sealed_brief(req.disease, req.country, req.tier, req.score, req.threat, seal=req.seal)
+
+
 # ── Stage 5: 후향 검증 ───────────────────────────────────────
 class BacktestRequest(BaseModel):
     seasons: int = Field(5, ge=1, le=20, description="검증할 시즌 수")

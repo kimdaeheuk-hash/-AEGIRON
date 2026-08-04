@@ -55,6 +55,10 @@ def format_alert_message(new_alerts: list[dict]) -> str:
     for a in new_alerts:
         icon = TIER_ICON.get(a["tier"], "🟡")
         lines.append(f"{icon} {a['label']} — {a['score']}점")
+        # 경보에 NPI 반사실 브리핑이 붙어 있으면(자동연결) 한 줄로 노출 —
+        # "그래서 뭘 하라고?"에 답하는 의사결정 라인.
+        if a.get("npi_summary"):
+            lines.append(f"   {a['npi_summary']}")
     return "\n".join(lines)
 
 
