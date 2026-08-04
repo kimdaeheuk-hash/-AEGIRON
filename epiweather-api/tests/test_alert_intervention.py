@@ -63,6 +63,44 @@ def test_seal_false_skips_network_but_keeps_digest():
     assert len(b["timestamp"]["digest_sha256"]) == 64
 
 
+def test_known_disease_uses_measured_params():
+    """등재 질병은 문헌 실측 R0/CFR로 캘리브레이션됨을 정직하게 표시."""
+    b = ai.intervention_brief("에볼라", "COD", "critical", 88)
+    assert b["calibration"] == "disease_measured"
+    assert b["epidemic_params"]["cfr"] == 0.50        # 에볼라 실측 CFR
+    assert b["epidemic_params"]["R0"] == 1.8
+    assert "WHO" in b["epidemic_params"]["source"]
+
+
+def test_unknown_disease_falls_back_to_generic():
+    b = ai.intervention_brief("정체불명 신종 X", "KOR", "critical", 80)
+    assert b["calibration"] == "generic_tier"
+    assert "예시 상수" in b["epidemic_params"]["source"]
+
+
+def test_low_r0_disease_shows_limited_spread():
+    """니파(R0<1)는 SEIR상 대규모 확산이 안 나야 하고 그 사실이 노트로 붙어야 함."""
+    b = ai.intervention_brief("니파바이러스", "IND", "critical", 85)
+    assert b["limited_human_transmission"] is True
+    assert b["spread_note"] and "제한" in b["spread_note"]
+    # 무대응이어도 유행이 작다(사망 규모가 고전파 병원체보다 훨씬 작음)
+    assert b["scenarios"]["no_action"]["total_deaths"] < 1000
+
+
+def test_explicit_threat_skips_calibration():
+    """위협을 명시하면 질병 캘리브레이션을 생략하고 generic tier를 존중."""
+    b = ai.intervention_brief("에볼라", "COD", "critical", 88, threat="severe")
+    assert b["calibration"] == "generic_tier"
+    assert b["assumed_threat"] == "severe"
+
+
+def test_disease_params_lookup_matches_aliases():
+    from algorithms import disease_params as dp
+    assert dp.lookup("mpox 의심")["key"] == "mpox"
+    assert dp.lookup("계절 독감 유행")["key"] == "influenza_seasonal"
+    assert dp.lookup("완전히 새로운 병") is None
+
+
 def test_enrich_alerts_attaches_npi_summary():
     alerts = [{"tier": "critical", "label": "에볼라 COD", "score": 88,
                "disease": "에볼라", "country": "COD"}]

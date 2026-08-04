@@ -20,6 +20,7 @@ import datetime as dt
 
 from .common import PRESETS, THREAT
 from .defense import run_defense
+from . import disease_params as dp
 
 # 질병명 키워드 → 위협 시나리오(추정). 고치명 병원체는 severe, 신종/미상은 novel.
 # 근거: 대략적 CFR 수준(에볼라·마르부르크 25~90%, 니파 40~75%, MERS ~35%).
@@ -59,32 +60,64 @@ def _scenario_view(defense_out: dict) -> dict:
     }
 
 
-DISCLAIMER = ("표준 SEIR 모델 시나리오 — R0·CFR·개입효과는 예시 상수다. 실제 병원체·"
-              "지역 데이터로 캘리브레이션 전엔 절대값이 아닌 '방향성 참고'로만 사용. "
-              "‘구할 생명’은 모델 가정 하 추정이며 실측·보장이 아니다.")
+DISCLAIMER_MEASURED = ("SEIR를 질병별 문헌 실측 R0/CFR로 캘리브레이션함. 단 발병·지역·"
+                       "시기별 편차가 크므로 절대값이 아닌 '방향성 참고'로 사용. "
+                       "‘구할 생명’은 모델 추정이며 실측·보장이 아니다.")
+DISCLAIMER_GENERIC = ("표준 SEIR 모델 시나리오 — R0·CFR·개입효과는 generic tier 예시 상수다. "
+                      "이 질병은 실측 파라미터 미등재라 방향성만 참고. "
+                      "‘구할 생명’은 모델 가정 하 추정이며 실측·보장이 아니다.")
 
 
 def intervention_brief(disease: str | None, country: str | None,
                        tier: str, score: float, threat: str | None = None) -> dict:
-    """경보 → 무대응/mild/strong 반사실 브리핑. threat 미지정이면 질병에서 추정."""
-    if threat in THREAT:
-        threat_basis = f"명시된 위협 시나리오 사용({threat})."
+    """경보 → 무대응/mild/strong 반사실 브리핑. threat 미지정이면 질병에서 추정.
+    질병이 실측 파라미터 레지스트리에 있으면 그 R0/CFR로 SEIR를 캘리브레이션한다."""
+    explicit_threat = threat in THREAT
+    if explicit_threat:
+        threat_basis = f"명시된 위협 시나리오 사용({threat}) — 질병 캘리브레이션 생략."
     else:
         threat, threat_basis = assume_threat(disease, tier)
 
-    mild = run_defense(dict(PRESETS["mild"]), threat)
-    strong = run_defense(dict(PRESETS["strong"]), threat)
+    # 위협을 명시하지 않았고 질병별 실측 파라미터가 있으면 그걸로 캘리브레이션.
+    # (명시했으면 그 generic tier를 존중해 캘리브레이션하지 않는다.)
+    measured = None if explicit_threat else dp.lookup(disease)
+    params = dp.as_threat_params(measured) if measured else None
+
+    mild = run_defense(dict(PRESETS["mild"]), threat, params=params)
+    strong = run_defense(dict(PRESETS["strong"]), threat, params=params)
     no_action = strong["baseline_no_intervention"]   # PRESETS["none"] 결과
 
     # 권장: 전파를 통제(rt<1)하는 최소 개입. mild로 되면 mild, 아니면 strong.
     recommended = "mild" if mild["transmission_controlled"] else "strong"
     rec_view = _scenario_view(mild if recommended == "mild" else strong)
 
+    # 실측 캘리브레이션 여부 + 사용한 역학 파라미터를 정직하게 노출.
+    if measured:
+        epidemic_params = {
+            "R0": measured["R0"], "R0_range": list(measured["R0_range"]),
+            "cfr": measured["cfr"], "cfr_range": list(measured["cfr_range"]),
+            "source": measured["source"],
+        }
+        calibration = "disease_measured"
+        disclaimer = DISCLAIMER_MEASURED
+    else:
+        sp = THREAT[threat]
+        epidemic_params = {"R0": sp["R0"], "cfr": sp["cfr"], "source": f"generic tier '{threat}' 예시 상수"}
+        calibration = "generic_tier"
+        disclaimer = DISCLAIMER_GENERIC
+
+    # 사람간 지속전파가 없는 병원체(R0<1)는 대규모 확산이 안 나는 게 정직 — 명시.
+    limited = epidemic_params["R0"] < 1.0
+    spread_note = ("이 병원체는 사람간 지속전파가 제한적(R0<1)이라 대규모 유행 위험은 낮음 "
+                   "— 개별 치명률은 높아도 SEIR상 확산은 작다(격리·접촉추적 위주)."
+                   if limited else None)
+
     headline = (
         f"무대응 시 사망 {no_action['total_deaths']:,}명·병상초과 "
         f"{no_action['hosp_overflow_days']}일 → 권장개입({'중' if recommended == 'mild' else '강'})으로 "
         f"사망 {rec_view['total_deaths']:,}명(구할 생명 {rec_view['saved_lives']:,}명, "
-        f"병상초과 {rec_view['hosp_overflow_days']}일). 모델 추정."
+        f"병상초과 {rec_view['hosp_overflow_days']}일). "
+        f"{'질병별 실측 캘리브레이션' if measured else '모델 추정(generic)'}."
     )
     return {
         "disease": disease,
@@ -93,6 +126,10 @@ def intervention_brief(disease: str | None, country: str | None,
         "alert_score": score,
         "assumed_threat": threat,
         "threat_basis": threat_basis,
+        "calibration": calibration,
+        "epidemic_params": epidemic_params,
+        "limited_human_transmission": limited,
+        "spread_note": spread_note,
         "scenarios": {
             "no_action": {
                 "peak_infected": no_action["peak_infected"],
@@ -106,7 +143,7 @@ def intervention_brief(disease: str | None, country: str | None,
         "recommended": recommended,
         "recommended_saved_lives": rec_view["saved_lives"],
         "headline": headline,
-        "disclaimer": DISCLAIMER,
+        "disclaimer": disclaimer,
         "is_modeled_scenario": True,
     }
 
