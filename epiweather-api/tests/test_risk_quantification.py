@@ -87,3 +87,39 @@ def test_portfolio_includes_auto_discovered_tier2(isolated_db):
     ind = next((c for c in result["countries"] if c["country"] == "IND"), None)
     assert ind is not None
     assert ind["coverage_tier"] == "auto"
+
+
+def test_measured_but_quiet_is_not_an_active_signal(isolated_db, monkeypatch):
+    """★회귀★ '측정했는데 이상 없음'(anomaly=0.0)을 '활성신호 있음'으로 보고하면 안 된다.
+
+    _anomaly_score는 None='판단할 데이터 부족', 0.0='데이터 있고 이상 없음'을 구분한다.
+    `raw is not None`으로만 판정하면 실데이터가 쌓일수록 조용한 나라가 전부
+    '활성신호 있음'으로 뒤집힌다 — 실제로 KDCA 데이터 유입 후 한국이 그렇게 됐다.
+    감시 시스템에서 이 방향 오류는 '평시를 경보로 읽는' 쪽이라 특히 나쁘다."""
+    from algorithms import risk_quantification as rq
+
+    def quiet(country_id):
+        return {"name": "조용한나라", "coverage_tier": "curated",
+                "raw_score": 0.0,          # 측정됨 · 이상 없음
+                "vulnerability_index": 0.4, "vulnerability_source": "real_data"}
+
+    monkeypatch.setattr(rq, "compute_country_risk", quiet)
+    r = rq.quantify_country_exposure("KOR")
+    assert r["has_active_signal"] is False
+    assert r["components"]["signal_pressure"] == 0.0
+    assert r["exposure_index"] > 0        # 취약성·확산 기반 잠재 노출은 남는다
+
+
+def test_nonzero_anomaly_is_an_active_signal(isolated_db, monkeypatch):
+    """반대 방향도 고정 — 실제 이상도가 잡히면 활성신호로 봐야 한다."""
+    from algorithms import risk_quantification as rq
+
+    def noisy(country_id):
+        return {"name": "시끄러운나라", "coverage_tier": "curated",
+                "raw_score": 12.0, "vulnerability_index": 0.4,
+                "vulnerability_source": "real_data"}
+
+    monkeypatch.setattr(rq, "compute_country_risk", noisy)
+    r = rq.quantify_country_exposure("KOR")
+    assert r["has_active_signal"] is True
+    assert r["components"]["signal_pressure"] == 0.12

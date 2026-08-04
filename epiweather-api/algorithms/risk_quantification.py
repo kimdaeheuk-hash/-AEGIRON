@@ -60,7 +60,11 @@ def quantify_country_exposure(country_id: str) -> dict:
             "spread_potential": spread,            # 얼마나 멀리 퍼지는가(0~1, 공항연결성)
         },
         "weights": {"signal": W_SIGNAL, "vulnerability": W_VULNERABILITY, "spread": W_SPREAD},
-        "has_active_signal": raw is not None,
+        # "측정했는데 아무것도 없었다"(raw=0.0)를 "신호가 있다"로 바꾸지 않는다.
+        # _anomaly_score는 None="판단할 데이터 부족", 0.0="데이터 있고 이상 없음"을
+        # 구분한다 — raw is not None만 보면 후자가 활성신호로 둔갑한다. 실제로
+        # KDCA 실데이터가 쌓이자 한국이 '활성신호 있음'으로 뒤집혔다.
+        "has_active_signal": raw is not None and raw > 0,
         # 소비자(특히 보험·금융)에게 "이건 절대 확률이 아니다"를 못박는 플래그.
         "is_probability": False,
         "weights_calibrated": False,   # 가중치는 정책값이지 실증 보정값이 아님
