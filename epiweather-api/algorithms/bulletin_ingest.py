@@ -29,10 +29,14 @@ from __future__ import annotations
 
 import re
 
+from .country_resolve import resolve_country
 from .trust import trust_for
 
 # WHO AFRO 보고서에 실제로 등장하는 국가 표기 → ISO 3166-1 alpha-3.
 # 못 찾으면 None으로 둔다(추측 금지) — 잘못된 국가코드는 지도·유입경로를 통째로 틀리게 한다.
+# WHO 영문 보고서 제목에서 **영문 국가명 자체**를 뽑을 때 쓰는 사전
+# (bulletin_signals.location_from_header). 자유문장 → ISO3 해석은 country_resolve가
+# 담당한다 — 여기 사전은 영문 전용이라 한글·다국가를 못 다룬다.
 _ISO3: dict[str, str] = {
     "algeria": "DZA", "angola": "AGO", "benin": "BEN", "botswana": "BWA",
     "burkina faso": "BFA", "burundi": "BDI", "cabo verde": "CPV", "cameroon": "CMR",
@@ -68,17 +72,14 @@ _GRADE_SLUG = re.compile(r"(grade|protracted)\s*(\d)", re.I)
 
 
 def iso3_for(location: str | None) -> str | None:
-    """국가명 → ISO3. 사전에 없으면 None(추측하지 않는다)."""
-    if not location:
-        return None
-    key = re.sub(r"[^a-z ]+", " ", location.lower())
-    key = re.sub(r"\s+", " ", key).strip()
-    if key in _ISO3:
-        return _ISO3[key]
-    # "Democratic Republic of the Congo*" 처럼 꼬리가 붙는 경우를 위해 부분일치도 본다.
-    # 짧은 키가 우연히 걸리지 않도록 6자 이상만, 그리고 가장 긴 일치를 쓴다.
-    matches = [name for name in _ISO3 if len(name) >= 6 and name in key]
-    return _ISO3[max(matches, key=len)] if matches else None
+    """국가명 → ISO3(대표 1개). 사전에 없으면 None(추측하지 않는다).
+
+    country_resolve로 위임한다 — 예전 구현은 `[^a-z ]`를 전부 지워서 **한글 국가명이
+    무조건 None**이 됐고, 다국가 문자열에서 한 나라만 남겼다. 그 결과 2024년 이후
+    신호 157건 중 150건이 국가 없이 저장돼 Tier-2 학습셋에서 통째로 버려졌다.
+    저장 컬럼이 하나라 여기서는 대표 국가만 반환하고, 나머지 국가는 읽는 쪽에서
+    location을 다시 해석해 복원한다(country_resolve.signal_countries)."""
+    return resolve_country(location)
 
 
 def is_disease_event(label: str | None) -> bool:

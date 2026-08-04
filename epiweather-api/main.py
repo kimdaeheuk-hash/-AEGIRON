@@ -880,6 +880,37 @@ def ai_nowcast_threshold(horizon_days: int = 30, lookback_days: int = 30):
     return analyze(rows, model)
 
 
+@app.get("/api/ai/nowcast/evaluate", tags=["AI"], dependencies=_auth)
+def ai_nowcast_evaluate(horizon_days: int = 30, lookback_days: int = 30,
+                        n_folds: int = 4):
+    """★ 전향적(out-of-sample) 성능 ★ — /train과 /threshold가 내는 숫자는 학습에 쓴
+    그 데이터를 다시 채점한 값이라 특징을 늘릴수록 거의 항상 좋아진다. 여기서는
+    시간 전진 검증으로 '그 시점에 알 수 없던 미래'를 채점한다. 모델 판단은 이 값으로.
+
+    coverage 블록을 반드시 같이 볼 것 — 재현율 상한은 모델이 아니라 **수집**이 정한다.
+    선언 직전 창에 신호가 한 건도 없던 경우(blind)는 어떤 특징으로도 못 잡는다.
+    conditional_sensitivity가 '잡을 수 있었던 것 중 얼마를 잡았나'다."""
+    from algorithms.nowcast_dataset import assemble_dataset
+    from algorithms.nowcast_eval import evaluate_temporal
+    rows = assemble_dataset(horizon_days=horizon_days, lookback_days=lookback_days)
+    return evaluate_temporal(rows, n_folds=n_folds)
+
+
+@app.get("/api/ai/nowcast/feature-ablation", tags=["AI"], dependencies=_auth)
+def ai_nowcast_feature_ablation(horizon_days: int = 30, lookback_days: int = 30):
+    """확장 특징이 실제로 판별력을 올리는지 같은 시간분할로 비교한다(기본 6개 vs 확장 14개).
+
+    실측(2026-08 기준): 민감도 0.725를 맞춘 지점에서 정밀도 0.207 → 0.370,
+    100창당 경보 1.7 → 1.0. 재현율은 이미 커버리지 상한에 걸려 있어 개선 여지가
+    없고, 남은 과제가 과다발화였기 때문에 정밀도로 평가한다."""
+    from algorithms.nowcast_dataset import assemble_dataset
+    from algorithms.nowcast_eval import compare_feature_sets
+    kw = {"horizon_days": horizon_days, "lookback_days": lookback_days}
+    return compare_feature_sets(assemble_dataset(extended=False, **kw),
+                                assemble_dataset(extended=True, **kw),
+                                "기본6개", "확장14개")
+
+
 @app.get("/api/ai/nowcast/train", tags=["AI"], dependencies=_auth)
 def ai_nowcast_train(horizon_days: int = 30, lookback_days: int = 30):
     """Tier 2 베이스라인 학습(순수 파이썬 로지스틱). 데이터 부족이면 학습 거부.

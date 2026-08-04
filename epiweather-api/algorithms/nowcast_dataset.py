@@ -20,6 +20,7 @@ import math
 
 import db
 from .country_risk import SIGNAL_TYPE_SEVERITY
+from .country_resolve import signal_countries
 from .knowledge_graph import _DECLARATION_MILESTONE_KEYS
 
 # 학습에 최소 필요한 표본(honest 게이트 — 이 미만이면 학습 거부).
@@ -31,6 +32,44 @@ FEATURE_KEYS = (
     "signal_count", "weighted_severity_mean", "max_severity",
     "distinct_sources", "distinct_diseases", "recent7_count",
 )
+
+# ── 확장 특징 ────────────────────────────────────────────────────────────
+# 왜 필요한가(실측 근거): 기본 6개는 사실상 '뉴스량' 한 축이다. 신호가 있는 행만
+# 놓고 양성·음성 중앙값을 비교하면 distinct_sources·distinct_diseases·recent7_count는
+# 분리도 0.00(완전히 같음)이고, 가장 분리도가 큰 max_severity는 **방향이 반대**였다
+# (양성 20~30 vs 음성 39~40). 그 결과 모델은 신호가 있는 행의 82%에 경보를 낸다 —
+# 사실상 '신호 존재 감지기'다. 전향 검증에서 조건부 재현율은 이미 1.000이므로
+# 남은 과제는 재현율이 아니라 **과다발화**다.
+#
+# max_severity가 뒤집힌 이유가 확장 특징의 설계 근거다: 음성의 약 45%가 '이미 선언된
+# 발병이 진행 중인 기간'이라 시끄럽다. 모델은 거기서 "시끄러우면 음성"을 배웠다.
+# 그래서 그 국면을 지우는 대신 **모델이 볼 수 있게** 특징으로 준다(days_since_declaration).
+# 데이터를 버리지 않고 상황을 구분시키는 쪽이 정직하고 운영에도 맞다 —
+# 실제 시스템은 이미 선언된 발병이 있는지 알고 있다.
+#
+# 나머지는 '절대량' 대신 '그 나라 평소 대비'로 본다. COD는 평상시에도 창당 5건이
+# 잡히므로 5건은 COD에서 아무 의미가 없지만 조용한 나라에선 큰 사건이다.
+EXTRA_FEATURE_KEYS = (
+    "outbreak_recently_declared",   # 이미 선언된 발병이 진행 중인가(0/1)
+    "days_since_declaration",       # 마지막 선언 이후 경과(0~1로 정규화, 없으면 1)
+    "count_vs_country_baseline",    # 창 신호수 / 그 나라 평소 창당 신호수
+    "recent_acceleration",          # 최근 7일 속도 / 창 전체 평균 속도
+    "disease_concentration",        # 질병 점유율 허핀달(1=한 질병이 독점)
+    "novel_disease_for_country",    # 창의 주력 질병이 그 나라 과거에 없던 것인가(0/1)
+    "new_or_spike_fraction",        # signal_type이 신규발생·급증인 비율
+    "max_source_trust",             # 창 안 최고 신뢰도 출처
+)
+
+FEATURE_KEYS_EXTENDED = FEATURE_KEYS + EXTRA_FEATURE_KEYS
+
+# 그 나라 평소 수준을 재는 비교 구간 = lookback의 몇 배를 볼 것인가.
+_BASELINE_WINDOWS = 3
+# 선언 후 이 기간까지는 '발병 진행 중'으로 본다(WHO 종식선언은 보통 마지막 확진
+# 이후 42일 × 2 — 에볼라 기준. 국면 구분용 근사치이며 정밀한 역학 상수가 아니다).
+_ACTIVE_OUTBREAK_DAYS = 120
+# days_since_declaration 정규화 상한 — 이보다 오래되면 '평시'와 구분이 없다.
+_DECL_HORIZON_DAYS = 730.0
+_NEW_OR_SPIKE = {"신규발생", "급증"}
 
 # outbreak_timeline event_id → 국가 ISO3(라벨 매핑). 명확한 것만.
 EVENT_COUNTRY = {
@@ -47,24 +86,95 @@ def _parse_date(s) -> dt.date | None:
         return None
 
 
-def extract_features(window_signals: list[dict], as_of: dt.date) -> dict:
-    """한 (국가, as_of) 스냅샷의 신호 특징. window_signals는 lookback 창 안의 신호."""
-    if not window_signals:
-        return {k: 0.0 for k in FEATURE_KEYS}
-    sevs = [SIGNAL_TYPE_SEVERITY.get(s.get("signal_type"), 40) * (s.get("source_trust") or 0.5)
-            for s in window_signals]
-    recent7 = 0
-    for s in window_signals:
+def extract_features(window_signals: list[dict], as_of: dt.date,
+                     context: dict | None = None) -> dict:
+    """한 (국가, as_of) 스냅샷의 신호 특징. window_signals는 lookback 창 안의 신호.
+
+    context를 주면 확장 특징까지 계산한다:
+      {"prior": [창 이전 그 나라 신호], "declarations": [as_of 이전 선언일], "lookback_days": int}
+
+    ★ 누수 방지 ★ context는 **as_of 이전 정보만** 담아야 한다. 미래 선언일이나 창
+    이후 신호가 섞이면 전향 평가가 통째로 무의미해진다 — 호출부(assemble_dataset)가
+    as_of로 잘라서 넘긴다."""
+    base = {k: 0.0 for k in FEATURE_KEYS}
+    if window_signals:
+        sevs = [SIGNAL_TYPE_SEVERITY.get(s.get("signal_type"), 40) * (s.get("source_trust") or 0.5)
+                for s in window_signals]
+        recent7 = 0
+        for s in window_signals:
+            d = _parse_date(s.get("signal_date") or s.get("extracted_at"))
+            if d and (as_of - d).days <= 7:
+                recent7 += 1
+        base = {
+            "signal_count": float(len(window_signals)),
+            "weighted_severity_mean": round(sum(sevs) / len(sevs), 3),
+            "max_severity": float(max(sevs)),
+            "distinct_sources": float(len({s.get("source") for s in window_signals})),
+            "distinct_diseases": float(len({s.get("disease") for s in window_signals if s.get("disease")})),
+            "recent7_count": float(recent7),
+        }
+    if context is None:
+        return base
+    return {**base, **_extra_features(window_signals, as_of, context)}
+
+
+def _extra_features(window: list[dict], as_of: dt.date, ctx: dict) -> dict:
+    lookback = float(ctx.get("lookback_days") or 30)
+    prior = ctx.get("prior") or []
+    decls = ctx.get("declarations") or []
+
+    # ── 발병 국면: 이미 선언된 발병이 진행 중인가 ──
+    last_gap = min(((as_of - d).days for d in decls if d <= as_of), default=None)
+    if last_gap is None:
+        recently, since = 0.0, 1.0          # 선언 이력 없음 = 가장 '평시'
+    else:
+        recently = 1.0 if last_gap <= _ACTIVE_OUTBREAK_DAYS else 0.0
+        since = round(min(last_gap / _DECL_HORIZON_DAYS, 1.0), 4)
+
+    # ── 그 나라 평소 대비 ──
+    # prior는 [창 시작 - lookback*3, 창 시작) 구간이라 창당 평균으로 환산한다.
+    baseline_per_window = len(prior) / _BASELINE_WINDOWS
+    count = len(window)
+    # +1 평활 — 평소 0건인 나라에서 분모가 0이 되어 비율이 발산하는 걸 막는다.
+    vs_baseline = round((count + 1.0) / (baseline_per_window + 1.0), 4)
+
+    # ── 최근 가속 ── 최근 7일 속도가 창 전체 평균 속도의 몇 배인가.
+    recent7 = base_recent7 = 0
+    for s in window:
         d = _parse_date(s.get("signal_date") or s.get("extracted_at"))
         if d and (as_of - d).days <= 7:
             recent7 += 1
+    base_recent7 = count * (7.0 / lookback)
+    accel = round((recent7 + 0.5) / (base_recent7 + 0.5), 4) if count else 0.0
+
+    # ── 질병 집중도(허핀달) ── 실제 발병은 한 질병으로 수렴하고, 배경 잡음은 흩어진다.
+    diseases = [s.get("disease") for s in window if s.get("disease")]
+    if diseases:
+        shares = [diseases.count(x) / len(diseases) for x in set(diseases)]
+        concentration = round(sum(p * p for p in shares), 4)
+        dominant = max(set(diseases), key=diseases.count)
+        seen_before = {s.get("disease") for s in prior if s.get("disease")}
+        novel = 0.0 if dominant in seen_before else 1.0
+    else:
+        concentration, novel = 0.0, 0.0
+
+    # ── 신호 성격 ── '신규발생·급증'은 '진행중·불명'과 다른 정보다.
+    if window:
+        ns = sum(1 for s in window if s.get("signal_type") in _NEW_OR_SPIKE)
+        new_frac = round(ns / len(window), 4)
+        trust = round(max((s.get("source_trust") or 0.0) for s in window), 4)
+    else:
+        new_frac, trust = 0.0, 0.0
+
     return {
-        "signal_count": float(len(window_signals)),
-        "weighted_severity_mean": round(sum(sevs) / len(sevs), 3),
-        "max_severity": float(max(sevs)),
-        "distinct_sources": float(len({s.get("source") for s in window_signals})),
-        "distinct_diseases": float(len({s.get("disease") for s in window_signals if s.get("disease")})),
-        "recent7_count": float(recent7),
+        "outbreak_recently_declared": recently,
+        "days_since_declaration": since,
+        "count_vs_country_baseline": vs_baseline,
+        "recent_acceleration": accel,
+        "disease_concentration": concentration,
+        "novel_disease_for_country": novel,
+        "new_or_spike_fraction": new_frac,
+        "max_source_trust": trust,
     }
 
 
@@ -97,21 +207,36 @@ def _country_declarations() -> dict[str, list[dt.date]]:
 
 
 def assemble_dataset(horizon_days: int = 30, lookback_days: int = 30,
-                     step_days: int = 7, limit: int = 5000) -> list[dict]:
+                     step_days: int = 7, limit: int = 5000,
+                     resolve_location: bool = True,
+                     extended: bool = True) -> list[dict]:
     """extracted_signals + outbreak_timeline → (특징 → 라벨) 성과 학습셋.
-    라벨=1: as_of로부터 horizon_days 안에 그 국가에서 공식 발병 선언이 있었음."""
+    라벨=1: as_of로부터 horizon_days 안에 그 국가에서 공식 발병 선언이 있었음.
+
+    resolve_location=True면 country_iso3가 비어 있어도 location 자유문장에서 국가를
+    읽어내고, 다국가 문자열("콩고민주공화국, 우간다")은 **양쪽 모두**에 넣는다.
+    저장된 country_iso3만 쓰면 2024년 이후 신호 157건 중 150건이 버려져 최근
+    3년 커버리지가 0이 된다(전향 평가 최신 폴드 재현율 0.000의 실제 원인).
+    False면 예전 동작 그대로 — 커버리지 개선 효과를 비교 측정할 때 쓴다.
+
+    extended=True면 확장 특징(발병 국면·평소 대비·가속·질병 집중도 등)까지 붙인다.
+    False면 기본 6개만 — 특징 추가 효과를 같은 시간분할로 비교 측정할 때 쓴다."""
     signals = db.list_extracted_signals(limit=limit)
     by_country: dict[str, list[dict]] = {}
     dates: list[dt.date] = []
     for s in signals:
-        c = s.get("country_iso3")
-        if not c:
+        if resolve_location:
+            countries = signal_countries(s)
+        else:
+            countries = [s["country_iso3"]] if s.get("country_iso3") else []
+        if not countries:
             continue
         d = _parse_date(s.get("signal_date") or s.get("extracted_at"))
         if d is None:
             continue
         s = {**s, "_date": d}
-        by_country.setdefault(c, []).append(s)
+        for c in countries:
+            by_country.setdefault(c, []).append(s)
         dates.append(d)
     if not dates:
         return []
@@ -126,9 +251,20 @@ def assemble_dataset(horizon_days: int = 30, lookback_days: int = 30,
             lo = as_of - dt.timedelta(days=lookback_days)
             window = [s for s in sigs if lo <= s["_date"] <= as_of]
             label = 1 if any(as_of < dd <= as_of + dt.timedelta(days=horizon_days) for dd in decls) else 0
+            context = None
+            if extended:
+                # ★ 누수 방지 ★ 평소 수준은 **창 시작 이전** 구간에서만, 선언 이력은
+                # **as_of 이전** 것만 넘긴다. 라벨이 보는 미래(as_of+horizon)는 절대
+                # 들어가면 안 된다 — 들어가면 전향 평가가 통째로 무의미해진다.
+                base_lo = lo - dt.timedelta(days=lookback_days * _BASELINE_WINDOWS)
+                context = {
+                    "prior": [s for s in sigs if base_lo <= s["_date"] < lo],
+                    "declarations": [d for d in decls if d <= as_of],
+                    "lookback_days": lookback_days,
+                }
             rows.append({
                 "country": country, "as_of": as_of.isoformat(),
-                "features": extract_features(window, as_of), "label": label,
+                "features": extract_features(window, as_of, context), "label": label,
             })
             as_of += dt.timedelta(days=step_days)
     return rows
@@ -152,8 +288,25 @@ def dataset_readiness(rows: list[dict]) -> dict:
     }
 
 
-def _vec(features: dict) -> list[float]:
-    return [features.get(k, 0.0) for k in FEATURE_KEYS]
+def feature_order(rows: list[dict]) -> tuple[str, ...]:
+    """이 데이터셋이 **실제로 담고 있는** 특징을 정해진 순서로 추린다.
+
+    전역 FEATURE_KEYS로 고정하면 확장 특징이 채점 때 통째로 무시돼, 특징을 추가해도
+    아무 변화가 없는 것처럼 보인다(조용히 틀리는 종류의 버그다).
+
+    '확장 키가 전부 있으면 확장'식의 전부-아니면-전무 판정도 같은 함정이다 — 절제
+    실험으로 특징 두 개를 빼면 조건이 깨져 나머지 확장 특징까지 통째로 버려지고,
+    기본 6개 결과가 나오면서 '그 특징들은 기여가 없다'는 정반대 결론이 나온다
+    (실제로 그렇게 한 번 틀렸다). 그래서 있는 것만 순서대로 쓴다."""
+    if not rows:
+        return FEATURE_KEYS
+    present = set(rows[0]["features"])
+    keys = tuple(k for k in FEATURE_KEYS_EXTENDED if k in present)
+    return keys or FEATURE_KEYS
+
+
+def _vec(features: dict, keys: tuple[str, ...] = FEATURE_KEYS) -> list[float]:
+    return [features.get(k, 0.0) for k in keys]
 
 
 def train_baseline(rows: list[dict], iters: int = 300, lr: float = 0.1) -> dict:
@@ -163,9 +316,10 @@ def train_baseline(rows: list[dict], iters: int = 300, lr: float = 0.1) -> dict:
     if not readiness["sufficient_data"]:
         return {"trained": False, "reason": "데이터 부족 — 학습 거부", "readiness": readiness}
 
-    X = [_vec(r["features"]) for r in rows]
+    keys = feature_order(rows)
+    X = [_vec(r["features"], keys) for r in rows]
     y = [float(r["label"]) for r in rows]
-    n, d = len(X), len(FEATURE_KEYS)
+    n, d = len(X), len(keys)
     # 표준화
     means = [sum(row[j] for row in X) / n for j in range(d)]
     stds = [math.sqrt(sum((row[j] - means[j]) ** 2 for row in X) / n) or 1.0 for j in range(d)]
@@ -222,12 +376,13 @@ def train_baseline(rows: list[dict], iters: int = 300, lr: float = 0.1) -> dict:
         "positive_recall": recall,
         "positive_precision": precision,
         "positives": pos_total,
-        "weights": {FEATURE_KEYS[j]: round(w[j], 4) for j in range(d)},
+        "feature_order": list(keys),   # 채점이 같은 순서를 쓰게 한다
+        "weights": {keys[j]: round(w[j], 4) for j in range(d)},
         # 표준화 파라미터와 절편 — 이게 없으면 학습 밖에서 같은 점수를 재현할 수 없어
         # 임계값 곡선을 그릴 수 없다(nowcast_threshold가 쓴다).
         "bias": round(b, 6),
-        "feature_means": {FEATURE_KEYS[j]: round(means[j], 6) for j in range(d)},
-        "feature_stds": {FEATURE_KEYS[j]: round(stds[j], 6) for j in range(d)},
+        "feature_means": {keys[j]: round(means[j], 6) for j in range(d)},
+        "feature_stds": {keys[j]: round(stds[j], 6) for j in range(d)},
         "decision_threshold": 0.5,
         "readiness": readiness,
         "warning": "학습 정확도만 보지 말 것 — 발병은 희귀사건이라 정확도가 base_rate에 "

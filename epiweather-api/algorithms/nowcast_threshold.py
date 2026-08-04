@@ -33,16 +33,21 @@ def _sigmoid(z: float) -> float:
 
 
 def score_rows(rows: list[dict], model: dict) -> list[tuple[float, int]]:
-    """(예측확률, 실제라벨) 목록. 학습 때와 같은 표준화를 적용한다."""
+    """(예측확률, 실제라벨) 목록. 학습 때와 **같은 특징 순서·같은 표준화**를 적용한다.
+
+    특징 순서를 전역 상수로 고정하면 확장 특징을 학습해 놓고 채점에선 통째로 무시해,
+    특징을 추가해도 성능이 안 변하는 것처럼 보인다. 그래서 모델이 학습 때 쓴
+    feature_order를 따른다(없으면 구형 모델이므로 기본 6개)."""
     weights = model.get("weights") or {}
     means = model.get("feature_means") or {}
     stds = model.get("feature_stds") or {}
     bias = model.get("bias", 0.0)
+    keys = tuple(model.get("feature_order") or FEATURE_KEYS)
     out = []
     for row in rows:
-        vec = _vec(row["features"])
+        vec = _vec(row["features"], keys)
         z = bias
-        for j, key in enumerate(FEATURE_KEYS):
+        for j, key in enumerate(keys):
             std = stds.get(key) or 1.0
             z += weights.get(key, 0.0) * ((vec[j] - means.get(key, 0.0)) / std)
         out.append((_sigmoid(z), int(row["label"])))

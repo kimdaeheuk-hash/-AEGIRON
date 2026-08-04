@@ -310,7 +310,9 @@ def location_from_header(header: str | None) -> str | None:
     병명 보강과 같은 원칙: 사전에 있는 국가명일 때만 쓰고 출처를 남긴다."""
     if not header:
         return None
-    from .bulletin_ingest import _ISO3            # 국가명 사전은 한 곳에만 둔다
+    # 여긴 코드가 아니라 **영문 표기 이름**이 필요하다(WHO 영문 보고서 제목에서
+    # 국가명을 그대로 뽑아 location에 넣는 용도). 코드 해석은 country_resolve가 맡는다.
+    from .bulletin_ingest import _ISO3
 
     low = re.sub(r"[^a-z ]+", " ", header.lower())
     matches = [name for name in _ISO3 if len(name) >= 4 and name in low]
