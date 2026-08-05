@@ -103,10 +103,26 @@ def collect_new_reports(dbmod=None, source: str = "who_sitrep_bundibugyo",
         if not table_result.get("ok"):
             failed += 1
             continue
+        found = extract_signals(table_result, source=source, signal_date=issued)
+
+        # ★ VLM은 같은 페이지를 같은 조건으로 보내도 매번 같은 표를 주지 않는다.
+        # 실측(2026-07-26 상황보고서): 국가 요약표가 어떤 회차 실행에선 통째로
+        # 빠져 신호 0건이 났는데, 그 페이지만 세 번 다시 보내니 세 번 다 정상
+        # 3건이 나왔다. 페이지 선택도 파싱도 옳은데 응답이 흔들린 것이다.
+        # 회차 전체가 0건이면 한 번만 다시 시도한다 — 실패했을 때만 드는 비용이라
+        # 상한이 분명하고, 안 하면 그 주 보고서를 통째로 잃는다.
+        retried = False
+        if found["signal_count"] == 0:
+            retried = True
+            again = extract_tables(pdf, max_pages=max_pages)
+            if again.get("ok"):
+                found_again = extract_signals(again, source=source, signal_date=issued)
+                if found_again["signal_count"] > 0:
+                    table_result, found = again, found_again
+
         # 여기까지 왔으면 파싱은 실제로 해봤다 — 신호가 0건이어도 기록한다.
         # 안 그러면 표를 못 찾는 회차를 매일 다시 파싱하게 된다(실측 확인).
         state[key] = now_iso
-        found = extract_signals(table_result, source=source, signal_date=issued)
         result = ingest(found["signals"], source=source, dbmod=dbmod)
         parsed += 1
         inserted += result["inserted"]
@@ -116,6 +132,9 @@ def collect_new_reports(dbmod=None, source: str = "who_sitrep_bundibugyo",
             "signals_found": found["signal_count"],
             "inserted": result["inserted"],
             "pages_selected": table_result.get("pages_selected"),
+            # 재시도가 실제로 얼마나 일어나는지 보이게 남긴다 — 조용히 두 번씩
+            # 부르면 비용이 어디서 나는지 모른다.
+            "retried_empty": retried,
         })
 
     if parsed:

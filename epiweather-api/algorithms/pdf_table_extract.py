@@ -73,8 +73,21 @@ _EPI_KEYWORD = re.compile(r"case fatality|cfr|deaths|cases|confirmed|outbreak", 
 _BIG_NUMBER = re.compile(r"\b\d[\d,]{2,}\b")
 
 
+# 표 페이지 점수와 무관하게 반드시 보내는 앞쪽 페이지 수.
+#
+# 왜 필요한가(실측, WHO 상황보고서 11회차 전수 조사): 국가 요약표("Country |
+# Confirmed Cases | ...")가 **11회차 전부 0페이지**에 있는데, 점수 순위로는
+# 3회차(7/12·7/19·7/26)에서 상위 3장 밖으로 밀렸다. 점수가 '큰 숫자 개수 + 역학
+# 키워드'라, 보건지역 수십 행짜리 **상세표가 압도적으로 높은 점수**를 받기 때문이다.
+# 그런데 상세표는 국가 칸이 원본에서 병합돼 있어 VLM 출력에선 빈칸이라 국가 단위
+# 신호를 만들 수 없다(실측 7/19: 44행 → 신호 0건). 정작 쓸 수 있는 건 압축된
+# 요약표인데 점수 경쟁에서 지는 구조였다.
+_ALWAYS_INCLUDE_FIRST = 1
+
+
 def find_table_pages(pdf_bytes: bytes, min_numbers: int = 8,
-                     min_keywords: int = 3, limit: int = 8) -> list[int]:
+                     min_keywords: int = 3, limit: int = 8,
+                     always_first: int = _ALWAYS_INCLUDE_FIRST) -> list[int]:
     """VLM에 보낼 가치가 있는 페이지만 **로컬에서 공짜로** 골라낸다(0-based).
 
     왜 필요한가: 페이지마다 VLM 호출 1회라 16페이지짜리 보고서를 통째로 넣으면
@@ -84,7 +97,10 @@ def find_table_pages(pdf_bytes: bytes, min_numbers: int = 8,
 
     판별은 pymupdf 텍스트만 쓴다: 큰 숫자 밀도와 역학 키워드가 둘 다 높은 페이지가
     표 페이지다. 텍스트 추출이 깨져 있어도(합자 문제) 숫자와 영단어는 남으므로
-    이 용도엔 충분하다. 후보가 없으면 앞에서부터 채워 최소한 시도는 하게 한다."""
+    이 용도엔 충분하다. 후보가 없으면 앞에서부터 채워 최소한 시도는 하게 한다.
+
+    always_first장은 점수와 무관하게 항상 포함한다 — 순수 점수순은 요약표를
+    상세표에 밀어내는 것이 실측으로 확인됐다(_ALWAYS_INCLUDE_FIRST 주석 참고)."""
     try:
         import fitz
     except ImportError:
@@ -104,8 +120,21 @@ def find_table_pages(pdf_bytes: bytes, min_numbers: int = 8,
 
     if not scored:
         return list(range(min(limit, total)))
-    scored.sort(reverse=True)                      # 점수 높은 페이지 우선
-    return sorted(idx for _score, idx in scored[:limit])
+
+    # 앞쪽 고정분을 먼저 확보하고, 남은 자리를 점수순으로 채운다.
+    # ★ 단, **이미 표 후보로 통과한 페이지만** 고정한다 — 표지·목차처럼 내용이 없는
+    # 앞장을 무조건 보내면 문서마다 VLM 호출 1회가 헛나간다. 요약표가 점수 경쟁에서
+    # 지는 것만 막으면 되지, 자격 없는 페이지를 밀어 넣을 이유는 없다.
+    qualified = {idx for _s, idx in scored}
+    pinned = [i for i in range(min(always_first, total, limit)) if i in qualified]
+    scored.sort(reverse=True)
+    chosen = list(pinned)
+    for _score, idx in scored:
+        if len(chosen) >= limit:
+            break
+        if idx not in chosen:
+            chosen.append(idx)
+    return sorted(chosen)
 
 
 def _parse_page(png: bytes, api_key: str) -> list[dict]:

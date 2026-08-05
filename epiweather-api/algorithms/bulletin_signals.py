@@ -24,6 +24,8 @@ from __future__ import annotations
 
 import re
 
+from .country_resolve import resolve_country
+
 # 헤더 키워드 → 정규화 필드. 소문자 부분일치로 본다(표기가 문서마다 흔들림).
 _HEADER_MAP: list[tuple[str, tuple[str, ...]]] = [
     ("deaths", ("death",)),
@@ -34,7 +36,11 @@ _HEADER_MAP: list[tuple[str, tuple[str, ...]]] = [
     ("total_cases", ("total case", "cumulative", "cases", "case")),
 ]
 _DISEASE_HEADER = ("event", "disease", "condition", "outbreak")
-_COUNTRY_HEADER = ("country", "countries", "province", "region", "county")
+# 국가 열과 하위행정구역 열을 나눠 둔다. 둘 다 라벨이지만 '국가로 읽혀야 하는가'가
+# 다르다 — 국가 열의 라벨이 어느 나라로도 안 읽히면 그건 국가가 아니라 표 오독이다.
+_NATION_HEADER = ("country", "countries", "nation")
+_SUBNATIONAL_HEADER = ("province", "region", "county", "district", "health zone")
+_COUNTRY_HEADER = _NATION_HEADER + _SUBNATIONAL_HEADER
 
 # 표 합계 행 — 국가·질병이 아니다. 그대로 두면 'Total'이라는 나라가 생겨
 # 추이 분석에 유령 지역이 끼어든다(실제 상황보고서 적재에서 발생).
@@ -42,6 +48,33 @@ _SUMMARY_LABEL = re.compile(r"^(grand\s+)?(total|sub[\s-]?total|all\s+\w+|합계
 
 _NUM = re.compile(r"-?\d[\d,\s]*\.?\d*")
 _PCT = re.compile(r"(\d+\.?\d*)\s*%")
+
+# 칸 전체가 수치인가(구분자·부호·퍼센트만 허용). 라벨 판정 전용이다.
+_PURE_NUMBER = re.compile(r"^[-+]?[\d,.\s]*\d[\d,.\s]*%?$")
+# 표 라벨에 붙는 각주 표식 — WHO 요약표는 국가명 앞뒤에 주석번호를 붙인다
+# (실측: "1 Democratic Republic of the Congo", "2 Uganda", "Uganda2").
+_FOOTNOTE_PREFIX = re.compile(r"^[\d¹²³\*†‡]+[\s.)]*")
+# 뒤쪽 각주는 글자에 바로 붙어 온다("Uganda2") — 앞이 문자일 때만 떼야
+# 'COVID-19' 같은 이름의 끝자리를 깎지 않는다.
+_FOOTNOTE_SUFFIX = re.compile(r"(?<=[A-Za-z])[\d¹²³\*†‡]+$")
+
+
+def _is_pure_number(cell: str) -> bool:
+    """★이 구분이 핵심★ '숫자로 시작하는 라벨'과 '숫자인 칸'은 다르다.
+
+    _to_number는 의도적으로 관대하다('5 Suspected' → 5.0). 그 함수로 라벨 여부를
+    판정하면 각주가 붙은 국가명 "1 Democratic Republic of the Congo"가 1.0으로 읽혀
+    **행 전체가 버려진다** — 실측 2026-05-31 상황보고서에서 국가 요약표 2행이
+    통째로 사라져 그 회차 신호가 0건이었다. 그래서 라벨 판정은 '칸 전체가 수치'일
+    때만 참으로 본다."""
+    return bool(_PURE_NUMBER.match((cell or "").strip()))
+
+
+def _strip_footnote(label: str) -> str:
+    """라벨 앞뒤 각주 표식 제거. 전부 지워지면(=진짜 숫자칸) 원본을 돌려준다."""
+    stripped = _FOOTNOTE_PREFIX.sub("", label or "").strip()
+    stripped = _FOOTNOTE_SUFFIX.sub("", stripped).strip()
+    return stripped or label
 
 
 def _norm(text: str) -> str:
@@ -141,8 +174,11 @@ def map_header(header: list[str]) -> dict:
         if "label" not in mapping and any(k in cell for k in _DISEASE_HEADER):
             mapping["label"], mapping["label_kind"] = idx, "disease"
             continue
-        if "label" not in mapping and any(k in cell for k in _COUNTRY_HEADER):
+        if "label" not in mapping and any(k in cell for k in _NATION_HEADER):
             mapping["label"], mapping["label_kind"] = idx, "country"
+            continue
+        if "label" not in mapping and any(k in cell for k in _SUBNATIONAL_HEADER):
+            mapping["label"], mapping["label_kind"] = idx, "subnational"
             continue
         for field, keywords in _HEADER_MAP:
             if any(k in cell for k in keywords):
@@ -162,9 +198,28 @@ def map_header(header: list[str]) -> dict:
     return mapping
 
 
+def _is_stat_banner(header: list[str]) -> bool:
+    """표지의 'Key Figures at a Glance' 통계 배너인가 — 표가 아니다.
+
+    VLM은 이 배너도 표로 내보낸다. 그런데 첫 행이 열 제목이 아니라 **수치가 박힌
+    문구**라("469 Cases Recovered", "87.3% Bed Occupancy"), 헤더로 해석하면
+    "Active Cases in Isolation"이 지역 라벨이 되어 유령 지역 신호가 생긴다(실측).
+
+    구분 기준: 진짜 표 헤더는 대부분 숫자가 없는 열 이름이다. 실측 대조 —
+    상세표 헤더는 10칸 중 2칸에만 숫자가 있고('Cases (last 21 d)'), 배너는 5칸
+    전부에 숫자가 있다. 그래서 '헤더 칸 과반이 숫자를 품고 있으면 배너'로 본다."""
+    cells = [c for c in header if (c or "").strip()]
+    if len(cells) < 3:
+        return False
+    with_digits = sum(1 for c in cells if re.search(r"\d", c))
+    return with_digits > len(cells) / 2
+
+
 def looks_like_epi_table(rows: list[list[str]]) -> bool:
     """역학 표인지 — 라벨 열과 숫자 필드가 최소 하나씩 잡혀야 한다."""
     if len(rows) < 2:
+        return False
+    if _is_stat_banner(rows[0]):
         return False
     mapping = map_header(rows[0])
     numeric = [f for f, _ in _HEADER_MAP if f in mapping]
@@ -339,8 +394,16 @@ def rows_to_signals(rows: list[list[str]], source: str = "who_bulletin",
         if label_idx >= len(row):
             continue
         label = _flatten(row[label_idx])
-        if not label or _to_number(label) is not None:
-            continue                    # 빈 칸이거나 숫자면 라벨이 아니다
+        if not label or _is_pure_number(label):
+            continue                    # 빈 칸이거나 칸 전체가 수치면 라벨이 아니다
+        label = _strip_footnote(label)   # "1 Democratic Republic of the Congo" → 국가명
+        if label_kind == "country" and not resolve_country(label):
+            # 국가 축 표라고 판정했는데 라벨이 어느 나라로도 안 읽히면 국가가 아니다.
+            # VLM은 표지의 'Key Figures at a Glance' 상자도 표로 내보내는데, 거기서
+            # "Provinces"·"Health Zones"·"Active Cases in Isolation" 같은 칸이 국가
+            # 라벨로 올라와 **'Provinces'라는 나라에 확진 2명·사망 195명**이 적히는
+            # 신호가 실제로 만들어졌다. 유령 지역은 추이 분석을 통째로 오염시킨다.
+            continue
         if _SUMMARY_LABEL.match(label):
             continue                    # 표 합계 행 — 국가·질병이 아니다
 
@@ -383,7 +446,7 @@ def rows_to_signals(rows: list[list[str]], source: str = "who_bulletin",
             if from_header:
                 disease, disease_source = from_header, "section_header"
 
-        location = label if label_kind == "country" else None
+        location = label if label_kind in ("country", "subnational") else None
         location_source = "table_column" if location else None
         if location is None:
             # 질병 축 표는 국가 열이 없다 — 제목에서 가져오되 출처를 남긴다.
