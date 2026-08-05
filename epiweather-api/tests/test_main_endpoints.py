@@ -445,7 +445,8 @@ def test_ai_nowcast_backfill_train_requires_auth(client):
 def test_ai_nowcast_backfill_train_honest_when_gdelt_blocked(client_with_key):
     """GDELT 차단 환경(이 테스트도 네트워크 없음)이면 신호를 지어내지 않고 학습 거부."""
     client, key = client_with_key
-    with patch("algorithms.nowcast_backfill.fetch_coverage_timeline", return_value=None):
+    blocked = {"points": None, "error": "network", "detail": "차단"}
+    with patch("algorithms.nowcast_backfill.fetch_coverage_detailed", return_value=blocked):
         resp = client.post("/api/ai/nowcast/backfill-train", headers={"X-API-Key": key})
     assert resp.status_code == 200
     body = resp.json()

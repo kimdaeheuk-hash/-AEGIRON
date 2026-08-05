@@ -9,6 +9,22 @@ from algorithms import nowcast_backfill as bf
 from algorithms import historical_outbreaks as ho
 
 
+def _detailed(fn):
+    """구식 fake(포인트 목록 | None) → fetch_coverage_detailed의 dict 형태로 변환.
+
+    실패 이유를 구분해 돌려주도록 바뀌면서 반환 형태가 달라졌다. 테스트의 관심사는
+    '포인트가 있느냐'이므로 여기서 껍데기만 맞춰준다."""
+    def wrapped(query, start, end):
+        pts = fn(query, start, end)
+        if not pts:
+            return {"points": None, "error": "no_data", "detail": None}
+        return {"points": pts, "error": None, "detail": None}
+    return wrapped
+
+
+_NO_DATA = {"points": None, "error": "no_data", "detail": None}
+
+
 def _fake_timeline(query, start, end):
     """선언 근처에서 뉴스량이 치솟는 가짜 GDELT 타임라인(선언 앞뒤로 상승)."""
     pts = []
@@ -33,13 +49,13 @@ def test_backfill_timeline_loads_official_declarations(isolated_db):
 
 def test_backfill_signals_skips_when_gdelt_unreachable(isolated_db):
     """GDELT가 None(차단)이면 신호를 지어내지 않고 0건 — 정직."""
-    with patch("algorithms.nowcast_backfill.fetch_coverage_timeline", return_value=None):
+    with patch("algorithms.nowcast_backfill.fetch_coverage_detailed", return_value=_NO_DATA):
         created = bf.backfill_signals_for(ho.OUTBREAKS[0])
     assert created == 0
 
 
 def test_backfill_signals_creates_dated_signals(isolated_db):
-    with patch("algorithms.nowcast_backfill.fetch_coverage_timeline", side_effect=_fake_timeline):
+    with patch("algorithms.nowcast_backfill.fetch_coverage_detailed", side_effect=_detailed(_fake_timeline)):
         created = bf.backfill_signals_for(ho.OUTBREAKS[4])   # ebola_cod_pheic_2019
     assert created > 0
     import db
@@ -54,7 +70,7 @@ def test_backfill_signals_creates_dated_signals(isolated_db):
 def test_run_backfill_and_train_learns_on_real_labels(isolated_db):
     """백필 전체 → 학습셋 조립 → 베이스라인 학습이 실제로 됨(프레임워크 작동 증명).
     정확도는 retrospective로 라벨링되고 전향검증 경고가 유지되는지 확인."""
-    with patch("algorithms.nowcast_backfill.fetch_coverage_timeline", side_effect=_fake_timeline):
+    with patch("algorithms.nowcast_backfill.fetch_coverage_detailed", side_effect=_detailed(_fake_timeline)):
         out = bf.run_backfill_and_train()
     assert out["backfill"]["signals_created"] > 0
     assert out["readiness"]["positives"] >= 10      # 게이트 통과(양성 충분)
@@ -66,7 +82,7 @@ def test_run_backfill_and_train_learns_on_real_labels(isolated_db):
 
 def test_gdelt_blocked_yields_no_training(isolated_db):
     """이 샌드박스처럼 GDELT 차단이면 학습셋이 안 차서 학습 거부 — 정직."""
-    with patch("algorithms.nowcast_backfill.fetch_coverage_timeline", return_value=None):
+    with patch("algorithms.nowcast_backfill.fetch_coverage_detailed", return_value=_NO_DATA):
         out = bf.run_backfill_and_train()
     assert out["backfill"]["signals_created"] == 0
     assert out["backfill"]["gdelt_reachable"] is False
@@ -89,7 +105,7 @@ def test_low_event_coverage_is_reported_not_called_complete(monkeypatch, isolate
     """★핵심 회귀★ 16건 중 2건만 수집됐는데 총 신호 수가 0이 아니라는 이유로
     'gdelt_reachable=True, 수집 완료'로 보고됐다. 라벨 87.5%가 비었으면 완료가 아니다."""
     import algorithms.nowcast_backfill as nb
-    monkeypatch.setattr(nb, "fetch_coverage_timeline", _fake_fetch({"Kivu", "Guinea"}))
+    monkeypatch.setattr(nb, "fetch_coverage_detailed", _detailed(_fake_fetch({"Kivu", "Guinea"})))
     out = nb.run_backfill()
     assert out["signals_created"] > 0          # 신호는 있지만
     assert out["coverage_sufficient"] is False  # 커버리지는 불충분
@@ -100,7 +116,7 @@ def test_low_event_coverage_is_reported_not_called_complete(monkeypatch, isolate
 
 def test_sufficient_coverage_reports_cleanly(monkeypatch, isolated_db):
     import algorithms.nowcast_backfill as nb
-    monkeypatch.setattr(nb, "fetch_coverage_timeline", _fake_fetch({'"'}))  # 전부 매칭
+    monkeypatch.setattr(nb, "fetch_coverage_detailed", _detailed(_fake_fetch({'"'})))  # 전부 매칭
     out = nb.run_backfill()
     assert out["coverage_sufficient"] is True
     assert out["event_coverage"] == 1.0
@@ -110,7 +126,7 @@ def test_sufficient_coverage_reports_cleanly(monkeypatch, isolated_db):
 def test_zero_coverage_distinguished_from_partial(monkeypatch, isolated_db):
     """한 건도 못 받은 것과 일부만 받은 것은 다른 상태다."""
     import algorithms.nowcast_backfill as nb
-    monkeypatch.setattr(nb, "fetch_coverage_timeline", lambda q, s, e: None)
+    monkeypatch.setattr(nb, "fetch_coverage_detailed", _detailed(lambda q, s, e: None))
     out = nb.run_backfill()
     assert out["gdelt_reachable"] is False and out["events_covered"] == 0
     assert "한 건도" in out["note"]
@@ -119,7 +135,7 @@ def test_zero_coverage_distinguished_from_partial(monkeypatch, isolated_db):
 def test_training_carries_coverage_warning(monkeypatch, isolated_db):
     """소수 사건으로 학습해도 trained=True는 그대로 뜬다 — 경고가 결과에 붙어야 한다."""
     import algorithms.nowcast_backfill as nb
-    monkeypatch.setattr(nb, "fetch_coverage_timeline", _fake_fetch({"Kivu"}))
+    monkeypatch.setattr(nb, "fetch_coverage_detailed", _detailed(_fake_fetch({"Kivu"})))
     out = nb.run_backfill_and_train()
     training = out["training"]
     if training.get("trained"):
@@ -139,7 +155,7 @@ def test_second_run_skips_already_backfilled_events(monkeypatch, isolated_db):
         calls.append(query)
         return _fake_fetch({"Kivu"})(query, start, end)
 
-    monkeypatch.setattr(nb, "fetch_coverage_timeline", counting_fetch)
+    monkeypatch.setattr(nb, "fetch_coverage_detailed", _detailed(counting_fetch))
     first = nb.run_backfill()
     assert first["signals_created"] > 0
     calls_after_first = len(calls)
@@ -154,7 +170,7 @@ def test_second_run_skips_already_backfilled_events(monkeypatch, isolated_db):
 def test_covered_events_stay_covered_across_runs(isolated_db, monkeypatch):
     """건너뛴 사건이 '미수집'으로 세지면 나눠 돌릴수록 커버리지가 떨어져 보인다."""
     import algorithms.nowcast_backfill as nb
-    monkeypatch.setattr(nb, "fetch_coverage_timeline", _fake_fetch({"Kivu"}))
+    monkeypatch.setattr(nb, "fetch_coverage_detailed", _detailed(_fake_fetch({"Kivu"})))
     nb.run_backfill()
     second = nb.run_backfill()
     assert "ebola_cod_kivu_2018" not in second["events_missing"]
@@ -163,7 +179,7 @@ def test_covered_events_stay_covered_across_runs(isolated_db, monkeypatch):
 
 def test_force_refetches_everything(isolated_db, monkeypatch):
     import algorithms.nowcast_backfill as nb
-    monkeypatch.setattr(nb, "fetch_coverage_timeline", _fake_fetch({"Kivu"}))
+    monkeypatch.setattr(nb, "fetch_coverage_detailed", _detailed(_fake_fetch({"Kivu"})))
     nb.run_backfill()
     forced = nb.run_backfill(force=True)
     assert forced["signals_created"] > 0
@@ -171,18 +187,22 @@ def test_force_refetches_everything(isolated_db, monkeypatch):
 
 
 # ── 스케줄러용 maintain(다 차면 멈춤) ─────────────────────────────
-def test_maintain_skips_entirely_when_coverage_sufficient(monkeypatch, isolated_db):
-    """★비용 핵심★ 커버리지가 차면 GDELT를 아예 부르지 않아야 한다 —
-    매일 불러도 비용이 0이어야 스케줄러에 물릴 수 있다."""
+def test_maintain_skips_entirely_when_every_event_is_covered(monkeypatch, isolated_db):
+    """★비용 핵심★ 빈 사건이 없으면 GDELT를 아예 부르지 않아야 한다 —
+    매일 불러도 비용이 0이어야 스케줄러에 물릴 수 있다.
+
+    멈추는 조건이 '커버리지 60% 이상'에서 '남은 게 없음'으로 바뀌었다. 예전 기준은
+    낭비를 막으려다 **마지막 빈 사건이 영원히 안 채워지게** 만들었다(실측 15/16에서
+    자동 보충이 멈췄다). 비용 0 성질은 그대로다 — 이미 채운 건 어차피 안 부른다."""
     import algorithms.nowcast_backfill as nb
     calls = []
     monkeypatch.setattr(nb, "already_backfilled",
                         lambda: {o["event_id"] for o in nb.ho.OUTBREAKS})
-    monkeypatch.setattr(nb, "fetch_coverage_timeline",
+    monkeypatch.setattr(nb, "fetch_coverage_detailed",
                         lambda q, s, e: calls.append(q))
     out = nb.maintain()
     assert out["action"] == "skipped" and calls == []
-    assert out["event_coverage"] >= nb.MIN_EVENT_COVERAGE
+    assert out["event_coverage"] == 1.0
 
 
 def test_maintain_caps_events_per_run(monkeypatch, isolated_db):
@@ -194,7 +214,7 @@ def test_maintain_caps_events_per_run(monkeypatch, isolated_db):
         calls.append(query)
         return _fake_fetch({'"'})(query, start, end)
 
-    monkeypatch.setattr(nb, "fetch_coverage_timeline", fetch)
+    monkeypatch.setattr(nb, "fetch_coverage_detailed", _detailed(fetch))
     out = nb.maintain(max_events=3)
     assert len(calls) == 3
     assert len(out["backfill"]["deferred_to_next_run"]) == len(nb.ho.OUTBREAKS) - 3
@@ -203,7 +223,7 @@ def test_maintain_caps_events_per_run(monkeypatch, isolated_db):
 def test_maintain_retrains_only_when_new_signals(monkeypatch, isolated_db):
     """새로 채운 게 없으면 재학습을 건너뛴다 — 같은 데이터로 반복 학습할 이유가 없다."""
     import algorithms.nowcast_backfill as nb
-    monkeypatch.setattr(nb, "fetch_coverage_timeline", lambda q, s, e: None)
+    monkeypatch.setattr(nb, "fetch_coverage_detailed", _detailed(lambda q, s, e: None))
     out = nb.maintain(max_events=2)
     assert out["training"]["trained"] is False
     assert "재학습 생략" in out["training"]["reason"]
@@ -212,7 +232,7 @@ def test_maintain_retrains_only_when_new_signals(monkeypatch, isolated_db):
 def test_maintain_marks_coverage_still_short(monkeypatch, isolated_db):
     """기준에 못 미치면 학습 결과에 '아직 미달'이 붙어야 한다."""
     import algorithms.nowcast_backfill as nb
-    monkeypatch.setattr(nb, "fetch_coverage_timeline", _fake_fetch({"Kivu"}))
+    monkeypatch.setattr(nb, "fetch_coverage_detailed", _detailed(_fake_fetch({"Kivu"})))
     out = nb.maintain(max_events=16)
     training = out.get("training") or {}
     if training.get("trained"):

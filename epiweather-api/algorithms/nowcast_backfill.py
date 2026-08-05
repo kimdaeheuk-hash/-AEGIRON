@@ -23,7 +23,7 @@ import re
 
 import db
 from . import historical_outbreaks as ho
-from .gdelt_signals import fetch_coverage_timeline
+from .gdelt_signals import fetch_coverage_detailed
 from . import nowcast_dataset as nd
 
 BACKFILL_SOURCE = "gdelt_backfill"      # provenance 태그(라이브 신호와 구분)
@@ -70,17 +70,26 @@ def _signal_type(ratio: float) -> str:
     return "불명"            # 40
 
 
-def backfill_signals_for(outbreak: dict, *, min_volume: float = 0.0) -> int:
-    """한 사건의 GDELT 뉴스량을 실제 신호로 적재. GDELT 실패 시 0(건너뜀)."""
+def backfill_signals_for(outbreak: dict, *, min_volume: float = 0.0,
+                         reasons: dict | None = None) -> int:
+    """한 사건의 GDELT 뉴스량을 실제 신호로 적재. GDELT 실패 시 0(건너뜀).
+
+    reasons 딕셔너리를 주면 실패 이유를 event_id별로 적어 넣는다 — '왜 비었는지'를
+    남기지 않으면 고칠 수 있는 실패(질의문 오류)와 기다릴 실패(429)를 구분 못 한다."""
     decl = _parse(outbreak["declaration"])
     start = decl - dt.timedelta(days=LOOKBACK_DAYS)
     end = decl + dt.timedelta(days=POST_DAYS)
-    points = fetch_coverage_timeline(outbreak["gdelt_query"], start, end)
+    got = fetch_coverage_detailed(outbreak["gdelt_query"], start, end)
+    points = got["points"]
     if not points:
+        if reasons is not None:
+            reasons[outbreak["event_id"]] = {"error": got["error"], "detail": got["detail"]}
         return 0                       # 네트워크 차단/무자료 → 지어내지 않고 건너뜀
     weekly = _weekly(points)
     vmax = max((v for _, v in weekly), default=0.0)
     if vmax <= 0:
+        if reasons is not None:
+            reasons[outbreak["event_id"]] = {"error": "zero_volume", "detail": "주간 볼륨 최대가 0"}
         return 0
     created = 0
     for wk, v in weekly:
@@ -130,6 +139,7 @@ def run_backfill(min_volume: float = 0.0, force: bool = False,
     events = backfill_timeline()
     done = set() if force else already_backfilled()
     per_event = {}
+    failure_reasons: dict[str, dict] = {}
     skipped_existing = []
     total = 0
     attempted = 0
@@ -146,7 +156,7 @@ def run_backfill(min_volume: float = 0.0, force: bool = False,
             per_event[o["event_id"]] = 0
             continue
         attempted += 1
-        c = backfill_signals_for(o, min_volume=min_volume)
+        c = backfill_signals_for(o, min_volume=min_volume, reasons=failure_reasons)
         per_event[o["event_id"]] = c
         total += c
     # 사건 단위 커버리지를 따로 센다. 총 신호 수만 보면 '몇 건이 통째로 비었는지'가
@@ -181,6 +191,9 @@ def run_backfill(min_volume: float = 0.0, force: bool = False,
         "deferred_to_next_run": deferred,
         "events_attempted": attempted,
         "events_missing": missing,
+        # 왜 비었는지를 사건별로 남긴다 — bad_query는 지금 고칠 수 있고,
+        # rate_limited는 시간을 두고 다시 돌리면 되는, 완전히 다른 문제다.
+        "failure_reasons": failure_reasons,
         "event_coverage": coverage,
         "coverage_sufficient": sufficient,
         # 한 건이라도 받았으면 네트워크는 열린 것 — 커버리지 부족과 구분해서 본다.
@@ -226,13 +239,20 @@ def maintain(max_events: int = 4, min_volume: float = 0.0) -> dict:
     - 새로 채운 게 있을 때만 재학습한다 — 같은 데이터로 반복 학습할 이유가 없다.
     """
     done = already_backfilled()
+    remaining = [o["event_id"] for o in ho.OUTBREAKS if o["event_id"] not in done]
     coverage = round(len(done) / len(ho.OUTBREAKS), 3) if ho.OUTBREAKS else 0.0
-    if coverage >= MIN_EVENT_COVERAGE:
+    # 남은 게 없을 때만 멈춘다. MIN_EVENT_COVERAGE(60%)로 멈추면 **마지막 빈 사건이
+    # 영원히 안 채워진다** — 실측에서 커버리지 94%(15/16)에 도달하자 maintain이
+    # '기준 충족'으로 건너뛰어, 남은 1건을 자동으로 메울 경로가 사라졌다.
+    # 낭비를 막으려던 기준이 마무리까지 막은 것이다. 이미 채운 사건은 GDELT를 아예
+    # 부르지 않으므로, 남은 것만 회차당 max_events씩 시도해도 비용은 그만큼뿐이다.
+    if not remaining:
         return {"ok": True, "action": "skipped", "event_coverage": coverage,
-                "reason": f"커버리지 {coverage:.0%} — 기준 충족, GDELT 호출 없음(비용 0)."}
+                "reason": f"전 사건 수집 완료({len(done)}/{len(ho.OUTBREAKS)}) — GDELT 호출 없음(비용 0)."}
 
     backfill = run_backfill(min_volume=min_volume, max_events=max_events)
-    result = {"ok": True, "action": "backfilled", "backfill": backfill}
+    result = {"ok": True, "action": "backfilled", "backfill": backfill,
+              "remaining_before": remaining}
     if backfill["signals_created"] > 0:
         rows = nd.assemble_dataset()
         result["readiness"] = nd.dataset_readiness(rows)

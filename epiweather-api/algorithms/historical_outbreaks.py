@@ -55,7 +55,10 @@ OUTBREAKS = [
      "gdelt_query": '"Marburg" Ghana', "source": "WHO DON 2022-07-17"},
     {"event_id": "marburg_gnq_2023", "name": "마르부르크 적도기니 2023", "disease": "마르부르크",
      "iso3": "GNQ", "declaration": "2023-02-13", "milestone": "official_declaration",
-     "gdelt_query": '"Marburg" (Equatorial Guinea)', "source": "WHO DON 2023-02-13"},
+     # GDELT는 괄호를 OR 묶음에만 허용한다 — `(Equatorial Guinea)`는 HTTP 200 +
+     # 평문 오류("Parentheses may only be used around OR'd statements")로 되돌아왔고,
+     # 예전 코드가 그걸 '자료 없음'으로 삼켜 이 사건이 조용히 비어 있었다.
+     "gdelt_query": '"Marburg" "Equatorial Guinea"', "source": "WHO DON 2023-02-13"},
     {"event_id": "marburg_tza_2023", "name": "마르부르크 탄자니아 2023", "disease": "마르부르크",
      "iso3": "TZA", "declaration": "2023-03-21", "milestone": "official_declaration",
      "gdelt_query": '"Marburg" Tanzania', "source": "WHO DON 2023-03-21"},
@@ -64,7 +67,13 @@ OUTBREAKS = [
      "gdelt_query": '"Nipah" (Kerala OR India)', "source": "WHO DON 2023-09"},
     {"event_id": "mpox_cod_pheic_2024", "name": "엠폭스 clade Ib PHEIC 2024", "disease": "엠폭스",
      "iso3": "COD", "declaration": "2024-08-14", "milestone": "who_pheic",
-     "gdelt_query": '"mpox" OR "monkeypox" (Congo OR DRC)', "source": "WHO PHEIC 2024-08-14"},
+     # 원래 `"mpox" OR "monkeypox" (Congo OR DRC)`였는데 두 가지가 틀렸다:
+     # ① 결합 오류 — `A OR B (지역)`은 A를 지역 제한 없이 잡아 전 세계 mpox 기사가
+     #    콩고 신호로 들어온다. 병명 묶음을 먼저 괄호로 닫아야 한다.
+     # ② GDELT는 5글자 미만 구문을 거부한다("The specified phrase is too short") —
+     #    `"mpox"`가 4글자라 질의 전체가 통째로 실패했다. 2024년 8월 시점 보도는
+     #    개명 직후라 monkeypox 표기가 함께 쓰였으므로 그쪽만 남긴다.
+     "gdelt_query": '"monkeypox" (Congo OR DRC)', "source": "WHO PHEIC 2024-08-14"},
     {"event_id": "marburg_rwa_2024", "name": "마르부르크 르완다 2024", "disease": "마르부르크",
      "iso3": "RWA", "declaration": "2024-09-27", "milestone": "official_declaration",
      "gdelt_query": '"Marburg" Rwanda', "source": "WHO DON 2024-09-27"},
