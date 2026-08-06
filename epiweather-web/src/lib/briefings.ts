@@ -3,14 +3,12 @@ import type { Locale } from '@/i18n/config';
 /**
  * 브리핑 아카이브 조회 계층.
  *
- * ★ 언어에 대한 실측 사실(2026-08-06) ★
- * 백엔드는 `lang=ko`와 `lang=en`만 만든다(`daily_brief.py`가 "ko가 아니면 영어"인
- * 2분기 구조). **`lang=fr`를 요청하면 오류가 아니라 조용히 한국어가 돌아온다.**
- * 그래서 응답의 `lang`을 반드시 확인하고, 요청한 언어와 다르면 그 사실을 화면에
- * 표시한다 — 한국어 원문을 프랑스어인 척 내보내면 그게 가장 나쁜 실패다.
+ * 언어(2026-08-06 백엔드 개편 후): ko·en·fr 모두 정식 생성된다. 병명·국가명 같은
+ * 고유명사까지 지역화된다(그 전에는 문장만 번역되고 "watching 오즈 바이러스
+ * signal in 한국"처럼 나왔다).
  *
- * 영어판도 완전하지 않다: 병명·국가명이 한국어로 남는 경우가 있다
- * (실측: "watching 오즈 바이러스 signal in ..."). 이것도 감추지 않는다.
+ * 그래도 응답의 `lang`을 확인하는 코드는 남겨둔다 — 백엔드가 어떤 이유로든 다른
+ * 언어를 돌려주면 그 사실을 화면에 표시해야지, 조용히 넘기면 안 된다.
  */
 
 const API_BASE =
@@ -20,15 +18,15 @@ const API_BASE =
 /** 브리핑은 하루 한 번 생성된다 — 매 요청마다 API를 두드릴 이유가 없다. */
 const REVALIDATE_SECONDS = 1800;
 
-/** 백엔드가 실제로 생성하는 언어. 여기 없는 언어는 대체본이 온다. */
-const SUPPORTED_BRIEF_LANGS = ['ko', 'en'] as const;
+/** 백엔드가 실제로 생성하는 언어(daily_brief.SUPPORTED_LANGS와 맞춰 둔다). */
+const SUPPORTED_BRIEF_LANGS = ['ko', 'en', 'fr'] as const;
 
 export type BriefLang = (typeof SUPPORTED_BRIEF_LANGS)[number];
 
 export function briefLangFor(locale: Locale): BriefLang {
   return (SUPPORTED_BRIEF_LANGS as readonly string[]).includes(locale)
     ? (locale as BriefLang)
-    : 'en'; // 프랑스어는 아직 없다 — 한국어보다는 영어가 읽을 수 있는 쪽이다.
+    : 'en'; // 백엔드 폴백과 같은 규칙 — 모르는 언어는 영어로.
 }
 
 export type BriefSummary = {

@@ -23,11 +23,14 @@ export function LanguageNotice({
 }) {
   if (!actualLang) return null;
 
+  // 2026-08-06 백엔드 개편으로 ko·en·fr가 모두 정식 생성된다. 그래서 평소에는
+  // 아무것도 띄우지 않고, **실제로 다른 언어가 돌아왔을 때만** 알린다.
+  // 이 검사를 지우지 않는 이유: 조용히 다른 언어를 내보내는 게 최악의 실패라
+  // 안전망은 남겨 둔다.
   const mismatched = actualLang !== locale;
-  const englishCaveat = actualLang === 'en';
-  if (!mismatched && !englishCaveat) return null;
+  if (!mismatched) return null;
 
-  const message = mismatched ? dict.langNoticeFrench : dict.langNoticeEnglish;
+  const message = dict.langNoticeMismatch;
 
   return (
     <aside

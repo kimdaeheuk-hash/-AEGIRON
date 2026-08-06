@@ -61,10 +61,16 @@ def test_english_version_uses_english_strings():
     assert "official" in brief["disclosure"].lower()
 
 
-def test_unknown_lang_falls_back_to_korean():
+def test_unknown_lang_falls_back_to_english():
+    """모르는 언어의 폴백을 한국어에서 **영어로 바꿨다**(2026-08-06).
+
+    예전엔 한국어로 되돌렸는데, 그 규칙이 프랑스어 요청을 오류 없이 한국어로
+    바꿔놓는 원인이었다. 웹에서는 그게 '프랑스어 페이지에 한국어 원문'으로
+    드러난다. 이제 프랑스어는 정식 지원하고, 그래도 모르는 언어가 오면 읽을 수
+    있는 사람이 더 많은 영어로 보낸다."""
     with patch("algorithms.daily_brief._gather", return_value=_QUIET):
         brief = generate_daily_brief(lang="zz")
-    assert brief["lang"] == "ko"
+    assert brief["lang"] == "en"
 
 
 def test_disclosure_always_present_and_marks_ai_and_not_official():

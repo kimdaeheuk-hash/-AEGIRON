@@ -30,10 +30,8 @@ export const fr: Dictionary = {
     disclosure: 'Avertissement',
     notFound: 'Aucun bulletin pour cette date.',
     langNoticeTitle: 'Remarque sur la langue',
-    langNoticeFrench:
-      'La génération des bulletins ne prend en charge que le coréen et l’anglais pour le moment. Ce qui suit est l’édition anglaise — nous le disons plutôt que de la faire passer pour du français.',
-    langNoticeEnglish:
-      'Les bulletins anglais étant générés automatiquement, certains noms de maladies ou de lieux peuvent rester en coréen.',
+    langNoticeMismatch:
+      'Ce bulletin a été généré dans une langue différente de celle demandée. Nous l’affichons tel quel plutôt que de masquer cet écart.',
   },
 
   common: {

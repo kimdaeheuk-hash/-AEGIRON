@@ -143,10 +143,9 @@ export type BriefingsDict = {
   ticker: string;
   disclosure: string;
   notFound: string;
-  /** ★ 언어 불일치 고지 ★ */
+  /** ★ 언어 불일치 고지 ★ 평소엔 안 뜨고, 요청과 다른 언어가 왔을 때만 뜬다. */
   langNoticeTitle: string;
-  langNoticeFrench: string;
-  langNoticeEnglish: string;
+  langNoticeMismatch: string;
 };
 
 export type PagesDict = {

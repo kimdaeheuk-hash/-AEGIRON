@@ -28,10 +28,8 @@ export const en: Dictionary = {
     disclosure: 'Disclosure',
     notFound: 'There is no briefing for that date.',
     langNoticeTitle: 'A note on language',
-    langNoticeFrench:
-      'Briefing generation currently supports Korean and English only. What follows is the English edition — we say so rather than passing it off as French.',
-    langNoticeEnglish:
-      'English briefings are generated automatically, so some disease and place names may still appear in Korean.',
+    langNoticeMismatch:
+      'This briefing was generated in a different language from the one requested. We show it as-is rather than hiding the mismatch.',
   },
 
   common: {
