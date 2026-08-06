@@ -16,6 +16,26 @@ import { pagesFr } from './pages.fr';
 export const fr: Dictionary = {
   pages: pagesFr,
 
+  briefings: {
+    archiveTitle: 'Bulletins précédents',
+    count: '{n} bulletins',
+    quietDay: 'Journée calme',
+    openBrief: 'Lire',
+    empty: 'Aucun bulletin n’a encore été archivé.',
+    error: 'Les bulletins n’ont pas pu être chargés. Le système, lui, fonctionne toujours.',
+    backToList: 'Tous les bulletins',
+    summary: 'Résumé',
+    segments: 'Séquences',
+    ticker: 'Fil d’actualité',
+    disclosure: 'Avertissement',
+    notFound: 'Aucun bulletin pour cette date.',
+    langNoticeTitle: 'Remarque sur la langue',
+    langNoticeFrench:
+      'La génération des bulletins ne prend en charge que le coréen et l’anglais pour le moment. Ce qui suit est l’édition anglaise — nous le disons plutôt que de la faire passer pour du français.',
+    langNoticeEnglish:
+      'Les bulletins anglais étant générés automatiquement, certains noms de maladies ou de lieux peuvent rester en coréen.',
+  },
+
   common: {
     siteName: 'AEGIRON',
     siteTagline: 'Veille et alerte précoce des maladies infectieuses',

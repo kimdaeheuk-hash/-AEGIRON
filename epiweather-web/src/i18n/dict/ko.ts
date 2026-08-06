@@ -12,6 +12,26 @@ import { pagesKo } from './pages.ko';
 export const ko: Dictionary = {
   pages: pagesKo,
 
+  briefings: {
+    archiveTitle: '지난 브리핑',
+    count: '{n}건',
+    quietDay: '조용한 날',
+    openBrief: '읽기',
+    empty: '아직 보관된 브리핑이 없습니다.',
+    error: '브리핑을 불러오지 못했습니다. 시스템은 계속 가동 중입니다.',
+    backToList: '브리핑 목록',
+    summary: '요약',
+    segments: '꼭지',
+    ticker: '한 줄 속보',
+    disclosure: '고지',
+    notFound: '해당 날짜의 브리핑이 없습니다.',
+    langNoticeTitle: '언어 안내',
+    langNoticeFrench:
+      '브리핑 생성은 아직 한국어와 영어만 지원합니다. 아래 내용은 영어판입니다 — 프랑스어인 척하지 않기 위해 그대로 밝힙니다.',
+    langNoticeEnglish:
+      '영어 브리핑은 자동 생성이라 병명·지명 일부가 한국어로 남아 있을 수 있습니다.',
+  },
+
   common: {
     siteName: 'AEGIRON',
     siteTagline: '감염병 조기경보 인텔리전스',

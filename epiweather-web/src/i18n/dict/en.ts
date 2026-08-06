@@ -14,6 +14,26 @@ import { pagesEn } from './pages.en';
 export const en: Dictionary = {
   pages: pagesEn,
 
+  briefings: {
+    archiveTitle: 'Past briefings',
+    count: '{n} briefings',
+    quietDay: 'Quiet day',
+    openBrief: 'Read',
+    empty: 'No briefings have been archived yet.',
+    error: 'The briefings could not be loaded. The system itself is still running.',
+    backToList: 'All briefings',
+    summary: 'Summary',
+    segments: 'Segments',
+    ticker: 'Ticker',
+    disclosure: 'Disclosure',
+    notFound: 'There is no briefing for that date.',
+    langNoticeTitle: 'A note on language',
+    langNoticeFrench:
+      'Briefing generation currently supports Korean and English only. What follows is the English edition — we say so rather than passing it off as French.',
+    langNoticeEnglish:
+      'English briefings are generated automatically, so some disease and place names may still appear in Korean.',
+  },
+
   common: {
     siteName: 'AEGIRON',
     siteTagline: 'Infectious disease early-warning intelligence',

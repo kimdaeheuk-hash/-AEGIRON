@@ -1,0 +1,127 @@
+import type { Locale } from '@/i18n/config';
+
+/**
+ * 브리핑 아카이브 조회 계층.
+ *
+ * ★ 언어에 대한 실측 사실(2026-08-06) ★
+ * 백엔드는 `lang=ko`와 `lang=en`만 만든다(`daily_brief.py`가 "ko가 아니면 영어"인
+ * 2분기 구조). **`lang=fr`를 요청하면 오류가 아니라 조용히 한국어가 돌아온다.**
+ * 그래서 응답의 `lang`을 반드시 확인하고, 요청한 언어와 다르면 그 사실을 화면에
+ * 표시한다 — 한국어 원문을 프랑스어인 척 내보내면 그게 가장 나쁜 실패다.
+ *
+ * 영어판도 완전하지 않다: 병명·국가명이 한국어로 남는 경우가 있다
+ * (실측: "watching 오즈 바이러스 signal in ..."). 이것도 감추지 않는다.
+ */
+
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ??
+  'https://epiweather-api-production.up.railway.app';
+
+/** 브리핑은 하루 한 번 생성된다 — 매 요청마다 API를 두드릴 이유가 없다. */
+const REVALIDATE_SECONDS = 1800;
+
+/** 백엔드가 실제로 생성하는 언어. 여기 없는 언어는 대체본이 온다. */
+const SUPPORTED_BRIEF_LANGS = ['ko', 'en'] as const;
+
+export type BriefLang = (typeof SUPPORTED_BRIEF_LANGS)[number];
+
+export function briefLangFor(locale: Locale): BriefLang {
+  return (SUPPORTED_BRIEF_LANGS as readonly string[]).includes(locale)
+    ? (locale as BriefLang)
+    : 'en'; // 프랑스어는 아직 없다 — 한국어보다는 영어가 읽을 수 있는 쪽이다.
+}
+
+export type BriefSummary = {
+  date: string;
+  lang: string;
+  headline: string;
+  format: string;
+  quiet_day: boolean;
+  created_at?: string;
+};
+
+export type BriefSegment = {
+  segment_id?: string;
+  kind?: string;
+  anchor_script?: string;
+  lower_third?: string;
+  tier?: string | null;
+  score?: number | null;
+  sources?: string[];
+  countries?: string[];
+};
+
+export type BriefDetail = {
+  date: string;
+  lang: string;
+  program_name?: string;
+  format?: { id?: string; name?: string; description?: string };
+  headline?: string;
+  summary?: string;
+  quiet_day?: boolean;
+  is_official_alert?: boolean;
+  segments?: BriefSegment[];
+  ticker?: string[];
+  disclosure?: string;
+  closing?: string;
+  generation_method?: string;
+};
+
+/**
+ * 조회 결과 — '없다'와 '못 가져왔다'를 구분한다.
+ *
+ * 이걸 뭉뚱그리면 API가 30초 잠깐 죽은 사이에 **실재하는 브리핑 페이지가 404로
+ * 색인**되거나, 반대로 없는 날짜가 200으로 색인된다(soft 404). 둘 다 검색 품질에
+ * 직접 손해라 호출부가 구분할 수 있어야 한다.
+ */
+export type FetchStatus = 'ok' | 'missing' | 'error';
+
+async function getJson<T>(path: string): Promise<{ status: FetchStatus; data: T | null }> {
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      next: { revalidate: REVALIDATE_SECONDS },
+      headers: { accept: 'application/json' },
+    });
+    if (res.status === 404) return { status: 'missing', data: null };
+    if (!res.ok) return { status: 'error', data: null };
+    return { status: 'ok', data: (await res.json()) as T };
+  } catch {
+    // API가 잠깐 죽어도 페이지는 떠야 한다 — 사전의 error 문구로 대체된다.
+    return { status: 'error', data: null };
+  }
+}
+
+export async function listBriefings(locale: Locale): Promise<BriefSummary[] | null> {
+  const lang = briefLangFor(locale);
+  const { data } = await getJson<{ briefs?: BriefSummary[] }>(
+    `/api/daily-brief/archive?lang=${lang}`,
+  );
+  if (!data?.briefs) return null;
+  // 최신순 — 백엔드 정렬을 믿지 않고 여기서 한 번 더 맞춘다.
+  return [...data.briefs].sort((a, b) => b.date.localeCompare(a.date));
+}
+
+export async function getBriefingResult(
+  locale: Locale,
+  date: string,
+): Promise<{ status: FetchStatus; brief: BriefDetail | null }> {
+  const lang = briefLangFor(locale);
+  const { status, data } = await getJson<BriefDetail>(
+    `/api/daily-brief/archive/${encodeURIComponent(date)}?lang=${lang}`,
+  );
+  return { status, brief: data };
+}
+
+/**
+ * 요청한 로케일과 실제로 받은 브리핑 언어가 어긋났는가.
+ * 어긋났으면 화면에 그 사실을 적어야 한다(조용히 넘기면 오해를 만든다).
+ */
+export function languageMismatch(locale: Locale, actualLang: string | undefined): boolean {
+  if (!actualLang) return false;
+  return actualLang !== locale;
+}
+
+/** YYYY-MM-DD가 맞는지 — 경로 파라미터를 그대로 API에 넘기기 전에 거른다. */
+export function isBriefDate(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}

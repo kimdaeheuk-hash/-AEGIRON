@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next';
-import { locales, SITE_URL, localeUrl, alternateLanguages } from '@/i18n/config';
+import { locales, SITE_URL, localeUrl, alternateLanguages, defaultLocale } from '@/i18n/config';
+import { listBriefings } from '@/lib/briefings';
 
 /**
  * 사이트맵 — 어제까지 404였다. 없으면 검색엔진이 세 언어판을 스스로 찾아야 하는데,
@@ -24,7 +25,7 @@ const ROUTES: { path: string; priority: number; changeFrequency: MetadataRoute.S
   { path: 'contact', priority: 0.6, changeFrequency: 'yearly' },
 ];
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
   const entries: MetadataRoute.Sitemap = [];
 
@@ -36,6 +37,23 @@ export default function sitemap(): MetadataRoute.Sitemap {
         changeFrequency: route.changeFrequency,
         priority: route.priority,
         alternates: { languages: alternateLanguages(route.path) },
+      });
+    }
+  }
+
+  // 브리핑은 매일 늘어난다 — 목록만 넣으면 개별 브리핑이 색인되지 않는다.
+  // 여기가 이 사이트에서 유일하게 계속 자라는 콘텐츠라 SEO상 가장 중요하다.
+  // API가 죽어 있으면 브리핑 항목만 빠지고 나머지 사이트맵은 정상 생성된다.
+  const briefs = await listBriefings(defaultLocale);
+  for (const brief of briefs ?? []) {
+    const path = `briefings/${brief.date}`;
+    for (const locale of locales) {
+      entries.push({
+        url: localeUrl(locale, path),
+        lastModified: new Date(`${brief.date}T00:00:00Z`),
+        changeFrequency: 'yearly',   // 지난 브리핑은 다시 바뀌지 않는다
+        priority: 0.5,
+        alternates: { languages: alternateLanguages(path) },
       });
     }
   }

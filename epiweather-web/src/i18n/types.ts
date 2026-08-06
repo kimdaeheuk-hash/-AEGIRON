@@ -86,6 +86,7 @@ export type Dictionary = {
   footer: FooterDict;
   home: HomeDict;
   pages: PagesDict;
+  briefings: BriefingsDict;
   common: {
     siteName: string;
     siteTagline: string;
@@ -125,6 +126,27 @@ export type ContentPage = {
   blocks: PageBlock[];
   /** 페이지 하단 행동 유도. 생략 가능. */
   cta?: { title: string; body: string; label: string; href: string };
+};
+
+export type BriefingsDict = {
+  /** 아카이브 목록 */
+  archiveTitle: string;
+  count: string;            // "{n}건" — {n} 치환
+  quietDay: string;
+  openBrief: string;
+  empty: string;
+  error: string;
+  /** 개별 브리핑 */
+  backToList: string;
+  summary: string;
+  segments: string;
+  ticker: string;
+  disclosure: string;
+  notFound: string;
+  /** ★ 언어 불일치 고지 ★ */
+  langNoticeTitle: string;
+  langNoticeFrench: string;
+  langNoticeEnglish: string;
 };
 
 export type PagesDict = {

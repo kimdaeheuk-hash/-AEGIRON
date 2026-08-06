@@ -30,11 +30,14 @@ export function generateStaticParams() {
 }
 
 /**
- * ★ 중요 ★ 등록되지 않은 로케일은 404로 보낸다.
- * 이게 없으면 `/anything`이 전부 한국어 홈으로 렌더링돼, 검색엔진 눈에는
- * **같은 내용의 URL이 무한히 있는 사이트**로 보인다(색인 품질에 직접 손해).
+ * ★ dynamicParams는 여기서 끄지 않는다 ★
+ * 등록 안 된 로케일을 404로 보내는 일은 아래 레이아웃 본문의 notFound()가 이미 한다.
+ * 여기에 `dynamicParams = false`를 걸면 그 설정이 **하위 동적 세그먼트까지 함께
+ * 막아서**, `briefings/[date]`가 미리 생성한 날짜 외에는 전부 404가 된다. 즉
+ * **내일 생성될 브리핑이 재배포 전까지 열리지 않는다** — 매일 늘어나는 게 핵심인
+ * 페이지에서 치명적이라 실측으로 확인하고 제거했다. 자식에서 true로 덮어써도
+ * 되돌아오지 않는다.
  */
-export const dynamicParams = false;
 
 export async function generateMetadata(props: {
   params: Promise<{ locale: string }>;
