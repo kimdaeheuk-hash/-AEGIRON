@@ -41,14 +41,28 @@ export function SiteNav({ locale, dict }: { locale: Locale; dict: Dictionary }) 
           </span>
         </Link>
 
+        {/* ★ 모바일에서 줄바꿈 대신 가로 스크롤 ★
+            wrap으로 두면 좁은 화면에서 링크가 여러 줄로 쌓여 네비 높이가 185px까지
+            올라갔다(390px 기기 실측). 844px 화면의 22%를 메뉴가 먹는다는 뜻이다.
+            한 줄을 유지하고 넘치는 만큼만 옆으로 밀면 모든 링크가 그대로 닿는다. */}
         <ul
+          className="nav-links"
           style={{
             display: 'flex', alignItems: 'center', gap: 18, listStyle: 'none',
-            marginLeft: 'auto', flexWrap: 'wrap', fontFamily: 'var(--mono)', fontSize: 12,
+            marginLeft: 'auto', fontFamily: 'var(--mono)', fontSize: 12,
+            overflowX: 'auto', overflowY: 'hidden',
+            // ★ minWidth: 0이 없으면 overflow가 동작하지 않는다 ★
+            // flex 아이템의 기본 min-width는 auto라, 내용보다 작게 줄어들기를
+            // 거부하고 그대로 부모를 밀어낸다. 그러면 스크롤 컨테이너가 아니라
+            // 페이지 전체에 가로 스크롤이 생긴다(390px에서 408px 폭 실측).
+            minWidth: 0,
+            flex: '1 1 auto',
+            scrollbarWidth: 'none',
+            WebkitOverflowScrolling: 'touch',
           }}
         >
           {LINKS.map(({ key, path }) => (
-            <li key={key}>
+            <li key={key} style={{ flexShrink: 0 }}>
               <Link
                 href={localePath(locale, path)}
                 style={{ color: 'var(--muted)', textDecoration: 'none', whiteSpace: 'nowrap' }}

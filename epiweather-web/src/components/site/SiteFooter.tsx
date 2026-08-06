@@ -43,7 +43,14 @@ export function SiteFooter({ locale, dict }: { locale: Locale; dict: Dictionary 
           maxWidth: 1320, margin: '0 auto',
           padding: 'clamp(32px,4vw,52px) clamp(14px,2.4vw,26px) 28px',
           display: 'grid', gap: 34,
-          gridTemplateColumns: 'minmax(220px, 1.4fr) repeat(auto-fit, minmax(140px, 1fr))',
+          // ★ 열마다 다른 최소폭을 주면 좁은 화면에서 넘친다 ★
+          // 원래 `minmax(220px,1.4fr) repeat(auto-fit, minmax(140px,1fr))`였는데,
+          // 390px 기기에서 계산값이 `220px 140px`(+간격 34) = 394px가 되어 가용
+          // 324px를 넘겼다. min(220px,100%)으로 감싸도 100%가 컨테이너 기준이라
+          // 여전히 220px로 풀려 해결되지 않았다(실측으로 확인).
+          // 트랙을 하나로 통일하면 auto-fit이 폭에 맞춰 열 수를 줄이고,
+          // 좁은 화면에서는 1열로 접힌다.
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(150px, 100%), 1fr))',
         }}
       >
         <div>

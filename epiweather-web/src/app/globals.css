@@ -49,3 +49,20 @@ body::before {
 @keyframes fade   { from{opacity:0;transform:translateY(6px)} to{opacity:1} }
 @keyframes cpulse { 0%,100%{opacity:1} 50%{opacity:.4} }
 @keyframes sp     { to{transform:rotate(360deg)} }
+
+
+/* 네비 링크 줄은 가로 스크롤이지만 스크롤바를 숨긴다 —
+   막대가 보이면 메뉴가 잘린 것처럼 보여 오히려 지저분하다.
+   (좁은 화면에서 줄바꿈 대신 옆으로 미는 방식. SiteNav 주석 참고) */
+.nav-links::-webkit-scrollbar { display: none; }
+
+/* 화면낭독기 전용 텍스트 — 언어 전환기가 "KO" 옆에 "한국어"를 숨겨 읽힌다. */
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
