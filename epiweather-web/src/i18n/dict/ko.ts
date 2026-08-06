@@ -1,4 +1,5 @@
 import type { Dictionary } from '../types';
+import { pagesKo } from './pages.ko';
 
 /**
  * 한국어 사전 — 기준 언어. 문구를 추가할 때는 여기부터 쓰고 en·fr에 옮긴다.
@@ -9,6 +10,8 @@ import type { Dictionary } from '../types';
  * 인프라 규모, 공개 범위, 그리고 우리가 모르는 것.
  */
 export const ko: Dictionary = {
+  pages: pagesKo,
+
   common: {
     siteName: 'AEGIRON',
     siteTagline: '감염병 조기경보 인텔리전스',

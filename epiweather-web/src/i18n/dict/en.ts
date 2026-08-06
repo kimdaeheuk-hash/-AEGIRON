@@ -1,4 +1,5 @@
 import type { Dictionary } from '../types';
+import { pagesEn } from './pages.en';
 
 /**
  * English dictionary — the language our primary buyers actually read
@@ -11,6 +12,8 @@ import type { Dictionary } from '../types';
  * what we publish, and what we do not yet know.
  */
 export const en: Dictionary = {
+  pages: pagesEn,
+
   common: {
     siteName: 'AEGIRON',
     siteTagline: 'Infectious disease early-warning intelligence',

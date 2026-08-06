@@ -1,4 +1,5 @@
 import type { Dictionary } from '../types';
+import { pagesFr } from './pages.fr';
 
 /**
  * Dictionnaire français — choisi parce que les régions que le système couvre
@@ -13,6 +14,8 @@ import type { Dictionary } from '../types';
  * l’échelle de l’infrastructure, ce que nous publions, et ce que nous ignorons.
  */
 export const fr: Dictionary = {
+  pages: pagesFr,
+
   common: {
     siteName: 'AEGIRON',
     siteTagline: 'Veille et alerte précoce des maladies infectieuses',

@@ -85,6 +85,7 @@ export type Dictionary = {
   nav: NavDict;
   footer: FooterDict;
   home: HomeDict;
+  pages: PagesDict;
   common: {
     siteName: string;
     siteTagline: string;
@@ -93,4 +94,50 @@ export type Dictionary = {
     lastUpdated: string;
     liveNow: string;
   };
+};
+
+/**
+ * 일반 콘텐츠 페이지 — 시스템·한계·데이터소스·활용처·회사 등이 전부 이 모양이다.
+ *
+ * 페이지마다 컴포넌트를 따로 만들면 11개 페이지 × 3개 언어를 손으로 관리하게 되고,
+ * 문구를 하나 고칠 때마다 세 군데를 건드려야 한다. 콘텐츠를 데이터로 분리하고
+ * 렌더러를 하나만 두면, 언어 추가는 사전 파일 하나로 끝난다.
+ */
+export type PageBlock = {
+  title: string;
+  body?: string;
+  /** 카드 목록. 있으면 격자로 렌더링한다. */
+  items?: { title: string; body: string; meta?: string }[];
+  /** 번호 매긴 목록. **강조** 표기를 지원한다. */
+  points?: string[];
+  /** 블록 하단 각주 — 한계·출처를 남길 때 쓴다. */
+  note?: string;
+  /** 강조 카드로 그릴지(정직성 블록 등). */
+  accent?: boolean;
+};
+
+export type ContentPage = {
+  metaTitle: string;
+  metaDescription: string;
+  eyebrow: string;
+  title: string;
+  lead: string;
+  blocks: PageBlock[];
+  /** 페이지 하단 행동 유도. 생략 가능. */
+  cta?: { title: string; body: string; label: string; href: string };
+};
+
+export type PagesDict = {
+  platform: ContentPage;
+  transparency: ContentPage;
+  dataSources: ContentPage;
+  methodology: ContentPage;
+  about: ContentPage;
+  contact: ContentPage;
+  briefings: ContentPage;
+  solutionsReinsurance: ContentPage;
+  solutionsGovernment: ContentPage;
+  solutionsNgo: ContentPage;
+  privacy: ContentPage;
+  terms: ContentPage;
 };
