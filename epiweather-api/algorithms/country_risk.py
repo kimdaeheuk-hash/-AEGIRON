@@ -342,6 +342,10 @@ def rank_countries() -> dict:
 # GAI와 동일 척도)를 기준으로 삼는다 — raw_score 70은 z-score 2σ 이상에 해당.
 RAW_SCORE_THRESHOLD = 70
 PREDICTION_COOLDOWN_DAYS = 14  # 같은 국가를 이 기간 내 중복으로 다시 기록하지 않음
+# 예측의 판정 기한. 이 안에 공식 발병 선언이 나오는지로 채점한다.
+# 90일인 이유: 너무 짧으면 실제 발병이 기한 뒤에 나와 부당하게 틀린 것이 되고,
+# 너무 길면 판정이 계속 미뤄져 성적이 안 쌓인다. 실제 판정이 쌓이면 재조정한다.
+PREDICTION_HORIZON_DAYS = 90
 
 
 def log_notable_predictions(ranked: list[dict] | None = None) -> list[dict]:
@@ -380,10 +384,40 @@ def log_notable_predictions(ranked: list[dict] | None = None) -> list[dict]:
             basis.append(f"뉴스·검색 기반 신호 {comp['nlp_signal']}점({comp['nlp_signal_count']}건 언급)")
         basis.append(f"국가 취약성 지수 {c['vulnerability_index']}(의료인프라·인구밀도·공항연결성·국경이동량 종합)")
 
+        # ★ 판정 기준·기한·신뢰도를 예측과 **동시에** 적는다 ★
+        # 이게 없으면 기록은 쌓여도 채점이 안 된다. 실제로 이 기능 이전에 쌓인
+        # 기록은 전부 채점 불가였다. 기준을 나중에 쓰면 결과를 보고 맞추게 되므로
+        # 사후 보완도 하지 않는다.
+        resolves_by = (dt.date.today() + dt.timedelta(days=PREDICTION_HORIZON_DAYS)).isoformat()
+        criteria = (
+            f"{resolves_by}까지 {c['name']}에서 WHO 발병공고·상황보고서 또는 해당국 "
+            f"보건당국의 공식 발병 선언이 확인되면 correct. 확인되지 않으면 incorrect. "
+            f"발병은 확인됐으나 이 신호와 다른 질병이면 ambiguous."
+        )
         pred = db.create_prediction(
             country=c["name"], disease="종합 위험도(GAI 기반)",
             risk_score=c["risk_score"], basis=basis,
+            confidence=_confidence_for(raw),
+            resolution_criteria=criteria,
+            resolves_by=resolves_by,
         )
         logged.append(pred)
 
     return logged
+
+
+def _confidence_for(raw_score: float) -> float:
+    """이상도 → 신뢰도(0~1).
+
+    위험도와 신뢰도는 다르다 — 위험도는 '그 나라가 위험한 정도', 신뢰도는 '이
+    판단이 맞을 확률'이다. 지금은 검증된 이력이 없어 둘의 관계를 실측할 수 없으므로,
+    **보수적으로 좁은 구간(0.35~0.65)만 쓴다.**
+
+    0이나 1에 가까운 값을 쓰지 않는 이유: Brier 점수에서 확신은 틀렸을 때 큰 벌점을
+    받는다. 근거 없이 확신을 높게 잡으면 성적이 나빠질 뿐 아니라 보정이 무너진다.
+    실제 판정이 쌓이면 이 함수를 실측으로 갈아끼운다.
+    """
+    # 임계 70 → 0.35, 100 → 0.65 로 선형. 범위 밖은 잘라낸다.
+    span = max(1.0, 100.0 - RAW_SCORE_THRESHOLD)
+    ratio = (min(max(raw_score, RAW_SCORE_THRESHOLD), 100.0) - RAW_SCORE_THRESHOLD) / span
+    return round(0.35 + ratio * 0.30, 2)

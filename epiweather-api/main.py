@@ -1240,10 +1240,37 @@ def get_predictions(country: Optional[str] = None, verified_only: bool = False):
     }
 
 
+@app.get("/api/predictions/scorecard", tags=["예측 검증"])
+def prediction_scorecard(country: Optional[str] = None):
+    """예측 채점표 — 적중률·Brier·보정(calibration).
+
+    ★ 적중률만 보지 말 것 ★ 쉬운 예측만 골라 담으면 적중률은 얼마든지 올라간다.
+    - **Brier**: 확신했는데 틀리면 큰 벌점이라 골라 담기를 막는다(낮을수록 좋음).
+    - **보정**: "0.8이라고 말한 것들이 실제로 80% 맞았는가". 재보험·보험이
+      적중률보다 먼저 보는 지표다. 이게 어긋나면 신뢰도 숫자에 의미가 없다.
+    - **overdue**: 판정 기한이 지났는데 판정 안 한 것. 방치하면 불리한 예측만
+      남아 성적이 부풀려지므로 반드시 함께 본다.
+
+    채점 형식(판정 기준·기한·신뢰도) 도입 이전 기록은 `unscoreable_legacy`로 빼고
+    집계하지 않는다 — 사후에 만든 기준은 증거가 아니기 때문이다.
+    """
+    from algorithms.prediction_scoring import score
+    return score(db.list_predictions(country=country))
+
+
 class PredictionVerify(BaseModel):
     actual_result: str = Field(..., description="실제 발생 여부/내용")
-    correct: bool = Field(..., description="예측이 맞았는지")
+    correct: Optional[bool] = Field(None, description="예측이 맞았는지(outcome을 쓰면 생략 가능)")
     lead_days: Optional[int] = Field(None, description="공식 발표 대비 선행 일수 (양수=먼저 감지)")
+    outcome: Optional[str] = Field(
+        None,
+        description="correct | incorrect | ambiguous | cancelled. "
+                    "참/거짓으로 못 나누는 경우를 억지로 밀어넣지 않기 위한 항목 — "
+                    "ambiguous·cancelled는 채점에서 빼되 건수는 센다.",
+    )
+    resolution_sources: Optional[list[str]] = Field(
+        None, description="무엇을 보고 그렇게 판정했는지(URL·문서명). 없으면 판정을 되짚을 수 없다."
+    )
 
 @app.get("/api/predictions/{prediction_id}/timestamp-proof", tags=["예측 검증"])
 def prediction_timestamp_proof(prediction_id: int):
@@ -1268,7 +1295,13 @@ def prediction_timestamp_proof(prediction_id: int):
 @app.post("/api/predictions/{prediction_id}/verify", tags=["예측 검증"], dependencies=_auth)
 def verify_prediction(prediction_id: int, req: PredictionVerify):
     """예측을 실제 결과로 검증·채점."""
-    result = db.verify_prediction(prediction_id, req.actual_result, req.correct, req.lead_days)
+    try:
+        result = db.verify_prediction(
+            prediction_id, req.actual_result, req.correct, req.lead_days,
+            outcome=req.outcome, resolution_sources=req.resolution_sources,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     if result is None:
         raise HTTPException(status_code=404, detail="해당 prediction_id 없음")
     return result

@@ -149,6 +149,16 @@ def init_db() -> None:
             "ALTER TABLE predictions ADD COLUMN content_hash TEXT",
             "ALTER TABLE predictions ADD COLUMN ots_proof_hex TEXT",
             "ALTER TABLE predictions ADD COLUMN ots_submitted_at TEXT",
+            # ── 채점 가능한 예측(2026-08-09) ──────────────────────────
+            # 기존 스키마는 예측을 기록만 하고 채점은 사람이 참/거짓을 사후에
+            # 넣는 구조였다. 그건 채점이 아니라 자기평가다. 아래 컬럼이 있어야
+            # "확신한 만큼 맞았나"(보정)를 잴 수 있다 — 재보험사가 적중률보다
+            # 먼저 보는 지표다. 자세한 근거는 algorithms/prediction_scoring.py.
+            "ALTER TABLE predictions ADD COLUMN confidence REAL",
+            "ALTER TABLE predictions ADD COLUMN resolution_criteria TEXT",
+            "ALTER TABLE predictions ADD COLUMN resolves_by TEXT",
+            "ALTER TABLE predictions ADD COLUMN outcome TEXT",
+            "ALTER TABLE predictions ADD COLUMN resolution_sources TEXT",
         ):
             try:
                 conn.execute(ddl)
@@ -157,13 +167,40 @@ def init_db() -> None:
         conn.commit()
 
 
-def create_prediction(country: str, disease: str, risk_score: float, basis: list[str]) -> dict:
+def create_prediction(
+    country: str,
+    disease: str,
+    risk_score: float,
+    basis: list[str],
+    *,
+    confidence: float | None = None,
+    resolution_criteria: str | None = None,
+    resolves_by: str | None = None,
+) -> dict:
+    """예측을 기록한다.
+
+    ★ confidence / resolution_criteria / resolves_by 세 개가 채점을 가능하게 한다 ★
+    - `risk_score`(위험도)와 `confidence`(신뢰도)는 다른 것이다. 앞은 "이 나라가
+      위험하다", 뒤는 "내 이 판단이 맞을 확률". 보정은 뒤로만 낼 수 있다.
+    - 판정 기준은 **예측과 동시에** 적어야 한다. 나중에 적으면 결과를 보고
+      기준을 맞추게 되고, 그 순간 채점표는 증거가 아니라 장식이 된다.
+    - 판정 기한이 없으면 불리한 예측을 미판정으로 남겨 적중률을 부풀릴 수 있다.
+
+    세 값이 없으면 기록은 되지만 **채점에서 제외**된다(prediction_scoring.is_scoreable).
+    호출부를 한 번에 다 바꿀 수 없어 선택 인자로 두되, 새로 만드는 곳은 반드시 채운다.
+    """
     predicted_at = datetime.now(timezone.utc).isoformat()
     with get_connection() as conn:
         cur = conn.execute(
-            "INSERT INTO predictions (predicted_at, country, disease, risk_score, basis) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (predicted_at, country, disease, risk_score, json.dumps(basis, ensure_ascii=False)),
+            "INSERT INTO predictions "
+            "(predicted_at, country, disease, risk_score, basis, "
+            " confidence, resolution_criteria, resolves_by) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                predicted_at, country, disease, risk_score,
+                json.dumps(basis, ensure_ascii=False),
+                confidence, resolution_criteria, resolves_by,
+            ),
         )
         conn.commit()
         return get_prediction(cur.lastrowid)
@@ -211,14 +248,44 @@ def list_predictions(country: str | None = None, verified_only: bool = False) ->
 
 
 def verify_prediction(
-    prediction_id: int, actual_result: str, correct: bool, lead_days: int | None = None
+    prediction_id: int,
+    actual_result: str,
+    correct: bool | None = None,
+    lead_days: int | None = None,
+    *,
+    outcome: str | None = None,
+    resolution_sources: list[str] | None = None,
 ) -> dict | None:
+    """예측을 판정한다.
+
+    `outcome`을 쓰면 참/거짓 둘로 못 나누는 경우를 제대로 담을 수 있다:
+      correct / incorrect        — 채점에 들어간다
+      ambiguous / cancelled      — 채점에서 빼되 **건수는 센다**
+                                   (많아지면 예측을 모호하게 쓰고 있다는 신호)
+
+    예전 시그니처(`correct=True/False`)도 계속 받는다 — 호출부가 여럿이라
+    한 번에 못 바꾼다. outcome이 없으면 correct에서 유도한다.
+
+    `resolution_sources`는 **무엇을 보고 그렇게 판정했는지**다. 이게 없으면
+    나중에 그 판정이 옳았는지 아무도 되짚을 수 없다.
+    """
+    if outcome is None and correct is not None:
+        outcome = "correct" if correct else "incorrect"
+    if outcome not in {"correct", "incorrect", "ambiguous", "cancelled"}:
+        raise ValueError(f"알 수 없는 판정 결과: {outcome!r}")
+    # correct 컬럼은 기존 조회·통계가 쓰고 있어 함께 채운다.
+    correct_flag = 1 if outcome == "correct" else (0 if outcome == "incorrect" else None)
+
     verified_at = datetime.now(timezone.utc).isoformat()
     with get_connection() as conn:
         cur = conn.execute(
-            "UPDATE predictions SET verified_at = ?, actual_result = ?, correct = ?, lead_days = ? "
-            "WHERE id = ?",
-            (verified_at, actual_result, int(correct), lead_days, prediction_id),
+            "UPDATE predictions SET verified_at = ?, actual_result = ?, correct = ?, "
+            "lead_days = ?, outcome = ?, resolution_sources = ? WHERE id = ?",
+            (
+                verified_at, actual_result, correct_flag, lead_days, outcome,
+                json.dumps(resolution_sources or [], ensure_ascii=False),
+                prediction_id,
+            ),
         )
         conn.commit()
         if cur.rowcount == 0:
