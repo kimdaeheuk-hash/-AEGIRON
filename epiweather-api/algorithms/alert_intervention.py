@@ -108,9 +108,20 @@ def intervention_brief(disease: str | None, country: str | None,
 
     # 사람간 지속전파가 없는 병원체(R0<1)는 대규모 확산이 안 나는 게 정직 — 명시.
     limited = epidemic_params["R0"] < 1.0
-    spread_note = ("이 병원체는 사람간 지속전파가 제한적(R0<1)이라 대규모 유행 위험은 낮음 "
-                   "— 개별 치명률은 높아도 SEIR상 확산은 작다(격리·접촉추적 위주)."
-                   if limited else None)
+    transmission_mode = measured.get("transmission_mode") if measured else None
+    if transmission_mode == "environmental":
+        # 환경전파형(레지오넬라 등): 사람간 전파가 아예 없어 SEIR·NPI가 무의미하다.
+        # 확산 서사 대신 '오염원 제거' 대응을 그대로 노출한다.
+        spread_note = measured.get("intervention_note") or (
+            "환경 노출형 — 사람간 전파 없음. 격리·거리두기는 무의미하고 오염원 조사·소독이 대응."
+        )
+    elif limited:
+        spread_note = ("이 병원체는 사람간 지속전파가 제한적(R0<1)이라 대규모 유행 위험은 낮음 "
+                       "— 개별 치명률은 높아도 SEIR상 확산은 작다(격리·접촉추적 위주).")
+    else:
+        spread_note = None
+    if transmission_mode:
+        epidemic_params["transmission_mode"] = transmission_mode
 
     headline = (
         f"무대응 시 사망 {no_action['total_deaths']:,}명·병상초과 "

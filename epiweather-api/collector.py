@@ -50,9 +50,30 @@ def append_signal(record: dict) -> None:
 # KDCA EIDAPIService(법정감염병 전수감시)는 일반 계절 인플루엔자(ILI 표본감시)는
 # 포함하지 않는다 — 그건 별도 상품/키 승인이 필요함 (확인됨, 2026-06-22).
 # 대신 이 API가 실제로 제공하는 제1·2급 법정감염병 중 조기경보 관심 질병만 추적.
+# 국내 법정감염병 감시 대상. 원래 고위험 9종만 봤는데 그러면 레지오넬라증 같은
+# 국내 발생을 통째로 놓친다(설계상 필터에서 걸림). 그래서 '폭넓게' — 대유행급 + 국내
+# 발생·집단발병이 실제로 일어나는 법정감염병까지 넓혔다.
+#
+# ★ 정직성 경고 ★ 이 문자열은 KDCA EID API의 icdNm과 '정확히' 일치해야 매칭된다.
+# 이 환경(외부망 차단)에선 라이브 API 이름을 대조 못 했으므로, 표준 명칭을 썼지만
+# 일부는 API 표기(띄어쓰기·괄호)와 다를 수 있다. fetch_kdca_weekly가 '신고는 있는데
+# 이 목록에 없는' 질병명을 로그로 흘려(unwatched) 이름 불일치·신규 질병이 조용히
+# 유실되지 않게 한다 — 로그를 보고 실제 icdNm으로 교정하면 된다.
 KDCA_WATCH_DISEASES = [
+    # 고위험·대유행 잠재 (기존)
     "중동호흡기증후군(MERS)", "중증급성호흡기증후군(SARS)", "에볼라바이러스병",
-    "마버그열", "신종인플루엔자", "신종감염병증후군", "콜레라", "홍역", "페스트",
+    "마버그열", "라싸열", "크리미안콩고출혈열", "신종인플루엔자", "신종감염병증후군",
+    "두창", "페스트", "탄저", "보툴리눔독소증", "야토병",
+    # 호흡기·백신예방 가능
+    "홍역", "수두", "유행성이하선염", "백일해", "풍진", "폴리오", "디프테리아",
+    "결핵", "수막구균 감염증", "성홍열",
+    # 수인성·식품매개 (레지오넬라 포함 — 오늘 놓친 그 구멍)
+    "콜레라", "장티푸스", "파라티푸스", "세균성이질", "장출혈성대장균감염증",
+    "A형간염", "레지오넬라증",
+    # 매개체·인수공통
+    "말라리아", "뎅기열", "지카바이러스 감염증", "일본뇌염", "쯔쯔가무시증",
+    "신증후군출혈열", "중증열성혈소판감소증후군(SFTS)", "큐열", "브루셀라증",
+    "비브리오패혈증",
 ]
 
 # CIDRAP(미네소타대 감염병연구정책센터) — 공중보건 학계에서 WHO·CDC도 참고하는
@@ -110,11 +131,21 @@ def fetch_kdca_weekly(api_key: str, weeks_back: int = 4) -> dict[str, dict[str, 
     recent_weeks = {f"{year}년 {w:02d}주" for w in range(max(1, cur_week - weeks_back + 1), cur_week + 1)}
 
     out: dict[str, dict[str, int]] = {}
+    unwatched: set[str] = set()
     for it in items:
         name = it["icdNm"]
-        if name not in KDCA_WATCH_DISEASES or it["period"] not in recent_weeks:
+        if it["period"] not in recent_weeks:
+            continue
+        if name not in KDCA_WATCH_DISEASES:
+            # 신고는 있는데 감시 목록에 없음 — 이름 불일치거나 신규 관심 질병일 수
+            # 있다. 조용히 버리지 말고 드러낸다(안전망).
+            if int(it.get("resultVal") or 0) > 0:
+                unwatched.add(name)
             continue
         out.setdefault(name, {})[it["period"]] = int(it["resultVal"])
+    if unwatched:
+        log(f"[KDCA] 신고 있으나 감시목록 밖 질병 {len(unwatched)}종 — 이름 대조 필요: "
+            f"{', '.join(sorted(unwatched)[:20])}")
     return out
 
 
