@@ -50,10 +50,13 @@ def append_signal(record: dict) -> None:
 # KDCA EIDAPIService(법정감염병 전수감시)는 일반 계절 인플루엔자(ILI 표본감시)는
 # 포함하지 않는다 — 그건 별도 상품/키 승인이 필요함 (확인됨, 2026-06-22).
 # 대신 이 API가 실제로 제공하는 제1·2급 법정감염병 중 조기경보 관심 질병만 추적.
-KDCA_WATCH_DISEASES = [
-    "중동호흡기증후군(MERS)", "중증급성호흡기증후군(SARS)", "에볼라바이러스병",
-    "마버그열", "신종인플루엔자", "신종감염병증후군", "콜레라", "홍역", "페스트",
-]
+# 국내 법정감염병 — 이제 '전부' 수집하고 질병별로 개별 급증을 본다(kdca_anomaly).
+# 아래 KDCA_NOTABLE(위험군)은 '집계 총합(kdca_weekly_total)'에 넣는 대상일 뿐이다 —
+# 상재성 고volume 질병(수두·결핵 등)이 총합을 오염시켜 신종 신호를 파묻지 않게.
+# 위험군 밖 질병도 전부 수집돼 개별 급증으로 감시된다(레지오넬라처럼 놓치지 않음).
+# baseline_collector·기존 참조 호환을 위해 KDCA_WATCH_DISEASES 이름을 유지(=위험군).
+from algorithms.kdca_anomaly import KDCA_NOTABLE, disease_spikes
+KDCA_WATCH_DISEASES = KDCA_NOTABLE
 
 # CIDRAP(미네소타대 감염병연구정책센터) — 공중보건 학계에서 WHO·CDC도 참고하는
 # 전문가 큐레이션 매체. 질병별 RSS를 직접 운영해서 ProMED 유료화 이후 가장 쓸만한
@@ -109,12 +112,15 @@ def fetch_kdca_weekly(api_key: str, weeks_back: int = 4) -> dict[str, dict[str, 
     cur_week = dt.date.today().isocalendar()[1]
     recent_weeks = {f"{year}년 {w:02d}주" for w in range(max(1, cur_week - weeks_back + 1), cur_week + 1)}
 
+    # ★ 전부 수집 ★ 예전엔 감시목록(allowlist)에 있는 것만 받아 레지오넬라 같은 국내
+    # 발생을 통째로 놓쳤다. 이제 신고된 '모든' 법정감염병을 질병별로 받는다 —
+    # 목록에 손으로 안 넣어도, 신규 질병이 떠도 자동으로 잡힌다. 위험 판정은
+    # 질병별 개별 급증(kdca_anomaly.disease_spikes)이 하고, 집계 총합만 위험군으로 건다.
     out: dict[str, dict[str, int]] = {}
     for it in items:
-        name = it["icdNm"]
-        if name not in KDCA_WATCH_DISEASES or it["period"] not in recent_weeks:
+        if it["period"] not in recent_weeks:
             continue
-        out.setdefault(name, {})[it["period"]] = int(it["resultVal"])
+        out.setdefault(it["icdNm"], {})[it["period"]] = int(it["resultVal"])
     return out
 
 
@@ -332,10 +338,16 @@ def collect_free_sources() -> dict:
     if kdca_key:
         try:
             result["kdca_weekly"] = fetch_kdca_weekly(kdca_key)
-            total = sum(sum(weeks.values()) for weeks in result["kdca_weekly"].values())
-            log(f"  KDCA(주간, 관심질병 {len(result['kdca_weekly'])}종): 최근 4주 합계 {total}건")
+            # 질병별 개별 급증 — 전체 총합이 평온해도 단일 질병 급증을 잡는다.
+            result["kdca_disease_spikes"] = disease_spikes(result["kdca_weekly"])
+            n_dis = len(result["kdca_weekly"])
+            spikes = result["kdca_disease_spikes"]
+            top = (f" · 급증 {len(spikes)}종(최상위 {spikes[0]['disease']})"
+                   if spikes else " · 급증 없음")
+            log(f"  KDCA(주간, 전 법정감염병 {n_dis}종 수집){top}")
         except Exception as e:
             result["kdca_weekly"] = None
+            result["kdca_disease_spikes"] = None
             log_error("KDCA", e)
     else:
         result["kdca_weekly"] = None

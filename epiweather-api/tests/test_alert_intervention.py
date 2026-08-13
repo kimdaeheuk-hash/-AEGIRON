@@ -101,6 +101,18 @@ def test_disease_params_lookup_matches_aliases():
     assert dp.lookup("완전히 새로운 병") is None
 
 
+def test_legionella_environmental_brief():
+    """환경전파형(레지오넬라): 사람간 전파 없음 → SEIR 확산 미미 + '오염원 제거' 대응.
+    격리·거리두기가 아니라 오염원 조사·소독으로 브리핑돼야 한다(NPI 무의미)."""
+    b = ai.intervention_brief("레지오넬라증", "KOR", "high", 62)
+    assert b["calibration"] == "disease_measured"
+    assert b["epidemic_params"]["transmission_mode"] == "environmental"
+    assert b["limited_human_transmission"] is True
+    assert "오염원" in b["spread_note"]        # 격리가 아니라 오염원 제거
+    # 사람간 전파가 없으니 무대응이어도 대규모 사망이 안 난다
+    assert b["scenarios"]["no_action"]["total_deaths"] < 100
+
+
 def test_enrich_alerts_attaches_npi_summary():
     alerts = [{"tier": "critical", "label": "에볼라 COD", "score": 88,
                "disease": "에볼라", "country": "COD"}]

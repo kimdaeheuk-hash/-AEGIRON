@@ -16,14 +16,17 @@ MIN_HISTORY = 3  # 통계 계산에 필요한 최소 과거 관측치 수
 
 
 def _kdca_latest_total(rec: dict) -> float | None:
-    kw = rec.get("kdca_weekly")
-    if not kw:
-        return None
-    weeks = {w for weekmap in kw.values() for w in weekmap}
-    if not weeks:
-        return None
-    latest_week = max(weeks)
-    return sum(weekmap.get(latest_week, 0) for weekmap in kw.values())
+    # 이제 kdca_weekly엔 전 법정감염병이 들어온다. 총합에 상재성 질병(수두·결핵 등)을
+    # 다 넣으면 신종 신호가 파묻히므로, 집계는 '위험군만' 합산한다(kdca_anomaly).
+    from .kdca_anomaly import notable_latest_total
+    return notable_latest_total(rec.get("kdca_weekly"))
+
+
+def _kdca_max_disease_spike(rec: dict) -> float | None:
+    # 질병별 개별 급증 중 가장 강한 것. 전체 총합이 평온해도 단일 질병 급증(레지오넬라
+    # 등)이 여기서 신호로 뜬다 — '전부 감시 + 개별 판단'의 핵심 지표.
+    from .kdca_anomaly import max_spike_signal
+    return max_spike_signal(rec.get("kdca_disease_spikes"))
 
 
 def _japan_idwr_total(rec: dict) -> float | None:
@@ -109,6 +112,7 @@ LAYERS = {
         "label": "공식신호", "weight": 0.15,
         "metrics": [
             ("kdca_weekly_total", "free_sources", _kdca_latest_total, "government"),
+            ("kdca_disease_spike_max", "free_sources", _kdca_max_disease_spike, "government"),
             ("who_afro_items", "free_sources", lambda r: r.get("who_afro_items"), "who"),
             ("who_paho_items", "free_sources", lambda r: r.get("who_paho_items"), "who"),
             ("cdc_eid_items", "free_sources", lambda r: r.get("cdc_eid_items"), "cdc"),

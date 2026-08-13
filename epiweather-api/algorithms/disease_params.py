@@ -111,6 +111,17 @@ DISEASE_PARAMS = {
               "max_attack_rate": 0.001, "historical_max_deaths": 470,
               "cap_basis": "2003~ 누적 사망 약 470명. 지속적 사람간 전파 없음.",
              "aliases": ("h5n1", "조류인플루엔자", "조류독감", "avian influenza", "고병원성")},
+    # 환경전파형 — 사람 간 전파가 '없다'(오염된 물 에어로졸 흡입). SEIR로 확산곡선을
+    # 그리는 게 애초에 안 맞아 R0를 사실상 0(0.1)로 두고 발병률 상한을 매우 작게 건다.
+    # 개입 수단도 NPI(격리·거리두기)가 아니라 '오염원(냉각탑·급수) 제거·소독'이다.
+    "legionella": {"nm": "레지오넬라증", "R0": 0.1, "R0_range": (0.0, 0.1),
+                   "cfr": 0.10, "cfr_range": (0.05, 0.25),
+                   "source": "레지오넬라증 — 환경(수인성) 노출형, 사람간 전파 없음. CFR ~10%(원내·치료지연 ~25%)",
+                   "max_attack_rate": 0.0005, "historical_max_deaths": 34,
+                   "cap_basis": "1976 필라델피아 최초 발병 사망 34명(재향군인병 명명 계기). 냉각탑·급수 오염원 국지 노출이라 지역 발병 규모가 작다.",
+                   "transmission_mode": "environmental",
+                   "intervention_note": "사람간 전파 없음 — NPI(격리·거리두기) 무의미. 대응은 오염원(냉각탑·대형건물 급수·온수) 조사·소독.",
+                   "aliases": ("레지오넬라", "legionella", "재향군인병", "legionnaires")},
 }
 
 
