@@ -154,3 +154,70 @@ def test_collector_silent_hours_tracks_last_activity():
     raw["KDCA"]["last_success_at"] = (sh._now() - dt.timedelta(hours=30)).isoformat()
     sh._save_raw(raw)
     assert sh.collector_silent_hours() >= 29
+
+
+# ── 제3상태 no_data (2026-08-18) ────────────────────────────────────────
+# 예전엔 상태가 성공/실패 둘뿐이라 두 가지 거짓말이 동시에 일어났다:
+#  ① 위키 404(집계 지연 = 정상)를 실패로 세서 상시 degraded → 정상인 걸 매일 경보
+#  ② OpenSky가 '공항 0개·항공편 None' 껍데기를 줘도 dict라서 229회 연속 성공으로 기록
+#     → "21/21 정상"이 실제보다 부풀려짐(죽은 소스가 살아있다고 보고됨)
+
+def test_no_data_is_not_a_failure():
+    """정상 지연은 실패가 아니다 — 연속실패를 올리지도, 리셋을 막지도 않는다."""
+    sh.record_source_result("Wikipedia_Ebola", ok=False)
+    sh.record_source_result("Wikipedia_Ebola", ok=False, no_data=True)
+
+    report = sh.source_health_report()
+    row = report["sources"][0]
+    assert row["status"] == "no_data"
+    assert row["consecutive_failures"] == 0          # 실패 카운터가 리셋됨
+    assert "Wikipedia_Ebola" not in report["degraded_sources"]
+    assert report["no_data_sources"] == ["Wikipedia_Ebola"]
+
+
+def test_no_data_never_triggers_telegram():
+    """★핵심★ 정상 지연으로 매일 알림이 울리면 캡틴이 알림을 무시하게 된다."""
+    for _ in range(10):
+        sh.record_source_result("Wikipedia_Ebola", ok=False, no_data=True)
+    pending = sh.pending_notifications()
+    assert pending["degraded"] == [] and pending["recovered"] == []
+
+
+def test_no_data_excluded_from_healthy_count():
+    """no_data는 '정상'에 안 들어간다 — 21/21이 부풀려지지 않게."""
+    sh.record_source_result("CIDRAP", ok=True)
+    sh.record_source_result("Mobility", ok=False, no_data=True)
+    report = sh.source_health_report()
+    assert report["total_tracked"] == 2
+    assert report["healthy_count"] == 1              # 2가 아니라 1
+    assert report["no_data_sources"] == ["Mobility"]
+
+
+def test_record_cycle_treats_declared_no_data_key_as_no_data():
+    """collector가 mark_no_data로 표시한 키는 실패가 아니라 no_data."""
+    result = {"wiki_ebola_daily": None, "_no_data_keys": ["wiki_ebola_daily"]}
+    sh.record_cycle(result, {"Wikipedia_Ebola": "wiki_ebola_daily"})
+    assert sh.source_health_report()["no_data_sources"] == ["Wikipedia_Ebola"]
+
+
+def test_record_cycle_catches_hollow_payload():
+    """★핵심★ 예외는 안 났지만 알맹이가 빈 값을 성공으로 세면 안 된다(OpenSky 사례)."""
+    result = {"mobility": {"mobility_airports_ok": None, "mobility_total_flights": None}}
+    sh.record_cycle(result, {"Mobility": "mobility"})
+    report = sh.source_health_report()
+    assert report["healthy_count"] == 0
+    assert report["no_data_sources"] == ["Mobility"]
+
+
+def test_zero_is_real_data_not_missing():
+    """0건은 진짜 정보다 — 조용한 시기를 장애로 오인하면 안 된다."""
+    result = {"kdca_weekly": {"콜레라": 0}, "pubmed_ebola_count": 0}
+    sh.record_cycle(result, {"KDCA": "kdca_weekly", "PubMed": "pubmed_ebola_count"})
+    report = sh.source_health_report()
+    assert report["healthy_count"] == 2
+    assert report["no_data_sources"] == []
+
+
+def test_empty_container_counts_as_no_data():
+    assert sh._is_empty({}) and sh._is_empty([]) and sh._is_empty("")
+    assert not sh._is_empty(0) and not sh._is_empty(False) and not sh._is_empty({"a": 1})

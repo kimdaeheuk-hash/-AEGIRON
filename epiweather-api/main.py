@@ -285,7 +285,12 @@ _DAILY_BRIEF_HOUR_UTC = 22   # 일일 브리핑 생성·발송: UTC 22시(KST 07
 
 
 def _log_error(message: str) -> None:
-    """error_log.txt에 '<시각> | <출처> | <메시지>' 형식으로 한 줄 남김(/api/status가 읽음)."""
+    """error_log.txt에 한 줄 남기고 **stdout에도 찍는다**(/api/status가 파일을 읽음).
+
+    stdout에도 찍는 이유는 collector.log_error와 같다 — 파일에만 있으면 배포 로그가
+    깨끗해 보여서, 스케줄러가 며칠째 실패해도 아무도 모른다(2026-08-13 KDCA 사례).
+    """
+    print(f"  ❌ [scheduler] {message}", flush=True)
     try:
         data_dir = Path(__file__).parent / "data"
         data_dir.mkdir(parents=True, exist_ok=True)

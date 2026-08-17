@@ -56,8 +56,20 @@ def _save_raw(data: dict) -> None:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
-def record_source_result(source: str, ok: bool, error: str | None = None) -> None:
-    """소스 1건의 이번 주기 결과를 기록. ok=True면 연속실패 카운터를 리셋."""
+def record_source_result(source: str, ok: bool, error: str | None = None,
+                         no_data: bool = False) -> None:
+    """소스 1건의 이번 주기 결과를 기록. ok=True면 연속실패 카운터를 리셋.
+
+    no_data=True는 '수집은 정상인데 이번 주기에 쓸 값이 없다'는 제3의 상태다.
+    실패로 세지 않는다(연속실패도 리셋한다) — 함수가 멀쩡히 돈 건 소스가 안 깨졌다는
+    증거이기 때문이다. 그렇다고 성공으로도 세지 않는다. 값이 안 왔으니까.
+
+    이 상태가 왜 필요한가: 위키미디어 페이지뷰는 전날치가 다음날 정오쯤 올라와서
+    그 전 404는 '정상 지연'이다. collector는 그걸 알고 에러 기록조차 안 하는데,
+    여기서 None을 무조건 실패로 세는 바람에 성공 90 대 실패 139로 집계돼 상시
+    degraded에 앉아 있었다. 정상인 걸 계속 경보로 울리면 사람이 경보를 무시하게 되고,
+    그러면 진짜 사고를 놓친다.
+    """
     data = _load_raw()
     now = _now().isoformat()
     entry = data.get(source, {
@@ -65,12 +77,19 @@ def record_source_result(source: str, ok: bool, error: str | None = None) -> Non
         "consecutive_failures": 0, "total_successes": 0, "total_failures": 0,
         "last_error": None,
     })
-    if ok:
+    if no_data:
+        entry["last_no_data_at"] = now
+        entry["last_outcome"] = "no_data"
+        entry["consecutive_failures"] = 0
+        entry["total_no_data"] = entry.get("total_no_data", 0) + 1
+    elif ok:
         entry["last_success_at"] = now
+        entry["last_outcome"] = "ok"
         entry["consecutive_failures"] = 0
         entry["total_successes"] = entry.get("total_successes", 0) + 1
     else:
         entry["last_failure_at"] = now
+        entry["last_outcome"] = "fail"
         entry["consecutive_failures"] = entry.get("consecutive_failures", 0) + 1
         entry["total_failures"] = entry.get("total_failures", 0) + 1
         if error:
@@ -86,23 +105,56 @@ def record_cycle(result: dict, source_key_map: dict[str, str]) -> list[str]:
     1회만 기록해 연속실패 카운트가 중복 증가하지 않게 한다.
 
     반환: 이번 주기에 '새로' failing 상태로 넘어간 소스 목록(연속실패가 딱
-    FAILING_STREAK에 도달한 것). 매 주기 반복 통보를 막으려고 '경계를 넘는
-    순간'만 잡아서, collector가 이때 한 번 Telegram 경보를 낼 수 있게 한다."""
+    FAILING_STREAK에 도달한 것). 지금은 통보를 pending_notifications가 맡으므로
+    이 반환값은 로그·호환용이다.
+
+    ★ 값이 왔는지까지 본다 ★
+    예전엔 `result[key] is not None` 하나로만 판정해서, 함수가 예외 없이 돌기만 하면
+    성공으로 셌다. 그래서 OpenSky 이동성이 '공항 0개·항공편 None'을 담은 dict를
+    돌려주는데도 229회 연속 성공으로 기록됐고, "21/21 정상"이라는 숫자가 실제보다
+    부풀려져 있었다. 죽은 소스가 살아있다고 보고되는 건 조기경보 시스템에서
+    가장 위험한 종류의 거짓말이다.
+    """
+    no_data_keys = set(result.get("_no_data_keys") or ())
     newly_failing = []
     for source, key in source_key_map.items():
-        ok = result.get(key) is not None
-        if not ok:
+        value = result.get(key)
+        if key in no_data_keys:
+            # collector가 '정상인데 값 없음'이라고 명시한 것(위키 404 지연 등)
+            record_source_result(source, ok=False, no_data=True)
+        elif value is None:
             before = _load_raw().get(source, {}).get("consecutive_failures", 0)
             record_source_result(source, ok=False)
             if before + 1 == FAILING_STREAK:
                 newly_failing.append(source)
+        elif _is_empty(value):
+            # 예외는 안 났지만 알맹이가 비었다 — 성공으로 세면 거짓이 된다.
+            record_source_result(source, ok=False, no_data=True)
         else:
             record_source_result(source, ok=True)
     return newly_failing
 
 
+def _is_empty(value) -> bool:
+    """'왔지만 알맹이가 없는' 값인가. 보수적으로만 판정한다.
+
+    0이나 False는 비었다고 보지 않는다 — 감염병 데이터에서 '0건'은 진짜 정보이고,
+    그걸 결측으로 취급하면 조용한 시기를 장애로 오인한다. 빈 컨테이너와, 모든
+    값이 None인 dict만 결측으로 본다(후자가 OpenSky처럼 껍데기만 오는 경우다)."""
+    if isinstance(value, (dict, list, tuple, set, str)) and len(value) == 0:
+        return True
+    if isinstance(value, dict) and value and all(v is None for v in value.values()):
+        return True
+    return False
+
+
 def _status_for(entry: dict) -> tuple[str, float | None]:
-    """(status, staleness_hours) 계산. status = ok | stale | failing | unknown."""
+    """(status, staleness_hours) 계산. status = ok | no_data | stale | failing | unknown.
+
+    no_data를 stale보다 먼저 판정한다. 위키처럼 '정상 지연'이 잦은 소스는 마지막
+    성공이 6시간을 넘기 쉬운데, 그걸 stale로 올려 경보를 내면 정상 상태를 매일
+    울리게 된다(경보 피로 → 진짜 사고를 놓침).
+    """
     last_success = entry.get("last_success_at")
     staleness_hours = None
     if last_success:
@@ -114,6 +166,8 @@ def _status_for(entry: dict) -> tuple[str, float | None]:
 
     if entry.get("consecutive_failures", 0) >= FAILING_STREAK:
         return "failing", staleness_hours
+    if entry.get("last_outcome") == "no_data":
+        return "no_data", staleness_hours
     if last_success is None:
         return "unknown", None
     if staleness_hours is not None and staleness_hours > STALE_HOURS:
@@ -127,6 +181,7 @@ def source_health_report() -> dict:
     data = _load_raw()
     sources = []
     degraded = []
+    no_data = []
     for source, entry in sorted(data.items()):
         status, staleness = _status_for(entry)
         row = {
@@ -136,21 +191,28 @@ def source_health_report() -> dict:
             "consecutive_failures": entry.get("consecutive_failures", 0),
             "last_success_at": entry.get("last_success_at"),
             "last_failure_at": entry.get("last_failure_at"),
+            "last_no_data_at": entry.get("last_no_data_at"),
             "last_error": entry.get("last_error"),
         }
         sources.append(row)
         if status in ("failing", "stale"):
             degraded.append(source)
+        elif status == "no_data":
+            no_data.append(source)
 
     return {
         "sources": sources,
         "degraded_sources": degraded,
+        # ★ healthy_count는 '진짜 값이 온' 소스만 센다 ★ no_data는 여기 안 들어간다.
+        # 예전엔 함수가 돌기만 하면 다 셌기 때문에 "21/21 정상"이 부풀려져 있었다.
+        "no_data_sources": no_data,
         "collector_silent_hours": collector_silent_hours(),
         "healthy_count": sum(1 for s in sources if s["status"] == "ok"),
         "total_tracked": len(sources),
         "note": "staleness_hours는 마지막 성공 수집 이후 경과시간(신선도)이며, "
                 "실제 사건→DB 반영 역학적 지연이 아님(대부분 무료 소스가 기준일을 "
-                "제공하지 않아 후자는 측정 불가).",
+                "제공하지 않아 후자는 측정 불가). healthy_count는 실제 값이 온 소스만 "
+                "세며, no_data_sources(수집은 정상이나 값이 안 옴)는 제외한다.",
     }
 
 
@@ -183,6 +245,10 @@ def pending_notifications() -> dict:
     for source, entry in sorted(data.items()):
         status, staleness = _status_for(entry)
         notified = entry.get("notified_status")
+        # no_data는 텔레그램으로 울리지 않는다. 위키 404 지연·OpenSky 차단처럼
+        # '정상이거나 이미 아는 조건'이 대부분이라 매일 울리면 경보 피로만 쌓인다.
+        # 대신 /api/status의 no_data_sources에 그대로 노출되고, 매일 아침 점검
+        # 루틴이 읽는다 — 안 보이게 숨기는 게 아니라, 밀도를 낮춰 보이게 한다.
         if status in ("failing", "stale"):
             last_notified = _parse_iso(entry.get("last_notified_at"))
             due = (

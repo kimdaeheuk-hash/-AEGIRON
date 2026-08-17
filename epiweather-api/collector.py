@@ -35,9 +35,31 @@ def log(msg: str) -> None:
 
 
 def log_error(context: str, e: Exception) -> None:
+    """에러를 파일에 남기고 **stdout에도 반드시 찍는다**.
+
+    예전엔 파일에만 썼다. 그래서 KDCA가 나흘·93회 연속으로 죽는 동안 Railway 배포
+    로그는 완벽하게 깨끗했고, 로그를 아무리 들여다봐도 원인이 안 보였다(2026-08-13~17).
+    에러가 파일 안에만 있으면 서버에 들어갈 수 있는 사람만 볼 수 있는데, 그건
+    '조용한 실패'를 막겠다는 이 시스템의 설계 목적과 정면으로 어긋난다.
+    """
+    line = f"{dt.datetime.now().isoformat()} | {context} | {str(e)[:200]}"
+    print(f"  ❌ [{context}] {type(e).__name__}: {str(e)[:200]}", flush=True)
     DATA_DIR.mkdir(exist_ok=True)
     with open(ERR_FILE, "a", encoding="utf-8") as f:
-        f.write(f"{dt.datetime.now().isoformat()} | {context} | {str(e)[:200]}\n")
+        f.write(line + "\n")
+
+
+def mark_no_data(result: dict, key: str) -> None:
+    """'수집은 정상인데 이번 주기엔 쓸 값이 없다'고 표시한다(source_health가 읽음).
+
+    실패와 구분하려는 것이다. 위키미디어 페이지뷰의 404는 집계 지연이라 정상이고,
+    OpenSky는 클라우드 IP가 막혀 껍데기만 온다 — 둘 다 '고장'이 아니라 '값 없음'이다.
+    이걸 실패로 세면 상시 degraded에 앉아 매일 경보가 울리고, 사람은 경보를 무시하게
+    된다. 반대로 성공으로 세면 죽은 소스가 살아있다고 보고된다. 둘 다 거짓이다.
+    """
+    result.setdefault("_no_data_keys", [])
+    if key not in result["_no_data_keys"]:
+        result["_no_data_keys"].append(key)
 
 
 def append_signal(record: dict) -> None:
@@ -512,7 +534,10 @@ def collect_free_sources() -> dict:
         if r.status_code == 404:
             # 위키미디어 페이지뷰 집계는 보통 전날치가 다음날 정오 전후까지 늦게
             # 올라옴 — 그 전까지의 404는 정상적인 지연이라 에러로 기록하지 않음.
+            # 소스헬스에도 '실패'가 아니라 '값 없음'으로 넘긴다. 예전엔 여기서 None만
+            # 넘어가 실패로 집계돼(성공 90 대 실패 139) 상시 degraded에 앉아 있었다.
             result["wiki_ebola_daily"] = None
+            mark_no_data(result, "wiki_ebola_daily")
             log("  Wikipedia 에볼라: 아직 집계 안 됨 (정상 지연, 404)")
         else:
             r.raise_for_status()
@@ -589,6 +614,10 @@ def collect_free_sources() -> dict:
         else:
             log(f"  이동성(OpenSky): {m['mobility_airports_ok']}개 공항 확인, "
                 f"1h 항공편 합계 {m['mobility_total_flights']}")
+        # 공항을 하나도 못 봤으면 dict는 왔어도 알맹이가 없는 것 — 성공으로 세면
+        # 죽은 소스가 살아있다고 보고된다(OpenSky는 클라우드 IP가 막혀 상시 이 상태다).
+        if not m.get("mobility_airports_ok"):
+            mark_no_data(result, "mobility")
     except Exception as e:
         result["mobility"] = None
         log_error("Mobility", e)
