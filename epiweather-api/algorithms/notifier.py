@@ -100,3 +100,40 @@ def notify_source_degradation(failing_sources: list[str]) -> bool:
     lines = ["⚠️ <b>아이기론 데이터 소스 장애 감지</b>",
              f"다음 소스가 연속 실패로 중단됨(신호 유실 위험): {', '.join(failing_sources)}"]
     return send_telegram_message("\n".join(lines))
+
+
+def format_source_health_message(pending: dict) -> str:
+    """죽은 소스는 '며칠째 몇 시간째'까지 적는다 — 한 줄짜리 '장애 감지'는
+    이틀 뒤에 다시 봐도 그게 아직 진행 중인지 알 수가 없었다."""
+    lines: list[str] = []
+    degraded = pending.get("degraded") or []
+    recovered = pending.get("recovered") or []
+    if degraded:
+        lines.append(f"⚠️ <b>아이기론 데이터 소스 {len(degraded)}개 중단</b>")
+        for d in degraded:
+            stale = d.get("staleness_hours")
+            if stale is None:
+                age = "마지막 성공 기록 없음"
+            elif stale >= 24:
+                age = f"{stale / 24:.1f}일째 데이터 없음"
+            else:
+                age = f"{stale:.0f}시간째 데이터 없음"
+            fails = d.get("consecutive_failures") or 0
+            lines.append(f"🔴 {d['source']} — {age} (연속 실패 {fails}회)")
+        lines.append("\n<i>이 소스가 담당하는 지역·질병은 지금 '조용한 게 아니라 안 보이는' 상태입니다.</i>")
+    if recovered:
+        if lines:
+            lines.append("")
+        lines.append(f"✅ <b>복구됨</b>: {', '.join(recovered)}")
+    return "\n".join(lines)
+
+
+def notify_source_health(pending: dict) -> bool:
+    """소스 중단/복구를 한 통으로 통보. 보낼 게 없거나 채널 미설정이면 False.
+    반환값이 곧 '전송 성공' — 호출부는 True일 때만 통보 도장을 찍어야 한다
+    (실패했는데 도장을 찍으면 다음 주기에 조용해져 알림을 잃는다)."""
+    if not telegram_configured():
+        return False
+    if not (pending.get("degraded") or pending.get("recovered")):
+        return False
+    return send_telegram_message(format_source_health_message(pending))

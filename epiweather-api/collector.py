@@ -690,12 +690,23 @@ def collect_free_sources() -> dict:
     # 판정. 주기당 소스별 정확히 1회만 기록해 "어느 소스가 며칠째 죽었는지"를
     # /api/status에서 눈에 보이게 한다(조용한 실패 제거).
     try:
-        from algorithms.source_health import record_cycle
-        newly_failing = record_cycle(result, FREE_SOURCE_HEALTH_KEYS)
-        if newly_failing:
-            log(f"  ⚠️ 소스 장애 감지(연속 실패): {', '.join(newly_failing)}")
-            from algorithms.notifier import notify_source_degradation
-            notify_source_degradation(newly_failing)
+        from algorithms.source_health import record_cycle, pending_notifications, mark_notified
+        record_cycle(result, FREE_SOURCE_HEALTH_KEYS)
+
+        # 통보는 '경계를 넘는 순간' 1회가 아니라 죽어있는 동안 계속 낸다.
+        # 예전 방식은 3회째에 딱 한 번 울리고 끝이라, KDCA가 나흘·93회를 죽어도
+        # 알림은 나흘 전 1건뿐이었다(2026-08-13). 아래 pending_notifications가
+        # 24시간마다 다시 울리고, 살아나면 복구도 알린다.
+        pending = pending_notifications()
+        for d in pending["degraded"]:
+            log(f"  ⚠️ 소스 중단: {d['source']} ({d['status']}, 연속 실패 {d['consecutive_failures']}회)")
+        for s in pending["recovered"]:
+            log(f"  ✅ 소스 복구: {s}")
+        from algorithms.notifier import notify_source_health
+        if notify_source_health(pending):
+            # 전송에 성공했을 때만 도장 — 실패한 통보를 '했다'고 적으면
+            # 다음 주기에 조용해져서 알림 자체를 잃는다.
+            mark_notified([d["source"] for d in pending["degraded"]] + pending["recovered"])
     except Exception as e:
         log_error("SourceHealth", e)
 

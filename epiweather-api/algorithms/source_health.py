@@ -30,6 +30,10 @@ FAILING_STREAK = 3
 # 마지막 성공이 이 시간(h)을 넘으면 "stale"(신선하지 않음). 무료 소스가
 # 1시간 주기 수집이므로 넉넉히 6시간(6회 연속 놓침) 기준.
 STALE_HOURS = 6.0
+# 아직 죽어있는 소스를 다시 알리는 주기(h). 한 번 울리고 마는 알림은 스크롤에
+# 묻혀 사라진다 — 2026-08-13 KDCA 장애 때 실제로 3회째에 딱 한 번 울리고
+# 그 뒤 90회 실패는 완전히 침묵해서, 나흘간 국내 데이터 공백을 아무도 몰랐다.
+RENOTIFY_HOURS = 24.0
 
 
 def _now() -> dt.datetime:
@@ -141,9 +145,92 @@ def source_health_report() -> dict:
     return {
         "sources": sources,
         "degraded_sources": degraded,
+        "collector_silent_hours": collector_silent_hours(),
         "healthy_count": sum(1 for s in sources if s["status"] == "ok"),
         "total_tracked": len(sources),
         "note": "staleness_hours는 마지막 성공 수집 이후 경과시간(신선도)이며, "
                 "실제 사건→DB 반영 역학적 지연이 아님(대부분 무료 소스가 기준일을 "
                 "제공하지 않아 후자는 측정 불가).",
     }
+
+
+# ── 지속 통보 (㉔-b) ────────────────────────────────────────────────
+# record_cycle의 newly_failing은 '경계를 넘는 순간' 딱 1회만 잡는다. 그건 중복
+# 알림을 막으려던 의도였지만, 실제로는 반대 방향으로 실패했다 — 소스가 나흘을
+# 죽어 있어도 알림은 나흘 전 1건뿐이라 대화창에 묻혀 사라졌다(KDCA, 2026-08-13).
+# 그래서 "아직 죽어있음"을 RENOTIFY_HOURS마다 다시 알리고, 살아나면 복구도 알린다.
+# 복구 통보가 있어야 캡틴이 '조치가 먹혔는지'를 알림만 보고 판단할 수 있다.
+
+def _parse_iso(value: str | None) -> dt.datetime | None:
+    if not value:
+        return None
+    try:
+        return dt.datetime.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+def pending_notifications() -> dict:
+    """지금 사람에게 알려야 할 것 — {"degraded": [...], "recovered": [...]}.
+
+    degraded 항목: {"source", "status", "staleness_hours", "consecutive_failures"}
+    - 처음 degraded가 됐거나, 마지막 통보 후 RENOTIFY_HOURS가 지났으면 포함.
+    recovered 항목: 직전에 degraded로 통보했는데 지금 ok로 돌아온 소스 이름.
+    """
+    data = _load_raw()
+    now = _now()
+    degraded, recovered = [], []
+    for source, entry in sorted(data.items()):
+        status, staleness = _status_for(entry)
+        notified = entry.get("notified_status")
+        if status in ("failing", "stale"):
+            last_notified = _parse_iso(entry.get("last_notified_at"))
+            due = (
+                notified not in ("failing", "stale")          # 새로 죽음
+                or last_notified is None
+                or (now - last_notified).total_seconds() / 3600 >= RENOTIFY_HOURS
+            )
+            if due:
+                degraded.append({
+                    "source": source,
+                    "status": status,
+                    "staleness_hours": staleness,
+                    "consecutive_failures": entry.get("consecutive_failures", 0),
+                })
+        elif status == "ok" and notified in ("failing", "stale"):
+            recovered.append(source)
+    return {"degraded": degraded, "recovered": recovered}
+
+
+def mark_notified(sources: list[str]) -> None:
+    """통보한 소스에 현재 상태·시각을 도장 찍는다. 통보 '성공' 후에만 호출할 것 —
+    전송이 실패했는데 도장을 찍으면 다음 주기에 조용해져서 알림을 잃는다."""
+    if not sources:
+        return
+    data = _load_raw()
+    now = _now().isoformat()
+    for source in sources:
+        entry = data.get(source)
+        if entry is None:
+            continue
+        entry["notified_status"], entry["last_notified_at"] = _status_for(entry)[0], now
+    _save_raw(data)
+
+
+def collector_silent_hours() -> float | None:
+    """수집기가 마지막으로 '무엇이든' 기록한 뒤 흐른 시간. None이면 기록 없음.
+
+    데드맨 스위치용 — 위의 소스별 알림은 전부 collector가 돌아야 울린다.
+    collector 자체가 죽으면(스케줄러 중단·배포 실패) record_cycle이 아예 안 돌아
+    누구도 아무 말을 안 하게 된다. 그게 가장 조용하고 가장 위험한 실패다.
+    이 값은 collector가 아니라 /api/status를 보는 쪽에서 판정한다."""
+    data = _load_raw()
+    stamps = []
+    for entry in data.values():
+        for key in ("last_success_at", "last_failure_at"):
+            parsed = _parse_iso(entry.get(key))
+            if parsed:
+                stamps.append(parsed)
+    if not stamps:
+        return None
+    return round((_now() - max(stamps)).total_seconds() / 3600, 1)
