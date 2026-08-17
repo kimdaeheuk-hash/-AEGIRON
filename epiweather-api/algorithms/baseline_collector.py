@@ -22,6 +22,8 @@ from pathlib import Path
 
 import requests
 
+from algorithms.kdca_anomaly import parse_kdca_count
+
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 BASELINE_FILE = DATA_DIR / "baseline_signals.jsonl"
 USER_AGENT = {"User-Agent": "EpiWeather-Baseline/1.0 (epiweather.kr)"}
@@ -85,10 +87,11 @@ def fetch_kdca_historical(api_key: str, years_back: int = 5) -> list[dict]:
             # 터지면 그 뒤에 오는 나머지 질병(홍역·콜레라 등 실제 감시 대상 포함)까지
             # 해당 연도 전체가 통째로 유실돼 기준선(baseline)이 왜곡됨 — 항목별로
             # 개별 처리해 문제 있는 항목만 0으로 두고 나머지는 살린다.
-            try:
-                count = int(it.get("resultVal", 0))
-            except (TypeError, ValueError):
-                count = 0
+            # 천단위 쉼표("1,296")도 여기서 같이 처리된다 — 예전엔 이게 0으로
+            # 떨어져서 고volume 질병의 기준선이 실제보다 낮게 잡혔다.
+            count = parse_kdca_count(it.get("resultVal"))
+            if count is None:
+                continue
             results.append({"year": year, "disease": it.get("icdNm"), "count": count})
     return results
 

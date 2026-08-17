@@ -104,3 +104,36 @@ def max_spike_signal(spikes: list[dict] | None) -> float | None:
         return None
     vals = [_FROM_ZERO_RATIO if s["from_zero"] else s["ratio"] for s in spikes]
     return max(vals) if vals else None
+
+
+def parse_kdca_count(raw) -> int | None:
+    """KDCA resultVal → 건수. 파싱 못 하면 None(= '값 없음', 0과 구분).
+
+    KDCA API는 건수를 문자열로 주는데 형식이 한 가지가 아니다:
+      - 1000 이상이면 천단위 쉼표가 붙는다("1,296"). int()가 그대로 터진다.
+      - 아직 감시 대상이 아닌 질병·기간은 숫자가 아니라 "-"로 온다.
+    '전부 수집'(allowlist 폐지) 이후로는 어떤 질병이 들어올지 미리 알 수 없으므로,
+    한 항목이 이상해도 그 항목만 버리고 나머지 질병은 반드시 살려야 한다 —
+    예전엔 여기서 터지면 그 주 KDCA 수집이 통째로 없어졌다(2026-08-13~17 실제 발생).
+
+    0이 아니라 None을 돌려주는 이유: "이번 주 0건 신고"와 "값을 못 읽었다"는 전혀
+    다른 사실이다. 후자를 0으로 적으면 없는 안전을 지어내는 셈이 된다.
+    """
+    if raw is None:
+        return None
+    if isinstance(raw, bool):
+        return None
+    if isinstance(raw, int):
+        return raw
+    if isinstance(raw, float):
+        return int(raw)
+    text = str(raw).strip().replace(",", "").replace(" ", "")
+    if not text:
+        return None
+    try:
+        return int(text)
+    except ValueError:
+        try:
+            return int(float(text))
+        except ValueError:
+            return None

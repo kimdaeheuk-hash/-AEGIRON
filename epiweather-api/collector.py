@@ -55,7 +55,7 @@ def append_signal(record: dict) -> None:
 # 상재성 고volume 질병(수두·결핵 등)이 총합을 오염시켜 신종 신호를 파묻지 않게.
 # 위험군 밖 질병도 전부 수집돼 개별 급증으로 감시된다(레지오넬라처럼 놓치지 않음).
 # baseline_collector·기존 참조 호환을 위해 KDCA_WATCH_DISEASES 이름을 유지(=위험군).
-from algorithms.kdca_anomaly import KDCA_NOTABLE, disease_spikes
+from algorithms.kdca_anomaly import KDCA_NOTABLE, disease_spikes, parse_kdca_count
 KDCA_WATCH_DISEASES = KDCA_NOTABLE
 
 # CIDRAP(미네소타대 감염병연구정책센터) — 공중보건 학계에서 WHO·CDC도 참고하는
@@ -120,7 +120,12 @@ def fetch_kdca_weekly(api_key: str, weeks_back: int = 4) -> dict[str, dict[str, 
     for it in items:
         if it["period"] not in recent_weeks:
             continue
-        out.setdefault(it["icdNm"], {})[it["period"]] = int(it["resultVal"])
+        # 건수 파싱은 항목별로 따로 — 한 질병의 값이 이상해도(쉼표·"-") 나머지
+        # 질병은 살린다. 못 읽은 항목은 아예 안 넣는다(0으로 지어내지 않음).
+        count = parse_kdca_count(it.get("resultVal"))
+        if count is None:
+            continue
+        out.setdefault(it["icdNm"], {})[it["period"]] = count
     return out
 
 

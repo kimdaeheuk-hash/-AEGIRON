@@ -89,3 +89,51 @@ def test_notable_total_excludes_nonnotable():
         "목록밖상재성병": {"w1": 99999},       # not notable → 총합서 제외
     }
     assert ka.notable_latest_total(kw) == 40.0
+
+
+# ── 천단위 쉼표 회귀 (2026-08-13~17 실제 장애) ──────────────────────────
+# allowlist를 폐지해 '전부 수집'으로 바꾼 순간, 그동안 목록 밖이라 안 보이던
+# CRE 감염증(주 1,296건)이 들어왔다. KDCA는 1000 이상을 "1,296"으로 주는데
+# int()가 여기서 터져 그 주 KDCA 수집이 통째로 사라졌다 — 나흘간 국내 데이터 공백.
+# 660개 테스트가 통과했는데도 못 잡은 이유: 픽스처에 세 자리 값밖에 없었다.
+
+def test_parse_kdca_count_handles_thousands_comma():
+    assert ka.parse_kdca_count("1,296") == 1296
+    assert ka.parse_kdca_count("1,353") == 1353
+    assert ka.parse_kdca_count("12,345") == 12345
+    assert ka.parse_kdca_count("5") == 5
+    assert ka.parse_kdca_count(7) == 7
+
+
+def test_parse_kdca_count_returns_none_for_unreadable():
+    """읽을 수 없는 값은 0이 아니라 None — '0건 신고'와 '못 읽음'은 다른 사실이다."""
+    for bad in ("-", "", "   ", None, "미상", True):
+        assert ka.parse_kdca_count(bad) is None
+
+
+def test_fetch_survives_comma_value_and_keeps_other_diseases():
+    """★회귀 핵심★ 쉼표 값이 있어도 KDCA 수집 전체가 죽지 않고, 그 값도 제대로 읽힌다."""
+    period = _recent_period()
+    items = [
+        {"icdNm": "카바페넴내성장내세균목(CRE) 감염증", "period": period, "resultVal": "1,296"},
+        {"icdNm": "에볼라바이러스병", "period": period, "resultVal": "0"},
+        {"icdNm": "홍역", "period": period, "resultVal": "3"},
+    ]
+    with patch("collector.requests.get", return_value=_fake_kdca_response(items)):
+        out = collector.fetch_kdca_weekly("KEY", weeks_back=4)
+    assert out["카바페넴내성장내세균목(CRE) 감염증"][period] == 1296
+    assert out["에볼라바이러스병"][period] == 0     # 뒤 항목이 유실되지 않음
+    assert out["홍역"][period] == 3
+
+
+def test_fetch_drops_only_the_unreadable_item():
+    """'-' 한 항목 때문에 나머지 질병까지 날아가면 안 된다."""
+    period = _recent_period()
+    items = [
+        {"icdNm": "니파바이러스감염증", "period": period, "resultVal": "-"},
+        {"icdNm": "콜레라", "period": period, "resultVal": "2"},
+    ]
+    with patch("collector.requests.get", return_value=_fake_kdca_response(items)):
+        out = collector.fetch_kdca_weekly("KEY", weeks_back=4)
+    assert "니파바이러스감염증" not in out          # 0으로 지어내지 않음
+    assert out["콜레라"][period] == 2
