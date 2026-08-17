@@ -201,3 +201,72 @@ def test_rank_countries_includes_auto_discovered_tier2_country(isolated_db, monk
     assert ind["coverage_tier"] == "auto"
     # Tier-1은 여전히 전부 포함돼야 함(회귀 방지)
     assert len(ranked) == len(COUNTRIES) + 1
+
+
+# ── 예측 트랙레코드가 실제로 쌓이는가 (2026-08-18) ─────────────────────────
+# 실측: RAW_SCORE_THRESHOLD가 70인데 그날 전 세계 최고점이 52점이라 경보가 한 번도
+# 안 울렸고, Brier 채점 도입 9일이 지나도 scoreable 0건·accuracy null이었다.
+# '검증 가능하게 만든다'는 약속의 결과물이 계속 비어 있었던 것.
+
+def _ranked(*pairs):
+    """(이름, raw_score) → rank_countries()가 주는 모양의 최소 레코드."""
+    return [
+        {"name": n, "raw_score": r, "risk_score": round(r * 0.5, 1),
+         "vulnerability_index": 0.5, "raw_score_components": {}}
+        for n, r in pairs
+    ]
+
+
+def test_routine_predictions_accrue_when_nothing_crosses_alarm_threshold(isolated_db):
+    """★핵심★ 전 세계가 조용해도(전부 임계 미만) 기록이 쌓여야 한다."""
+    ranked = _ranked(("캄보디아", 52.0), ("사우디아라비아", 46.3), ("콩고민주공화국", 42.6))
+    logged = country_risk_mod.log_notable_predictions(ranked)
+
+    assert len(logged) == 3                      # 예전엔 0건이었다
+    for p in logged:
+        assert p["resolution_criteria"] and p["resolves_by"] and p["confidence"] is not None
+
+
+def test_routine_predictions_are_capped_and_take_the_top_scores(isolated_db, monkeypatch):
+    monkeypatch.setattr(country_risk_mod, "ROUTINE_PREDICTION_COUNT", 2)
+    ranked = _ranked(("A", 10.0), ("B", 50.0), ("C", 30.0))
+    logged = country_risk_mod.log_notable_predictions(ranked)
+
+    assert sorted(p["country"] for p in logged) == ["B", "C"]   # 상위 2개만
+
+
+def test_routine_path_can_be_switched_off(isolated_db, monkeypatch):
+    """캡틴이 0으로 두면 예전 동작(경보일 때만 기록)으로 정확히 되돌아간다."""
+    monkeypatch.setattr(country_risk_mod, "ROUTINE_PREDICTION_COUNT", 0)
+    assert country_risk_mod.log_notable_predictions(_ranked(("캄보디아", 52.0))) == []
+
+
+def test_routine_record_is_labelled_as_not_an_alarm(isolated_db):
+    """정기 기록이 경보로 오해되면 안 된다 — 근거 첫 줄에 명시한다."""
+    logged = country_risk_mod.log_notable_predictions(_ranked(("캄보디아", 52.0)))
+    assert "경보 아님" in logged[0]["basis"][0]
+
+
+def test_alarm_path_still_wins_and_is_not_duplicated(isolated_db):
+    """임계를 넘은 국가는 경보로 한 번만 기록된다(정기 경로가 또 넣으면 안 됨)."""
+    logged = country_risk_mod.log_notable_predictions(_ranked(("위험국", 85.0), ("조용국", 20.0)))
+    danger = [p for p in logged if p["country"] == "위험국"]
+    assert len(danger) == 1
+    assert "경보 아님" not in danger[0]["basis"][0]
+    assert danger[0]["confidence"] > 0.35        # 경보 구간 신뢰도
+
+
+def test_cooldown_still_blocks_repeat_records(isolated_db):
+    ranked = _ranked(("캄보디아", 52.0))
+    assert len(country_risk_mod.log_notable_predictions(ranked)) == 1
+    assert country_risk_mod.log_notable_predictions(ranked) == []   # 14일 내 재기록 금지
+
+
+def test_confidence_is_continuous_and_never_overconfident():
+    """Brier에서 확신은 틀렸을 때 큰 벌점을 받는다 — 0/1 근처를 절대 쓰지 않는다."""
+    conf = country_risk_mod._confidence_for
+    assert conf(0) == 0.05 and conf(100) == 0.65
+    assert conf(70) == 0.35                                  # 두 구간이 끊기지 않음
+    assert conf(52) < conf(70) < conf(85)                    # 단조 증가
+    for raw in (0, 25, 52, 70, 85, 100, -5, 150):
+        assert 0.01 <= conf(raw) <= 0.7

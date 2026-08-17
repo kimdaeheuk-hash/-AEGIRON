@@ -342,6 +342,24 @@ def rank_countries() -> dict:
 # GAI와 동일 척도)를 기준으로 삼는다 — raw_score 70은 z-score 2σ 이상에 해당.
 RAW_SCORE_THRESHOLD = 70
 PREDICTION_COOLDOWN_DAYS = 14  # 같은 국가를 이 기간 내 중복으로 다시 기록하지 않음
+
+# ★★ 정기 보정 기록 — 캡틴이 바꿀 수 있는 손잡이 ★★
+# 매 주기 상위 몇 개국을 '경보가 없어도' 기록할지. 0으로 두면 이 기능이 꺼지고
+# 예전처럼 경보(2σ 이상)일 때만 기록한다.
+#
+# 왜 필요한가 (2026-08-18 실측):
+#   RAW_SCORE_THRESHOLD가 70인데 그날 전 세계 최고점이 52점(캄보디아)이었다. 전 국가가
+#   '정상'이라 예측이 한 건도 안 쌓였다 — 8/9에 Brier 채점을 도입하고 9일이 지나도
+#   scoreable 0건, accuracy null. 즉 '검증 가능하게 만든다'는 약속의 결과물이 계속
+#   비어 있었다. 문턱이 틀린 게 아니라, **경보가 울릴 때만 기록하는 구조**가 문제였다.
+#
+# 왜 이게 '가짜 경보 만들기'가 아닌가:
+#   보정곡선(Brier)은 확신했을 때뿐 아니라 **조용하다고 판단했을 때도** 채점해야
+#   만들어진다. "여기는 90일 안에 아무 일 없다"고 낮은 확률로 말하고 실제로 아무 일도
+#   없으면, 그건 맞힌 것이고 성적에 들어가야 한다. 경보일 때만 기록하는 예보관은
+#   영원히 자기 보정을 증명할 수 없다. 이 경로는 알람을 늘리지 않는다 —
+#   경보 등급도 안 올리고, 텔레그램도 안 울린다. 기록만 남긴다.
+ROUTINE_PREDICTION_COUNT = 5
 # 예측의 판정 기한. 이 안에 공식 발병 선언이 나오는지로 채점한다.
 # 90일인 이유: 너무 짧으면 실제 발병이 기한 뒤에 나와 부당하게 틀린 것이 되고,
 # 너무 길면 판정이 계속 미뤄져 성적이 안 쌓인다. 실제 판정이 쌓이면 재조정한다.
@@ -359,51 +377,82 @@ def log_notable_predictions(ranked: list[dict] | None = None) -> list[dict]:
     같은 국가를 매시간 반복 기록하면 의미가 없어서, 최근 PREDICTION_COOLDOWN_DAYS
     이내 미검증 기록이 이미 있으면 건너뛴다(alerts.py의 '같은 날 갱신만' 방지
     패턴과 같은 취지 — 여기선 국가 단위로 더 길게 잡음).
+
+    기록 경로는 두 가지다:
+      ① 경보 — raw_score >= RAW_SCORE_THRESHOLD(2σ). 원래 있던 동작.
+      ② 정기 보정 — 경보가 없어도 상위 ROUTINE_PREDICTION_COUNT개국을 낮은 신뢰도로
+         기록한다. ①만 있으면 조용한 시기에 성적표가 영원히 비기 때문이다(상수부의
+         ROUTINE_PREDICTION_COUNT 주석에 실측 근거와 논리를 적어뒀다).
+    ②는 경보 등급을 올리지도, 알림을 울리지도 않는다 — 기록만 남긴다.
     """
     ranked = ranked or rank_countries()["countries"]
     logged: list[dict] = []
+    recorded: set[str] = set()
 
+    # ① 경보 경로 — 통계적 이상치(2σ 이상). 원래 있던 동작, 그대로 둔다.
     for c in ranked:
         raw = c.get("raw_score")
         if raw is None or raw < RAW_SCORE_THRESHOLD:
             continue
+        pred = _record_prediction(c, raw, routine=False)
+        if pred:
+            logged.append(pred)
+            recorded.add(c["name"])
 
-        existing = db.list_predictions(country=c["name"])
-        unverified = [p for p in existing if p["verified_at"] is None]
-        if unverified:
-            latest_predicted_at = dt.datetime.fromisoformat(unverified[0]["predicted_at"])
-            age_days = (dt.datetime.now(dt.timezone.utc) - latest_predicted_at).days
-            if age_days < PREDICTION_COOLDOWN_DAYS:
+    # ② 정기 보정 경로 — 경보가 없어도 상위 국가를 주기적으로 기록한다.
+    if ROUTINE_PREDICTION_COUNT > 0:
+        scored = [c for c in ranked if c.get("raw_score") is not None]
+        scored.sort(key=lambda c: c["raw_score"], reverse=True)
+        for c in scored[:ROUTINE_PREDICTION_COUNT]:
+            if c["name"] in recorded:
                 continue
-
-        comp = c["raw_score_components"]
-        basis = []
-        if comp.get("direct_signal") is not None:
-            basis.append(f"정부/공식 통계 기반 이상도 {comp['direct_signal']}점")
-        if comp.get("nlp_signal") is not None:
-            basis.append(f"뉴스·검색 기반 신호 {comp['nlp_signal']}점({comp['nlp_signal_count']}건 언급)")
-        basis.append(f"국가 취약성 지수 {c['vulnerability_index']}(의료인프라·인구밀도·공항연결성·국경이동량 종합)")
-
-        # ★ 판정 기준·기한·신뢰도를 예측과 **동시에** 적는다 ★
-        # 이게 없으면 기록은 쌓여도 채점이 안 된다. 실제로 이 기능 이전에 쌓인
-        # 기록은 전부 채점 불가였다. 기준을 나중에 쓰면 결과를 보고 맞추게 되므로
-        # 사후 보완도 하지 않는다.
-        resolves_by = (dt.date.today() + dt.timedelta(days=PREDICTION_HORIZON_DAYS)).isoformat()
-        criteria = (
-            f"{resolves_by}까지 {c['name']}에서 WHO 발병공고·상황보고서 또는 해당국 "
-            f"보건당국의 공식 발병 선언이 확인되면 correct. 확인되지 않으면 incorrect. "
-            f"발병은 확인됐으나 이 신호와 다른 질병이면 ambiguous."
-        )
-        pred = db.create_prediction(
-            country=c["name"], disease="종합 위험도(GAI 기반)",
-            risk_score=c["risk_score"], basis=basis,
-            confidence=_confidence_for(raw),
-            resolution_criteria=criteria,
-            resolves_by=resolves_by,
-        )
-        logged.append(pred)
+            pred = _record_prediction(c, c["raw_score"], routine=True)
+            if pred:
+                logged.append(pred)
 
     return logged
+
+
+def _record_prediction(c: dict, raw: float, routine: bool) -> dict | None:
+    """국가 1건을 predictions에 기록. 쿨다운에 걸리면 None."""
+    existing = db.list_predictions(country=c["name"])
+    unverified = [p for p in existing if p["verified_at"] is None]
+    if unverified:
+        latest_predicted_at = dt.datetime.fromisoformat(unverified[0]["predicted_at"])
+        age_days = (dt.datetime.now(dt.timezone.utc) - latest_predicted_at).days
+        if age_days < PREDICTION_COOLDOWN_DAYS:
+            return None
+
+    comp = c["raw_score_components"]
+    basis = []
+    if routine:
+        basis.append(
+            f"정기 보정 기록 — 경보 아님(이상도 {raw}점, 경보 기준 {RAW_SCORE_THRESHOLD}점 미만). "
+            "조용한 판단도 채점해 보정곡선을 만들기 위한 기록이다."
+        )
+    if comp.get("direct_signal") is not None:
+        basis.append(f"정부/공식 통계 기반 이상도 {comp['direct_signal']}점")
+    if comp.get("nlp_signal") is not None:
+        basis.append(f"뉴스·검색 기반 신호 {comp['nlp_signal']}점({comp['nlp_signal_count']}건 언급)")
+    basis.append(f"국가 취약성 지수 {c['vulnerability_index']}(의료인프라·인구밀도·공항연결성·국경이동량 종합)")
+
+    # ★ 판정 기준·기한·신뢰도를 예측과 **동시에** 적는다 ★
+    # 이게 없으면 기록은 쌓여도 채점이 안 된다. 실제로 이 기능 이전에 쌓인
+    # 기록은 전부 채점 불가였다. 기준을 나중에 쓰면 결과를 보고 맞추게 되므로
+    # 사후 보완도 하지 않는다.
+    resolves_by = (dt.date.today() + dt.timedelta(days=PREDICTION_HORIZON_DAYS)).isoformat()
+    criteria = (
+        f"{resolves_by}까지 {c['name']}에서 WHO 발병공고·상황보고서 또는 해당국 "
+        f"보건당국의 공식 발병 선언이 확인되면 correct. 확인되지 않으면 incorrect. "
+        f"발병은 확인됐으나 이 신호와 다른 질병이면 ambiguous."
+    )
+    return db.create_prediction(
+        country=c["name"], disease="종합 위험도(GAI 기반)",
+        risk_score=c["risk_score"], basis=basis,
+        confidence=_confidence_for(raw),
+        resolution_criteria=criteria,
+        resolves_by=resolves_by,
+    )
 
 
 def _confidence_for(raw_score: float) -> float:
@@ -411,13 +460,24 @@ def _confidence_for(raw_score: float) -> float:
 
     위험도와 신뢰도는 다르다 — 위험도는 '그 나라가 위험한 정도', 신뢰도는 '이
     판단이 맞을 확률'이다. 지금은 검증된 이력이 없어 둘의 관계를 실측할 수 없으므로,
-    **보수적으로 좁은 구간(0.35~0.65)만 쓴다.**
+    **보수적인 구간(0.05~0.65)만 쓴다.**
 
     0이나 1에 가까운 값을 쓰지 않는 이유: Brier 점수에서 확신은 틀렸을 때 큰 벌점을
     받는다. 근거 없이 확신을 높게 잡으면 성적이 나빠질 뿐 아니라 보정이 무너진다.
-    실제 판정이 쌓이면 이 함수를 실측으로 갈아끼운다.
+
+    ★ 이 매핑은 잠정값이다 ★
+    실측 근거가 없다. 그래서 두 구간으로 나눠 보수적으로 잡았다:
+      - 경보 구간(70~100): 0.35 → 0.65 선형. 원래 값 그대로 유지.
+      - 보정 구간(0~70):   0.05 → 0.35, 이차곡선. 선형이 아니라 이차인 이유는
+        2σ 미만 점수는 실제로 발병으로 이어질 확률이 낮아야 정직하기 때문이다.
+        70에서 두 구간이 정확히 0.35로 이어져 불연속이 없다.
+    첫 90일치 판정이 나오면 이 함수를 실측 보정곡선으로 갈아끼운다. 그게 이 기록을
+    쌓는 목적이고, 잠정값이 틀렸다면 Brier 점수가 그걸 먼저 알려줄 것이다.
     """
-    # 임계 70 → 0.35, 100 → 0.65 로 선형. 범위 밖은 잘라낸다.
-    span = max(1.0, 100.0 - RAW_SCORE_THRESHOLD)
-    ratio = (min(max(raw_score, RAW_SCORE_THRESHOLD), 100.0) - RAW_SCORE_THRESHOLD) / span
-    return round(0.35 + ratio * 0.30, 2)
+    raw = max(0.0, min(float(raw_score), 100.0))
+    if raw >= RAW_SCORE_THRESHOLD:
+        span = max(1.0, 100.0 - RAW_SCORE_THRESHOLD)
+        ratio = (raw - RAW_SCORE_THRESHOLD) / span
+        return round(0.35 + ratio * 0.30, 2)
+    ratio = raw / max(1.0, float(RAW_SCORE_THRESHOLD))
+    return round(0.05 + (ratio ** 2) * 0.30, 2)
