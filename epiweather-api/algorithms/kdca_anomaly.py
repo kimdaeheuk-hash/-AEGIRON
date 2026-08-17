@@ -118,22 +118,10 @@ def parse_kdca_count(raw) -> int | None:
 
     0이 아니라 None을 돌려주는 이유: "이번 주 0건 신고"와 "값을 못 읽었다"는 전혀
     다른 사실이다. 후자를 0으로 적으면 없는 안전을 지어내는 셈이 된다.
+
+    2026-08-18 전수점검에서 같은 구조를 baseline_collector·behavioral_data에서도
+    찾아, 파싱 자체는 common.safe_int로 통일했다. 이 함수는 KDCA 문맥의 이름과
+    의미(0건 신고 vs 못 읽음)를 유지하는 얇은 껍데기로 남긴다.
     """
-    if raw is None:
-        return None
-    if isinstance(raw, bool):
-        return None
-    if isinstance(raw, int):
-        return raw
-    if isinstance(raw, float):
-        return int(raw)
-    text = str(raw).strip().replace(",", "").replace(" ", "")
-    if not text:
-        return None
-    try:
-        return int(text)
-    except ValueError:
-        try:
-            return int(float(text))
-        except ValueError:
-            return None
+    from .common import safe_int
+    return safe_int(raw)

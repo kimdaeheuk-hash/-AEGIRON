@@ -129,3 +129,58 @@ def fisher_combined_p(zs: list[float]) -> float:
     ps = [p_one_tail(max(0.0, z)) for z in zs]
     chi = -2 * sum(math.log(p) for p in ps)
     return 1 - chi_cdf(chi, 2 * len(ps))
+
+
+# ── 외부 데이터 숫자 파싱 (2026-08-18 전수점검) ─────────────────────────
+# 2026-08-13, KDCA가 건수를 "1,296"으로 주는데 int()가 쉼표에서 터져 그 주 국내
+# 데이터가 통째로 사라졌다. 나흘간 아무도 몰랐다. 원인은 쉼표 자체가 아니라
+# **항목 하나의 실패가 배치 전체를 죽이는 구조**였다 — 57종을 도는 루프 한가운데서
+# 예외가 나면 앞서 읽은 56종까지 같이 버려진다.
+#
+# 전수점검 결과 같은 구조가 baseline_collector(기준선)·behavioral_data(응급실)에도
+# 있었다. 기준선 쪽이 특히 위험한데, 조용히 짧은 목록을 돌려주면 이상 탐지가
+# 틀린 기준과 비교하면서도 아무 에러를 안 내기 때문이다.
+#
+# 반대로 gdelt_signals는 처음부터 항목별로 타입을 확인하고 넘어간다 — 올바른
+# 패턴은 이미 이 코드베이스 안에 있었고, 균일하게 안 쓰였을 뿐이다. 이 함수들이
+# 그 기준이다.
+
+def safe_int(raw, default=None):
+    """외부 응답 → int. 못 읽으면 default(기본 None). 예외를 던지지 않는다.
+
+    쉼표(1,296)·공백·빈 문자열·"-"·None·숫자형 문자열을 모두 흡수한다.
+    default가 None인 이유: '값 없음'과 '0건'은 다른 사실이다. 못 읽은 걸 0으로
+    적으면 없는 안전을 지어내는 셈이라, 호출측이 의도적으로 0을 원할 때만
+    default=0을 준다.
+    """
+    if raw is None or isinstance(raw, bool):
+        return default
+    if isinstance(raw, int):
+        return raw
+    if isinstance(raw, float):
+        return int(raw)
+    text = str(raw).strip().replace(",", "").replace(" ", "")
+    if not text:
+        return default
+    try:
+        return int(text)
+    except ValueError:
+        try:
+            return int(float(text))
+        except ValueError:
+            return default
+
+
+def safe_float(raw, default=None):
+    """외부 응답 → float. 못 읽으면 default(기본 None). safe_int와 같은 원칙."""
+    if raw is None or isinstance(raw, bool):
+        return default
+    if isinstance(raw, (int, float)):
+        return float(raw)
+    text = str(raw).strip().replace(",", "").replace(" ", "")
+    if not text:
+        return default
+    try:
+        return float(text)
+    except ValueError:
+        return default

@@ -1228,8 +1228,11 @@ def create_prediction(req: PredictionCreate):
         proof_hex = submit_timestamp(digest_hex)
         if proof_hex:
             prediction = db.set_prediction_timestamp(prediction["id"], digest_hex, proof_hex)
-    except Exception:
-        pass
+    except Exception as e:
+        # 봉인 실패가 예측 기록을 막으면 안 된다(설계 원칙). 다만 조용히 넘기면
+        # 캘린더 서버가 몇 주째 죽어 있어도 모른 채 '봉인된 트랙레코드'를 주장하게
+        # 된다 — 그건 증거가 아니라 착각이다. 기록은 남기고 진행한다.
+        _log_error(f"예측 봉인 실패(id={prediction.get('id')}): {type(e).__name__}: {str(e)[:150]}")
     return prediction
 
 

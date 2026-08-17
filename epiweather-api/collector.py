@@ -201,8 +201,10 @@ def fetch_japan_idwr() -> dict | None:
                 name = disease_row[i].strip()
                 if not name:
                     continue
-                val = total_row[i].strip()
-                totals[name] = int(val) if val.isdigit() else None
+                # isdigit()은 "1,384" 같은 천단위 쉼표에 False를 준다 — 그러면
+                # 1000건 넘는 질병만 조용히 None(결측)이 돼서, 유행이 커질수록
+                # 데이터가 사라지는 최악의 방향으로 틀린다. 에러도 안 난다.
+                totals[name] = parse_kdca_count(total_row[i])
             return {"year": year, "week": week, "national_totals": totals}
         except Exception:
             continue

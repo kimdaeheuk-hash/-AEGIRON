@@ -218,7 +218,14 @@ def enrich_alerts_with_briefs(alerts: list[dict], seal: bool = False) -> list[di
                 a.get("tier", "high"), a.get("score", 0),
             )
             a = {**a, "npi_summary": summary_line(brief), "npi_brief": brief}
-        except Exception:
-            pass
+        except Exception as e:
+            # 처방이 빠진 채 경보만 나가는 건 "그래서 뭘 해야 하나"에 답하는 이
+            # 제품의 핵심이 조용히 사라진 것이다. 경보 발송은 막지 않되(사람에게
+            # 알리는 게 우선), 왜 빠졌는지는 반드시 남긴다 — 예전엔 흔적이 없어
+            # 처방이 며칠째 안 붙고 있어도 알 방법이 없었다.
+            print(f"  ⚠️ [NPI] 처방 생성 실패 — 경보는 그대로 발송: "
+                  f"{a.get('label') or a.get('disease')} / {type(e).__name__}: {str(e)[:120]}",
+                  flush=True)
+            a = {**a, "npi_summary": None, "npi_unavailable_reason": f"{type(e).__name__}: {str(e)[:120]}"}
         out.append(a)
     return out

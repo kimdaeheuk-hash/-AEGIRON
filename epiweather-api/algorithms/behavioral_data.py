@@ -14,6 +14,8 @@ import os
 import datetime as dt
 import requests
 
+from algorithms.common import safe_int
+
 USER_AGENT = {"User-Agent": "EpiWeather-Behavioral/1.0 (epiweather.kr)"}
 TIMEOUT = 15
 
@@ -107,9 +109,11 @@ def fetch_seoul_er_stats(api_key: str | None = None) -> dict:
         data = resp.json()
         rows = data.get(SEOUL_ER_DATASET, {}).get("row", [])
         total_er = len(rows)
-        # 현재 병상 가용률 집계
-        available = sum(int(r.get("hvec", 0) or 0) for r in rows)
-        total_cap = sum(int(r.get("hvs01", 0) or 0) for r in rows)
+        # 현재 병상 가용률 집계. 병원 한 곳의 값이 이상해도(쉼표·"-"·미보고)
+        # 나머지 병원 집계는 살린다 — 예전엔 int()가 그대로라 100개 행 중 하나만
+        # 깨져도 서울 응급실 신호 전체가 error로 떨어졌다(KDCA와 같은 구조).
+        available = sum(safe_int(r.get("hvec"), 0) for r in rows)
+        total_cap = sum(safe_int(r.get("hvs01"), 0) for r in rows)
         return {
             "status": "ok",
             "total_er_count": total_er,

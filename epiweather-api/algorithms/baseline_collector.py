@@ -22,6 +22,7 @@ from pathlib import Path
 
 import requests
 
+from algorithms.common import safe_float, safe_int
 from algorithms.kdca_anomaly import parse_kdca_count
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
@@ -160,7 +161,12 @@ def build_wiki_records(months_back: int = 24) -> list[dict]:
                 date_str = f"{ts[:4]}-{ts[4:6]}-{ts[6:8]}"
             else:
                 continue
-            avg_daily = round(item.get("views", 0) / 30, 1)
+            # views가 숫자가 아니면 그 달만 건너뛴다 — 예전엔 나눗셈에서 TypeError가
+            # 나면 build_wiki_records 전체가 죽어 모든 질병의 위키 기준선이 사라졌다.
+            views = safe_float(item.get("views"))
+            if views is None:
+                continue
+            avg_daily = round(views / 30, 1)
             records.append({
                 "type": "free_sources",
                 "_baseline": True,
@@ -223,9 +229,15 @@ def build_cdc_nwss_records(months_back: int = 24) -> list[dict]:
             "_baseline": True,
             "_source": "cdc_nwss_monthly",
             "_logged_at": f"{month[:10]}T00:00:00",
+            # 항목별로 안전하게 읽는다 — 예전엔 int(n)이 그대로라 한 달치 값이
+            # "1,296" 꼴이면 여기서 터져 24개월 기준선 전체가 사라졌다. 기준선이
+            # 조용히 짧아지는 게 특히 위험한 이유는, 이상 탐지가 틀린 기준과
+            # 비교하면서도 아무 에러를 안 내기 때문이다.
             "cdc_nwss": {
-                "site_count": int(n) if n else None,
-                "mean_concentration": round(float(avg_conc), 1) if avg_conc else None,
+                "site_count": safe_int(n),
+                "mean_concentration": (
+                    round(conc, 1) if (conc := safe_float(avg_conc)) is not None else None
+                ),
             },
         })
     return records
@@ -246,7 +258,11 @@ def build_infodengue_records(weeks_back: int = 104) -> list[dict]:
     for week_str, city_map in sorted(by_week.items()):
         if len(week_str) != 6:
             continue
-        year, wk = int(week_str[:4]), int(week_str[4:])
+        # 길이만 맞고 숫자가 아닌 값(예: "2026-1")이 오면 예전엔 여기서 터져
+        # InfoDengue 기준선 104주치가 통째로 사라졌다.
+        year, wk = safe_int(week_str[:4]), safe_int(week_str[4:])
+        if year is None or wk is None:
+            continue
         try:
             logged_date = dt.date.fromisocalendar(year, wk, 1).isoformat()
         except ValueError:
