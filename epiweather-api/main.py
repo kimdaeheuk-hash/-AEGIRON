@@ -109,8 +109,13 @@ def require_api_key(
 
     try:
         db.log_api_key_usage(matched_label, request.url.path)
-    except Exception:
-        pass  # 사용량 로깅 실패가 실제 요청을 막으면 안 됨
+    except Exception as e:
+        # 로깅 실패가 실제 요청을 막으면 안 된다(원래 의도 유지). 다만 조용히
+        # 넘기면 안 된다 — 이 표는 나중에 제휴사·개발자에게 **비용을 청구할 근거**다.
+        # DB가 잠겨 일주일치 사용량이 통째로 안 남아도 아무도 모르면, 그건 장부가
+        # 비는 것이다. 청구서를 못 쓰거나, 더 나쁘게는 틀린 청구서를 쓰게 된다.
+        _log_error(f"API 사용량 기록 실패({matched_label} → {request.url.path}): "
+                   f"{type(e).__name__}: {str(e)[:150]}")
     return matched_label
 
 

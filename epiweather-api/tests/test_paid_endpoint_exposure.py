@@ -80,3 +80,35 @@ def test_daily_brief_cache_drops_yesterday(client):
         client.get("/api/daily-brief?lang=ko")
 
     assert ("2026-01-01", "ko", "auto") not in main._DAILY_BRIEF_CACHE
+
+
+# ── 사용량 기록이 조용히 사라지지 않는지 (2026-08-19) ──────────────────
+# api_key_usage 표는 나중에 제휴사·개발자에게 **비용을 청구할 근거**다. 예전엔
+# 기록 실패를 except: pass로 완전히 삼켜서, DB가 잠겨 일주일치가 안 남아도
+# 아무도 몰랐다. 그건 장부가 비는 것이고, 청구서를 못 쓰거나 틀리게 쓰게 된다.
+
+def test_usage_logging_failure_does_not_block_the_request(client, capsys):
+    """요청은 계속돼야 한다 — 계량 실패가 서비스를 멈추면 안 된다."""
+    import db as db_mod
+
+    def boom(*a, **kw):
+        raise RuntimeError("database is locked")
+
+    with patch.object(db_mod, "log_api_key_usage", side_effect=boom):
+        resp = client.get("/api/global-watch", headers={"X-API-Key": "test-key-123"})
+
+    assert resp.status_code == 200          # 요청은 성공
+
+
+def test_usage_logging_failure_is_recorded_somewhere(client):
+    """★핵심★ 조용히 사라지면 안 된다 — 어디엔가 흔적이 남아야 한다."""
+    import db as db_mod
+    import main as main_mod
+
+    logged = []
+    with patch.object(db_mod, "log_api_key_usage", side_effect=RuntimeError("database is locked")), \
+         patch.object(main_mod, "_log_error", side_effect=lambda m: logged.append(m)):
+        client.get("/api/global-watch", headers={"X-API-Key": "test-key-123"})
+
+    assert logged, "사용량 기록 실패가 아무 데도 안 남았다"
+    assert "사용량" in logged[0] and "database is locked" in logged[0]
