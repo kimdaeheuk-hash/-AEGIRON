@@ -249,10 +249,15 @@ def test_polar_watch_endpoint_public_and_watch_grade_not_alert(client):
     assert len(body["regions"]) >= 5
 
 
-def test_threats_semantic_falls_back_without_api_key(client, monkeypatch):
-    """ANTHROPIC_API_KEY 없으면 결정론적 폴백으로 동작하고 그 사실이 표시돼야 함(㉚)."""
+def test_threats_semantic_falls_back_without_api_key(client_with_key, monkeypatch):
+    """ANTHROPIC_API_KEY 없으면 결정론적 폴백으로 동작하고 그 사실이 표시돼야 함(㉚).
+
+    2026-08-19: 이 엔드포인트는 요청마다 Claude를 호출하는데 인증이 없어 공개로
+    열려 있었다(전수점검에서 발견). 이제 인증이 필요하므로 키를 붙여 부른다 —
+    검증하려는 폴백 동작 자체는 그대로다."""
+    client, api_key = client_with_key
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    resp = client.get("/api/threats/semantic")
+    resp = client.get("/api/threats/semantic", headers={"X-API-Key": api_key})
     assert resp.status_code == 200
     body = resp.json()
     assert body["clustering_method"] == "disease_name_fallback"

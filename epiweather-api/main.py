@@ -1131,7 +1131,7 @@ def threats():
     return {"events": dedupe_events()}
 
 
-@app.get("/api/threats/semantic", tags=["GAI"])
+@app.get("/api/threats/semantic", tags=["GAI"], dependencies=_auth)
 def threats_semantic():
     """
     교차언어 의미 클러스터링(㉚) — Claude가 여러 언어·표기의 신호를 '뜻'으로
@@ -1151,6 +1151,11 @@ def threats_semantic():
         "clustering_method": method,
         "note": None if api_key else "ANTHROPIC_API_KEY 미설정 — 결정론적(질병명) 폴백으로 동작",
     }
+
+
+# (날짜, 언어, 포맷) → 생성된 브리핑. 프로세스 메모리에만 둔다 — 재배포되면
+# 비워지지만 그래도 하루 15번이 상한이라 목적(비용 상한)은 그대로 지켜진다.
+_DAILY_BRIEF_CACHE: dict[tuple[str, str, str], dict] = {}
 
 
 @app.get("/api/daily-brief", tags=["GAI"])
@@ -1174,8 +1179,28 @@ def daily_brief(lang: str = "ko", format: Optional[str] = None):
     quiet_day=True로 조용한 날을 조용하게 전한다(없는 위기를 지어내지 않음).
     """
     from algorithms.daily_brief import generate_daily_brief
+
+    # ★ 캐시 ★ 이 엔드포인트는 인증이 없고(홈페이지가 직접 부른다) 요청마다
+    # Claude로 앵커 대본을 다듬는다 — 즉 **방문자 수만큼 돈이 나간다.** 런칭 후
+    # 트래픽이 붙으면 그대로 비용이 되고, 악의적으로 반복 호출하면 크레딧이 마른다.
+    # 인증을 걸면 홈페이지가 깨지므로 대신 (날짜·언어·포맷)으로 캐시한다.
+    # 포맷 5종 × 언어 3종 = 하루 최대 15번 생성. 트래픽이 아무리 와도 그 이상은 없다.
+    # 브리핑은 하루 한 번 만들어 하루 종일 같은 내용을 트는 방송이라, 캐시가
+    # 성능 최적화가 아니라 원래 의미에 맞는 동작이다.
+    today = dt.date.today().isoformat()
+    cache_key = (today, lang, format or "auto")
+    cached = _DAILY_BRIEF_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
     api_key = os.environ.get("ANTHROPIC_API_KEY")
-    return generate_daily_brief(lang=lang, api_key=api_key, fmt=format)
+    brief = generate_daily_brief(lang=lang, api_key=api_key, fmt=format)
+
+    # 날짜가 바뀌면 어제 것은 버린다(무한 증가 방지).
+    for stale in [k for k in _DAILY_BRIEF_CACHE if k[0] != today]:
+        _DAILY_BRIEF_CACHE.pop(stale, None)
+    _DAILY_BRIEF_CACHE[cache_key] = brief
+    return brief
 
 
 @app.get("/api/daily-brief/archive", tags=["GAI"])
@@ -1659,7 +1684,7 @@ def synthetic_threat_analyze(req: SyntheticThreatAnalyzeRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/global-watch", tags=["Stage 6: AI 추론"])
+@app.get("/api/global-watch", tags=["Stage 6: AI 추론"], dependencies=_auth)
 def global_watch():
     """
     WHO EMRO/WPRO·Africa CDC·MSF 등 RSS 없는 지역의 신호 갭필링.
