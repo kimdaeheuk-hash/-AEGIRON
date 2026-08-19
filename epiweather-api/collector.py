@@ -633,6 +633,10 @@ def collect_free_sources() -> dict:
         tag = f", LLM 재분류 {classified}개 피드" if classified else ""
         log(f"  현지어 뉴스: {n['active_feeds']}/{n['total_feeds']}개 피드, "
             f"키워드 히트 {n['total_kw_hits']}건, 고경보 {n['high_alert_feeds']}개{tag}")
+        # 179개 피드가 전멸해도 dict는 정상 모양으로 오기 때문에, 예전엔 소스가
+        # 살아있다고 기록됐다. '히트 0건'과 '한 곳도 못 읽음'은 다른 사실이다.
+        if not n["active_feeds"]:
+            mark_no_data(result, "local_news")
     except Exception as e:
         result["local_news"] = None
         log_error("LocalNews", e)
@@ -640,6 +644,10 @@ def collect_free_sources() -> dict:
     try:
         from algorithms.supply_chain import get_supply_signal
         result["supply_chain"] = get_supply_signal()
+        # 자식이 전부 실패했는데 부모가 ok를 돌려주면, 전면 장애가 '이상 없음'과
+        # 똑같이 보인다. 모듈이 스스로 no_data라고 말하면 그대로 소스헬스에 넘긴다.
+        if (result["supply_chain"] or {}).get("status") == "no_data":
+            mark_no_data(result, "supply_chain")
         s = result["supply_chain"]
         if s.get("status") == "no_key":
             log(f"  ⏭ 공급망 신호: {s.get('note')}")

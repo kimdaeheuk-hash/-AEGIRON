@@ -47,6 +47,7 @@ def fetch_hira_drug_claims(api_key: str | None = None) -> dict:
 
     today = dt.date.today()
     ym = today.strftime("%Y%m")
+    failures: list[str] = []
     for category, codes in HIRA_DRUG_WATCH.items():
         claims = []
         for code in codes:
@@ -66,10 +67,23 @@ def fetch_hira_drug_claims(api_key: str | None = None) -> dict:
                 )
                 if resp.status_code == 200:
                     claims.append({"code": code, "response": resp.text[:200]})
-            except Exception:
-                pass
+                else:
+                    failures.append(f"{code}:HTTP{resp.status_code}")
+            except Exception as e:
+                # 예전엔 완전히 조용했다. HIRA가 통째로 죽어도 status:ok가 나가서
+                # '처방 급증 없음'과 '아무것도 못 받음'이 구분되지 않았다.
+                failures.append(f"{code}:{type(e).__name__}")
+                print(f"  ⚠️ [HIRA] {category}/{code} 조회 실패: {type(e).__name__}: {str(e)[:100]}",
+                      flush=True)
         result["drug_claims"][category] = claims
 
+    # 한 건도 못 받았으면 '처방 급증 없음'이 아니라 '모른다'로 보고한다.
+    got_any = any(result["drug_claims"].values())
+    if not got_any:
+        result["status"] = "no_data"
+        result["note"] = ("HIRA에서 한 건도 못 받음 — '처방 급증 없음'이 아니라 '모름'. "
+                          f"실패 {len(failures)}건: {', '.join(failures[:5])}")
+    result["failed_codes"] = failures
     return result
 
 

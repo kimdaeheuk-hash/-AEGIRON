@@ -96,9 +96,26 @@ def get_supply_signal() -> dict:
     alerts = [k for k, v in trends.items() if v is not None and v >= 30]
     total_ratio = sum(v for v in trends.values() if v is not None)
 
+    # ★ 전부 실패했으면 '이상 없음'이 아니라 '모른다'다 ★
+    # 예전엔 네이버 API가 통째로 죽어도 status:ok / 경보 0건을 돌려줬다. 그러면
+    # 전면 장애가 "전 세계 어디에도 물자 부족이 없다"와 글자 그대로 똑같이 보인다.
+    # 이건 이 시스템이 스스로 가장 위험하다고 적어둔 실패다 — '신호 없음 = 안전'.
+    usable = [v for v in trends.values() if v is not None]
+    if trends and not usable:
+        return {
+            "status": "no_data",
+            "note": "네이버 데이터랩 응답을 한 품목도 못 받음 — '부족 없음'이 아니라 '모름'",
+            "supply_trends": trends,
+            "supply_alert_count": None,
+            "supply_alert_items": [],
+            "total_supply_ratio": None,
+        }
+
     return {
         "status": "ok",
         "supply_trends": trends,
+        "supply_items_ok": len(usable),
+        "supply_items_total": len(trends),
         "supply_alert_count": len(alerts),
         "supply_alert_items": alerts,
         "total_supply_ratio": round(total_ratio, 2),

@@ -162,8 +162,14 @@ def init_db() -> None:
         ):
             try:
                 conn.execute(ddl)
-            except sqlite3.OperationalError:
-                pass
+            except sqlite3.OperationalError as e:
+                # '이미 있는 컬럼'만 정상으로 넘긴다. 예전엔 OperationalError를
+                # 전부 삼켜서, 오타난 테이블명("no such table")이나 잠금 실패처럼
+                # **진짜 실패한 마이그레이션도 똑같이 조용히 지나갔다.** 그러면
+                # 컬럼이 영영 안 생기고, 한참 뒤 엉뚱한 INSERT 에러로만 드러난다.
+                if "duplicate column name" not in str(e).lower():
+                    print(f"  ❌ [db] 마이그레이션 실패 — {ddl!r}: {e}", flush=True)
+                    raise
         conn.commit()
 
 
