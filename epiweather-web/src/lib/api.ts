@@ -1,9 +1,24 @@
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 export const API_BASE = BASE;
 
-// 백엔드 쓰기(POST) 엔드포인트는 X-API-Key 인증이 걸려있음.
-// 빌드타임에 공개되는 값이라 진짜 민감한 관리자 키가 아니라, 신뢰 클라이언트인
-// 이 프론트엔드가 봇/스크래퍼와 구분되기 위한 최소한의 게이트임을 유의.
+// ⚠️ 2026-08-19: 이 키가 지키는 대상이 바뀌었다. 아래 전제를 다시 읽을 것.
+//
+// 원래 의도는 "빌드타임에 공개되는 값이니 진짜 비밀이 아니라, 신뢰 클라이언트가
+// 봇/스크래퍼와 구분되는 최소 게이트"였다. 쓰기 몇 개만 막던 시절엔 맞는 말이었다.
+//
+// 그런데 이제 같은 키가 **돈이 나가는 엔드포인트**도 지킨다 —
+// /api/global-watch(Perplexity+Tavily+Claude), /api/threats/semantic(Claude).
+// NEXT_PUBLIC_* 는 브라우저 번들에 그대로 박히므로, Vercel에
+// NEXT_PUBLIC_API_KEY를 채우는 순간 그 키는 전 세계에 공개되고 누구든
+// 유료 엔드포인트를 무한히 호출할 수 있다. 오늘 잠근 게 그대로 풀린다.
+//
+// 현재 상태: Vercel 운영에 이 값이 **비어 있다**(배포 번들 9개를 직접 검사해 확인,
+// 2026-08-19). 그래서 지금은 새지 않는다. 채우지 말 것.
+//
+// 대시보드 쓰기 기능이 운영에서 필요해지면 둘 중 하나로 간다:
+//   ① Next.js 서버 라우트(route handler)에서 키를 서버측에 두고 프록시한다. ← 권장
+//   ② 쓰기 전용 저권한 키를 따로 발급한다(EPIWEATHER_API_KEYS 라벨 분리).
+//      유료 읽기 엔드포인트에는 절대 안 통하는 키여야 한다.
 export function apiWriteHeaders(json = true): HeadersInit {
   const headers: Record<string, string> = {};
   if (json) headers['Content-Type'] = 'application/json';
