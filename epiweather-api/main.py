@@ -306,27 +306,61 @@ def _log_error(message: str) -> None:
 
 
 async def _run_daily_brief_job(today: str) -> None:
-    """오늘자 일일 브리핑을 ko·en 둘 다 생성해 DB에 아카이브하고, 한국어판을
+    """오늘자 일일 브리핑을 지원 언어 전부 생성해 DB에 아카이브하고, 한국어판을
     텔레그램으로 발송한다. 재시작에도 안전하도록 '오늘 ko가 이미 있으면 건너뜀'을
-    호출 측에서 판단한다(DB 기준이라 메모리 플래그와 달리 재시작에 살아남음)."""
-    try:
-        from algorithms.daily_brief import generate_daily_brief
-        from algorithms.notifier import notify_daily_brief
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
-        ko = await asyncio.to_thread(generate_daily_brief, "ko", api_key, today)
-        db.save_daily_brief(today, "ko", ko)
-        en = await asyncio.to_thread(generate_daily_brief, "en", api_key, today)
-        db.save_daily_brief(today, "en", en)
-        await asyncio.to_thread(notify_daily_brief, ko)
-    except Exception as e:
-        _log_error(f"daily_brief_job failed: {e}")
+    호출 측에서 판단한다(DB 기준이라 메모리 플래그와 달리 재시작에 살아남음).
+
+    언어 목록을 여기 손으로 적지 않고 daily_brief.SUPPORTED_LANGS를 따른다.
+    예전엔 "ko", "en"을 직접 나열해서, 프랑스어 지원이 추가되고 홈페이지가 3개
+    언어로 나간 뒤에도 **fr 아카이브만 계속 0건**이었다(2026-08-23 발견).
+    목록을 따라가면 다음에 언어가 늘어도 여기가 또 뒤처지지 않는다.
+
+    언어별로 예외를 격리하는 이유: 예전엔 try 하나가 전부를 감싸서 en 생성이
+    실패하면 그 뒤가 통째로 사라졌다. 한 언어의 실패가 나머지 언어를 죽이면
+    안 된다(KDCA 사고와 같은 구조).
+    """
+    from algorithms.daily_brief import SUPPORTED_LANGS, generate_daily_brief
+    from algorithms.notifier import notify_daily_brief
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    briefs: dict[str, dict] = {}
+    for lang in SUPPORTED_LANGS:
+        try:
+            brief = await asyncio.to_thread(generate_daily_brief, lang, api_key, today)
+            db.save_daily_brief(today, lang, brief)
+            briefs[lang] = brief
+        except Exception as e:
+            _log_error(f"daily_brief_job failed({lang}): {type(e).__name__}: {e}")
+
+    if not briefs:
+        _log_error(f"daily_brief_job: {today} 브리핑을 한 언어도 생성하지 못함")
+        return
+
+    # 텔레그램은 한국어판으로 보낸다. 한국어가 실패했으면 발송을 건너뛴다 —
+    # 다른 언어로 대신 보내면 캡틴이 못 읽는 알림이 가고, 실패를 성공으로 착각한다.
+    if "ko" in briefs:
+        try:
+            await asyncio.to_thread(notify_daily_brief, briefs["ko"])
+        except Exception as e:
+            _log_error(f"daily_brief 텔레그램 발송 실패: {type(e).__name__}: {e}")
 
 
 async def _maybe_run_daily_brief() -> None:
-    """정해진 시각(UTC 22시)이 지났고 오늘자 브리핑이 아직 없으면 생성."""
+    """정해진 시각(UTC 22시)이 지났고 오늘자 브리핑에 빠진 언어가 있으면 생성.
+
+    예전엔 ko 하나만 보고 판단해서, ko가 있으면 그날은 끝난 것으로 쳤다. 그러면
+    다른 언어가 실패했을 때 그날은 영영 안 채워진다 — 재시도 기회가 없다.
+    지원 언어 중 하나라도 없으면 돈다(이미 있는 언어는 같은 내용으로 덮어써도
+    무해하고, 하루 한 번뿐이라 비용도 문제되지 않는다).
+    """
+    from algorithms.daily_brief import SUPPORTED_LANGS
+
     now = dt.datetime.utcnow()
     today = now.date().isoformat()
-    if now.hour >= _DAILY_BRIEF_HOUR_UTC and db.get_daily_brief(today, "ko") is None:
+    if now.hour < _DAILY_BRIEF_HOUR_UTC:
+        return
+    missing = [l for l in SUPPORTED_LANGS if db.get_daily_brief(today, l) is None]
+    if missing:
         await _run_daily_brief_job(today)
 
 
