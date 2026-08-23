@@ -749,6 +749,44 @@ def collect_free_sources() -> dict:
     except Exception as e:
         log_error("SourceHealth", e)
 
+    # ★ 매 주기 건강 요약 한 줄 ★
+    # 위 pending_notifications는 '새로 죽었거나 24시간이 지난' 것만 찍는다.
+    # 그래서 평소 주기엔 건강 정보가 로그에 전혀 안 남고, /api/status를 못 부르는
+    # 환경(점검 세션의 egress 정책 등)에서는 "소스가 조용히 늙고 있는 상태"를
+    # 확인할 방법이 사라진다 — 8/13 사고를 나흘 끌었던 바로 그 사각지대다.
+    # 로그만으로도 판단이 서게 매 주기 한 줄로 남긴다.
+    try:
+        from algorithms.source_health import source_health_report
+        rep = source_health_report()
+        stale = [
+            f"{s['source']}({s['staleness_hours']}h)"
+            for s in rep["sources"]
+            if s["status"] == "ok" and (s["staleness_hours"] or 0) > 3
+        ]
+
+        def _brief(names: list, cap: int = 5) -> str:
+            """이름을 나열하되 길어지면 줄인다 — 한 줄 요약이 화면을 넘기면
+            사람이 안 읽고, 안 읽히는 로그는 없는 것과 같다."""
+            if len(names) <= cap:
+                return ", ".join(map(str, names))
+            return ", ".join(map(str, names[:cap])) + f" 외 {len(names) - cap}개"
+
+        # 문제가 있는 항목만 붙인다. 예전 초안은 '중단 없음 · 값없음 없음 ·
+        # 늙는중 없음'처럼 빈 항목을 다 나열해서, 정작 문제가 생겼을 때 눈에
+        # 안 띄었다. 평소엔 짧게, 문제가 생기면 길어지는 쪽이 맞다.
+        parts = [f"정상 {rep['healthy_count']}/{rep['total_tracked']}"]
+        if rep["degraded_sources"]:
+            parts.append(f"중단 {_brief(rep['degraded_sources'])}")
+        if rep.get("no_data_sources"):
+            parts.append(f"값없음 {_brief(rep['no_data_sources'])}")
+        if stale:
+            parts.append(f"늙는중 {_brief(stale)}")
+        if len(parts) == 1:
+            parts.append("문제 없음")
+        log("  📊 소스 건강: " + " · ".join(parts))
+    except Exception as e:
+        log_error("HealthSummary", e)
+
     log("=== 무료 소스 수집 완료 ===")
     return result
 
