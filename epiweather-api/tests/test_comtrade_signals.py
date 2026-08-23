@@ -265,3 +265,136 @@ def test_trade_signals_all_uses_precise_path_when_key_exists(monkeypatch):
         out = trade_signals_all()
     assert out.get("mode") != "public_global_scan"
     assert "countries" in out
+
+
+# ── 경보 연결 (2026-08-23) ────────────────────────────────────────────────
+# 무역 급증을 경보로 올리되, 단일 품목 급증은 올리지 않는다. 무역통계는 원래
+# 변동이 커서(재고 보충 한 번에 2배) 단일 품목을 그대로 올리면 매달 수십 건이
+# 뜨고, 그러면 사람이 경보를 무시하게 된다 — 그게 진짜 사고를 놓치는 경로다.
+
+def _scan_with(surges):
+    """global_trade_scan 출력 형태를 흉내낸 최소 dict."""
+    from algorithms.comtrade_signals import (
+        MULTI_PRODUCT_MIN_RATIO, UN_M49_CODES,
+    )
+    by = {}
+    for s in surges:
+        if s["surge_ratio"] >= MULTI_PRODUCT_MIN_RATIO:
+            by.setdefault(s["country_iso3"], []).append(s)
+    multi = [
+        {"country_iso3": iso, "products": sorted(h["product"] for h in hits),
+         "product_count": len(hits),
+         "max_surge_ratio": max(h["surge_ratio"] for h in hits)}
+        for iso, hits in by.items() if len(hits) >= 2
+    ]
+    return {"data_available": True, "multi_product_surges": multi}
+
+
+def test_single_product_surge_does_not_become_an_alert():
+    """★핵심★ 마스크만 오르는 건 미세먼지·산업수요일 수 있다 — 경보로 안 올린다."""
+    from algorithms.comtrade_signals import trade_alert_candidates
+    scan = _scan_with([{"country_iso3": "KOR", "product": "masks_breathing", "surge_ratio": 9.0}])
+    assert trade_alert_candidates(scan) == []
+
+
+def test_multi_product_surge_becomes_an_alert_candidate():
+    """장갑+진단시약이 함께 오르면 의료 대응 준비 패턴에 가깝다."""
+    from algorithms.comtrade_signals import trade_alert_candidates
+    scan = _scan_with([
+        {"country_iso3": "MDA", "product": "surgical_gloves", "surge_ratio": 3.52},
+        {"country_iso3": "MDA", "product": "diagnostic_reagents", "surge_ratio": 2.24},
+    ])
+    out = trade_alert_candidates(scan)
+    assert len(out) == 1
+    assert out[0]["source"] == "trade_surge:MDA"
+    assert out[0]["country_iso3"] == "MDA"
+    assert "MDA" in out[0]["label"]
+
+
+def test_trade_alert_never_reaches_high_tier_alone():
+    """★정직성★ 신고지연 2개월짜리 지표가 혼자서 긴급경보를 울리면 안 된다."""
+    from algorithms.alerts import classify_tier
+    from algorithms.comtrade_signals import trade_alert_candidates
+    scan = _scan_with([
+        {"country_iso3": "XXX", "product": "masks_breathing", "surge_ratio": 99.0},
+        {"country_iso3": "XXX", "product": "surgical_gloves", "surge_ratio": 99.0},
+        {"country_iso3": "XXX", "product": "diagnostic_reagents", "surge_ratio": 99.0},
+    ])
+    score = trade_alert_candidates(scan)[0]["score"]
+    assert score <= 79.0
+    assert classify_tier(score) not in ("critical", "high")
+
+
+def test_trade_alert_evidence_states_it_is_a_proxy_and_lagged():
+    """근거에 '추론'과 '지연'이 반드시 적혀야 한다 — 실측처럼 읽히면 안 된다."""
+    from algorithms.comtrade_signals import trade_alert_candidates
+    scan = _scan_with([
+        {"country_iso3": "MDA", "product": "surgical_gloves", "surge_ratio": 2.0},
+        {"country_iso3": "MDA", "product": "masks_breathing", "surge_ratio": 2.0},
+    ])
+    evidence = " ".join(trade_alert_candidates(scan)[0]["evidence"])
+    assert "추론" in evidence or "프록시" in evidence
+    assert "지연" in evidence
+
+
+def test_trade_alert_returns_nothing_when_scan_unavailable():
+    """조회 실패를 '급증 없음'으로 바꾸면 없는 안전을 지어내는 것이다."""
+    from algorithms.comtrade_signals import trade_alert_candidates
+    assert trade_alert_candidates({"data_available": False}) == []
+
+
+def test_scan_failure_does_not_block_other_alerts():
+    """★KDCA 교훈★ 무역 스캔이 죽어도 나머지 경보 수집은 계속돼야 한다."""
+    from algorithms import alerts as alerts_mod
+    with patch("algorithms.comtrade_signals.trade_alert_candidates",
+               side_effect=RuntimeError("UN API down")):
+        out = alerts_mod.collect_candidate_alerts("2026-08-23")
+    assert isinstance(out, list)      # 예외가 밖으로 새지 않는다
+
+
+def test_scan_cache_avoids_repeated_un_calls():
+    """스캔 1회에 UN 18회 호출 + 약 50초 — 매시간 경보가 이걸 반복하면 안 된다."""
+    from algorithms import comtrade_signals as cs
+    cs._SCAN_CACHE.clear()
+    with patch.object(cs, "fetch_public_series",
+                      return_value={"KOR": [100.0, 100.0, 120.0]}) as m:
+        cs.global_trade_scan()
+        first = m.call_count
+        cs.global_trade_scan()
+        assert m.call_count == first     # 두 번째는 네트워크를 안 탄다
+    cs._SCAN_CACHE.clear()
+
+
+def test_failed_scan_is_not_cached():
+    """일시 장애를 6시간 동안 '데이터 없음'으로 굳히면 조용한 실패가 된다."""
+    from algorithms import comtrade_signals as cs
+    cs._SCAN_CACHE.clear()
+    with patch.object(cs, "fetch_public_series", return_value={}):
+        cs.global_trade_scan()
+    assert not cs._SCAN_CACHE      # 실패 결과는 캐시에 안 남는다
+
+
+def test_trade_alert_label_translates_to_all_languages():
+    """★회귀 방지★ 경보 라벨이 한국어 고정이면 영어·프랑스어 브리핑에 그대로 샌다.
+
+    실제로 이 커밋에서 그 일이 났다 — "의료물자 수입 동시 급증 · MDA (2개 품목)"이
+    en/fr 브리핑에 한국어로 실려 test_no_korean_leaks_into_foreign_briefing이 깨졌다.
+    숫자를 문구 안에 섞으면("2개 품목") 치환표로 못 옮기므로 밖으로 뺐다.
+    """
+    from algorithms.name_i18n import alert_label
+    from algorithms.comtrade_signals import trade_alert_candidates
+
+    scan = _scan_with([
+        {"country_iso3": "MDA", "product": "surgical_gloves", "surge_ratio": 3.52},
+        {"country_iso3": "MDA", "product": "diagnostic_reagents", "surge_ratio": 2.24},
+    ])
+    label = trade_alert_candidates(scan)[0]["label"]
+
+    def has_hangul(s):
+        return any("가" <= ch <= "힣" for ch in s)
+
+    assert has_hangul(alert_label(label, "ko"))          # 한국어는 그대로
+    for lang in ("en", "fr"):
+        translated = alert_label(label, lang)
+        assert not has_hangul(translated), f"{lang}에 한국어가 남았다: {translated}"
+        assert "MDA" in translated                        # 국가코드는 유지

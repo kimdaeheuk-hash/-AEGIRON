@@ -124,6 +124,21 @@ def collect_candidate_alerts(today: str) -> list[dict]:
             "score": 100.0,
         })
 
+    # 무역 선행지표(Phase 42) — 의료물자 수입이 여러 품목 동시에 급증한 국가.
+    # 다른 층과 성격이 다르다: 뉴스·공식통계는 '지금 벌어지는 일'이지만 무역은
+    # 신고 지연이 2개월이라 '몇 달 전 준비 행동'을 사후에 확인하는 층이다.
+    # 그래서 점수 상한을 79로 두어 혼자서는 high(80)에 못 닿게 했다 —
+    # 다른 층과 겹칠 때 비로소 등급이 올라가야 정직하다.
+    # 스캔이 느려서(UN 18회 호출) 실패해도 경보 수집 전체를 막지 않게 격리한다.
+    try:
+        from algorithms.comtrade_signals import trade_alert_candidates
+        for c in trade_alert_candidates():
+            if c["score"] >= CANDIDATE_FLOOR:
+                candidates.append(c)
+    except Exception as e:
+        print(f"  ⚠️ [alerts] 무역 급증 후보 수집 실패 — 나머지 경보는 계속: "
+              f"{type(e).__name__}: {str(e)[:120]}", flush=True)
+
     return candidates
 
 

@@ -84,6 +84,18 @@ REPORTING_LAG_MONTHS = 2  # 대부분 국가의 관세 통계 집계·공개 지
 # 산술적으로는 계산되지만 한 달 변동에 그대로 휘둘린다.
 MIN_SERIES_MONTHS = 3
 
+# ── 경보 연결용 임계값 (2026-08-23) ────────────────────────────────────
+# 실측 분포(2026-08 스캔, 급증 15건): 최대 4.10 · 중앙값 2.20 · 최소 1.65.
+# 무역 통계는 원래 변동이 크다 — 재고 보충 한 번에 2배가 나온다. 그래서 단일
+# 품목 급증만으로는 경보를 올리지 않는다.
+#
+# ★ 다품목 동시 급증을 경보 대상으로 삼는 이유 ★
+# 마스크만 오르면 미세먼지·산업수요·계절 요인일 수 있다. 그런데 마스크·장갑·
+# 진단시약이 함께 오르면 그건 '의료 대응 준비' 쪽에 훨씬 가깝다. 실측에서도
+# 몰도바(장갑 3.52 + 진단시약 2.24)처럼 두 품목이 같이 튄 국가가 따로 잡혔다.
+MULTI_PRODUCT_MIN_RATIO = 1.5   # 이 배율 이상인 품목만 '동시 급증' 계산에 넣는다
+ALERT_MIN_PRODUCTS = 2          # 최소 2개 품목이 동시에 튀어야 경보 후보
+
 
 def _recent_periods(n: int, lag_months: int = REPORTING_LAG_MONTHS) -> list[str]:
     """오늘 기준 신고지연을 감안해 조회 가능할 법한 최근 n개월(YYYYMM) 목록.
@@ -280,7 +292,15 @@ def compute_country_trade_signal(country_id: str, api_key: str | None = None,
     }
 
 
-def global_trade_scan(months: int = TRAILING_MONTHS) -> dict:
+# 스캔 1회에 UN으로 18번(품목 3 × 개월 6) 호출한다 — 프로덕션 실측 약 49초.
+# 경보 수집은 매시간 돌고 /api/trade-signals도 같은 함수를 부르므로 캐시가 없으면
+# UN에 하루 400회 넘게 때리게 되고, 응답도 매번 1분 가까이 걸린다. 무역통계는
+# 신고 지연이 2개월이라 하루 안에 값이 바뀌지 않으므로 캐시가 정확도를 해치지 않는다.
+_SCAN_CACHE: dict[str, tuple[float, dict]] = {}
+SCAN_CACHE_TTL_SEC = 6 * 3600
+
+
+def global_trade_scan(months: int = TRAILING_MONTHS, use_cache: bool = True) -> dict:
     """★ 키 없이 전세계를 훑어 의료물자 수입 급증 국가를 '발견'한다 ★
 
     기존 compute_country_trade_signal은 손으로 정한 Tier-1 13개국만 본다.
@@ -295,6 +315,14 @@ def global_trade_scan(months: int = TRAILING_MONTHS) -> dict:
     500행 상한 때문에 약 100개국만 들어온다(전세계 200여국 중). '안 잡혔다 =
     급증이 없다'로 읽히면 그게 없는 안전을 지어내는 것이다.
     """
+    import time
+
+    cache_key = f"scan:{months}"
+    if use_cache:
+        hit = _SCAN_CACHE.get(cache_key)
+        if hit and (time.time() - hit[0]) < SCAN_CACHE_TTL_SEC:
+            return hit[1]
+
     products: dict[str, dict] = {}
     seen_countries: set[str] = set()
     surges: list[dict] = []
@@ -325,7 +353,25 @@ def global_trade_scan(months: int = TRAILING_MONTHS) -> dict:
     tier1 = set(UN_M49_CODES)
     outside = [s for s in surges if s["country_iso3"] not in tier1]
 
-    return {
+    # 국가별로 묶어 '몇 품목이 동시에 튀었는지'를 센다. 이게 단일 품목 급증보다
+    # 훨씬 강한 신호다 — 마스크만 오르면 미세먼지·산업수요일 수 있지만, 장갑과
+    # 진단시약까지 같이 오르면 의료 대응 준비 패턴에 가깝다.
+    by_country: dict[str, list[dict]] = {}
+    for s in surges:
+        if s["surge_ratio"] >= MULTI_PRODUCT_MIN_RATIO:
+            by_country.setdefault(s["country_iso3"], []).append(s)
+    multi = [
+        {
+            "country_iso3": iso,
+            "products": sorted((h["product"] for h in hits)),
+            "product_count": len(hits),
+            "max_surge_ratio": max(h["surge_ratio"] for h in hits),
+        }
+        for iso, hits in by_country.items() if len(hits) >= 2
+    ]
+    multi.sort(key=lambda m: (-m["product_count"], -m["max_surge_ratio"]))
+
+    result = {
         "scan_type": "global_public_preview",
         "data_available": bool(seen_countries),
         "countries_observed": len(seen_countries),
@@ -333,6 +379,8 @@ def global_trade_scan(months: int = TRAILING_MONTHS) -> dict:
         "top_surges": surges[:15],
         # ★ 이 목록이 이 기능의 존재 이유다 — Tier-1 밖에서 잡힌 급증 ★
         "outside_tier1_surges": outside[:10],
+        # 여러 품목이 동시에 튄 국가 — 경보 후보로 올리는 건 이쪽이다.
+        "multi_product_surges": multi[:10],
         "reporting_lag_months": REPORTING_LAG_MONTHS,
         "import_values_measured": True,
         "is_proxy_for_preparedness": True,
@@ -347,6 +395,62 @@ def global_trade_scan(months: int = TRAILING_MONTHS) -> dict:
         },
         "method": "un_comtrade_public_global_scan_v1",
     }
+    # 조회에 실패한 결과는 캐시하지 않는다 — 일시적 네트워크 장애를 6시간 동안
+    # '데이터 없음'으로 굳혀버리면 그게 조용한 실패가 된다.
+    if use_cache and result["data_available"]:
+        _SCAN_CACHE[cache_key] = (time.time(), result)
+    return result
+
+
+def trade_alert_candidates(scan: dict | None = None) -> list[dict]:
+    """무역 급증 → 경보 후보(alerts.collect_candidate_alerts가 쓰는 형식).
+
+    ★ 왜 다품목만 올리는가 ★
+    무역 통계는 원래 변동이 크다. 재고 보충 한 번에 2배가 나온다. 단일 품목
+    급증을 그대로 경보로 올리면 매달 수십 건이 뜨고, 그러면 사람이 경보를
+    무시하게 된다 — 그게 진짜 사고를 놓치는 경로다(경보 피로).
+    마스크·장갑·진단시약 중 둘 이상이 동시에 튄 경우만 후보로 올린다.
+
+    ★ 점수 산정 ★
+    50점(CANDIDATE_FLOOR)에서 시작해 품목 수와 배율로 올린다. 상한을 79로 두어
+    **혼자서는 절대 high(80) 이상이 안 되게** 한다. 무역 데이터는 신고 지연이
+    2개월이라 '지금 벌어지는 일'이 아니라 '두 달 전 준비 행동'이다. 그것만으로
+    긴급 경보를 울리는 건 정직하지 않다. 다른 층(뉴스·공식통계)과 겹칠 때
+    비로소 등급이 올라가야 한다.
+    """
+    scan = scan if scan is not None else global_trade_scan()
+    if not scan.get("data_available"):
+        return []
+
+    out = []
+    for m in scan.get("multi_product_surges") or []:
+        if m["product_count"] < ALERT_MIN_PRODUCTS:
+            continue
+        # 품목 1개당 8점, 최대배율 초과분(1.5 기준)당 10점. 상한 79.
+        score = 50.0 + (m["product_count"] - 1) * 8 + min(
+            (m["max_surge_ratio"] - MULTI_PRODUCT_MIN_RATIO) * 10, 20
+        )
+        score = round(min(score, 79.0), 1)
+        products = ", ".join(m["products"])
+        out.append({
+            "source": f"trade_surge:{m['country_iso3']}",
+            # 라벨은 name_i18n.alert_label이 조각 단위로 치환한다. 숫자를 문구
+            # 안에 섞으면("2개 품목") 치환표로 못 옮기므로, 숫자는 괄호 밖으로
+            # 빼고 번역 가능한 고정 조각만 남긴다.
+            "label": f"의료물자 수입 동시 급증 · {m['country_iso3']} "
+                     f"({m['product_count']} 품목)",
+            "score": score,
+            "country_iso3": m["country_iso3"],
+            "evidence": [
+                f"{products} 가 동시에 평소 대비 급증(최대 {m['max_surge_ratio']}배)",
+                "수입액은 관세청 신고 실측치이나, '발병 대비'라는 해석은 추론(프록시)이다 — "
+                "정기 재고보충·가격변동·계절수요로도 같은 패턴이 나온다",
+                f"무역통계는 신고·집계 지연이 약 {REPORTING_LAG_MONTHS}개월이라 실시간 신호가 "
+                "아니다. '지금 벌어지는 일'이 아니라 '몇 달 전 준비 행동'의 사후 확인이다",
+                "단일 품목 급증은 후보로 올리지 않는다 — 둘 이상 동시 급증만 본다",
+            ],
+        })
+    return out
 
 
 def trade_signals_all(api_key: str | None = None) -> dict:

@@ -239,10 +239,18 @@ _LAYER = {
 }
 # 라벨에 붙는 꼬리말·자리표시자.
 _LABEL_PHRASE = {
+    # 긴 조각을 먼저 등록해도 alert_label이 길이순으로 정렬해 치환하므로 순서는
+    # 무관하다. 다만 '품목'처럼 짧은 조각이 긴 문구 안에 들어있으면 긴 것이
+    # 먼저 치환돼야 하므로, 새 조각을 넣을 때 부분문자열 관계를 확인할 것.
+    "의료물자 수입 동시 급증": {
+        "en": "medical supply imports surging together",
+        "fr": "importations de matériel médical en hausse simultanée",
+    },
     "보고 급감": {"en": "reporting drop", "fr": "chute des déclarations"},
     "종합": {"en": "composite", "fr": "composite"},
     "지역불명": {"en": "location unknown", "fr": "localisation inconnue"},
     "질병불명": {"en": "disease unknown", "fr": "maladie inconnue"},
+    "품목": {"en": "products", "fr": "produits"},
 }
 
 
