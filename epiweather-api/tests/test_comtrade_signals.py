@@ -138,3 +138,130 @@ def test_trade_signals_all_sorts_and_flags_configured(monkeypatch):
     assert "지연" in result["disclaimer"]  # 실시간 아님을 명시
     available = [c for c in result["countries"] if c.get("data_available")]
     assert available[0]["country"] == "KOR"  # 급증 국가가 1등
+
+
+# ── 키 없는 공개 스캔 (2026-08-23) ────────────────────────────────────────
+# 배경: COMTRADE_API_KEY 발급이 번거로워 7/27에 보류했더니, 이 모듈이 완성돼
+# 있는데도 프로덕션에서 13개국 전부 data_available=False로 한 달 넘게 죽어 있었다.
+# 말라크가 쓰는 인증 불필요 preview 경로를 폴백으로 붙였다.
+# 이 경로는 국가 지정이 안 되므로 '전세계를 받아 튀는 곳을 발견'하는 방식이다 —
+# 손으로 정한 목록 밖이 안 보이는 게 8/13 KDCA 사고의 원인이었으므로 방향이 맞다.
+
+def _public_resp(rows):
+    m = MagicMock(status_code=200)
+    m.json.return_value = {"data": rows}
+    m.raise_for_status.return_value = None
+    return m
+
+
+def test_fetch_public_month_aggregates_by_iso3():
+    """같은 국가의 World 집계행이 여러 개 와도 합산해야 한다."""
+    from algorithms.comtrade_signals import fetch_public_month
+    rows = [
+        {"reporterISO": "KOR", "primaryValue": 100.0},
+        {"reporterISO": "KOR", "primaryValue": 50.0},     # 같은 국가 두 번째 조각
+        {"reporterISO": "JPN", "primaryValue": 200.0},
+    ]
+    with patch("algorithms.comtrade_signals.requests.get", return_value=_public_resp(rows)):
+        out = fetch_public_month("9020", "202601")
+    assert out == {"KOR": 150.0, "JPN": 200.0}
+
+
+def test_fetch_public_month_survives_one_broken_row():
+    """★KDCA 교훈★ 값이 이상한 행 하나가 그 달 전체를 죽이면 안 된다."""
+    from algorithms.comtrade_signals import fetch_public_month
+    rows = [
+        {"reporterISO": "KOR", "primaryValue": "1,296"},   # 쉼표
+        {"reporterISO": "JPN", "primaryValue": "-"},       # 못 읽는 값
+        {"reporterISO": "BRA", "primaryValue": 300.0},
+        {"primaryValue": 999.0},                            # ISO 없음
+    ]
+    with patch("algorithms.comtrade_signals.requests.get", return_value=_public_resp(rows)):
+        out = fetch_public_month("9020", "202601")
+    assert out["KOR"] == 1296.0      # 쉼표도 읽는다
+    assert "JPN" not in out          # 못 읽은 건 0이 아니라 제외
+    assert out["BRA"] == 300.0       # 뒤 항목이 유실되지 않음
+
+
+def test_fetch_public_month_returns_none_on_error():
+    from algorithms.comtrade_signals import fetch_public_month
+    m = MagicMock(status_code=200)
+    m.json.return_value = {"error": "quota exceeded"}
+    m.raise_for_status.return_value = None
+    with patch("algorithms.comtrade_signals.requests.get", return_value=m):
+        assert fetch_public_month("9020", "202601") is None
+
+
+def test_fetch_public_series_skips_missing_months_without_zero_filling():
+    """★핵심★ 결측 달을 0으로 메우면 가짜 급증이 만들어진다."""
+    from algorithms.comtrade_signals import fetch_public_series
+    months = [
+        {"KOR": 100.0, "JPN": 100.0},
+        {"KOR": 100.0, "JPN": 100.0},
+        {"KOR": 100.0},                 # JPN 한 달 결측
+        {"KOR": 120.0, "JPN": 900.0},   # 최신
+    ]
+    with patch("algorithms.comtrade_signals.fetch_public_month", side_effect=months):
+        out = fetch_public_series("9020", months=4)
+    assert out["KOR"] == [100.0, 100.0, 100.0, 120.0]
+    # JPN은 결측 달을 건너뛰고 3개만 — 0을 끼워넣었다면 [100,100,0,900]이 되고
+    # 기준선 평균이 66.7로 내려가 급증 배율이 13.5배로 부풀려진다(가짜 급증).
+    assert out["JPN"] == [100.0, 100.0, 900.0]
+    assert 0.0 not in out["JPN"]
+
+
+def test_fetch_public_series_drops_country_without_enough_history():
+    """비교할 과거가 부족하면 급증 배율을 낼 수 없다 — 지어내지 않는다."""
+    from algorithms.comtrade_signals import fetch_public_series
+    months = [{"KOR": 100.0}, {"KOR": 100.0}, {"KOR": 120.0, "NEW": 500.0}]
+    with patch("algorithms.comtrade_signals.fetch_public_month", side_effect=months):
+        out = fetch_public_series("9020", months=3)
+    assert "KOR" in out
+    assert "NEW" not in out          # 최신 달에만 등장 → 제외
+
+
+def test_global_scan_surfaces_countries_outside_tier1():
+    """★이 기능의 존재 이유★ 손으로 정한 목록 밖의 급증을 잡아야 한다."""
+    from algorithms.comtrade_signals import global_trade_scan
+    series = {
+        "MKD": [100.0, 100.0, 410.0],    # Tier-1 밖 — 4.1배
+        "KOR": [100.0, 100.0, 105.0],    # Tier-1 안 — 평온
+    }
+    with patch("algorithms.comtrade_signals.fetch_public_series", return_value=series):
+        out = global_trade_scan()
+
+    outside = [s["country_iso3"] for s in out["outside_tier1_surges"]]
+    assert "MKD" in outside
+    assert "KOR" not in outside          # Tier-1은 이 목록에 안 들어간다
+    assert out["top_surges"][0]["country_iso3"] == "MKD"
+
+
+def test_global_scan_always_declares_incomplete_coverage():
+    """'안 잡힘 = 급증 없음'으로 읽히면 없는 안전을 지어내는 것이다."""
+    from algorithms.comtrade_signals import global_trade_scan
+    with patch("algorithms.comtrade_signals.fetch_public_series",
+               return_value={"KOR": [100.0, 100.0, 120.0]}):
+        out = global_trade_scan()
+    assert out["coverage"]["complete"] is False
+    assert "500" in out["coverage"]["note"]
+    assert out["is_proxy_for_preparedness"] is True
+
+
+def test_trade_signals_all_falls_back_to_public_scan_without_key(monkeypatch):
+    """★핵심★ 키가 없어도 더 이상 '데이터 없음'으로 죽지 않는다."""
+    monkeypatch.delenv("COMTRADE_API_KEY", raising=False)
+    with patch("algorithms.comtrade_signals.fetch_public_series",
+               return_value={"MKD": [100.0, 100.0, 410.0]}):
+        out = trade_signals_all()
+    assert out["mode"] == "public_global_scan"
+    assert out["data_available"] is True
+    assert "COMTRADE_API_KEY" in out["note"]      # 왜 이 모드인지 밝힌다
+
+
+def test_trade_signals_all_uses_precise_path_when_key_exists(monkeypatch):
+    """키가 생기면 국가별 정밀 추적으로 자동 전환된다."""
+    monkeypatch.setenv("COMTRADE_API_KEY", "k")
+    with patch("algorithms.comtrade_signals.fetch_import_series", return_value=[]):
+        out = trade_signals_all()
+    assert out.get("mode") != "public_global_scan"
+    assert "countries" in out

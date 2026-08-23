@@ -207,14 +207,35 @@ def test_travel_notices_endpoint_public_no_key_needed(client, monkeypatch):
 
 def test_trade_signals_endpoint_public_and_flags_proxy(client, monkeypatch):
     """국제무역 선행지표(Phase 42)는 공개 GET이고, 신고지연을 disclaimer로
-    명시해야 함. 키 없으면 configured=False."""
+    명시해야 함. 키 없으면 configured=False.
+
+    2026-08-23: 키가 없을 때 '데이터 없음'으로 죽던 것을, 키가 필요 없는 공개
+    전세계 스캔으로 폴백하도록 바꿨다. countries(Tier-1 국가별 시계열)는 공개
+    경로에서 국가 지정이 불가해 채울 수 없으므로 빈 배열이 된다 — 대신
+    top_surges/outside_tier1_surges로 급증 국가를 준다. disclaimer·configured는
+    기존 소비자를 위해 그대로 유지한다."""
     monkeypatch.delenv("COMTRADE_API_KEY", raising=False)
-    resp = client.get("/api/trade-signals")
+    with patch("algorithms.comtrade_signals.fetch_public_series",
+               return_value={"MKD": [100.0, 100.0, 410.0]}):
+        resp = client.get("/api/trade-signals")
     assert resp.status_code == 200
     body = resp.json()
-    assert len(body["countries"]) == 13  # HKG 제외
     assert body["configured"] is False
     assert "지연" in body["disclaimer"]
+    assert body["mode"] == "public_global_scan"
+    assert body["countries"] == []                       # 폴백에선 못 채운다
+    assert body["coverage"]["complete"] is False          # 전수 아님을 항상 밝힌다
+    assert body["top_surges"][0]["country_iso3"] == "MKD"
+
+
+def test_trade_signals_endpoint_uses_country_path_with_key(client, monkeypatch):
+    """키가 있으면 Tier-1 국가별 추적으로 돌아온다(13개국)."""
+    monkeypatch.setenv("COMTRADE_API_KEY", "k")
+    with patch("algorithms.comtrade_signals.fetch_import_series", return_value=[]):
+        resp = client.get("/api/trade-signals")
+    body = resp.json()
+    assert len(body["countries"]) == 13  # HKG 제외
+    assert body["configured"] is True
 
 
 def test_trade_signals_unknown_country_returns_404(client):

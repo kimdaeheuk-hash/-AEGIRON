@@ -1113,8 +1113,14 @@ def trade_signals():
     대량 수입하기 시작하는 '준비 행동'을 UN Comtrade 관세통계로 포착.
     수입액 자체는 실측이나 '발병 대비 행동'이라는 해석은 프록시임을 명시.
     무역통계 특유의 신고지연(추정 2개월)이 있어 실시간 신호가 아니라
-    중기 선행지표임을 항상 표시. COMTRADE_API_KEY(무료) 없으면
-    data_available=False로 정직하게 표시.
+    중기 선행지표임을 항상 표시.
+
+    COMTRADE_API_KEY가 있으면 Tier-1 국가별 정밀 추적(mode 없음),
+    없으면 키가 필요 없는 공개 전세계 스캔(mode="public_global_scan")으로
+    자동 폴백한다. 폴백은 국가 지정이 불가한 대신 **손으로 정한 목록 밖의
+    급증을 발견**한다(outside_tier1_surges) — 목록 밖이 안 보이는 게
+    2026-08-13 KDCA 사고의 원인이었다. 500행 상한이라 전수가 아니므로
+    coverage.complete=false를 항상 함께 반환한다.
     """
     from algorithms.comtrade_signals import trade_signals_all
     return trade_signals_all()
