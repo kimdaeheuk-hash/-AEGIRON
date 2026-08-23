@@ -170,6 +170,9 @@ _FREE_INTERVAL_SEC   = 3600           # 무료 소스: 1시간마다
 _AI_HOUR_UTC         = 21             # AI 갭필링(유료): 하루 1회, UTC 21시(KST 06시)경
 _WEEKLY_INTERVAL_SEC = 7 * 24 * 3600  # 기준선·국가지표: 느리게 변하는 데이터라 주간이면 충분
 _WEEKLY_STATE_FILE   = Path(__file__).parent / "data" / "last_weekly_run.json"
+# AI 갭필링 마지막 실행일. 메모리 변수로만 두면 재배포마다 초기화돼 같은 날
+# 유료 AI가 두 번 돈다(아래 _load_last_ai_run 주석 참고).
+_AI_STATE_FILE       = Path(__file__).parent / "data" / "last_ai_run.json"
 
 
 async def _run_collector(mode: str) -> None:
@@ -198,6 +201,32 @@ def _save_last_weekly_run(when: dt.datetime) -> None:
     _WEEKLY_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(_WEEKLY_STATE_FILE, "w", encoding="utf-8") as f:
         json.dump({"last_run": when.isoformat()}, f)
+
+
+def _load_last_ai_run() -> dt.date | None:
+    """AI 갭필링 마지막 실행일(UTC). 주간작업(_load_last_weekly_run)과 같은 패턴.
+
+    왜 파일로 남기는가: 예전엔 스케줄러 루프의 지역변수(last_ai_run_date)로만
+    들고 있어서 **재배포할 때마다 초기화**됐다. 그 상태로 아래 '따라잡기'를
+    허용하면 배포 직후 같은 날 유료 AI가 한 번 더 돈다.
+    """
+    if not _AI_STATE_FILE.exists():
+        return None
+    try:
+        with open(_AI_STATE_FILE, encoding="utf-8") as f:
+            return dt.date.fromisoformat(json.load(f)["last_run_date"])
+    except (json.JSONDecodeError, KeyError, ValueError, OSError):
+        return None
+
+
+def _save_last_ai_run(day: dt.date) -> None:
+    try:
+        _AI_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(_AI_STATE_FILE, "w", encoding="utf-8") as f:
+            json.dump({"last_run_date": day.isoformat()}, f)
+    except OSError as e:
+        # 저장 실패를 조용히 넘기면 다음 틱에 또 돌아 유료 AI가 중복 호출된다.
+        _log_error(f"AI 실행일 저장 실패({day}): {type(e).__name__}: {e}")
 
 
 async def _run_bulletin_collection() -> None:
@@ -365,7 +394,8 @@ async def _maybe_run_daily_brief() -> None:
 
 
 async def _scheduler_loop() -> None:
-    last_ai_run_date: dt.date | None = None
+    # 재배포로 초기화되지 않게 디스크에서 읽어온다(주간작업과 같은 패턴).
+    last_ai_run_date: dt.date | None = _load_last_ai_run()
     await _run_collector("free")
     await _maybe_run_daily_brief()
 
@@ -375,12 +405,27 @@ async def _scheduler_loop() -> None:
         await _run_weekly_job()
 
     while True:
-        await asyncio.sleep(_FREE_INTERVAL_SEC)
+        # ★ 다음 정시까지만 잔다 ★ 예전엔 sleep(3600) '뒤에' 수집을 돌려서, 수집에
+        # 걸린 시간(45~60초)이 매 주기 누적됐다. 하루 약 20분씩 밀리고, 분이 :59를
+        # 넘는 순간 **한 시간 슬롯이 통째로 건너뛰어진다** — 실측상 2.5~3.3일마다
+        # 한 번씩. 그 시간이 21시면 그날 AI 수집이 에러 한 줄 없이 사라진다.
+        # 정시에 맞춰 자면 수집 시간이 누적되지 않는다.
+        now = dt.datetime.now(dt.timezone.utc)
+        next_hour = (now + dt.timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
+        await asyncio.sleep(max(60.0, (next_hour - now).total_seconds()))
         await _run_collector("free")
 
         now = dt.datetime.utcnow()
-        if now.hour == _AI_HOUR_UTC and last_ai_run_date != now.date():
+        # ★ '정확히 21시'가 아니라 '21시 이후'로 판정한다 ★
+        # 예전엔 `now.hour == _AI_HOUR_UTC` 라 그 한 틱을 놓치면 따라잡을 방법이
+        # 없었다. 2026-08-22에 실제로 그 일이 났다 — 21:54 배포가 21:58 틱을
+        # 4분 앞두고 컨테이너를 죽였고, 재시작 후 다음 틱은 23시라 그날 AI
+        # 갭필링·불리틴·나우캐스트 백필이 통째로 빠졌다. 에러는 한 줄도 안 났다.
+        # 일일 브리핑(_maybe_run_daily_brief)이 이미 쓰는 `>=` 방식과 맞춘다.
+        # 하루 1회 보장은 last_ai_run_date(파일 영속화)가 담당한다.
+        if now.hour >= _AI_HOUR_UTC and last_ai_run_date != now.date():
             last_ai_run_date = now.date()
+            _save_last_ai_run(last_ai_run_date)
             await _run_collector("ai")
             # 같은 하루 1회 슬롯에서 함께 확인 — 새 회차가 없으면 비용이 들지 않는다.
             await _run_bulletin_collection()
