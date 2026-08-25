@@ -30,37 +30,79 @@ PROMPT = """오늘은 {today}야. 최근 24시간 이내 전 세계 감염병 �
 VALID_URGENCY = {"low", "medium", "high"}
 
 
-def fetch_groq_pulse(api_key: str) -> dict | None:
-    """compound-beta로 최근 24시간 발병 뉴스 웹서치 1건. 실패하면 None."""
+def fetch_groq_pulse(api_key: str) -> dict:
+    """compound-beta로 최근 24시간 발병 뉴스 웹서치 1건.
+
+    ★ 실패하면 **예외를 올린다.** None 을 돌려주지 않는다. ★
+
+    예전에는 이 함수가 `except Exception: return None` 으로 전부 삼켰다.
+    그래서 타임아웃·429(쿼터)·5xx·JSON 형식 문제가 **전부 같은 None** 이 되고,
+    호출부는 그걸 무조건 "응답 파싱 실패" 로 찍었다. 네트워크 문제여도
+    "파싱 실패" 라고 나왔다.
+
+    더 나쁜 것은 — 삼켜진 예외가 호출부의 `except` 에 닿지 않아
+    `log_error("GroqWatch", e)` 가 **한 번도 실행되지 않았다.** 그 결과
+    `/api/status` 의 `recent_errors` 에 GroqWatch 항목이 0건이었다.
+    소스 헬스는 실패를 세는데 **이유는 어디에도 남지 않는 상태**였다.
+    (2026-08-24~25 에 25시간 넘게 매 주기 절반씩 실패하고도 원인을 몰랐다.)
+
+    이제 예외가 그대로 올라가고, 호출부가 `log_error` 로 종류를 기록한다.
+    호출부는 예외를 잡아 `groq_pulse=None` 으로 두므로 **소스 헬스 동작은
+    이전과 똑같다.** 달라지는 것은 "왜" 가 남는다는 점뿐이다.
+    """
+    r = requests.post(
+        GROQ_URL,
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        json={
+            "model": MODEL,
+            "messages": [{
+                "role": "user",
+                "content": PROMPT.format(today=dt.date.today().isoformat()),
+            }],
+            "temperature": 0.3,
+        },
+        timeout=TIMEOUT,
+    )
+    # HTTP 오류(429 쿼터·5xx 등)는 그대로 올린다 — 파싱 문제와 구분되어야 한다.
+    r.raise_for_status()
+
+    # ── 실패 지점을 셋으로 나눈다 ────────────────────────────────────────
+    # 하나로 뭉치면 "HTTP 본문이 깨졌나 / 모델이 JSON 을 안 줬나" 를 구분할 수
+    # 없다. 각 단계에서 **그 단계가 실제로 받은 것**을 200자까지 보여준다.
+
     try:
-        r = requests.post(
-            GROQ_URL,
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={
-                "model": MODEL,
-                "messages": [{
-                    "role": "user",
-                    "content": PROMPT.format(today=dt.date.today().isoformat()),
-                }],
-                "temperature": 0.3,
-            },
-            timeout=TIMEOUT,
-        )
-        r.raise_for_status()
-        raw = r.json()["choices"][0]["message"]["content"].strip()
-        raw = raw.strip("`")
-        if raw.lower().startswith("json"):
-            raw = raw[4:].strip()
-        # 실측 확인: 가끔 JSON 앞뒤에 군더더기 텍스트를 붙여서 응답함 —
-        # 첫 '{'부터 마지막 '}'까지만 잘라내 파싱 안정성을 높인다.
-        start, end = raw.find("{"), raw.rfind("}")
-        if start != -1 and end != -1:
-            raw = raw[start:end + 1]
+        payload = r.json()
+    except Exception as e:
+        raise ValueError(
+            f"Groq 의 HTTP 응답이 JSON 이 아님({type(e).__name__}): {r.text[:200]}"
+        ) from e
+
+    try:
+        raw = payload["choices"][0]["message"]["content"].strip()
+    except Exception as e:
+        raise ValueError(
+            f"Groq 응답에 content 가 없음({type(e).__name__}): {str(payload)[:200]}"
+        ) from e
+
+    raw = raw.strip("`")
+    if raw.lower().startswith("json"):
+        raw = raw[4:].strip()
+    # 실측 확인: 가끔 JSON 앞뒤에 군더더기 텍스트를 붙여서 응답함 —
+    # 첫 '{'부터 마지막 '}'까지만 잘라내 파싱 안정성을 높인다.
+    start, end = raw.find("{"), raw.rfind("}")
+    if start != -1 and end != -1:
+        raw = raw[start:end + 1]
+
+    try:
         data = json.loads(raw)
-        if not isinstance(data, dict):
-            return None
-    except Exception:
-        return None
+    except Exception as e:
+        # 모델이 무슨 말을 돌려줬는지 보여야 형식 문제인지 바로 갈린다.
+        raise ValueError(
+            f"Groq 가 돌려준 content 를 JSON 으로 읽지 못함({type(e).__name__}): {raw[:200]}"
+        ) from e
+
+    if not isinstance(data, dict):
+        raise ValueError(f"Groq 응답이 객체가 아님: {type(data).__name__}")
 
     urgency = data.get("urgency")
     if urgency not in VALID_URGENCY:

@@ -2254,10 +2254,13 @@ def groq_pulse():
     if not key:
         raise HTTPException(status_code=503, detail="GROQ_API_KEY 환경변수 없음")
     from algorithms.groq_watch import fetch_groq_pulse
-    result = fetch_groq_pulse(key)
-    if result is None:
-        raise HTTPException(status_code=502, detail="Groq 응답 파싱 실패")
-    return result
+    try:
+        return fetch_groq_pulse(key)
+    except Exception as e:
+        # 예전엔 무엇이 잘못됐든 "Groq 응답 파싱 실패" 한 문장이었다.
+        raise HTTPException(
+            status_code=502, detail=f"Groq 호출 실패({type(e).__name__}): {e}"
+        ) from e
 
 
 @app.get("/api/baseline/status", tags=["기준선"])

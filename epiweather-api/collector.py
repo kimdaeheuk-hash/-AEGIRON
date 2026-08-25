@@ -684,13 +684,18 @@ def collect_free_sources() -> dict:
             result["groq_pulse"] = fetch_groq_pulse(groq_key)
             g = result["groq_pulse"]
             if g is None:
-                log("  ⏭ Groq 웹서치: 응답 파싱 실패")
+                # 이제 실패는 예외로 올라와 아래 except 가 log_error 로 기록한다.
+                # 여기 걸리는 건 예외 없이 None 이 온 예상 밖의 경우뿐이다.
+                log("  ❌ Groq 웹서치: 예외 없이 빈 응답")
             elif g["has_new_signal"]:
                 log(f"  Groq 웹서치({g.get('urgency')}): {g.get('summary')}")
             else:
                 log("  Groq 웹서치: 새 신호 없음")
         except Exception as e:
             result["groq_pulse"] = None
+            # ❌ 로 찍는다. 예전엔 실패가 ⏭ 로 찍혀서 절차 문서의
+            # "⏭ 는 소프트 스킵이라 문제 아니다" 규칙에 걸러졌다.
+            log(f"  ❌ Groq 웹서치 실패: {type(e).__name__}: {e}")
             log_error("GroqWatch", e)
     else:
         result["groq_pulse"] = None
