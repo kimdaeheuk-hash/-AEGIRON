@@ -784,6 +784,14 @@ def collect_free_sources() -> dict:
             parts.append(f"중단 {_brief(rep['degraded_sources'])}")
         if rep.get("no_data_sources"):
             parts.append(f"값없음 {_brief(rep['no_data_sources'])}")
+        # 며칠째 값없음은 따로 시간까지 찍는다. "값없음 Mobility" 만 보면
+        # 상시 항목처럼 읽혀서 8일이 지나도 아무도 몰랐다(2026-08-25).
+        if rep.get("long_no_data_sources"):
+            aged = ", ".join(
+                f"{x['source']}({x['staleness_hours']:.0f}h)"
+                for x in rep["long_no_data_sources"]
+            )
+            parts.append(f"❌ 장기 값없음 {aged}")
         if stale:
             parts.append(f"늙는중 {_brief(stale)}")
         if len(parts) == 1:

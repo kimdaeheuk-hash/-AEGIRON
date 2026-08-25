@@ -35,6 +35,15 @@ STALE_HOURS = 6.0
 # 그 뒤 90회 실패는 완전히 침묵해서, 나흘간 국내 데이터 공백을 아무도 몰랐다.
 RENOTIFY_HOURS = 24.0
 
+# 값없음(no_data)이 이만큼 이어지면 "아는 조건"이 아니라 **그냥 죽은 것**으로 본다.
+# no_data 는 원래 경보에서 뺐다 — 위키 404 지연·OpenSky 차단처럼 정상이거나
+# 이미 아는 조건이 대부분이라 매일 울리면 경보 피로만 쌓이기 때문이다.
+# 그런데 그 예외가 구멍이 됐다. 2026-08-25 실측: **Mobility 가 190시간(8일)째
+# 값이 없는데 degraded_sources 는 비어 있었고, healthy_count 는 no_data 를 아예
+# 세지 않아 "정상 20/21" 로 보였다.** 조용히 죽으면 영영 안 보이는 상태였다.
+# → 사흘이 넘으면 그건 지연이 아니다. 그때는 울린다.
+NO_DATA_ALARM_HOURS = 72.0
+
 
 def _now() -> dt.datetime:
     return dt.datetime.now(dt.timezone.utc)
@@ -182,6 +191,7 @@ def source_health_report() -> dict:
     sources = []
     degraded = []
     no_data = []
+    long_no_data = []
     for source, entry in sorted(data.items()):
         status, staleness = _status_for(entry)
         row = {
@@ -199,6 +209,9 @@ def source_health_report() -> dict:
             degraded.append(source)
         elif status == "no_data":
             no_data.append(source)
+            # 며칠째 값이 없으면 따로 세운다 — 상시 목록에 묻히면 안 보인다.
+            if staleness is not None and staleness >= NO_DATA_ALARM_HOURS:
+                long_no_data.append({"source": source, "staleness_hours": staleness})
 
     return {
         "sources": sources,
@@ -206,13 +219,17 @@ def source_health_report() -> dict:
         # ★ healthy_count는 '진짜 값이 온' 소스만 센다 ★ no_data는 여기 안 들어간다.
         # 예전엔 함수가 돌기만 하면 다 셌기 때문에 "21/21 정상"이 부풀려져 있었다.
         "no_data_sources": no_data,
+        # ★ 값없음이 NO_DATA_ALARM_HOURS 를 넘긴 것 ★ 이건 경보 대상이다.
+        "long_no_data_sources": long_no_data,
         "collector_silent_hours": collector_silent_hours(),
         "healthy_count": sum(1 for s in sources if s["status"] == "ok"),
         "total_tracked": len(sources),
         "note": "staleness_hours는 마지막 성공 수집 이후 경과시간(신선도)이며, "
                 "실제 사건→DB 반영 역학적 지연이 아님(대부분 무료 소스가 기준일을 "
                 "제공하지 않아 후자는 측정 불가). healthy_count는 실제 값이 온 소스만 "
-                "세며, no_data_sources(수집은 정상이나 값이 안 옴)는 제외한다.",
+                "세며, no_data_sources(수집은 정상이나 값이 안 옴)는 제외한다. "
+                f"long_no_data_sources는 값없음이 {NO_DATA_ALARM_HOURS:.0f}시간을 넘긴 "
+                "소스이며, 이건 '아는 조건'이 아니라 죽은 것으로 보고 경보를 낸다.",
     }
 
 
@@ -249,10 +266,22 @@ def pending_notifications() -> dict:
         # '정상이거나 이미 아는 조건'이 대부분이라 매일 울리면 경보 피로만 쌓인다.
         # 대신 /api/status의 no_data_sources에 그대로 노출되고, 매일 아침 점검
         # 루틴이 읽는다 — 안 보이게 숨기는 게 아니라, 밀도를 낮춰 보이게 한다.
-        if status in ("failing", "stale"):
+        is_degraded = status in ("failing", "stale")
+        # 값없음이 사흘을 넘기면 그것도 울린다. 짧은 no_data 는 여전히 조용하다 —
+        # 경보 피로를 피하면서, 조용히 죽은 소스는 놓치지 않기 위한 선이다.
+        long_no_data = (
+            status == "no_data"
+            and staleness is not None
+            and staleness >= NO_DATA_ALARM_HOURS
+        )
+        if is_degraded or long_no_data:
             last_notified = _parse_iso(entry.get("last_notified_at"))
+            state_changed = (
+                notified not in ("failing", "stale") if is_degraded
+                else notified != "no_data"
+            )
             due = (
-                notified not in ("failing", "stale")          # 새로 죽음
+                state_changed                                # 새로 죽음
                 or last_notified is None
                 or (now - last_notified).total_seconds() / 3600 >= RENOTIFY_HOURS
             )
@@ -263,7 +292,7 @@ def pending_notifications() -> dict:
                     "staleness_hours": staleness,
                     "consecutive_failures": entry.get("consecutive_failures", 0),
                 })
-        elif status == "ok" and notified in ("failing", "stale"):
+        elif status == "ok" and notified in ("failing", "stale", "no_data"):
             recovered.append(source)
     return {"degraded": degraded, "recovered": recovered}
 
