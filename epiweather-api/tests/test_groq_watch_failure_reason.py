@@ -25,6 +25,7 @@ import requests
 from unittest.mock import patch
 
 from algorithms import groq_watch
+from algorithms.groq_watch import SearchContextTooLarge, QuotaExceeded, TierLimitReached
 
 
 def _response(status: int = 200, payload: dict | None = None, text: str | None = None):
@@ -45,7 +46,7 @@ def _ok_payload(content: str) -> dict:
 def test_rate_limit_is_not_swallowed_as_parse_failure():
     """★핵심★ 429(쿼터 소진)가 '응답 파싱 실패'로 둔갑하면 안 된다."""
     with patch.object(groq_watch.requests, "post", return_value=_response(429, text="rate limited")):
-        with pytest.raises(requests.HTTPError):   # 예전엔 조용히 None 이었다
+        with pytest.raises(QuotaExceeded):   # 예전엔 조용히 None 이었다
             groq_watch.fetch_groq_pulse("key")
 
 
@@ -137,3 +138,92 @@ def test_invalid_urgency_becomes_none_not_a_guess():
         out = groq_watch.fetch_groq_pulse("key")
 
     assert out["urgency"] is None    # "high" 로 올림하지 않는다
+
+
+# ── 413: 검색결과가 티어 한도를 넘는 경우 (2026-08-26 실측으로 드러남) ──────
+
+def test_413_is_reported_as_its_own_thing_not_a_generic_failure():
+    """★핵심★ 413 은 소스 고장도 우리 버그도 아니다 — 전용 예외로 구분한다.
+
+    실측: 2026-08-26 recent_errors 에 이것만 7건 찍혔다.
+        413 Client Error: Payload Too Large for url: .../chat/completions
+    우리 프롬프트가 큰 게 아니라, 모델이 서버에서 끌어온 검색결과가
+    계정 티어의 요청 크기 한도를 넘은 것이다.
+    """
+    with patch.object(groq_watch.requests, "post", return_value=_response(413, text="too large")):
+        with pytest.raises(SearchContextTooLarge) as err:
+            groq_watch.fetch_groq_pulse("key")
+
+    assert "413" in str(err.value)
+    # 429·5xx 와 같은 부류로 뭉뚱그려지면 안 된다
+    assert not isinstance(err.value, requests.HTTPError)
+
+
+def test_413_does_not_retry():
+    """★실측 반영(2026-08-26)★ 재시도하지 않는다 — 오히려 해롭다.
+
+    좁힌 질의로 재시도해봐야 소용없다. 토큰의 대부분이 **모델이 끌어온 검색결과**라
+    우리 프롬프트를 줄여도 5,307 토큰이 나온다(원 질의와 큰 차이 없음).
+    게다가 한 번 호출이 5,000~5,800 토큰인데 분당 한도가 8,000 이라
+    **1분 안에 두 번 부르면 스스로 429 를 만든다.** 실제로 그렇게 만들어봤다.
+    """
+    calls = []
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        calls.append(json["messages"][0]["content"])
+        return _response(413, text="too large")
+
+    with patch.object(groq_watch.requests, "post", side_effect=fake_post):
+        with pytest.raises(SearchContextTooLarge):
+            groq_watch.fetch_groq_pulse("key")
+
+    assert len(calls) == 1     # 딱 한 번만 부른다
+
+
+def test_429_is_a_tier_limit_not_a_source_failure():
+    """★핵심★ 429(분당 토큰 초과)도 소스 고장이 아니다 — 413 과 같은 뿌리다.
+
+    실측 429 본문:
+      Rate limit reached for model `openai/gpt-oss-120b` ... (TPM): Limit 8000, Used 5784
+    """
+    with patch.object(groq_watch.requests, "post", return_value=_response(429, text="TPM: Limit 8000")):
+        with pytest.raises(QuotaExceeded) as err:
+            groq_watch.fetch_groq_pulse("key")
+
+    assert isinstance(err.value, TierLimitReached)   # 호출부가 값없음으로 분류하는 근거
+    assert "429" in str(err.value)
+
+
+def test_413_and_429_share_a_base_but_say_different_things():
+    """둘 다 티어 한도지만 이유는 구분돼야 한다 — 하나는 크기, 하나는 속도."""
+    with patch.object(groq_watch.requests, "post", return_value=_response(413, text="x")):
+        with pytest.raises(TierLimitReached) as big:
+            groq_watch.fetch_groq_pulse("key")
+    with patch.object(groq_watch.requests, "post", return_value=_response(429, text="y")):
+        with pytest.raises(TierLimitReached) as fast:
+            groq_watch.fetch_groq_pulse("key")
+
+    assert type(big.value) is not type(fast.value)
+    assert "413" in str(big.value) and "429" in str(fast.value)
+
+
+def test_token_usage_is_reported():
+    """★실측에서 얻은 교훈★ 한도 8,000 대비 얼마나 썼는지 남긴다 — 다음엔 추측 안 한다."""
+    payload = _ok_payload('{"has_new_signal": false, "summary": null, "diseases": [], "urgency": "low"}')
+    payload["usage"] = {"prompt_tokens": 4993, "completion_tokens": 314, "total_tokens": 5307}
+
+    with patch.object(groq_watch.requests, "post", return_value=_response(200, payload)):
+        out = groq_watch.fetch_groq_pulse("key")
+
+    assert out["tokens_used"] == 5307
+    assert out["tokens_prompt"] == 4993
+
+
+def test_413_twice_gives_up_without_pretending():
+    """좁힌 질의로도 413 이면 포기한다 — 빈 신호를 지어내지 않는다."""
+    with patch.object(groq_watch.requests, "post", return_value=_response(413, text="too large")):
+        with pytest.raises(SearchContextTooLarge):
+            groq_watch.fetch_groq_pulse("key")
+
+
+

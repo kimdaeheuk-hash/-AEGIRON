@@ -679,18 +679,31 @@ def collect_free_sources() -> dict:
 
     groq_key = os.environ.get("GROQ_API_KEY")
     if groq_key:
+        from algorithms.groq_watch import fetch_groq_pulse, TierLimitReached
         try:
-            from algorithms.groq_watch import fetch_groq_pulse
             result["groq_pulse"] = fetch_groq_pulse(groq_key)
             g = result["groq_pulse"]
             if g is None:
                 # 이제 실패는 예외로 올라와 아래 except 가 log_error 로 기록한다.
                 # 여기 걸리는 건 예외 없이 None 이 온 예상 밖의 경우뿐이다.
                 log("  ❌ Groq 웹서치: 예외 없이 빈 응답")
-            elif g["has_new_signal"]:
-                log(f"  Groq 웹서치({g.get('urgency')}): {g.get('summary')}")
             else:
-                log("  Groq 웹서치: 새 신호 없음")
+                # 한도 8,000 대비 얼마나 썼는지 매 주기 남긴다 — 다음에 413·429 가
+                # 나도 추측하지 않게(2026-08-26 실측에서 얻은 교훈).
+                if g.get("tokens_used"):
+                    log(f"  ⚙ Groq 토큰 {g['tokens_used']}/8000 (프롬프트 {g.get('tokens_prompt')})")
+                if g["has_new_signal"]:
+                    log(f"  Groq 웹서치({g.get('urgency')}): {g.get('summary')}")
+                else:
+                    log("  Groq 웹서치: 새 신호 없음")
+        except TierLimitReached as e:
+            # 413(요청이 큼)·429(분당 토큰 초과) 둘 다 무료 티어 한도다 —
+            # 소스 고장도 우리 버그도 아니다. 실패로 세면 상시 degraded 에 앉아
+            # 매일 울리고 사람이 경보를 무시하게 된다.
+            # 값없음으로 기록하되, 72시간을 넘기면 그때는 울린다(NO_DATA_ALARM_HOURS).
+            result["groq_pulse"] = None
+            mark_no_data(result, "groq_pulse")
+            log(f"  ⏭ Groq 웹서치: 무료 티어 한도 — 값없음으로 기록 ({type(e).__name__})")
         except Exception as e:
             result["groq_pulse"] = None
             # ❌ 로 찍는다. 예전엔 실패가 ⏭ 로 찍혀서 절차 문서의
