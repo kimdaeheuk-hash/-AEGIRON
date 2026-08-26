@@ -907,6 +907,11 @@ def _assert_lang_tables() -> None:
 _assert_lang_tables()
 
 
+def _import_sections():
+    from .brief_sections import build_special_sections
+    return build_special_sections
+
+
 def generate_daily_brief(lang: str = "ko", api_key: str | None = None,
                          today: str | None = None, fmt: str | None = None) -> dict:
     """방송 러시트 한 벌을 조립한다. lang: 'ko'|'en'. fmt로 포맷을 고정하지 않으면
@@ -965,6 +970,18 @@ def generate_daily_brief(lang: str = "ko", api_key: str | None = None,
         if polished is not None:
             brief = polished
             brief["generation_method"] = "llm_polished"
+
+    # ── 특수 섹션 ────────────────────────────────────────────────────────
+    # 84개 모듈 중 이 파일이 쓰던 건 4개뿐이었다. 극지·조용해진 곳·7일 예보·
+    # 설명 불가 신호는 매일 값이 달라지는데 브리핑에 실리지 않아, 7일 연속으로
+    # 헤드라인이 똑같았다(2026-08-26 실측, 연속 유사도 88~89%).
+    #
+    # ★ LLM 폴리시 **뒤에** 붙인다 ★ 이 칸들은 실측 숫자라 문장을 다듬는 과정에서
+    # 값이 바뀌면 안 된다. 폴리시는 앵커 대본만 손대게 둔다.
+    build_special_sections = _import_sections()
+    brief["special_sections"] = build_special_sections(
+        lang, on_error=lambda name, e: brief.setdefault("special_section_errors", []).append(
+            {"section": name, "error": f"{type(e).__name__}: {e}"}))
 
     # 팟캐스트 에피소드(오디오용)는 폴리시가 끝난 최종 대본 기준으로 조립한다.
     brief["podcast"] = _podcast_block(

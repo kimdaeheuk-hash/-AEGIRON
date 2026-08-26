@@ -70,16 +70,84 @@ def notify_new_alerts(new_alerts: list[dict]) -> bool:
     return send_telegram_message(format_alert_message(new_alerts))
 
 
+def _fmt_num(v, *, whole: bool = False) -> str:
+    """숫자를 사람이 읽게. 없으면 '—' — 0으로 채우지 않는다.
+
+    whole=True 는 **사람 수처럼 쪼갤 수 없는 값**에 쓴다. 예보 엔진은 외삽이라
+    4885.5 같은 값을 내는데, 그대로 "4,885.5명" 으로 쓰면 말이 안 된다.
+    """
+    if v is None:
+        return "—"
+    if isinstance(v, (int, float)):
+        if whole:
+            return f"{round(v):,}"
+        if isinstance(v, float):
+            return f"{v:,.1f}".rstrip("0").rstrip(".")
+        return f"{v:,}"
+    return str(v)
+
+
+def _special_lines(brief: dict) -> list[str]:
+    """특수 섹션을 텔레그램 한 덩어리로. **매일 값이 달라지는 부분이다.**
+
+    예전 메시지는 헤드라인·요약·위협목록만 보냈는데, 그 셋이 전부 순위표에서
+    나오는 값이라 순위가 안 바뀌면 **7일 내내 같은 문장**이 나갔다.
+    (2026-08-26 실측: 연속한 날 헤드라인 유사도 88~89%)
+    """
+    out: list[str] = []
+    for sec in brief.get("special_sections") or []:
+        rows = sec.get("rows") or []
+        head = f"\n{sec.get('icon', '•')} <b>{sec.get('title', '')}</b>"
+        body = [sec.get("lead")] if sec.get("lead") else []
+
+        if sec.get("id") == "silence":
+            for r in rows[:2]:
+                body.append(
+                    f"· {r.get('label') or r.get('metric')}: {_fmt_num(r.get('latest'))}"
+                    f" (평소 {_fmt_num(r.get('history_avg'))})")
+        elif sec.get("id") == "polar":
+            for r in rows[:2]:
+                body.append(
+                    f"· {r.get('name')} 해빙 {r.get('thaw_days_30d')}/30일"
+                    f" · 압력 {_fmt_num(r.get('pressure'))}")
+            for c in (sec.get("citations") or [])[:2]:
+                body.append(f"· “{c}”")
+        elif sec.get("id") == "forecast":
+            # 사람 수를 세는 지표를 앞세운다 — 우리 순위가 아니라 사람 이야기여야 한다
+            for r in [x for x in rows if x.get("counts_people")][:2]:
+                body.append(
+                    f"· {r.get('label') or r.get('metric')}: {_fmt_num(r.get('current'), whole=True)}명"
+                    f" → 14일 후 {_fmt_num(r.get('in_14d'), whole=True)}명")
+        elif sec.get("id") == "unexplained":
+            for r in rows[:2]:
+                where = r.get("location") or r.get("source") or "?"
+                when = r.get("signal_date")
+                body.append(f"· {when} {where}" if when else f"· {where}")
+
+        if body:
+            out.append(head)
+            out.extend(body)
+    return out
+
+
 def format_daily_brief_message(brief: dict) -> str:
     """일일 브리핑을 텔레그램용 짧은 뉴스로 요약. 정직성 고지 포함."""
     lines = [f"📰 <b>{brief.get('headline', '아이기론 역병예보')}</b>"]
     summary = brief.get("summary")
     if summary:
         lines.append(summary)
-    for seg in brief.get("segments", []):
-        if seg.get("kind") == "threat" and seg.get("lower_third"):
-            lines.append(f"• {seg['lower_third']}")
-    lines.append("\n<i>공식 경보 아님 · AI 자동생성</i>")
+    # 위협 목록은 순위표라 순위가 안 바뀌면 매일 똑같다. 텔레그램에는 상위 2건만
+    # 싣고 나머지 수만 알린다 — 같은 줄이 다섯 개씩 반복되면 아래 특수 섹션이 묻힌다.
+    threats = [s["lower_third"] for s in brief.get("segments", [])
+               if s.get("kind") == "threat" and s.get("lower_third")]
+    for t in threats[:2]:
+        lines.append(f"• {t}")
+    if len(threats) > 2:
+        lines.append(f"• 외 {len(threats) - 2}건 추적 중")
+
+    lines.extend(_special_lines(brief))
+
+    lines.append("\n<i>공식 경보 아님 · AI 자동생성 · 관찰 등급은 경보가 아닙니다</i>")
     return "\n".join(lines)
 
 
