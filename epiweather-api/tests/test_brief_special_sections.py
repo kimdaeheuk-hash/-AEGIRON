@@ -177,3 +177,56 @@ def test_telegram_message_carries_the_daily_changing_parts():
     assert "위협0" in msg and "위협1" in msg
     assert "위협4" not in msg
     assert "외 3건 추적 중" in msg
+
+
+# ── 8. 모든 섹션은 정직성 문구를 갖는다 ─────────────────────────────────────
+
+def test_every_section_carries_its_limits():
+    """★핵심★ 한 칸이라도 한계 표시가 비면 흔한 AI 대시보드와 구분되지 않는다.
+
+    실제로 `조용해진 곳` 이 이걸 빼먹은 채 프로덕션에 나갔다(2026-08-26).
+    "이 층은 실측이라 단서가 필요 없다"고 판단했는데 틀렸다 —
+    `negative_space` 자기 주석이 오탐 사례를 셋이나 적어두고 있었다
+    (브라질 뎅기 계절성 · OpenSky 희소표본 · 평균 2 미만 SNS 지표).
+    """
+    payload_silence = {"alerts": [{"metric": "naver_ebola_ratio", "latest": 2.27,
+                                   "history_avg": 7.05, "drop_ratio": 0.32,
+                                   "message": "⚠️ 신호 50% 감소"}],
+                       "metrics_checked": 37}
+    payload_polar = {"regions": [{"region": "siberia_yamal", "name": "야말",
+                                  "thaw": {"permafrost_thaw_pressure": 78.7,
+                                           "thaw_days_30d": 30, "heat_trend_c": 1.4},
+                                  "news": {"sample_titles": []}}],
+                     "grade": "watch",
+                     # 실제 프로덕션 문구를 그대로 쓴다 — 짧은 더미로는 이 테스트가 무의미하다
+                     "note": "이 층은 저확률·고충격 '관찰(watch)'이지 '경보(alert)'가 아니다 "
+                             "— 경보 파이프라인과 섞지 않는다.",
+                     "disclaimer": "thaw_days는 기후 정상값 대비 이상이 아니라 해빙 활동 프록시."}
+    payload_forecast = {"score_7d": 58.0, "score_14d": 58.3, "tier_7d": "정상",
+                        "tier_14d": "정상", "confidence": "medium", "top_alerts": []}
+    payload_unexplained = {"alerts": [{"source": "x", "signal_date": "2026-08-12"}],
+                           # 실제 프로덕션 caveat
+                           "caveat": "조건1(병원방문 급증)은 증후군감시 데이터 소스가 없어 "
+                                     "측정 불가 — 조건2·3은 추출 시점에 모델이 직접 판단한 "
+                                     "known_disease 필드로 판정함."}
+
+    with patch("algorithms.negative_space.scan_negative_space", return_value=payload_silence),          patch("algorithms.polar_signals.polar_watch_all", return_value=payload_polar),          patch("algorithms.forecast_engine.forecast_summary", return_value=payload_forecast),          patch("algorithms.unexplained.scan_unexplained", return_value=payload_unexplained):
+        sections = bs.build_special_sections("ko")
+
+    assert len(sections) == 4
+    for sec in sections:
+        assert sec.get("honesty"), f"{sec['id']} 섹션에 정직성 문구가 없다"
+        assert len(sec["honesty"]) > 20, f"{sec['id']} 정직성 문구가 너무 짧다"
+
+
+def test_silence_honesty_names_the_actual_false_positives():
+    """빈말이 아니라 **실제로 확인된 오탐 사례**를 적는다 — 그게 신뢰의 근거다."""
+    with patch("algorithms.negative_space.scan_negative_space",
+               return_value={"alerts": [{"metric": "m", "latest": 1, "history_avg": 9}],
+                             "metrics_checked": 37}):
+        sec = bs.build_silence_section("ko")
+
+    h = sec["honesty"]
+    assert "경험 규칙" in h              # 검증된 임계값이 아니라고 밝힌다
+    assert "계절성" in h                 # 실제 오탐 원인
+    assert "확인해볼 것" in h            # 결론이 아니라 단서라고 못박는다

@@ -192,6 +192,25 @@ _SILENCE_WHY = {
 }
 
 
+_SILENCE_HONESTY = {
+    "ko": "‘과거 평균의 50% 미만’은 경험 규칙이지 검증된 임계값이 아닙니다. 급감이 곧 "
+          "보고 체계 붕괴는 아니며 계절성·휴일·소스 개편으로도 생깁니다. 실제로 계절성 "
+          "질환(브라질 뎅기)·희소 표본(OpenSky 항공)·평균이 2 미만인 SNS 지표는 오탐이 "
+          "잦아 이 스캔에서 제외했습니다. 여기 뜬 항목은 ‘확인해볼 것’이지 ‘무너졌다’가 "
+          "아닙니다.",
+    "en": "The ‘below 50% of the historical average’ line is a rule of thumb, not a validated "
+          "threshold. A drop is not proof of reporting collapse — seasonality, holidays and "
+          "source changes cause it too. Seasonal series (Brazil dengue), sparse samples "
+          "(OpenSky flights) and social metrics averaging under 2 were excluded because they "
+          "produced frequent false positives. Items here are worth checking, not conclusions.",
+    "fr": "Le seuil « sous 50 % de la moyenne » est une règle empirique, non un seuil validé. "
+          "Une baisse ne prouve pas l’effondrement du signalement — saisonnalité, jours fériés "
+          "et changements de source la provoquent aussi. Les séries saisonnières (dengue au "
+          "Brésil), les échantillons rares (vols OpenSky) et les indicateurs sociaux de moyenne "
+          "inférieure à 2 ont été exclus pour cause de faux positifs fréquents.",
+}
+
+
 def build_silence_section(lang: str = "ko") -> dict | None:
     """급감한 신호원. 하나도 없으면 None — '조용한 곳이 없습니다'는 뉴스가 아니다."""
     from .negative_space import scan_negative_space
@@ -221,7 +240,7 @@ def build_silence_section(lang: str = "ko") -> dict | None:
             n=data.get("metrics_checked") or 0, k=len(alerts)),
         "why": _pick(_SILENCE_WHY, lang),
         "rows": rows,
-        "honesty": None,   # 이 층은 값 자체가 실측(과거평균 대비 비율)이라 별도 단서가 없다
+        "honesty": _pick(_SILENCE_HONESTY, lang),
     }
 
 

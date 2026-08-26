@@ -224,6 +224,29 @@ export interface BriefSegment {
   is_future?: boolean;
 }
 
+/**
+ * 브리핑 특수 섹션 — 서버의 `algorithms/brief_sections.py` 가 만든다.
+ *
+ * 극지·조용해진 곳·7일 예보·설명 불가 신호처럼 **매일 값이 달라지는** 층이다.
+ * 예전엔 브리핑이 국가 위험 순위표만 써서 7일 연속 헤드라인이 같았다.
+ *
+ * `rows` 의 모양은 섹션마다 다르다(`id` 로 분기해서 읽을 것).
+ * `honesty` 는 **비워두면 안 되는 값**이다 — "관찰 등급은 경보가 아니다" 같은
+ * 한계 표시가 빠지면 흔한 AI 대시보드와 구분되지 않는다.
+ */
+export interface BriefSpecialSection {
+  id: 'silence' | 'polar' | 'forecast' | 'unexplained';
+  icon: string;
+  title: string;
+  lead: string;
+  why?: string | null;
+  rows?: Record<string, unknown>[];
+  citations?: string[];
+  grade?: string | null;
+  honesty?: string | null;
+  data_source?: string | null;
+}
+
 export interface DailyBrief {
   date: string;
   lang: 'ko' | 'en';
@@ -237,6 +260,8 @@ export interface DailyBrief {
   headline: string;
   summary: string;
   segments: BriefSegment[];
+  /** 서버가 붙이지 못한 날도 있으므로 선택 필드다 — 없으면 화면에서 통째로 뺀다. */
+  special_sections?: BriefSpecialSection[];
   ticker: string[];
   disclosure: string;
   closing: string;

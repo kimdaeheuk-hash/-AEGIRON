@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import { fetchDailyBrief, DailyBrief, BriefSegment } from '@/lib/api';
+import { fetchDailyBrief, DailyBrief, BriefSegment, BriefSpecialSection } from '@/lib/api';
 
 // 홈페이지 '뉴스 방송 화면' — /api/daily-brief 러시트를 실제 뉴스처럼 렌더링.
 // 헤드라인 바 + 앵커 리드(텔레프롬프터식 자동 순환) + 하단 자막(chyron) + 스크롤
@@ -168,6 +168,9 @@ export default function NewsBroadcast() {
         )}
       </div>
 
+      {/* ── 특수 감시 층 ──────────────────────────────────────── */}
+      <SpecialSections sections={brief?.special_sections} lang={lang} />
+
       {/* ── 정직성 고지 바 ────────────────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginTop: 14,
         padding: '12px 16px', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 12 }}>
@@ -193,6 +196,130 @@ export default function NewsBroadcast() {
         }
       `}</style>
     </section>
+  );
+}
+
+// ── 특수 감시 층 ─────────────────────────────────────────────────────────
+// 서버가 계산하는데 화면에 안 나오던 것들 — 극지·영구동토, 조용해진 보고 채널,
+// 7·14일 예보, 설명 불가 신호. 이 층들이 **매일 값이 달라지는 부분**이다.
+//
+// ★ honesty 를 반드시 함께 렌더한다 ★ "관찰 등급은 경보가 아니다", "측정이 아니라
+// 외삽이다" 같은 한계 표시가 빠지면 흔한 AI 대시보드와 구분되지 않는다.
+function SpecialSections({ sections, lang }:
+  { sections?: BriefSpecialSection[]; lang: 'ko' | 'en' }) {
+  if (!sections?.length) return null;   // 서버가 못 붙인 날은 통째로 뺀다
+  const t = (ko: string, en: string) => (lang === 'ko' ? ko : en);
+
+  return (
+    <div style={{ marginTop: 14, display: 'grid', gap: 12 }}>
+      {sections.map((sec) => (
+        <div key={sec.id} style={{ padding: '14px 16px', background: 'var(--panel)',
+          border: '1px solid var(--line)', borderRadius: 12 }}>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 16 }}>{sec.icon}</span>
+            <span style={{ fontFamily: 'var(--kr)', fontSize: 14, fontWeight: 800, color: 'var(--fg)' }}>
+              {sec.title}
+            </span>
+            {sec.grade && (
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 9.5, fontWeight: 800,
+                letterSpacing: '.08em', color: '#38bdf8', border: '1px solid rgba(56,189,248,.35)',
+                borderRadius: 5, padding: '2px 7px', textTransform: 'uppercase' }}>
+                {sec.grade}
+              </span>
+            )}
+          </div>
+
+          <p style={{ fontFamily: 'var(--kr)', fontSize: 12.5, lineHeight: 1.7,
+            color: 'var(--fg)', margin: '8px 0 0' }}>{sec.lead}</p>
+
+          {sec.why && (
+            <p style={{ fontFamily: 'var(--kr)', fontSize: 11.5, lineHeight: 1.7,
+              color: 'var(--muted2)', margin: '6px 0 0' }}>{sec.why}</p>
+          )}
+
+          {!!sec.rows?.length && (
+            <div style={{ marginTop: 10, display: 'grid', gap: 4 }}>
+              {sec.rows.slice(0, 6).map((row, i) => (
+                <SectionRow key={i} id={sec.id} row={row} lang={lang} />
+              ))}
+            </div>
+          )}
+
+          {!!sec.citations?.length && (
+            <div style={{ marginTop: 10, display: 'grid', gap: 3 }}>
+              {sec.citations.slice(0, 3).map((c) => (
+                <p key={c} style={{ fontFamily: 'var(--kr)', fontSize: 11, lineHeight: 1.6,
+                  color: 'var(--muted2)', margin: 0 }}>&ldquo;{c}&rdquo;</p>
+              ))}
+            </div>
+          )}
+
+          {sec.honesty && (
+            <p style={{ fontFamily: 'var(--kr)', fontSize: 10.5, lineHeight: 1.65,
+              color: 'var(--muted2)', margin: '10px 0 0', paddingTop: 8,
+              borderTop: '1px solid var(--line)' }}>
+              {t('※ ', '* ')}{sec.honesty}
+            </p>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// 행의 모양이 섹션마다 다르다 — id 로 갈라서 읽는다.
+// 값이 없으면 '—' 로 둔다. 0으로 채우면 '측정해서 0'과 구분되지 않는다.
+function SectionRow({ id, row, lang }:
+  { id: string; row: Record<string, unknown>; lang: 'ko' | 'en' }) {
+  const s = (k: string) => (row[k] == null ? null : String(row[k]));
+  const n = (k: string, whole = false) => {
+    const v = row[k];
+    if (v == null || typeof v !== 'number') return '—';
+    return (whole ? Math.round(v) : v).toLocaleString();
+  };
+  const mono: React.CSSProperties = { fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)' };
+  const kr: React.CSSProperties = { fontFamily: 'var(--kr)', fontSize: 11.5, color: 'var(--fg)' };
+  const line: React.CSSProperties = { display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' };
+
+  if (id === 'polar') {
+    return (
+      <div style={line}>
+        <span style={kr}>{s('name') ?? '—'}</span>
+        <span style={mono}>{lang === 'ko' ? '해빙' : 'thaw'} {n('thaw_days_30d')}/30</span>
+        <span style={mono}>{lang === 'ko' ? '압력' : 'pressure'} {n('pressure')}</span>
+        <span style={mono}>{n('heat_trend_c')}℃</span>
+      </div>
+    );
+  }
+  if (id === 'silence') {
+    return (
+      <div style={line}>
+        <span style={kr}>{s('label') ?? s('metric') ?? '—'}</span>
+        <span style={mono}>{n('latest')} ({lang === 'ko' ? '평소' : 'usual'} {n('history_avg')})</span>
+        {s('message') && <span style={{ ...mono, color: '#fbbf24' }}>{s('message')}</span>}
+      </div>
+    );
+  }
+  if (id === 'forecast') {
+    // 사람을 세는 지표는 소수점을 쓰지 않는다 — 예보는 외삽이라 4885.5 가 나온다
+    const whole = row['counts_people'] === true;
+    return (
+      <div style={line}>
+        <span style={kr}>{s('label') ?? s('metric') ?? '—'}</span>
+        <span style={mono}>
+          {n('current', whole)} → {lang === 'ko' ? '14일 후' : 'in 14d'} {n('in_14d', whole)}
+        </span>
+      </div>
+    );
+  }
+  // unexplained
+  return (
+    <div style={line}>
+      {s('signal_date') && <span style={mono}>{s('signal_date')}</span>}
+      <span style={kr}>{s('location') ?? s('source') ?? '—'}</span>
+      {s('tier') && <span style={mono}>{s('tier')}</span>}
+    </div>
   );
 }
 
