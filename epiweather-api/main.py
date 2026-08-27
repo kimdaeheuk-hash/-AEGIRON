@@ -2020,7 +2020,7 @@ def dashboard():
 def digital_twin_simulate(
     origin: str = "Kinshasa",
     threat: str = "novel",
-    days: int = 90,
+    days: int = 180,
 ):
     """
     디지털 트윈 — 다도시 전파 시뮬레이션.
@@ -2030,7 +2030,8 @@ def digital_twin_simulate(
     from algorithms.digital_twin import simulate_spread
     if threat not in ("flu", "novel", "severe"):
         raise HTTPException(status_code=422, detail="threat는 flu|novel|severe 중 하나")
-    return simulate_spread(origin=origin, threat=threat, days=min(days, 180))
+    # 상한도 180 → 365 로. 기본값이 180이 되면서 상한과 같아져 더 길게 볼 수 없었다.
+    return simulate_spread(origin=origin, threat=threat, days=min(days, 365))
 
 
 @app.get("/api/cities", tags=["Phase3"])
