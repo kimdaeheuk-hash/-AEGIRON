@@ -40,7 +40,7 @@ FIRE_REF_MAX = 5000.0
 FIRMS_COUNTRY_CODES = {
     "COD": "COD", "UGA": "UGA", "SAU": "SAU", "THA": "THA", "KOR": "KOR",
     "JPN": "JPN", "BRA": "BRA", "USA": "USA", "NGA": "NGA", "ETH": "ETH",
-    "YEM": "YEM", "MDG": "MDG", "PNG": "PNG",
+    "YEM": "YEM", "MDG": "MDG", "PNG": "PNG", "NPL": "NPL",
 }
 
 

@@ -164,7 +164,10 @@ def test_climate_signals_endpoint_public_and_flags_leading_indicator(client):
     resp = client.get("/api/climate-signals")
     assert resp.status_code == 200
     body = resp.json()
-    assert len(body["countries"]) == 14
+    # 숫자를 박아두면 국가가 늘 때마다 여기서 걸린다 — 2026-08-28 네팔 추가 때
+    # 실제로 걸렸다. 표를 진실의 출처로 두고, 개수는 거기서 끌어온다.
+    from algorithms.country_risk import COUNTRIES
+    assert len(body["countries"]) == len(COUNTRIES)
     assert "삼림파괴" in body["disclaimer"]  # 미구현 동인 정직하게 명시
 
 
@@ -180,7 +183,9 @@ def test_land_signals_endpoint_public_and_flags_proxy(client, monkeypatch):
     resp = client.get("/api/land-signals")
     assert resp.status_code == 200
     body = resp.json()
-    assert len(body["countries"]) == 13  # HKG 제외
+    # 숫자를 박아두면 국가가 늘 때마다 여기서 걸린다 — 표를 진실의 출처로 둔다.
+    from algorithms.country_risk import COUNTRIES
+    assert len(body["countries"]) == len(COUNTRIES) - 1  # HKG 제외
     assert body["configured"] is False
     assert "GFW" in body["disclaimer"]
 
@@ -234,7 +239,9 @@ def test_trade_signals_endpoint_uses_country_path_with_key(client, monkeypatch):
     with patch("algorithms.comtrade_signals.fetch_import_series", return_value=[]):
         resp = client.get("/api/trade-signals")
     body = resp.json()
-    assert len(body["countries"]) == 13  # HKG 제외
+    # 숫자를 박아두면 국가가 늘 때마다 여기서 걸린다 — 표를 진실의 출처로 둔다.
+    from algorithms.country_risk import COUNTRIES
+    assert len(body["countries"]) == len(COUNTRIES) - 1  # HKG 제외
     assert body["configured"] is True
 
 
@@ -250,7 +257,9 @@ def test_deforestation_signals_endpoint_public_and_honest_about_verification(cli
     resp = client.get("/api/deforestation-signals")
     assert resp.status_code == 200
     body = resp.json()
-    assert len(body["countries"]) == 13  # HKG 제외
+    # 숫자를 박아두면 국가가 늘 때마다 여기서 걸린다 — 표를 진실의 출처로 둔다.
+    from algorithms.country_risk import COUNTRIES
+    assert len(body["countries"]) == len(COUNTRIES) - 1  # HKG 제외
     assert body["configured"] is False
     assert "배포 환경에서 확인" in body["disclaimer"]
 
