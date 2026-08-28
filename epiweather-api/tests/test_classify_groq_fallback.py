@@ -183,14 +183,79 @@ def test_missing_groq_key_is_stated():
     assert "Groq" not in reason      # 아예 시도하지 않았다
 
 
-def test_groq_uses_a_plain_model_not_the_web_search_one():
+def test_groq_uses_plain_models_not_the_web_search_one():
     """★GroqWatch 를 터뜨린 그 모델을 쓰면 안 된다★
 
     413/429 의 원인은 compound-mini 가 **서버 쪽에서 끌어온 검색결과**였다.
     분류는 우리가 준 제목만 있으면 되므로 순수 추론 모델을 쓴다.
     """
-    assert "compound" not in cc.GROQ_MODEL
+    assert all("compound" not in m for m in cc.GROQ_MODELS)
     assert cc.GROQ_URL.startswith("https://api.groq.com/")
+
+
+def test_first_groq_candidate_is_the_evidenced_one():
+    """★찍지 말고 근거를 쓴다★
+
+    `groq_watch.py` 에 기록된 이 계정의 실제 429 응답이 모델 ID 를 알려준다:
+        Rate limit reached for model `openai/gpt-oss-120b`
+    2026-08-28 에 근거 없이 `llama-3.3-70b-versatile` 로 찍었다가 404 가 났다.
+    """
+    assert cc.GROQ_MODELS[0] == "openai/gpt-oss-120b"
+    assert cc.GROQ_MODELS[-1] == "llama-3.3-70b-versatile", "404 났던 건 맨 뒤로"
+
+
+def test_404_advances_to_the_next_model():
+    """모델이 없으면 다음 후보로 — 프로덕션이 답을 알려주게 한다."""
+    feeds = [_feed(0.9, n_titles=4)]
+    tried: list[str] = []
+
+    def fake_post(url, model, api_key, prompt):
+        tried.append(model)
+        if url == cc.CEREBRAS_URL:
+            return _response(402, text="quota")
+        if model != cc.GROQ_MODELS[1]:
+            return _response(404, text="model not found")
+        return _ok(4)
+
+    with patch.object(cc, "_post", side_effect=fake_post):
+        reason = cc.classify_multi_feed(feeds, "cere", groq_key="groq")
+
+    assert reason is None
+    assert tried[1:3] == cc.GROQ_MODELS[:2], f"404 뒤 다음 후보로 넘어가야 한다: {tried}"
+
+
+def test_non_404_does_not_burn_the_remaining_candidates():
+    """402·429 는 모델 문제가 아니다 — 남은 후보를 더 태우면 한도만 낭비한다."""
+    feeds = [_feed(0.9, n_titles=4)]
+    tried: list[str] = []
+
+    def fake_post(url, model, api_key, prompt):
+        tried.append(model)
+        if url == cc.CEREBRAS_URL:
+            return _response(402, text="quota")
+        return _response(429, text="tpm exceeded")
+
+    with patch.object(cc, "_post", side_effect=fake_post):
+        reason = cc.classify_multi_feed(feeds, "cere", groq_key="groq")
+
+    assert reason is not None
+    groq_tried = [m for m in tried if m in cc.GROQ_MODELS]
+    assert len(groq_tried) == 1, f"429 인데 후보를 더 태웠다: {groq_tried}"
+
+
+def test_successful_provider_is_recorded():
+    """어느 제공자·모델이 먹었는지 남는다 — 다음엔 추측할 필요가 없다."""
+    feeds = [_feed(0.9, n_titles=4)]
+
+    def fake_post(url, model, api_key, prompt):
+        if url == cc.CEREBRAS_URL:
+            return _response(402, text="quota")
+        return _ok(4)
+
+    with patch.object(cc, "_post", side_effect=fake_post):
+        cc.classify_multi_feed(feeds, "cere", groq_key="groq")
+
+    assert feeds[0].get("llm_provider", "").startswith("Groq(")
 
 
 def test_unclassified_feeds_keep_keyword_ratio():

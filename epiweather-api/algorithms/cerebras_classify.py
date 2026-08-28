@@ -53,7 +53,21 @@ TIMEOUT = 30
 # 터뜨린 413/429 는 compound-mini 가 서버 쪽에서 끌어온 검색결과 때문이었고,
 # 여기서는 우리가 준 제목만 들어가므로 그 문제가 없다.
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = "llama-3.3-70b-versatile"
+
+# ★ 모델 ID 를 찍지 않는다 — 후보를 순서대로 시도하고 어느 게 됐는지 로그로 남긴다 ★
+# 2026-08-28 에 `llama-3.3-70b-versatile` 로 찍었다가 프로덕션에서 404 가 났다.
+# 이 세션은 Groq 가 프록시에 막혀 /v1/models 를 볼 수 없으므로, **검증할 수 없는
+# 것을 하나로 단정하는 대신** 후보를 두고 프로덕션이 답하게 한다.
+#
+# 첫 후보는 추측이 아니라 근거가 있다 — `groq_watch.py` 에 기록된 이 계정의
+# 실제 429 응답 원문이 모델 ID 를 그대로 알려준다:
+#     Rate limit reached for model `openai/gpt-oss-120b`
+# 게다가 Cerebras 가 쓰던 것과 같은 모델이라 분류 품질도 같은 자리에서 출발한다.
+GROQ_MODELS = [
+    "openai/gpt-oss-120b",      # 위 429 원문으로 이 계정에 있음이 확인된 것
+    "llama-3.1-8b-instant",
+    "llama-3.3-70b-versatile",  # 2026-08-28 에 404 났던 것 — 마지막에 둔다
+]
 # 실측(2026-08-26, 429 응답 원문): 무료 티어 TPM 8,000.
 # 같은 주기에 GroqWatch 가 4,000~5,700 을 쓰지만 그건 1분 뒤 다른 분(minute)이라
 # 겹치지 않는다. 그래도 여유를 두고 상한을 잡는다.
@@ -246,7 +260,7 @@ def classify_multi_feed(
     # "어느 쪽이 왜 안 됐는지" 를 또 추측하게 된다.
     attempts: list[tuple[str, str, str, str]] = [("Cerebras", CEREBRAS_URL, MODEL, api_key)]
     if groq_key:
-        attempts.append(("Groq", GROQ_URL, GROQ_MODEL, groq_key))
+        attempts += [(f"Groq({m})", GROQ_URL, m, groq_key) for m in GROQ_MODELS]
 
     reasons: list[str] = []
     for name, url, model, key in attempts:
@@ -255,8 +269,16 @@ def classify_multi_feed(
             continue
         reason = _try_classify(feeds, entries, url, model, key, prompt)
         if reason is None:
-            return None                      # 성공
+            # 어느 제공자·모델이 실제로 먹었는지 남긴다 — 다음엔 추측할 필요가 없다.
+            feeds_marker = next((f for f in feeds if "llm_hit_ratio" in f), None)
+            if feeds_marker is not None:
+                feeds_marker["llm_provider"] = name
+            return None
         reasons.append(f"{name}: {reason}")
+        # 404 는 "그 모델이 없다" 는 뜻이라 다음 후보로 넘어갈 이유가 된다.
+        # 402·429 는 모델 문제가 아니므로 같은 제공자의 남은 후보를 더 태우지 않는다.
+        if name.startswith("Groq(") and "404" not in reason:
+            break
     return " | ".join(reasons)
 
 
