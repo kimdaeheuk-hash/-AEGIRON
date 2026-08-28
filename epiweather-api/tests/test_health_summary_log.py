@@ -39,7 +39,7 @@ def test_summary_shows_healthy_ratio_and_problem_sources(capsys):
     line = _run_summary({
         "healthy_count": 19, "total_tracked": 21,
         "degraded_sources": ["KDCA"],
-        "no_data_sources": ["Mobility"],
+        "no_data_sources": ["GroqWatch"],
         "sources": [
             {"source": "KDCA", "status": "failing", "staleness_hours": 95.0},
             {"source": "Naver", "status": "ok", "staleness_hours": 0.2},
@@ -48,7 +48,7 @@ def test_summary_shows_healthy_ratio_and_problem_sources(capsys):
     }, capsys)
     assert "정상 19/21" in line
     assert "KDCA" in line
-    assert "Mobility" in line
+    assert "GroqWatch" in line
     assert "PubMed(7.5h)" in line       # status는 ok지만 조용히 늙는 중
 
 

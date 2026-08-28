@@ -2188,6 +2188,13 @@ def mobility():
     OpenSky는 무료지만 익명 쿼터가 거의 없어 OPENSKY_CLIENT_ID/SECRET(OAuth2)을
     쓴다. 응답의 `auth_status`·`failure_reasons`가 **왜 못 가져왔는지**를 담는다
     — 전 공항 실패 시 인증 거부인지 IP 차단인지 여기서 갈린다.
+
+    ★ 이 엔드포인트는 '부활 확인용'으로 일부러 살려둔 것이다 (2026-08-28) ★
+    Mobility 는 매시간 수집에서 빠졌다(source_health.RETIRED_SOURCES). Railway(SFO)
+    에서 OpenSky 로 TCP 연결이 성립하지 않아 매 주기 20초를 버리기 때문이다.
+    다만 **닿는지 확인할 방법까지 없애면 영영 되살릴 수 없으므로** 여기는 남긴다.
+    `auth_status` 가 `authenticated` 로 돌아오면 그때 RETIRED_SOURCES 에서 한 줄을
+    지우면 된다. 수집 코드는 그대로 있다.
     """
     from algorithms.mobility import fetch_mobility_signals
     return fetch_mobility_signals()
