@@ -2275,6 +2275,32 @@ def groq_pulse():
         ) from e
 
 
+@app.get("/api/news-pulse", tags=["Phase2"])
+def news_pulse():
+    """
+    NewsWatch — GroqWatch 무료 대체 후보(2026-08-28).
+
+    검색(Google News RSS·키 불필요)과 요약(Cerebras·하루 100만 토큰 무료)을
+    분리했다. GroqWatch 는 compound-mini 가 서버 쪽에서 끌어온 검색결과가
+    프롬프트의 96% 를 차지해 분당 8,000 토큰 한도를 매 주기 위협했는데,
+    여기서는 **주입되는 검색량을 우리가 통제**한다(제목 40개·각 200자 상한).
+
+    응답 형태는 `/api/groq-pulse` 와 의도적으로 동일하다 — 대조가 끝나고
+    갈아끼울 때 소비하는 쪽을 안 건드려도 되게. `headline_count` 만 추가인데,
+    이건 "얼마나 얕은가" 를 대조할 근거다. CEREBRAS_API_KEY 필요.
+    """
+    key = os.environ.get("CEREBRAS_API_KEY")
+    if not key:
+        raise HTTPException(status_code=503, detail="CEREBRAS_API_KEY 환경변수 없음")
+    from algorithms.news_watch import fetch_news_pulse
+    try:
+        return fetch_news_pulse(key)
+    except Exception as e:
+        raise HTTPException(
+            status_code=502, detail=f"NewsWatch 호출 실패({type(e).__name__}): {e}"
+        ) from e
+
+
 @app.get("/api/baseline/status", tags=["기준선"])
 def baseline_status():
     """기준선 파일 현황 — 저장된 레코드 수와 최신/최고 타임스탬프."""
