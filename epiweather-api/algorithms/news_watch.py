@@ -50,7 +50,10 @@ import urllib.parse
 
 import requests
 
-from .cerebras_classify import CEREBRAS_URL, MODEL, TIMEOUT as CEREBRAS_TIMEOUT
+from .cerebras_classify import (
+    CEREBRAS_URL, GROQ_MODELS, GROQ_URL, MODEL, TIMEOUT as CEREBRAS_TIMEOUT,
+    WORST_CHARS_PER_TOKEN,
+)
 from .local_news import fetch_local_feed
 
 # 전 세계 영어권 대상 질의. 국가별 현지어 피드(local_news)가 이미 179개 돌고
@@ -66,6 +69,17 @@ RECENCY = "when:1d"
 # ★ 토큰을 우리가 통제하는 지점이 여기다 ★ GroqWatch 는 이 손잡이가 없었다.
 MAX_HEADLINES = 40
 MAX_TITLE_CHARS = 200
+
+# ── Groq 폴백 예산 (2026-08-28) ────────────────────────────────────────
+# Cerebras 가 402 로 죽어 이 층이 매 주기 실패하고 있었다. cerebras_classify 가
+# 쓰는 Groq 폴백을 여기에도 붙이는데, **예산을 그대로 쓰면 안 된다** —
+# 로그 실측: 현지어 뉴스 재분류 11:57:44, NewsWatch 11:57:52. **8초 차이**다.
+# 즉 둘이 같은 분당 한도(TPM 8,000) 창을 나눠 쓴다. 재분류 쪽이 본진이므로
+# 이 층은 작은 몫만 가져간다.
+GROQ_TOKEN_SLICE = 2000
+GROQ_MAX_HEADLINES = 20
+GROQ_TITLE_CHARS = 90
+PROMPT_OVERHEAD_TOKENS = 400   # 지시문 + JSON 형식 안내 몫(넉넉히)
 
 VALID_URGENCY = {"low", "medium", "high"}
 
@@ -134,20 +148,44 @@ def fetch_headlines() -> list[str]:
     return [t[:MAX_TITLE_CHARS] for t in titles[:MAX_HEADLINES]]
 
 
-def _cerebras_json(prompt: str, api_key: str) -> tuple[dict, dict]:
-    """Cerebras 호출 1회 → (파싱된 dict, usage). 실패는 종류를 담아 올린다."""
+def groq_headlines(headlines: list[str]) -> list[str]:
+    """Groq 폴백용으로 제목 목록을 예산 안까지 깎는다.
+
+    ★ 이 함수가 지키는 약속 ★ 결과 프롬프트가 `GROQ_TOKEN_SLICE` 를 넘지 않는다.
+    글자수→토큰 환산은 `cerebras_classify.WORST_CHARS_PER_TOKEN` 을 그대로 쓴다
+    (영어는 실제로 4자/토큰쯤이지만, 제목에 현지어가 섞이면 1.2 에 가까워진다 —
+    2026-08-28 에 4자/토큰으로 잡았다가 예산의 3배를 쐈다).
+    """
+    trimmed = [t[:GROQ_TITLE_CHARS] for t in headlines[:GROQ_MAX_HEADLINES]]
+    budget_chars = int((GROQ_TOKEN_SLICE - PROMPT_OVERHEAD_TOKENS) * WORST_CHARS_PER_TOKEN)
+    out: list[str] = []
+    used = 0
+    for t in trimmed:
+        cost = len(t) + 4          # "12: " 번호 접두 + 줄바꿈
+        if used + cost > budget_chars:
+            break
+        out.append(t)
+        used += cost
+    return out
+
+
+def _llm_json(prompt: str, url: str, model: str, api_key: str) -> tuple[dict, dict]:
+    """LLM 호출 1회 → (파싱된 dict, usage). 실패는 종류를 담아 올린다.
+
+    Cerebras 와 Groq 는 둘 다 OpenAI 호환 스키마라 URL·모델만 갈아끼우면 된다.
+    """
     r = requests.post(
-        CEREBRAS_URL,
+        url,
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         json={
-            "model": MODEL,
+            "model": model,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.1,
         },
         timeout=CEREBRAS_TIMEOUT,
     )
     if r.status_code == 429:
-        raise CerebrasRateLimited(f"Cerebras 분당 요청 한도(429): {r.text[:200]}")
+        raise CerebrasRateLimited(f"분당 요청 한도(429) {url}: {r.text[:200]}")
     r.raise_for_status()
 
     # ── 실패 지점을 셋으로 나눈다 (groq_watch 와 같은 원칙) ──────────────
@@ -155,13 +193,13 @@ def _cerebras_json(prompt: str, api_key: str) -> tuple[dict, dict]:
         payload = r.json()
     except Exception as e:
         raise NewsWatchError(
-            f"Cerebras 의 HTTP 응답이 JSON 이 아님({type(e).__name__}): {r.text[:200]}"
+            f"{model} 의 HTTP 응답이 JSON 이 아님({type(e).__name__}): {r.text[:200]}"
         ) from e
     try:
         raw = payload["choices"][0]["message"]["content"].strip()
     except Exception as e:
         raise NewsWatchError(
-            f"Cerebras 응답에 content 가 없음({type(e).__name__}): {str(payload)[:200]}"
+            f"{model} 응답에 content 가 없음({type(e).__name__}): {str(payload)[:200]}"
         ) from e
 
     raw = raw.strip("`")
@@ -175,15 +213,15 @@ def _cerebras_json(prompt: str, api_key: str) -> tuple[dict, dict]:
         data = json.loads(raw)
     except Exception as e:
         raise NewsWatchError(
-            f"Cerebras 가 돌려준 content 를 JSON 으로 읽지 못함({type(e).__name__}): {raw[:200]}"
+            f"{model} 이 돌려준 content 를 JSON 으로 읽지 못함({type(e).__name__}): {raw[:200]}"
         ) from e
     if not isinstance(data, dict):
-        raise NewsWatchError(f"Cerebras 응답이 객체가 아님: {type(data).__name__}")
+        raise NewsWatchError(f"{model} 응답이 객체가 아님: {type(data).__name__}")
     return data, (payload.get("usage") or {})
 
 
-def fetch_news_pulse(api_key: str) -> dict:
-    """Google News RSS 검색 + Cerebras 요약 1건.
+def fetch_news_pulse(api_key: str | None, groq_key: str | None = None) -> dict:
+    """Google News RSS 검색 + LLM 요약 1건.
 
     반환 형태는 `groq_watch.fetch_groq_pulse` 와 **의도적으로 동일**하다 —
     대조가 끝나고 갈아끼울 때 소비하는 쪽(signal_metrics·negative_space·
@@ -198,14 +236,56 @@ def fetch_news_pulse(api_key: str) -> dict:
         return {
             "has_new_signal": False, "summary": None, "diseases": [], "urgency": None,
             "tokens_used": None, "tokens_prompt": None,
-            "headline_count": 0, "source": "google_news+cerebras",
+            # LLM 을 아예 안 불렀으니 모델 이름을 붙이지 않는다.
+            "headline_count": 0, "headlines_found": 0, "source": "google_news",
         }
 
     today = dt.date.today().isoformat()
-    numbered = "\n".join(f"{i}: {t}" for i, t in enumerate(headlines))
-    data, usage = _cerebras_json(
-        PROMPT.format(today=today, headlines=numbered), api_key
-    )
+
+    # ── 시도 순서: Cerebras → Groq 후보들 (2026-08-28) ──────────────────
+    # Cerebras 는 402(무료 한도 소진)로 죽어 있다. 그런데 이 층은 **실패를
+    # 예외로 올리는 게 계약**이라, 폴백이 없으면 매 주기 통째로 값이 빈다.
+    # 로그로 확인된 사실이다 — `❌ NewsWatch 실패: HTTPError: 402 …` 가 계속.
+    #
+    # Groq 시도는 **제목을 깎아서** 보낸다. 같은 분(minute)에 현지어 뉴스
+    # 재분류가 이미 TPM 예산을 쓰기 때문이다(`GROQ_TOKEN_SLICE` 주석 참조).
+    attempts: list[tuple[str, str, str, str, list[str]]] = []
+    if api_key:
+        attempts.append(("cerebras", CEREBRAS_URL, MODEL, api_key, headlines))
+    if groq_key:
+        short = groq_headlines(headlines)
+        attempts += [(f"groq({m})", GROQ_URL, m, groq_key, short) for m in GROQ_MODELS]
+    if not attempts:
+        raise NewsWatchError("CEREBRAS_API_KEY·GROQ_API_KEY 둘 다 없음")
+
+    data = usage = None
+    provider, used_headlines = None, headlines
+    failures: list[str] = []
+    errors: list[Exception] = []
+    for name, url, model, key, hl in attempts:
+        numbered = "\n".join(f"{i}: {t}" for i, t in enumerate(hl))
+        try:
+            data, usage = _llm_json(PROMPT.format(today=today, headlines=numbered),
+                                    url, model, key)
+        except Exception as e:
+            errors.append(e)
+            failures.append(f"{name}: {type(e).__name__}: {str(e)[:120]}")
+            # 404 는 '그 계정에 그 모델이 없다' 이므로 다음 후보로 넘어갈 값어치가
+            # 있다. 402·429 는 계정·한도 문제라 다음 Groq 모델도 똑같이 막힌다 —
+            # 한도만 더 태울 뿐이라 거기서 멈춘다(cerebras_classify 와 같은 규칙).
+            if name.startswith("groq(") and "404" not in str(e):
+                break
+            continue
+        provider, used_headlines = name, hl
+        break
+
+    if data is None:
+        # ★ 후보가 하나뿐이었으면 원래 예외를 그대로 올린다 ★
+        # 이 층의 실패 종류(CerebrasRateLimited·HTTPError…)를 collector 가
+        # 타입 이름으로 로그에 찍는다. 통째로 감싸면 그 구분이 사라진다.
+        if len(errors) == 1:
+            raise errors[0]
+        raise NewsWatchError("모든 LLM 실패 — " + " | ".join(failures)) from errors[0]
 
     urgency = data.get("urgency")
     if urgency not in VALID_URGENCY:
@@ -222,6 +302,10 @@ def fetch_news_pulse(api_key: str) -> dict:
         "tokens_used": usage.get("total_tokens"),
         "tokens_prompt": usage.get("prompt_tokens"),
         # ↓ GroqWatch 에는 없던 것 — 얼마나 얕은지/깊은지 대조할 근거
-        "headline_count": len(headlines),
-        "source": "google_news+cerebras",
+        # Groq 폴백은 제목을 깎아 보내므로 **실제로 모델이 본 개수**를 적는다.
+        # 검색된 개수를 적으면 대조가 거짓말이 된다.
+        "headline_count": len(used_headlines),
+        "headlines_found": len(headlines),
+        # 어느 모델이 답했는지 남긴다 — 폴백이 조용히 도는 걸 막는다.
+        "source": f"google_news+{provider}",
     }
