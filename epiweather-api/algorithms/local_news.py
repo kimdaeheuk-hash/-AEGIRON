@@ -268,9 +268,17 @@ def fetch_all_local_news(cerebras_key: str | None = None) -> dict:
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         results = list(executor.map(lambda feed: fetch_local_feed(*feed), LOCAL_FEEDS))
 
+    # ★ LLM 재분류가 실제로 됐는지를 반환값에 싣는다 (2026-08-28) ★
+    # 예전엔 실패해도 아무 흔적이 없었다. 그러면 아래 고경보 판정이
+    # `llm_hit_ratio` 를 못 찾아 **조용히 키워드 기준으로 떨어지는데**, 그
+    # 키워드 방식이 바로 이 재분류를 만든 이유였다(오탐이 많다, 2026-07-08).
+    # 개선이 꺼진 채 도는 걸 아무도 모르는 상태였다 — 실측 최소 29시간.
+    llm_reason: str | None = None
     if cerebras_key:
         from .cerebras_classify import classify_multi_feed
-        classify_multi_feed(results, cerebras_key)
+        llm_reason = classify_multi_feed(results, cerebras_key)
+    else:
+        llm_reason = "CEREBRAS_API_KEY 없음"
 
     total_hits = 0
     for r in results:
@@ -282,6 +290,7 @@ def fetch_all_local_news(cerebras_key: str | None = None) -> dict:
         r for r in active_feeds
         if r.get("llm_hit_ratio", r.get("hit_ratio", 0)) >= 0.15
     ]
+    classified = sum(1 for r in results if "llm_hit_ratio" in r)
 
     return {
         "total_feeds":     len(LOCAL_FEEDS),
@@ -290,6 +299,10 @@ def fetch_all_local_news(cerebras_key: str | None = None) -> dict:
         "high_alert_feeds": len(high_alert),
         "high_alert":      high_alert,
         "feeds":           results,
+        # ↓ 고경보가 무엇을 기준으로 나온 값인지 — 숨기지 않는다
+        "llm_classified_feeds": classified,
+        "llm_failure_reason":   llm_reason if classified == 0 else None,
+        "high_alert_basis":     "llm" if classified else "keyword",
     }
 
 
