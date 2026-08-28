@@ -47,7 +47,7 @@ ALERT_REF_MAX = 50000.0
 # country_risk.COUNTRIES(Tier-1) ISO3 — GFW도 iso3를 씀. 홍콩(HKG)은 산림
 # 손실 대상이 사실상 없어 제외(억지로 넣지 않음).
 GFW_COUNTRIES = ["COD", "UGA", "SAU", "THA", "KOR", "JPN", "BRA", "USA",
-                 "NGA", "ETH", "YEM", "MDG", "PNG"]
+                 "NGA", "ETH", "YEM", "MDG", "PNG", "NPL"]
 
 
 def _extract_count(payload: dict) -> int | None:

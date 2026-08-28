@@ -16,4 +16,5 @@ export const COUNTRY_COORDS: Record<string, [number, number]> = {
   YEM: [15.3694, 44.1910],   // 사나
   MDG: [-18.8792, 47.5079],  // 안타나나리보
   PNG: [-9.4438, 147.1803],  // 포트모르즈비
+  NPL: [27.7172, 85.3240],   // 카트만두
 };

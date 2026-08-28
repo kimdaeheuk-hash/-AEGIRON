@@ -116,6 +116,21 @@ COUNTRIES = {
         "healthcare_infra": 0.15, "population_density": 0.15,
         "airport_connectivity": 0.10, "border_mobility": 0.20,  # 태평양 오지 — 산악지형 의료접근성 최하위권
     },
+    # 2026-08-28 추가. 계기: 네팔 홍수 보도를 보고 이 시스템이 네팔을 어디까지
+    # 아는지 확인했더니 — 현지어 뉴스 피드(gn_np)와 국가명 해석(NPL)은 있는데
+    # Tier-1 국가표와 기후 좌표에는 없었다. 즉 **발병 보도가 시작되기 전까지는
+    # 네팔이 위험 랭킹에 아예 등장하지 않는 상태**였다.
+    "NPL": {
+        "name": "네팔", "aliases": ["네팔", "Nepal", "카트만두", "Kathmandu"],
+        "healthcare_infra": 0.25, "population_density": 0.40,
+        "airport_connectivity": 0.20,   # 국제선 관문이 사실상 카트만두 1곳
+        # ★ 0.85 는 이 표에서 가장 높다 — 근거를 남긴다 ★
+        # 인도-네팔 국경은 비자도 여권도 없이 건너는 개방국경이다(1950년 평화우호조약).
+        # 사우디(0.75)의 하지는 연 1회 단기 집중이지만, 이쪽은 상시 왕래다.
+        # 이 값만은 실데이터 소스가 없어 country_indicators 로 갱신되지 않는다 —
+        # 즉 여기 적은 추정이 그대로 계산에 쓰인다.
+        "border_mobility": 0.85,
+    },
 }
 
 DEFAULT_VULNERABILITY = 0.5  # 시드 데이터 없는 국가용 중립값
