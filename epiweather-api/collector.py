@@ -53,13 +53,40 @@ def mark_no_data(result: dict, key: str) -> None:
     """'수집은 정상인데 이번 주기엔 쓸 값이 없다'고 표시한다(source_health가 읽음).
 
     실패와 구분하려는 것이다. 위키미디어 페이지뷰의 404는 집계 지연이라 정상이고,
-    OpenSky는 클라우드 IP가 막혀 껍데기만 온다 — 둘 다 '고장'이 아니라 '값 없음'이다.
+    OpenSky는 껍데기만 올 때가 있다 — 둘 다 '고장'이 아니라 '값 없음'이다.
     이걸 실패로 세면 상시 degraded에 앉아 매일 경보가 울리고, 사람은 경보를 무시하게
     된다. 반대로 성공으로 세면 죽은 소스가 살아있다고 보고된다. 둘 다 거짓이다.
+
+    ⚠️ '값 없음'은 원인을 안 밝혀도 된다는 뜻이 **아니다.** OpenSky가 왜 껍데기만
+    오는지를 "클라우드 IP 차단"이라고 여기 단정해뒀다가, 2026-08-17~28 열흘 동안
+    실제 원인을 확인할 방법이 없었다. 값 없음으로 표시하는 쪽은 사유를 함께
+    로그에 남길 책임이 있다.
     """
     result.setdefault("_no_data_keys", [])
     if key not in result["_no_data_keys"]:
         result["_no_data_keys"].append(key)
+
+
+def _fmt_failure_reasons(reasons: dict[str, int] | None) -> str:
+    """{"http_403": 11} → "http_403×11". 사유가 없으면 그 사실을 명시한다.
+
+    ★ skipped_* 는 언제나 맨 뒤로 보낸다 ★
+    조기 중단이 걸리면 첫 공항 하나가 진짜 사유를 갖고 나머지 열 개가
+    skipped_* 가 된다. 개수 순으로만 정렬하면 **파생 결과(×10)가 진짜 원인(×1)을
+    가리고 맨 앞에 선다.** 원인이 먼저 읽혀야 한다.
+
+    '사유 없음'도 정보다 — 실패 사유가 하나도 안 잡혔다는 건 실패 경로가 아직
+    어딘가에서 조용히 삼켜지고 있다는 뜻이라, 그때는 그것부터 찾아야 한다.
+    """
+    if not reasons:
+        return "사유 없음(실패 경로가 아직 조용하다)"
+    return ", ".join(
+        f"{k}×{v}"
+        for k, v in sorted(
+            reasons.items(),
+            key=lambda kv: (kv[0].startswith("skipped_"), -kv[1], kv[0]),
+        )
+    )
 
 
 def append_signal(record: dict) -> None:
@@ -617,8 +644,15 @@ def collect_free_sources() -> dict:
             log(f"  이동성(OpenSky): {m['mobility_airports_ok']}개 공항 확인, "
                 f"1h 항공편 합계 {m['mobility_total_flights']}")
         # 공항을 하나도 못 봤으면 dict는 왔어도 알맹이가 없는 것 — 성공으로 세면
-        # 죽은 소스가 살아있다고 보고된다(OpenSky는 클라우드 IP가 막혀 상시 이 상태다).
+        # 죽은 소스가 살아있다고 보고된다.
         if not m.get("mobility_airports_ok"):
+            # ★ 전멸했으면 반드시 '왜'를 함께 남긴다(2026-08-28) ★
+            # 예전엔 위의 "0개 공항 확인" 한 줄이 전부였다. 그래서 2026-08-17부터
+            # 열흘 넘게 죽어 있는 동안 인증 거부인지 IP 차단인지 알 수 없었고,
+            # "클라우드 IP가 막혀서" 라는 **검증된 적 없는 추측**이 이 자리 주석에
+            # 적혀 있어 아무도 다시 보지 않았다. 추측 대신 실제 사유를 찍는다.
+            log(f"  ⏭ 이동성(OpenSky) 전멸 — 인증={m.get('mobility_auth_status')} "
+                f"· 사유={_fmt_failure_reasons(m.get('mobility_failure_reasons'))}")
             mark_no_data(result, "mobility")
     except Exception as e:
         result["mobility"] = None
