@@ -634,29 +634,40 @@ def collect_free_sources() -> dict:
         result["social_signal"] = None
         log_error("SocialSignal", e)
 
-    try:
-        from algorithms.mobility import get_mobility_score, WATCH_AIRPORTS
-        result["mobility"] = get_mobility_score()
-        m = result["mobility"]
-        if m.get("mobility_rate_limited"):
-            log(f"  ⏭ 이동성(OpenSky): 레이트리밋({m['mobility_airports_ok']}/{len(WATCH_AIRPORTS)}개만 조회)")
-        else:
-            log(f"  이동성(OpenSky): {m['mobility_airports_ok']}개 공항 확인, "
-                f"1h 항공편 합계 {m['mobility_total_flights']}")
-        # 공항을 하나도 못 봤으면 dict는 왔어도 알맹이가 없는 것 — 성공으로 세면
-        # 죽은 소스가 살아있다고 보고된다.
-        if not m.get("mobility_airports_ok"):
-            # ★ 전멸했으면 반드시 '왜'를 함께 남긴다(2026-08-28) ★
-            # 예전엔 위의 "0개 공항 확인" 한 줄이 전부였다. 그래서 2026-08-17부터
-            # 열흘 넘게 죽어 있는 동안 인증 거부인지 IP 차단인지 알 수 없었고,
-            # "클라우드 IP가 막혀서" 라는 **검증된 적 없는 추측**이 이 자리 주석에
-            # 적혀 있어 아무도 다시 보지 않았다. 추측 대신 실제 사유를 찍는다.
-            log(f"  ⏭ 이동성(OpenSky) 전멸 — 인증={m.get('mobility_auth_status')} "
-                f"· 사유={_fmt_failure_reasons(m.get('mobility_failure_reasons'))}")
-            mark_no_data(result, "mobility")
-    except Exception as e:
+    # ★ 추적에서 뺀 소스는 부르지도 않는다 (2026-08-28) ★
+    # 닿지 않는 게 확인된 곳이라 매 주기 20초(토큰 10초 + 첫 공항 10초)를 통째로
+    # 버리게 되고, 뒤에 오는 소스가 전부 그만큼 밀린다. 뺀 사실은 로그 한 줄과
+    # /api/status 의 retired_sources 에 남는다 — 조용히 사라지지는 않는다.
+    # `/api/mobility` 는 살려뒀다. 부활 여부는 그걸 직접 불러 확인한다.
+    from algorithms.source_health import is_retired
+    if is_retired("Mobility"):
         result["mobility"] = None
-        log_error("Mobility", e)
+        log("  ⏹ 이동성(OpenSky): 추적 제외됨 — 호출 안 함 "
+            "(사유는 /api/status 의 retired_sources)")
+    else:
+        try:
+            from algorithms.mobility import get_mobility_score, WATCH_AIRPORTS
+            result["mobility"] = get_mobility_score()
+            m = result["mobility"]
+            if m.get("mobility_rate_limited"):
+                log(f"  ⏭ 이동성(OpenSky): 레이트리밋({m['mobility_airports_ok']}/{len(WATCH_AIRPORTS)}개만 조회)")
+            else:
+                log(f"  이동성(OpenSky): {m['mobility_airports_ok']}개 공항 확인, "
+                    f"1h 항공편 합계 {m['mobility_total_flights']}")
+            # 공항을 하나도 못 봤으면 dict는 왔어도 알맹이가 없는 것 — 성공으로
+            # 세면 죽은 소스가 살아있다고 보고된다.
+            if not m.get("mobility_airports_ok"):
+                # ★ 전멸했으면 반드시 '왜'를 함께 남긴다(2026-08-28) ★
+                # 예전엔 위의 "0개 공항 확인" 한 줄이 전부였다. 그래서 2026-08-17
+                # 부터 열흘 넘게 죽어 있는 동안 인증 거부인지 IP 차단인지 알 수
+                # 없었고, "클라우드 IP가 막혀서" 라는 **검증된 적 없는 추측**이 이
+                # 자리 주석에 적혀 있어 아무도 다시 보지 않았다. 실제 사유를 찍는다.
+                log(f"  ⏭ 이동성(OpenSky) 전멸 — 인증={m.get('mobility_auth_status')} "
+                    f"· 사유={_fmt_failure_reasons(m.get('mobility_failure_reasons'))}")
+                mark_no_data(result, "mobility")
+        except Exception as e:
+            result["mobility"] = None
+            log_error("Mobility", e)
 
     try:
         from algorithms.local_news import fetch_all_local_news

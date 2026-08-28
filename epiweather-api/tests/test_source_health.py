@@ -186,11 +186,13 @@ def test_no_data_never_triggers_telegram():
 def test_no_data_excluded_from_healthy_count():
     """no_data는 '정상'에 안 들어간다 — 21/21이 부풀려지지 않게."""
     sh.record_source_result("CIDRAP", ok=True)
-    sh.record_source_result("Mobility", ok=False, no_data=True)
+    # 예시는 살아있는 소스로 — 은퇴한 이름(Mobility)은 리포트에서 필터되어
+    # 이 테스트가 조용히 아무것도 안 세게 된다.
+    sh.record_source_result("GroqWatch", ok=False, no_data=True)
     report = sh.source_health_report()
     assert report["total_tracked"] == 2
     assert report["healthy_count"] == 1              # 2가 아니라 1
-    assert report["no_data_sources"] == ["Mobility"]
+    assert report["no_data_sources"] == ["GroqWatch"]
 
 
 def test_record_cycle_treats_declared_no_data_key_as_no_data():
@@ -202,11 +204,14 @@ def test_record_cycle_treats_declared_no_data_key_as_no_data():
 
 def test_record_cycle_catches_hollow_payload():
     """★핵심★ 예외는 안 났지만 알맹이가 빈 값을 성공으로 세면 안 된다(OpenSky 사례)."""
-    result = {"mobility": {"mobility_airports_ok": None, "mobility_total_flights": None}}
-    sh.record_cycle(result, {"Mobility": "mobility"})
+    # 껍데기의 원형은 OpenSky 였다(공항 0개·항공편 None 을 담은 dict). 그 소스는
+    # 2026-08-28 에 추적에서 빠졌으므로 같은 '모든 값이 None' 모양을 살아있는
+    # 소스로 재현한다 — 검사하는 것은 _is_empty 의 일반 동작이다.
+    result = {"groq_pulse": {"pulse": None, "tokens_used": None}}
+    sh.record_cycle(result, {"GroqWatch": "groq_pulse"})
     report = sh.source_health_report()
     assert report["healthy_count"] == 0
-    assert report["no_data_sources"] == ["Mobility"]
+    assert report["no_data_sources"] == ["GroqWatch"]
 
 
 def test_zero_is_real_data_not_missing():

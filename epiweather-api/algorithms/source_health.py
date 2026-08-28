@@ -44,6 +44,36 @@ RENOTIFY_HOURS = 24.0
 # → 사흘이 넘으면 그건 지연이 아니다. 그때는 울린다.
 NO_DATA_ALARM_HOURS = 72.0
 
+# ── 추적에서 정식으로 제외한 소스 ──────────────────────────────────
+# {소스이름: 뺀 이유}. 여기 있는 소스는 record_cycle 이 기록하지 않고, 리포트의
+# 집계(healthy_count·total_tracked)와 경보에서 빠진다.
+#
+# ★ 숨기는 게 아니다 ★ `retired_sources` 로 이유와 함께 /api/status 에 그대로
+# 실린다. 이 시스템에서 가장 위험한 건 "조용히 사라진 것" 이므로, 뺀 것은 뺐다고
+# 보이게 둔다. 되살리려면 아래에서 한 줄을 지우면 된다 — 코드는 그대로 있다.
+#
+# ⚠️ 왜 이 장치가 필요한가(안 만들고 그냥 지웠을 때의 함정):
+# total_tracked 는 FREE_SOURCE_HEALTH_KEYS 가 아니라 **source_health.json 파일의
+# 항목 수**다(`len(sources)`). 그 파일은 Railway 볼륨에 있어 배포해도 남는다.
+# 그래서 수집 맵에서 이름만 지우면 record_cycle 이 갱신을 멈추고 **last_success_at
+# 이 영원히 멈춘 채 staleness_hours 만 계속 증가한다** → long_no_data 경보가
+# 영영 울리는데 회복될 수조차 없다. 지금보다 나빠진다.
+RETIRED_SOURCES: dict[str, str] = {
+    "Mobility": (
+        "2026-08-28 — Railway(SFO)에서 OpenSky 로 TCP 연결이 성립하지 않는다. "
+        "연결 타임아웃을 3초→10초로 올려도 동일하게 ConnectTimeout 이 났다"
+        "(auth.opensky-network.org:443). 403 이 아니라 무응답이므로 정책적 "
+        "IP 차단이 아니라 경로/방화벽 문제이고, 우리 쪽에서 고칠 수 없다. "
+        "2026-08-17부터 257시간(10.7일) 무응답. 되살리려면 서비스 리전을 "
+        "옮기거나 Railway 아웃바운드가 뚫린 뒤 이 줄을 지워라. "
+        "확인 방법은 /api/mobility 를 직접 부르는 것 — 엔드포인트는 살려뒀다."
+    ),
+}
+
+
+def is_retired(source: str) -> bool:
+    return source in RETIRED_SOURCES
+
 
 def _now() -> dt.datetime:
     return dt.datetime.now(dt.timezone.utc)
@@ -127,6 +157,10 @@ def record_cycle(result: dict, source_key_map: dict[str, str]) -> list[str]:
     no_data_keys = set(result.get("_no_data_keys") or ())
     newly_failing = []
     for source, key in source_key_map.items():
+        if is_retired(source):
+            # 추적에서 뺀 소스는 기록하지 않는다 — 기록하면 값이 안 오는 게
+            # 당연한데도 실패/값없음으로 계속 쌓여 경보가 울린다.
+            continue
         value = result.get(key)
         if key in no_data_keys:
             # collector가 '정상인데 값 없음'이라고 명시한 것(위키 404 지연 등)
@@ -193,6 +227,10 @@ def source_health_report() -> dict:
     no_data = []
     long_no_data = []
     for source, entry in sorted(data.items()):
+        if is_retired(source):
+            # 집계·경보에서 뺀다. 파일에 남은 옛 항목이 여기로 새어 들어오면
+            # staleness 만 계속 늘어 영영 울린다(위 RETIRED_SOURCES 주석 참고).
+            continue
         status, staleness = _status_for(entry)
         row = {
             "source": source,
@@ -221,6 +259,12 @@ def source_health_report() -> dict:
         "no_data_sources": no_data,
         # ★ 값없음이 NO_DATA_ALARM_HOURS 를 넘긴 것 ★ 이건 경보 대상이다.
         "long_no_data_sources": long_no_data,
+        # ★ 추적에서 뺀 소스 — 숨기지 않고 이유와 함께 드러낸다 ★
+        # 집계에는 안 들어가지만 목록에는 남는다. 조용히 사라진 소스가 이
+        # 시스템에서 가장 위험한 실패 방식이라, 뺀 것도 보이게 둔다.
+        "retired_sources": [
+            {"source": s, "reason": r} for s, r in sorted(RETIRED_SOURCES.items())
+        ],
         "collector_silent_hours": collector_silent_hours(),
         "healthy_count": sum(1 for s in sources if s["status"] == "ok"),
         "total_tracked": len(sources),
@@ -260,6 +304,8 @@ def pending_notifications() -> dict:
     now = _now()
     degraded, recovered = [], []
     for source, entry in sorted(data.items()):
+        if is_retired(source):
+            continue      # 뺀 소스는 울리지도, 복구 통보를 내지도 않는다
         status, staleness = _status_for(entry)
         notified = entry.get("notified_status")
         # no_data는 텔레그램으로 울리지 않는다. 위키 404 지연·OpenSky 차단처럼
