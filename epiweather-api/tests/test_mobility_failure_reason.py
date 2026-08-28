@@ -198,6 +198,50 @@ def test_network_error_aborts_with_bare_skip_label():
     assert len(skipped) == len(mobility.WATCH_AIRPORTS) - 1
 
 
+def test_worst_case_connect_attempts_are_bounded_to_two():
+    """★연결 타임아웃을 10초로 올려도 안전한 근거★ (2026-08-28)
+
+    도달 불가일 때 시도하는 연결은 **토큰 1회 + 첫 공항 1회, 총 2회뿐**이다.
+    나머지 열 개는 조기 중단으로 건너뛴다. 그래서 최악의 지연이
+    TIMEOUT[0] × 2 = 20초로 묶인다 — 1시간 주기에 여유가 크다.
+
+    이 성질이 깨지면(예: 조기 중단을 없애면) 11 × 10초 = 110초가 되어
+    타임아웃 인상이 곧바로 위험해진다. 그래서 여기서 고정한다.
+    """
+    _clear_token_cache()
+    timeout_err = requests.exceptions.ConnectTimeout("unreachable")
+    with patch.dict("os.environ", {"OPENSKY_CLIENT_ID": "id", "OPENSKY_CLIENT_SECRET": "sec"}):
+        with patch.object(mobility.requests, "post", side_effect=timeout_err) as post:
+            with patch.object(mobility.requests, "get", side_effect=timeout_err) as get:
+                data = mobility.fetch_mobility_signals()
+
+    assert post.call_count == 1, "토큰 발급은 주기당 한 번(공항마다 다시 묻지 않는다)"
+    assert get.call_count == 1, "첫 공항에서 중단 — 나머지는 타임아웃을 기다리지 않는다"
+    assert post.call_count + get.call_count == 2
+    assert mobility.TIMEOUT[0] * 2 <= 60, (
+        f"최악 지연 {mobility.TIMEOUT[0] * 2}초 — 1시간 주기를 위협하면 안 된다"
+    )
+
+
+def test_connect_timeout_surfaces_the_host_that_was_unreachable():
+    """어느 호스트에 못 닿았는지가 남아야 한다 — 인증 서버와 API 서버는 다른 호스트다.
+
+    실측(2026-08-28): 못 닿은 곳은 `auth.opensky-network.org` 였다. 인증 서버가
+    죽으면 익명으로 떨어지므로, 두 호스트를 구분하지 않으면 "키가 문제인가"를
+    영영 못 가린다.
+    """
+    _clear_token_cache()
+    err = requests.exceptions.ConnectTimeout(
+        "HTTPSConnectionPool(host='auth.opensky-network.org', port=443): Max retries exceeded"
+    )
+    with patch.dict("os.environ", {"OPENSKY_CLIENT_ID": "id", "OPENSKY_CLIENT_SECRET": "sec"}):
+        with patch.object(mobility.requests, "post", side_effect=err):
+            _, status = mobility._auth_header()
+
+    assert "ConnectTimeout" in status
+    assert "auth.opensky-network.org" in status, f"호스트가 남아야 한다: {status}"
+
+
 def test_partial_success_is_not_marked_no_data():
     """일부라도 값이 오면 합계가 숫자로 나와야 한다 — 전멸과 구분."""
     _clear_token_cache()

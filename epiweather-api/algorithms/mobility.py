@@ -59,8 +59,37 @@ OAUTH_TOKEN_URL = (
     "/protocol/openid-connect/token"
 )
 USER_AGENT   = {"User-Agent": "EpiWeather-Mobility/1.0 (epiweather.kr)"}
-TIMEOUT      = (3, 8)  # (연결 타임아웃, 응답 타임아웃) — 일부 호스팅 IP대에서
-                       # OpenSky가 연결 자체를 막아 20초씩 멈추던 문제 방지
+
+# (연결 타임아웃, 응답 타임아웃)
+#
+# ★ 연결 3초 → 10초 (2026-08-28) ★
+# 원래 3초였다. 이유는 "일부 호스팅 IP대에서 OpenSky가 연결 자체를 막아 20초씩
+# 멈추던 문제 방지". 그런데 2026-08-28 에 실패 사유를 처음 찍어보니 하필
+# **그 연결 타임아웃**이 사유였다:
+#
+#   ⏭ 이동성(OpenSky) 전멸 — 인증=auth_failed: ConnectTimeout:
+#     HTTPSConnectionPool(host='auth.opensky-network.org', port=443) …
+#     · 사유=network_error: ConnectTimeout×1, skipped_network_error×10
+#
+# 그러면 두 가설이 남는데 **3초로는 둘을 구분할 수 없다**:
+#   (가) 3초가 짧아서 정상적으로 느린 연결까지 실패로 친다  → 늘리면 살아난다
+#   (나) 진짜로 도달 불가다                                  → 늘려도 그대로다
+#
+# ⚠️ 지금은 (나) 쪽이 유력하다. Railway 서비스 config 실측(2026-08-28):
+#   multiRegionConfig = {"sfo": {"numReplicas": 1}}   ← 샌프란시스코에서 돈다
+# SFO ↔ OpenSky(스위스 취리히)는 정상 RTT 가 150ms 안팎이라 TCP 핸드셰이크가
+# 0.5초면 끝난다. 3초는 이미 6배 여유였다. 그런데도 245시간 내리 실패했다.
+# 그래도 10초로 올려 (가)를 **확실히 배제한다** — 추측으로 닫지 않는다.
+# 이 모듈이 열흘을 끈 이유가 바로 "검증 안 한 추측을 결론으로 쓴 것" 이었다.
+#
+# 늘려도 ConnectTimeout 이면 (나)가 확정되고, 그때는 소스를 정식으로 빼거나
+# Railway 아웃바운드를 손봐야 한다. **한 주기면 갈린다.**
+#
+# 최악의 지연은 20초로 묶여 있다 — 조기 중단(abort_reason) 덕에 연결을 두 번만
+# 시도하기 때문이다(토큰 1회 + 첫 공항 1회, 나머지 10개는 skipped).
+# 수집 주기가 1시간이고 한 주기가 45~60초라 20초가 붙어도 여유가 크다.
+# 스케줄러가 정시 정렬 sleep 을 쓰므로 이 시간이 누적되지도 않는다.
+TIMEOUT = (10, 8)
 
 WATCH_AIRPORTS = {
     "FZAA": ("킨샤사", "아프리카"),
