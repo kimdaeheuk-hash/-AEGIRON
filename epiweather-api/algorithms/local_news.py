@@ -254,7 +254,8 @@ def fetch_local_feed(slug: str, lang: str, region: str, url: str, keywords: list
         }
 
 
-def fetch_all_local_news(cerebras_key: str | None = None) -> dict:
+def fetch_all_local_news(cerebras_key: str | None = None,
+                         groq_key: str | None = None) -> dict:
     """
     모든 현지어 RSS를 병렬 수집해 언어/지역별 요약 반환.
     keyword_hits가 높을수록 현지에서 감염병 관련 보도가 많다는 신호.
@@ -274,11 +275,11 @@ def fetch_all_local_news(cerebras_key: str | None = None) -> dict:
     # 키워드 방식이 바로 이 재분류를 만든 이유였다(오탐이 많다, 2026-07-08).
     # 개선이 꺼진 채 도는 걸 아무도 모르는 상태였다 — 실측 최소 29시간.
     llm_reason: str | None = None
-    if cerebras_key:
+    if cerebras_key or groq_key:
         from .cerebras_classify import classify_multi_feed
-        llm_reason = classify_multi_feed(results, cerebras_key)
+        llm_reason = classify_multi_feed(results, cerebras_key or "", groq_key)
     else:
-        llm_reason = "CEREBRAS_API_KEY 없음"
+        llm_reason = "CEREBRAS_API_KEY·GROQ_API_KEY 둘 다 없음"
 
     total_hits = 0
     for r in results:

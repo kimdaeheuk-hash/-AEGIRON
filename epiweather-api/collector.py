@@ -672,7 +672,11 @@ def collect_free_sources() -> dict:
     try:
         from algorithms.local_news import fetch_all_local_news
         cerebras_key = os.environ.get("CEREBRAS_API_KEY")
-        result["local_news"] = fetch_all_local_news(cerebras_key=cerebras_key)
+        # Cerebras 무료 쿼터가 끝나(402) 재분류가 통째로 멈췄다(2026-08-28).
+        # 같은 계정의 Groq 로 자동 대체한다 — 오늘 로그로 살아있음이 확인된 경로다.
+        result["local_news"] = fetch_all_local_news(
+            cerebras_key=cerebras_key, groq_key=os.environ.get("GROQ_API_KEY")
+        )
         n = result["local_news"]
         classified = n.get("llm_classified_feeds", 0)
         tag = f", LLM 재분류 {classified}개 피드" if classified else ""

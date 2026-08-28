@@ -46,9 +46,17 @@ def _response(status: int, payload=None, text: str | None = None):
 
 
 def _feeds():
+    """프로덕션 피드 모양 그대로 — `status` 가 있어야 한다.
+
+    `fetch_local_feed` 는 성공 시 항상 `status: "ok"` 를 넣는다. 2026-08-28 에
+    분류 대상 선별(`select_entries`)이 생기면서 그 키를 실제로 보게 됐고,
+    빠뜨린 픽스처는 "후보 없음" 으로 걸러진다 — 그게 맞는 동작이다.
+    """
     return [
-        {"lang": "ko", "hit_ratio": 0.9, "_all_titles": ["콜레라 집단감염 발생", "여행경보 안내"]},
-        {"lang": "ne", "hit_ratio": 0.2, "_all_titles": ["डेंगु प्रकोप"]},
+        {"lang": "ko", "status": "ok", "hit_ratio": 0.9,
+         "_all_titles": ["콜레라 집단감염 발생", "여행경보 안내"]},
+        {"lang": "ne", "status": "ok", "hit_ratio": 0.2,
+         "_all_titles": ["डेंगु प्रकोप"]},
     ]
 
 
@@ -141,7 +149,10 @@ def test_local_news_reports_llm_basis_when_it_worked():
 
 
 def test_missing_key_is_its_own_reason():
-    """키가 없는 것과 키가 있는데 거부당한 것은 다른 사건이다."""
+    """키가 없는 것과 키가 있는데 거부당한 것은 다른 사건이다.
+
+    2026-08-28 부터 Groq 대체 경로가 생겨 **둘 다 없을 때** 만 이 사유가 된다.
+    """
     with patch.object(ln, "fetch_local_feed",
                       side_effect=lambda *a: {"slug": a[0], "lang": a[1], "region": a[2],
                                               "status": "ok", "item_count": 1,
@@ -149,7 +160,7 @@ def test_missing_key_is_its_own_reason():
                                               "_all_titles": ["t"]}):
         out = ln.fetch_all_local_news(cerebras_key=None)
 
-    assert out["llm_failure_reason"] == "CEREBRAS_API_KEY 없음"
+    assert out["llm_failure_reason"] == "CEREBRAS_API_KEY·GROQ_API_KEY 둘 다 없음"
     assert out["high_alert_basis"] == "keyword"
 
 
