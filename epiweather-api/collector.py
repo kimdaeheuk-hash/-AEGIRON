@@ -759,6 +759,36 @@ def collect_free_sources() -> dict:
         result["groq_pulse"] = None
         log("  ⏭ GROQ_API_KEY 없음 — Groq 웹서치 건너뜀")
 
+    # ── NewsWatch — GroqWatch 무료 대체 후보를 **나란히** 돌린다 (2026-08-28) ──
+    # GroqWatch 가 주기의 57% 를 티어 한도로 실패하는데 유료 전환은 선택지가
+    # 아니다. 그래서 검색(Google News RSS·무료)과 요약(Cerebras·하루 100만 토큰)을
+    # 분리한 층을 만들었다 — 주입되는 검색량을 **우리가 통제**하는 게 요점이다.
+    #
+    # ★ 아직 대체가 아니라 대조다 ★ Google News RSS 는 compound-mini 의 웹서치보다
+    # 얕다. 같은 주기에 둘 다 찍어놓고 무엇을 놓치는지 눈으로 보고 나서 정한다.
+    # 소스 헬스(FREE_SOURCE_HEALTH_KEYS)에는 **일부러 안 넣었다** — 실험 중인 층이
+    # 실패할 때 경보가 울리면 진짜 사고와 섞인다.
+    cerebras_key_watch = os.environ.get("CEREBRAS_API_KEY")
+    if cerebras_key_watch:
+        try:
+            from algorithms.news_watch import fetch_news_pulse
+            result["news_pulse"] = fetch_news_pulse(cerebras_key_watch)
+            n = result["news_pulse"]
+            log(f"  ⚙ NewsWatch 토큰 {n.get('tokens_used')} "
+                f"(프롬프트 {n.get('tokens_prompt')}) · 제목 {n.get('headline_count')}개")
+            if n["has_new_signal"]:
+                log(f"  NewsWatch({n.get('urgency')}): {n.get('summary')}")
+            else:
+                log("  NewsWatch: 새 신호 없음")
+        except Exception as e:
+            result["news_pulse"] = None
+            # 실험 층이라 소스 헬스에는 안 들어가지만, **왜 실패했는지는 남긴다.**
+            log(f"  ❌ NewsWatch 실패: {type(e).__name__}: {e}")
+            log_error("NewsWatch", e)
+    else:
+        result["news_pulse"] = None
+        log("  ⏭ CEREBRAS_API_KEY 없음 — NewsWatch 건너뜀")
+
     append_signal(result)
 
     try:
