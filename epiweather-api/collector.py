@@ -674,10 +674,18 @@ def collect_free_sources() -> dict:
         cerebras_key = os.environ.get("CEREBRAS_API_KEY")
         result["local_news"] = fetch_all_local_news(cerebras_key=cerebras_key)
         n = result["local_news"]
-        classified = sum(1 for f in n["feeds"] if "llm_hit_ratio" in f)
+        classified = n.get("llm_classified_feeds", 0)
         tag = f", LLM 재분류 {classified}개 피드" if classified else ""
         log(f"  현지어 뉴스: {n['active_feeds']}/{n['total_feeds']}개 피드, "
             f"키워드 히트 {n['total_kw_hits']}건, 고경보 {n['high_alert_feeds']}개{tag}")
+        # ★ 재분류가 안 됐으면 그 사실과 사유를 반드시 찍는다 (2026-08-28) ★
+        # 예전엔 실패하면 위의 tag 가 **조용히 빈 문자열이 될 뿐**이었다. 줄 모양이
+        # 거의 같아서 아무도 눈치채지 못했고, 실측상 최소 29시간(2026-08-27 06:00
+        # UTC 이전부터) 고경보가 키워드 기준으로 나오고 있었다. 그 키워드 방식이
+        # 바로 재분류를 만든 이유였는데(오탐 많음) 개선이 꺼진 줄 몰랐던 것이다.
+        if not classified:
+            log(f"  ❌ 현지어 뉴스 LLM 재분류 실패 — 고경보 {n['high_alert_feeds']}개는 "
+                f"**키워드 기준**(오탐 많음)이다: {n.get('llm_failure_reason')}")
         # 179개 피드가 전멸해도 dict는 정상 모양으로 오기 때문에, 예전엔 소스가
         # 살아있다고 기록됐다. '히트 0건'과 '한 곳도 못 읽음'은 다른 사실이다.
         if not n["active_feeds"]:

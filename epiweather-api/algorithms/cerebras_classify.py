@@ -85,9 +85,46 @@ MULTI_PROMPT_TEMPLATE = """다음은 여러 나라 뉴스 제목 목록이다(0�
 {titles}"""
 
 
-def classify_multi_feed(feeds: list[dict], api_key: str) -> None:
+class CerebrasUnavailable(RuntimeError):
+    """Cerebras 를 쓸 수 없다 — **왜인지를 반드시 들고 다닌다.**
+
+    ★ 2026-08-28 사고 ★ 이 모듈은 실패를 통째로 삼켰다:
+
+        except Exception:
+            return          # 로그 한 줄도 안 남긴다
+
+    그러면 `llm_hit_ratio` 가 안 채워지고, local_news 의 고경보 판정이
+    `r.get("llm_hit_ratio", r.get("hit_ratio", 0))` 를 통해 **조용히 키워드
+    매칭으로 떨어진다.** 그 키워드 방식이 바로 이 모듈을 만든 이유였다 —
+    "여행경보·보건정책·연구비 지원 기사도 '병' 관련 단어를 쓴다"(2026-07-08).
+    즉 **개선이 꺼진 채로 돌아가는데 아무도 모르는 상태**가 된다.
+
+    실측: 계정이 `402 Payment Required` 를 돌려주고 있었고, Railway 로그를
+    2026-08-27 06:00 UTC 까지 거슬러도 `LLM 재분류` 태그가 한 번도 없다.
+    **최소 29시간** 키워드 기준으로 돌았고, 시작 시점은 로그 보존 한계로
+    더 올라가지 못한다.
+
+    (오늘 같은 구조를 네 번째로 만났다 — GroqWatch · Mobility · 은퇴 소스 · 여기.)
+    """
+
+
+class CerebrasPaymentRequired(CerebrasUnavailable):
+    """402 — 무료 티어가 끝났거나 결제가 필요하다. 우리 버그가 아니다.
+
+    소스 고장과 구분되어야 한다: 수집 자체는 멀쩡히 돌고, 분류 품질만 떨어진다.
+    """
+
+
+class CerebrasRateLimited(CerebrasUnavailable):
+    """429 — 분당 요청 한도(실측: 5회/분)."""
+
+
+def classify_multi_feed(feeds: list[dict], api_key: str) -> str | None:
     """여러 피드의 _all_titles를 한 번의 호출로 배치 분류해 각 feed dict에
     llm_relevant_count/llm_hit_ratio/llm_relevant_titles를 채워 넣는다(in-place).
+
+    반환: 성공이면 None, 실패면 **사유 문자열**(호출부가 로그로 올린다).
+    예전엔 `except Exception: return` 이라 실패가 흔적 없이 사라졌다.
 
     피드별로 따로 호출하면 계정 무료 티어의 분당 요청 제한(실측: 5회/분)에
     금방 걸려서 뒤쪽 피드가 조용히 빠지는 문제가 있었음 — 전부 하나로 합쳐서
@@ -97,7 +134,7 @@ def classify_multi_feed(feeds: list[dict], api_key: str) -> None:
         for t in feed.get("_all_titles") or []:
             entries.append((fi, t))
     if not entries:
-        return
+        return "분류할 제목이 없음"
 
     numbered = "\n".join(f"{gi}: [{feeds[fi]['lang']}] {t}" for gi, (fi, t) in enumerate(entries))
     try:
@@ -111,6 +148,13 @@ def classify_multi_feed(feeds: list[dict], api_key: str) -> None:
             },
             timeout=TIMEOUT,
         )
+        # ── 실패 종류를 갈라서 남긴다 ────────────────────────────────────
+        # 402(결제)·429(한도)·5xx(장애)·형식 문제는 조치가 전혀 다르다.
+        # 예전엔 넷이 전부 같은 침묵이었다.
+        if r.status_code == 402:
+            return f"결제 필요(402) — 무료 티어가 끝났을 수 있다: {r.text[:150]}"
+        if r.status_code == 429:
+            return f"분당 요청 한도(429): {r.text[:150]}"
         r.raise_for_status()
         raw = r.json()["choices"][0]["message"]["content"].strip().strip("`")
         if raw.lower().startswith("json"):
@@ -120,9 +164,9 @@ def classify_multi_feed(feeds: list[dict], api_key: str) -> None:
             raw = raw[start:end + 1]
         data = json.loads(raw)
         if not isinstance(data, list):
-            return
-    except Exception:
-        return
+            return f"응답이 배열이 아님({type(data).__name__}): {raw[:150]}"
+    except Exception as e:
+        return f"{type(e).__name__}: {str(e)[:180]}"
 
     relevant_flags = [False] * len(entries)
     for item in data:
