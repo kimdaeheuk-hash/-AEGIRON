@@ -554,3 +554,63 @@ def test_extra_names_matches_exactly_never_by_substring():
     assert dw._extra_names("Georgian Bay") == [], "부분일치로 걸리면 안 된다"
     assert dw._extra_names("New Zealander") == []
     assert dw._extra_names(None) == []
+
+
+# ── 문턱 0.08 을 감이 아니라 분포로 정하기 위한 계측 (2026-08-28) ──────
+#
+# 프로덕션 15:00 로그: `감시 중 5개국 · 승격 5개`.
+# 감시 중인 나라가 **전부** 승격됐다. 그러면 감시창이 선별을 한 게 아니라
+# 라벨을 붙인 것일 수 있다. 숫자를 또 찍어서 고치지 않으려면 분포를 남겨야
+# 한다 — 이 테스트들이 그 계측을 잠근다.
+
+def test_distribution_shows_where_the_threshold_stands():
+    """★보정의 핵심 숫자★ 0.08 이상이 90% 면 그 문턱은 아무것도 안 거른다."""
+    feeds = [_feed(f"gn_{c}", r) for c, r in
+             [("np", 0.02), ("kr", 0.05), ("jp", 0.09), ("th", 0.20), ("br", 0.40)]]
+    out = _run_local_news(feeds, None)
+    dist = out["ratio_distribution"]
+
+    assert dist["n"] == 5
+    assert dist["pct_at_or_above_normal"] == 40.0     # 0.20·0.40 → 2/5
+    assert dist["pct_at_or_above_watch"] == 60.0      # 0.09 추가 → 3/5
+    assert dist["p50"] and dist["p90"]
+
+
+def test_promoted_feeds_carry_the_ratio_that_promoted_them():
+    """어느 나라가 **얼마로** 올라왔는지 없으면 영원히 감으로만 정하게 된다."""
+    out = _run_local_news([_feed("gn_np", 0.10)], _NEPAL_WINDOW)
+    detail = out["watch_promoted_detail"]
+    assert detail == [{"slug": "gn_np", "country_iso3": "NPL", "ratio": 0.1}]
+
+
+def test_watched_but_not_promoted_is_recorded_too():
+    """★이게 없으면 '문턱이 뭔가를 거르고 있나'를 못 본다★
+
+    감시 중인데 미달한 피드가 하나도 없으면, 문턱이 감시국을 전부
+    통과시키고 있다는 뜻이다 — 프로덕션에서 실제로 그렇게 보였다.
+    """
+    out = _run_local_news([_feed("gn_np", 0.03)], _NEPAL_WINDOW)
+    assert out["watch_promoted_feeds"] == 0
+    assert out["watch_below_threshold"] == [{"slug": "gn_np", "ratio": 0.03}]
+
+
+def test_unwatched_low_feeds_are_not_counted_as_watched_misses():
+    """감시창이 없는 나라가 미달 목록에 섞이면 숫자가 무의미해진다."""
+    out = _run_local_news([_feed("gn_np", 0.03), _feed("gn_kr", 0.03)], _NEPAL_WINDOW)
+    assert [d["slug"] for d in out["watch_below_threshold"]] == ["gn_np"]
+
+
+def test_collector_prints_the_calibration_line():
+    """분포를 계산만 하고 안 찍으면 아무도 안 본다."""
+    import inspect
+    import collector
+
+    src = inspect.getsource(collector.collect_free_sources)
+    assert "승격근거" in src
+    assert "pct_at_or_above_watch" in src and "pct_at_or_above_normal" in src
+    assert "감시중 미달" in src
+
+
+def test_distribution_survives_an_empty_cycle():
+    """179개 피드가 전멸해도 이 계산이 층을 죽이면 안 된다."""
+    assert ln._ratio_distribution([]) == {}
