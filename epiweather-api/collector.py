@@ -681,11 +681,18 @@ def collect_free_sources() -> dict:
         from algorithms.disaster_watch import collect_disaster_watch
         result["disaster_watch"] = collect_disaster_watch()
         d = result["disaster_watch"]
-        log(f"  재난 감시창: GDACS {d['fetched']}건 수신(신규 {d['new']}) · "
-            f"감시 중 {d['watched_country_count']}개국 · 누적 {d['stored']}건")
+        # ★ 산술이 맞아 보여야 한다 (2026-08-28 첫 주기에서 고침) ★
+        # 처음엔 `신규 12 · 누적 10` 으로 찍혀 모순처럼 보였다. 실제로는
+        # 오래된 이벤트가 같은 호출에서 정리(prune)된 것인데 그 수를 안 찍었다.
+        # 읽는 사람이 계산기를 두드리게 만드는 로그는 안 읽히게 된다.
+        log(f"  재난 감시창: GDACS {d['fetched']}건 수신 "
+            f"(신규 {d['new']} · 만료정리 {d['pruned']} · 누적 {d['stored']}) · "
+            f"감시 중 {d['watched_country_count']}개국")
         for c in d["countries"][:5]:
             w = c["open_windows"][0]
-            log(f"    ⚠ {c['country'] or c['country_iso3']}: "
+            # 이름 나열에서 읽힌 나라는 확신도가 다르다 — 표시로 구분한다.
+            mark = "" if c.get("attribution") == "iso3" else "(이름해석)"
+            log(f"    ⚠ {c['country']}{mark}: "
                 f"{w['disaster_type']} 후 {w['days_since_disaster']}일 — "
                 f"{'·'.join(c['diseases'])} 감시창")
     except Exception as e:
