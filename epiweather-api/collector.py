@@ -780,14 +780,21 @@ def collect_free_sources() -> dict:
     # 얕다. 같은 주기에 둘 다 찍어놓고 무엇을 놓치는지 눈으로 보고 나서 정한다.
     # 소스 헬스(FREE_SOURCE_HEALTH_KEYS)에는 **일부러 안 넣었다** — 실험 중인 층이
     # 실패할 때 경보가 울리면 진짜 사고와 섞인다.
+    #
+    # 2026-08-28 오후: Cerebras 가 402(무료 한도 소진)로 죽어 이 층이 **매 주기
+    # 통째로 실패**하고 있었다(`❌ NewsWatch 실패: HTTPError: 402 …`). 현지어
+    # 뉴스 재분류에 붙인 Groq 폴백을 여기에도 연결한다 — 그래서 키 조건도
+    # 'Cerebras 가 있으면' 이 아니라 '둘 중 하나라도 있으면' 으로 바뀐다.
     cerebras_key_watch = os.environ.get("CEREBRAS_API_KEY")
-    if cerebras_key_watch:
+    groq_key_watch = os.environ.get("GROQ_API_KEY")
+    if cerebras_key_watch or groq_key_watch:
         try:
             from algorithms.news_watch import fetch_news_pulse
-            result["news_pulse"] = fetch_news_pulse(cerebras_key_watch)
+            result["news_pulse"] = fetch_news_pulse(cerebras_key_watch, groq_key_watch)
             n = result["news_pulse"]
-            log(f"  ⚙ NewsWatch 토큰 {n.get('tokens_used')} "
-                f"(프롬프트 {n.get('tokens_prompt')}) · 제목 {n.get('headline_count')}개")
+            log(f"  ⚙ NewsWatch[{n.get('source')}] 토큰 {n.get('tokens_used')} "
+                f"(프롬프트 {n.get('tokens_prompt')}) · 제목 "
+                f"{n.get('headline_count')}/{n.get('headlines_found')}개")
             if n["has_new_signal"]:
                 log(f"  NewsWatch({n.get('urgency')}): {n.get('summary')}")
             else:
@@ -799,7 +806,7 @@ def collect_free_sources() -> dict:
             log_error("NewsWatch", e)
     else:
         result["news_pulse"] = None
-        log("  ⏭ CEREBRAS_API_KEY 없음 — NewsWatch 건너뜀")
+        log("  ⏭ CEREBRAS_API_KEY·GROQ_API_KEY 둘 다 없음 — NewsWatch 건너뜀")
 
     append_signal(result)
 
