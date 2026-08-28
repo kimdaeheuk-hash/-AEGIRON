@@ -254,8 +254,36 @@ def fetch_local_feed(slug: str, lang: str, region: str, url: str, keywords: list
         }
 
 
+# ── 고경보 문턱 ────────────────────────────────────────────────────────
+# 평시 문턱. 이 값은 2026-07-08 부터 쓰던 것 그대로다.
+ALERT_THRESHOLD = 0.15
+# ★ 재난 감시창이 열린 나라만 이 문턱을 쓴다 (2026-08-28) ★
+# 감시창의 요점이 여기다. 재난 뒤 잠복 구간에 있는 나라는 **같은 양의 보도라도
+# 더 의미가 크다.** 평시라면 넘기던 0.10 을 그 나라에서는 넘기지 않는다.
+#
+# 왜 0.15 → 0.08 인가: 임의로 정한 값이다. '조금 낮춘다'는 것 외에 실증
+# 근거가 없다 — 응답의 `threshold_calibrated=False` 로 그 사실을 명시한다.
+# 우리 과거 데이터로 재보정하기 전까지 이 숫자를 근거처럼 인용하지 마라.
+WATCH_ALERT_THRESHOLD = 0.08
+
+
+def _feed_iso3(slug: str) -> str | None:
+    """피드 슬러그(`gn_np`) → ISO3(`NPL`). 모르면 추측하지 않고 None.
+
+    ★ 한 나라에 피드가 둘일 수 있다 ★ 인도는 힌디어·영어 두 개라
+    `gn_in_hi`·`gn_in_en` 이다. `slug[3:]` 을 그대로 쓰면 `in_hi` 가 돼
+    **인도만 감시창이 영영 적용되지 않는다** — 홍수 다발국인데. 그래서
+    `gn_` 뒤 두 글자만 본다. (2026-08-28 에 테스트가 실제로 잡아낸 버그다.)
+    """
+    from .country_resolve import iso2_to_iso3
+    if not slug.startswith("gn_"):
+        return None
+    return iso2_to_iso3(slug[3:5])
+
+
 def fetch_all_local_news(cerebras_key: str | None = None,
-                         groq_key: str | None = None) -> dict:
+                         groq_key: str | None = None,
+                         watch_windows: dict[str, list[dict]] | None = None) -> dict:
     """
     모든 현지어 RSS를 병렬 수집해 언어/지역별 요약 반환.
     keyword_hits가 높을수록 현지에서 감염병 관련 보도가 많다는 신호.
@@ -287,10 +315,36 @@ def fetch_all_local_news(cerebras_key: str | None = None,
         r.pop("_all_titles", None)
 
     active_feeds = [r for r in results if r.get("status") == "ok"]
-    high_alert = [
-        r for r in active_feeds
-        if r.get("llm_hit_ratio", r.get("hit_ratio", 0)) >= 0.15
-    ]
+
+    # ── 재난 감시창이 열린 나라는 문턱을 낮춘다 (2026-08-28) ──────────────
+    # 재난이 나면 그 나라 발병 보도는 '평시의 같은 양' 보다 무겁게 봐야 한다.
+    # 어느 피드가 왜 낮은 문턱으로 걸렸는지는 피드에 그대로 실어 둔다 —
+    # 문턱이 조용히 달라지면 고경보 수를 아무도 해석할 수 없게 된다.
+    windows = watch_windows or {}
+    watch_promoted = 0
+    for r in active_feeds:
+        iso3 = _feed_iso3(r.get("slug", ""))
+        if iso3 and iso3 in windows:
+            r["watch_window"] = {
+                "country_iso3": iso3,
+                "diseases": sorted({w["disease"] for w in windows[iso3]}),
+                "disasters": sorted({w["disaster_type"] for w in windows[iso3]}),
+                "min_days_since_disaster": min(w["days_since_disaster"] for w in windows[iso3]),
+            }
+
+    high_alert = []
+    for r in active_feeds:
+        ratio = r.get("llm_hit_ratio", r.get("hit_ratio", 0))
+        watched = "watch_window" in r
+        threshold = WATCH_ALERT_THRESHOLD if watched else ALERT_THRESHOLD
+        if ratio < threshold:
+            continue
+        if watched and ratio < ALERT_THRESHOLD:
+            # 평시 문턱이었으면 안 걸렸을 피드 — 감시창 때문에 올라온 것이다.
+            r["alert_basis"] = "disaster_watch_window"
+            watch_promoted += 1
+        high_alert.append(r)
+
     classified = sum(1 for r in results if "llm_hit_ratio" in r)
 
     return {
@@ -304,6 +358,14 @@ def fetch_all_local_news(cerebras_key: str | None = None,
         "llm_classified_feeds": classified,
         "llm_failure_reason":   llm_reason if classified == 0 else None,
         "high_alert_basis":     "llm" if classified else "keyword",
+        # ↓ 감시창이 실제로 무엇을 바꿨는지. 0 이면 '창은 열렸지만 아무것도
+        #   끌어올리지 못했다' 는 뜻이고, 그것도 알 가치가 있는 사실이다.
+        "watch_window_countries": len(windows),
+        "watch_promoted_feeds":   watch_promoted,
+        "alert_threshold":        ALERT_THRESHOLD,
+        "watch_alert_threshold":  WATCH_ALERT_THRESHOLD,
+        # 낮춘 문턱(0.08)은 임의값이다 — 근거처럼 인용되지 않게 못박는다.
+        "threshold_calibrated":   False,
     }
 
 
