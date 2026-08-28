@@ -1071,6 +1071,37 @@ def risk_quantification_country(country: str):
         )
 
 
+@app.get("/api/disaster-watch", tags=["GAI"])
+def disaster_watch():
+    """
+    재난 → 발병 감시창(2026-08-28). 홍수·지진·태풍 같은 재난 자체는 발병이
+    아니고 발병은 **뒤에** 온다 — 콜레라 3~14일, 렙토스피라 2~28일, 뎅기
+    14~42일. 그 사이가 이 시스템이 노리는 시간이다. GDACS(무료·키 불필요)로
+    재난을 받아 국가별 감시창을 열고, 창이 열린 나라의 현지어 뉴스 고경보
+    문턱을 낮춘다.
+
+    ★ 예측이 아니다 ★ 창이 열렸다는 건 "이 기간 이 질병 보도를 우연으로
+    넘기지 말라"는 뜻이다(is_prediction=False). 잠복 구간은 문헌 기반이며
+    이 시스템 데이터로 보정하지 않았다(windows_calibrated=False).
+    """
+    from algorithms.disaster_watch import disaster_watch_report
+    return disaster_watch_report()
+
+
+@app.get("/api/disaster-watch/{country}", tags=["GAI"])
+def disaster_watch_country(country: str):
+    """특정 국가(ISO3)의 열린 감시창 상세. 창이 없으면 404 가 아니라
+    빈 목록이다 — '재난이 없었다'는 것도 답이기 때문이다."""
+    from algorithms.disaster_watch import open_windows
+    iso3 = country.strip().upper()
+    return {
+        "country_iso3": iso3,
+        "open_windows": open_windows().get(iso3, []),
+        "is_prediction": False,
+        "windows_calibrated": False,
+    }
+
+
 @app.get("/api/climate-signals", tags=["GAI"])
 def climate_signals():
     """

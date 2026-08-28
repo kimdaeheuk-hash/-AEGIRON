@@ -383,6 +383,10 @@ FREE_SOURCE_HEALTH_KEYS = {
     "GenomicVariants": "genomic_variants", "SocialSignal": "social_signal",
     "Mobility": "mobility", "LocalNews": "local_news", "SupplyChain": "supply_chain",
     "ExtraSources": "extra_sources", "WAHIS": "wahis", "GroqWatch": "groq_pulse",
+    # 재난 감시창(2026-08-28). NewsWatch 와 달리 **실험층이 아니라서** 여기 넣는다 —
+    # 이 층이 죽으면 현지어 뉴스가 평시 문턱으로 조용히 돌아가므로, 죽은 걸
+    # 아는 게 중요하다. GDACS 가 Railway 에서 막히면(OpenSky 처럼) 여기서 보인다.
+    "DisasterWatch": "disaster_watch",
 }
 
 
@@ -669,19 +673,50 @@ def collect_free_sources() -> dict:
             result["mobility"] = None
             log_error("Mobility", e)
 
+    # ── 재난 → 발병 감시창 (2026-08-28) ────────────────────────────────
+    # ★ 현지어 뉴스보다 **먼저** 돌아야 한다 ★ 감시창이 그 뉴스의 고경보
+    # 문턱을 낮추는 입력이기 때문이다. 순서가 뒤집히면 창은 열리는데 그 주기의
+    # 뉴스에는 반영이 안 돼, 한 시간 늦게 반응하는 층이 된다.
+    try:
+        from algorithms.disaster_watch import collect_disaster_watch
+        result["disaster_watch"] = collect_disaster_watch()
+        d = result["disaster_watch"]
+        log(f"  재난 감시창: GDACS {d['fetched']}건 수신(신규 {d['new']}) · "
+            f"감시 중 {d['watched_country_count']}개국 · 누적 {d['stored']}건")
+        for c in d["countries"][:5]:
+            w = c["open_windows"][0]
+            log(f"    ⚠ {c['country'] or c['country_iso3']}: "
+                f"{w['disaster_type']} 후 {w['days_since_disaster']}일 — "
+                f"{'·'.join(c['diseases'])} 감시창")
+    except Exception as e:
+        result["disaster_watch"] = None
+        # 감시창이 죽으면 현지어 뉴스는 **평시 문턱으로 돈다.** 조용히 그러면
+        # 안 된다 — 개선이 꺼진 채 도는 게 오늘 하루 내내 나온 실패 모양이다.
+        log(f"  ❌ 재난 감시창 실패 — 현지어 뉴스는 평시 문턱으로 돈다: "
+            f"{type(e).__name__}: {e}")
+        log_error("DisasterWatch", e)
+
     try:
         from algorithms.local_news import fetch_all_local_news
+        from algorithms.disaster_watch import open_windows
         cerebras_key = os.environ.get("CEREBRAS_API_KEY")
         # Cerebras 무료 쿼터가 끝나(402) 재분류가 통째로 멈췄다(2026-08-28).
         # 같은 계정의 Groq 로 자동 대체한다 — 오늘 로그로 살아있음이 확인된 경로다.
         result["local_news"] = fetch_all_local_news(
-            cerebras_key=cerebras_key, groq_key=os.environ.get("GROQ_API_KEY")
+            cerebras_key=cerebras_key, groq_key=os.environ.get("GROQ_API_KEY"),
+            watch_windows=open_windows(),
         )
         n = result["local_news"]
         classified = n.get("llm_classified_feeds", 0)
         tag = f", LLM 재분류 {classified}개 피드" if classified else ""
+        # 감시창이 몇 개를 끌어올렸는지는 **고경보 수와 같은 줄에** 있어야 한다.
+        # 따로 찍으면 "고경보 43개" 만 읽고 문턱이 달라진 걸 모른 채 지나간다.
+        promoted = n.get("watch_promoted_feeds", 0)
+        watch_tag = (f", 감시창 승격 {promoted}개(문턱 {n['alert_threshold']}→"
+                     f"{n['watch_alert_threshold']})" if promoted else "")
         log(f"  현지어 뉴스: {n['active_feeds']}/{n['total_feeds']}개 피드, "
-            f"키워드 히트 {n['total_kw_hits']}건, 고경보 {n['high_alert_feeds']}개{tag}")
+            f"키워드 히트 {n['total_kw_hits']}건, 고경보 {n['high_alert_feeds']}개"
+            f"{tag}{watch_tag}")
         # ★ 재분류가 안 됐으면 그 사실과 사유를 반드시 찍는다 (2026-08-28) ★
         # 예전엔 실패하면 위의 tag 가 **조용히 빈 문자열이 될 뿐**이었다. 줄 모양이
         # 거의 같아서 아무도 눈치채지 못했고, 실측상 최소 29시간(2026-08-27 06:00

@@ -200,3 +200,77 @@ def signal_countries(signal: dict) -> list[str]:
         if iso not in out:
             out.append(iso)
     return out
+
+
+# ── ISO 3166-1 alpha-2 → alpha-3 (2026-08-28) ──────────────────────────
+# 왜 여기 있나: 현지어 뉴스 피드 슬러그가 `gn_np` 처럼 **alpha-2** 인데,
+# 이 시스템의 나머지 전부(country_risk·GDACS·extracted_signals)는 alpha-3 다.
+# 재난 감시창(disaster_watch)이 "GDACS 가 NPL 에 홍수를 알렸다 → gn_np 피드를
+# 더 예민하게 본다" 를 하려면 이 다리가 있어야 한다.
+#
+# ★ 네트워크에 안 묶는다 ★ world_countries 캐시(World Bank)에도 iso2 가 있지만
+# 그건 네트워크로 채워지는 캐시라, 캐시가 비면 감시창이 조용히 반쪽이 된다.
+# climate_signals 가 좌표를 self-contained 하게 둔 것과 같은 이유다.
+#
+# 수록 범위는 local_news.LOCAL_FEEDS 가 실제로 쓰는 178개 alpha-2 전부.
+# `test_disaster_watch.py` 가 (1) 피드 전수 커버와 (2) 위 _KO 표와의 교차대조로
+# 이 표의 오타를 잡는다 — 손으로 넣은 표는 반드시 다른 근거로 대조해야 한다.
+_ISO2_TO_ISO3: dict[str, str] = {
+    "AE": "ARE", "AF": "AFG", "AL": "ALB", "AM": "ARM", "AO": "AGO",
+    "AR": "ARG", "AT": "AUT", "AU": "AUS", "AZ": "AZE",
+    "BA": "BIH", "BB": "BRB", "BD": "BGD", "BE": "BEL", "BF": "BFA",
+    "BG": "BGR", "BH": "BHR", "BI": "BDI", "BJ": "BEN", "BN": "BRN",
+    "BO": "BOL", "BR": "BRA", "BS": "BHS", "BT": "BTN", "BW": "BWA",
+    "BY": "BLR", "BZ": "BLZ",
+    "CA": "CAN", "CD": "COD", "CF": "CAF", "CG": "COG", "CH": "CHE",
+    "CI": "CIV", "CL": "CHL", "CM": "CMR", "CN": "CHN", "CO": "COL",
+    "CR": "CRI", "CU": "CUB", "CV": "CPV", "CY": "CYP", "CZ": "CZE",
+    "DE": "DEU", "DJ": "DJI", "DK": "DNK", "DO": "DOM", "DZ": "DZA",
+    "EC": "ECU", "EE": "EST", "EG": "EGY", "ER": "ERI", "ES": "ESP",
+    "ET": "ETH",
+    "FI": "FIN", "FJ": "FJI", "FR": "FRA",
+    "GA": "GAB", "GB": "GBR", "GE": "GEO", "GH": "GHA", "GM": "GMB",
+    "GN": "GIN", "GQ": "GNQ", "GR": "GRC", "GT": "GTM", "GW": "GNB",
+    "GY": "GUY",
+    "HK": "HKG", "HN": "HND", "HR": "HRV", "HT": "HTI", "HU": "HUN",
+    "ID": "IDN", "IE": "IRL", "IL": "ISR", "IN": "IND", "IQ": "IRQ",
+    "IR": "IRN", "IS": "ISL", "IT": "ITA",
+    "JM": "JAM", "JO": "JOR", "JP": "JPN",
+    "KE": "KEN", "KG": "KGZ", "KH": "KHM", "KM": "COM", "KR": "KOR",
+    "KW": "KWT", "KZ": "KAZ",
+    "LA": "LAO", "LB": "LBN", "LK": "LKA", "LR": "LBR", "LS": "LSO",
+    "LT": "LTU", "LU": "LUX", "LV": "LVA", "LY": "LBY",
+    "MA": "MAR", "MD": "MDA", "MG": "MDG", "MK": "MKD", "ML": "MLI",
+    "MM": "MMR", "MN": "MNG", "MR": "MRT", "MT": "MLT", "MU": "MUS",
+    "MV": "MDV", "MW": "MWI", "MX": "MEX", "MY": "MYS", "MZ": "MOZ",
+    "NA": "NAM", "NE": "NER", "NG": "NGA", "NI": "NIC", "NL": "NLD",
+    "NO": "NOR", "NP": "NPL", "NZ": "NZL",
+    "OM": "OMN",
+    "PA": "PAN", "PE": "PER", "PG": "PNG", "PH": "PHL", "PK": "PAK",
+    "PL": "POL", "PS": "PSE", "PT": "PRT", "PY": "PRY",
+    "QA": "QAT",
+    "RO": "ROU", "RS": "SRB", "RU": "RUS", "RW": "RWA",
+    "SA": "SAU", "SB": "SLB", "SC": "SYC", "SD": "SDN", "SE": "SWE",
+    "SG": "SGP", "SI": "SVN", "SK": "SVK", "SL": "SLE", "SN": "SEN",
+    "SO": "SOM", "SR": "SUR", "SS": "SSD", "ST": "STP", "SV": "SLV",
+    "SY": "SYR", "SZ": "SWZ",
+    "TD": "TCD", "TG": "TGO", "TH": "THA", "TJ": "TJK", "TL": "TLS",
+    "TM": "TKM", "TN": "TUN", "TO": "TON", "TR": "TUR", "TT": "TTO",
+    "TW": "TWN", "TZ": "TZA",
+    "UA": "UKR", "UG": "UGA", "US": "USA", "UY": "URY", "UZ": "UZB",
+    "VE": "VEN", "VN": "VNM", "VU": "VUT",
+    "WS": "WSM",
+    "YE": "YEM",
+    "ZA": "ZAF", "ZM": "ZMB", "ZW": "ZWE",
+}
+
+
+def iso2_to_iso3(code: str | None) -> str | None:
+    """alpha-2 → alpha-3. 모르는 코드는 **추측하지 않고 None** 이다.
+
+    이 모듈의 원칙 그대로다 — 잘못 붙인 국가코드는 없는 것보다 나쁘다.
+    감시창에서 코드를 잘못 붙이면 사고가 안 난 나라에 감시창이 열린다.
+    """
+    if not code or not isinstance(code, str):
+        return None
+    return _ISO2_TO_ISO3.get(code.strip().upper())
