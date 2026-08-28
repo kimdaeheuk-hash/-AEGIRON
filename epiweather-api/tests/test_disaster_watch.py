@@ -438,3 +438,179 @@ def test_full_detail_still_available_from_the_report():
     dw.record_events(dw.parse_gdacs(_rss(_item())), today=dt.date(2026, 8, 25))
     w = dw.disaster_watch_report(dt.date(2026, 8, 30))["countries"][0]["open_windows"][0]
     assert w["rationale"] and w["keywords"]
+
+
+# ── ★ 프로덕션 첫 주기가 가르쳐준 것 (2026-08-28) ★ ─────────────────
+#
+# 위 `test_multi_country_event_becomes_one_per_country` 는 `iso3="NPL,IND"` 를
+# 가정하고 짰다. 통과했다. 그런데 프로덕션 로그는 이랬다:
+#
+#     ⚠ Belize, Guatemala, Honduras, Mexico, Nicaragua, El Salvador:
+#       DR 후 109일 — 홍역 감시창          ← 그런데 `감시 중 5개국`
+#
+# 이름은 6개인데 창은 1개국에만 열렸다. GDACS 는 광역 재난에 iso3 를 대표국
+# 하나만 싣고 country 에 영향국을 전부 나열한다. **내 목은 내 가설을 검증했지
+# 실제를 검증하지 않았다**(2026-08-26 에 이미 적어둔 교훈인데 또 반복했다).
+#
+# 아래는 **관측된 형태** 로 짠 테스트다.
+
+def _regional(iso3="MEX", names="Belize, Guatemala, Honduras, Mexico, Nicaragua, El Salvador"):
+    return _item(etype="DR", alert="Orange", iso3=iso3, country=names,
+                 date="Wed, 20 May 2026 00:00:00 GMT", eid="7000",
+                 title="Orange alert for drought")
+
+
+def test_regional_event_opens_windows_in_every_named_country():
+    """★고친 것★ 예전엔 대표국 하나만 창이 열려 나머지를 통째로 놓쳤다.
+
+    가뭄·태풍은 원래 광역이라, 이걸 놓치면 이 층이 노리는 나라 대부분을 잃는다.
+    """
+    events = dw.parse_gdacs(_rss(_regional()))
+    got = {e["iso3"] for e in events}
+    assert "MEX" in got
+    assert {"GTM", "HND", "NIC", "SLV"} <= got, f"이름 나열에서 놓친 나라가 있다: {got}"
+    assert len(got) >= 5, "광역 재난인데 한두 나라만 잡혔다"
+
+
+def test_code_and_name_attribution_are_never_blurred():
+    """★확신도가 다르다★ 코드로 명시된 나라와 이름에서 읽은 나라를 섞으면 안 된다.
+
+    태풍의 country 에는 **예상경로**의 나라가 섞일 수 있다 — 아직 안 맞은
+    나라에 창이 열렸다는 사실이 드러나야 한다.
+    """
+    events = dw.parse_gdacs(_rss(_regional()))
+    by_iso = {e["iso3"]: e["attribution"] for e in events}
+    assert by_iso["MEX"] == "iso3", "GDACS 가 코드로 명시한 나라다"
+    assert by_iso["GTM"] == "country_name", "이름 나열에서 읽은 나라다"
+
+
+def test_report_shows_the_country_not_the_whole_list():
+    """로그가 `Belize, Guatemala, ...: DR 후 109일` 로 찍히면 여섯 나라가 다
+    감시 중인 것처럼 읽힌다. 실제로는 그 줄이 한 나라짜리다."""
+    dw.record_events(dw.parse_gdacs(_rss(_regional())), today=dt.date(2026, 5, 20))
+    report = dw.disaster_watch_report(dt.date(2026, 7, 1))     # 가뭄 42일차
+    mex = [c for c in report["countries"] if c["country_iso3"] == "MEX"][0]
+    assert "," not in mex["country"], f"나라 하나 자리에 목록이 들어갔다: {mex['country']}"
+    assert mex["country"] == "멕시코"
+    # 원문은 버리지 않는다 — 어디서 온 값인지 추적할 수 있어야 한다
+    assert "Guatemala" in mex["gdacs_country"]
+
+
+def test_pruned_count_is_reported_so_the_arithmetic_reads():
+    """`신규 12 · 누적 10` 은 모순처럼 보인다. 정리된 수를 안 찍어서였다.
+
+    읽는 사람이 계산기를 두드려야 하는 로그는 결국 안 읽히게 된다.
+    """
+    dw.record_events(dw.parse_gdacs(_rss(_item())), today=dt.date(2026, 8, 25))
+    out = dw.record_events(dw.parse_gdacs(_rss(_item(eid="new", date="Wed, 26 Aug 2026 00:00:00 GMT"))),
+                           today=dt.date(2026, 8, 25) + dt.timedelta(days=dw.EVENT_RETENTION_DAYS + 1))
+    assert out["new"] + out["stored"] >= 1
+    assert out["pruned"] >= 1
+    # 신규 + 기존 - 정리 = 누적 이 성립해야 읽힌다
+    import inspect
+    import collector
+    src = inspect.getsource(collector.collect_free_sources)
+    assert "만료정리" in src, "정리된 수를 안 찍으면 로그 산술이 안 맞아 보인다"
+
+
+def test_the_africa_case_that_split_the_two_causes():
+    """★두 원인을 갈라준 케이스★ 같은 주기 로그에 이 줄이 있었다.
+
+    이 네 나라는 **이름만으로도 전부 풀린다**(country_resolve 가 안다).
+    그런데도 감시창은 한 나라에만 열렸다 — 옛 코드가 iso3 에 코드가 하나
+    있으면 이름을 아예 안 봤기 때문이다(early return). 중미 케이스와 달리
+    이건 사전 문제가 아니라 **합치지 않은 문제**였다.
+    """
+    ev = _item(etype="DR", alert="Orange", iso3="COD",
+               country="Democratic Republic of Congo, Kenya, Tanzania, Uganda",
+               date="Fri, 22 May 2026 00:00:00 GMT", eid="8000")
+    got = {e["iso3"] for e in dw.parse_gdacs(_rss(ev))}
+    assert {"COD", "KEN", "TZA", "UGA"} <= got, f"이름을 안 보고 끝냈다: {got}"
+
+
+def test_extra_name_table_only_maps_to_countries_we_track():
+    """오타 하나면 사고가 안 난 나라에 창이 열린다."""
+    from algorithms.country_resolve import _ISO2_TO_ISO3
+    valid = set(_ISO2_TO_ISO3.values())
+    bad = sorted({v for v in dw.EXTRA_COUNTRY_NAMES.values() if v not in valid})
+    assert not bad, f"추적하지 않는 ISO3 로 매핑됨: {bad}"
+
+
+def test_extra_name_table_never_contradicts_country_resolve():
+    """두 사전이 같은 이름을 다른 나라로 읽으면 그때부터 아무도 못 믿는다."""
+    from algorithms.country_resolve import resolve_country
+    for name, iso3 in dw.EXTRA_COUNTRY_NAMES.items():
+        other = resolve_country(name)
+        assert other in (None, iso3), f"{name}: 보강표={iso3} vs country_resolve={other}"
+
+
+def test_extra_names_matches_exactly_never_by_substring():
+    """★부분일치를 쓰면 오귀속이 생긴다★ 'Georgia' 는 미국 주 이름이기도 하다.
+
+    GDACS 는 쉼표로 깔끔하게 주므로 정확일치로 충분하고, 그게 안전하다.
+    """
+    assert dw._extra_names("Georgia") == ["GEO"]
+    assert dw._extra_names("Atlanta, Georgia, United States") == ["GEO"]  # 조각 단위 일치
+    assert dw._extra_names("Georgian Bay") == [], "부분일치로 걸리면 안 된다"
+    assert dw._extra_names("New Zealander") == []
+    assert dw._extra_names(None) == []
+
+
+# ── 문턱 0.08 을 감이 아니라 분포로 정하기 위한 계측 (2026-08-28) ──────
+#
+# 프로덕션 15:00 로그: `감시 중 5개국 · 승격 5개`.
+# 감시 중인 나라가 **전부** 승격됐다. 그러면 감시창이 선별을 한 게 아니라
+# 라벨을 붙인 것일 수 있다. 숫자를 또 찍어서 고치지 않으려면 분포를 남겨야
+# 한다 — 이 테스트들이 그 계측을 잠근다.
+
+def test_distribution_shows_where_the_threshold_stands():
+    """★보정의 핵심 숫자★ 0.08 이상이 90% 면 그 문턱은 아무것도 안 거른다."""
+    feeds = [_feed(f"gn_{c}", r) for c, r in
+             [("np", 0.02), ("kr", 0.05), ("jp", 0.09), ("th", 0.20), ("br", 0.40)]]
+    out = _run_local_news(feeds, None)
+    dist = out["ratio_distribution"]
+
+    assert dist["n"] == 5
+    assert dist["pct_at_or_above_normal"] == 40.0     # 0.20·0.40 → 2/5
+    assert dist["pct_at_or_above_watch"] == 60.0      # 0.09 추가 → 3/5
+    assert dist["p50"] and dist["p90"]
+
+
+def test_promoted_feeds_carry_the_ratio_that_promoted_them():
+    """어느 나라가 **얼마로** 올라왔는지 없으면 영원히 감으로만 정하게 된다."""
+    out = _run_local_news([_feed("gn_np", 0.10)], _NEPAL_WINDOW)
+    detail = out["watch_promoted_detail"]
+    assert detail == [{"slug": "gn_np", "country_iso3": "NPL", "ratio": 0.1}]
+
+
+def test_watched_but_not_promoted_is_recorded_too():
+    """★이게 없으면 '문턱이 뭔가를 거르고 있나'를 못 본다★
+
+    감시 중인데 미달한 피드가 하나도 없으면, 문턱이 감시국을 전부
+    통과시키고 있다는 뜻이다 — 프로덕션에서 실제로 그렇게 보였다.
+    """
+    out = _run_local_news([_feed("gn_np", 0.03)], _NEPAL_WINDOW)
+    assert out["watch_promoted_feeds"] == 0
+    assert out["watch_below_threshold"] == [{"slug": "gn_np", "ratio": 0.03}]
+
+
+def test_unwatched_low_feeds_are_not_counted_as_watched_misses():
+    """감시창이 없는 나라가 미달 목록에 섞이면 숫자가 무의미해진다."""
+    out = _run_local_news([_feed("gn_np", 0.03), _feed("gn_kr", 0.03)], _NEPAL_WINDOW)
+    assert [d["slug"] for d in out["watch_below_threshold"]] == ["gn_np"]
+
+
+def test_collector_prints_the_calibration_line():
+    """분포를 계산만 하고 안 찍으면 아무도 안 본다."""
+    import inspect
+    import collector
+
+    src = inspect.getsource(collector.collect_free_sources)
+    assert "승격근거" in src
+    assert "pct_at_or_above_watch" in src and "pct_at_or_above_normal" in src
+    assert "감시중 미달" in src
+
+
+def test_distribution_survives_an_empty_cycle():
+    """179개 피드가 전멸해도 이 계산이 층을 죽이면 안 된다."""
+    assert ln._ratio_distribution([]) == {}

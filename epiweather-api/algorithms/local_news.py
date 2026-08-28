@@ -333,16 +333,28 @@ def fetch_all_local_news(cerebras_key: str | None = None,
             }
 
     high_alert = []
+    promoted_detail: list[dict] = []
+    watched_below: list[dict] = []
     for r in active_feeds:
         ratio = r.get("llm_hit_ratio", r.get("hit_ratio", 0))
         watched = "watch_window" in r
         threshold = WATCH_ALERT_THRESHOLD if watched else ALERT_THRESHOLD
         if ratio < threshold:
+            if watched:
+                # ★ 감시 중인데 승격도 안 된 피드 ★ 이게 있어야 문턱이 실제로
+                # 무언가를 걸러내고 있는지 알 수 있다. 하나도 없으면 문턱이
+                # 감시 중인 나라를 **전부 통과시키고 있다**는 뜻이다.
+                watched_below.append({"slug": r["slug"], "ratio": round(ratio, 3)})
             continue
         if watched and ratio < ALERT_THRESHOLD:
             # 평시 문턱이었으면 안 걸렸을 피드 — 감시창 때문에 올라온 것이다.
             r["alert_basis"] = "disaster_watch_window"
             watch_promoted += 1
+            promoted_detail.append({
+                "slug": r["slug"],
+                "country_iso3": r["watch_window"]["country_iso3"],
+                "ratio": round(ratio, 3),
+            })
         high_alert.append(r)
 
     classified = sum(1 for r in results if "llm_hit_ratio" in r)
@@ -366,6 +378,38 @@ def fetch_all_local_news(cerebras_key: str | None = None,
         "watch_alert_threshold":  WATCH_ALERT_THRESHOLD,
         # 낮춘 문턱(0.08)은 임의값이다 — 근거처럼 인용되지 않게 못박는다.
         "threshold_calibrated":   False,
+        # ↓ 보정에 실제로 쓸 숫자 (2026-08-28 15:00 로그를 보고 추가)
+        #   `감시 중 5개국 · 승격 5개` — 감시 중인 나라가 **전부** 승격됐다.
+        #   그러면 감시창이 선별을 한 게 아니라 라벨을 붙인 것일 수 있다.
+        #   숫자를 또 찍어서 고치지 않으려면 분포를 남겨야 한다.
+        "watch_promoted_detail":  promoted_detail,
+        "watch_below_threshold":  watched_below,
+        "ratio_distribution":     _ratio_distribution(active_feeds),
+    }
+
+
+def _ratio_distribution(active_feeds: list[dict]) -> dict:
+    """전체 피드의 hit_ratio 분포. **문턱이 어디에 서 있는지**를 보려는 것이다.
+
+    `pct_at_or_above_watch` 가 90% 라면 0.08 은 사실상 아무것도 안 거른다 —
+    그 경우 감시창은 신호가 아니라 라벨이 된다. 이 값이 며칠 쌓이면 문턱을
+    감이 아니라 분포로 정할 수 있다.
+    """
+    ratios = sorted(r.get("llm_hit_ratio", r.get("hit_ratio", 0)) for r in active_feeds)
+    if not ratios:
+        return {}
+
+    def _pct(threshold: float) -> float:
+        return round(100 * sum(1 for x in ratios if x >= threshold) / len(ratios), 1)
+
+    def _q(p: float) -> float:
+        return round(ratios[min(int(p * len(ratios)), len(ratios) - 1)], 3)
+
+    return {
+        "n": len(ratios),
+        "p50": _q(0.50), "p75": _q(0.75), "p90": _q(0.90),
+        "pct_at_or_above_watch":  _pct(WATCH_ALERT_THRESHOLD),   # 0.08
+        "pct_at_or_above_normal": _pct(ALERT_THRESHOLD),         # 0.15
     }
 
 

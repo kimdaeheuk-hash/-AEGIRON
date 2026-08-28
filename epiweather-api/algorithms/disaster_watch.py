@@ -70,6 +70,78 @@ class DisasterWatchError(RuntimeError):
     """이 층의 실패. 종류를 반드시 들고 다닌다(2026-08-25·08-28 교훈)."""
 
 
+# ── GDACS 영문 국가명 보강 (2026-08-28) ────────────────────────────────
+# GDACS 는 영문 피드인데 `country_resolve` 의 영문 사전은 발병 보도에 나오던
+# 나라 위주로 자랐다. 실측: 아래 표가 다루는 96개 중 **52개가 흔한 영문명으로
+# 안 풀렸다**(나머지 44개는 이미 풀리지만, 정확일치 백업으로 함께 둔다 —
+# 기존 해석은 부분일치라 표기가 조금만 달라져도 놓칠 수 있다).
+# 안 풀리면 GDACS 가 `country` 에 이름만 실은 재난은 그 나라를 통째로 놓친다.
+#
+# ★ 왜 country_resolve._EN 에 직접 넣지 않았나 ★
+# 그 사전은 과거 발병 신호의 free-text location 해석에도 쓰인다. 거기에
+# "Georgia"·"Jordan" 같은 단어를 넣으면 **기존 신호의 국가 귀속이 조용히
+# 바뀐다.** 이 PR 이 건드리려던 범위가 아니다. 여기 표는 GDACS 의 깔끔한
+# 쉼표 구분 국가명에만, **정확히 일치할 때만** 쓴다(부분일치 없음).
+EXTRA_COUNTRY_NAMES: dict[str, str] = {
+    "albania": "ALB", "armenia": "ARM", "australia": "AUS", "austria": "AUT",
+    "azerbaijan": "AZE", "belgium": "BEL", "bulgaria": "BGR", "bahrain": "BHR",
+    "bahamas": "BHS", "the bahamas": "BHS",
+    "bosnia and herzegovina": "BIH", "bosnia": "BIH",
+    "belarus": "BLR", "belize": "BLZ", "bolivia": "BOL", "barbados": "BRB",
+    "brunei": "BRN", "brunei darussalam": "BRN", "bhutan": "BTN",
+    "canada": "CAN", "switzerland": "CHE", "chile": "CHL",
+    "cote d'ivoire": "CIV", "côte d'ivoire": "CIV", "ivory coast": "CIV",
+    "comoros": "COM", "cape verde": "CPV", "cabo verde": "CPV",
+    "costa rica": "CRI", "cuba": "CUB", "cyprus": "CYP",
+    "czechia": "CZE", "czech republic": "CZE",
+    "denmark": "DNK", "dominican republic": "DOM", "ecuador": "ECU",
+    "spain": "ESP", "estonia": "EST", "finland": "FIN", "fiji": "FJI",
+    "georgia": "GEO", "greece": "GRC", "guatemala": "GTM", "guyana": "GUY",
+    "honduras": "HND", "croatia": "HRV", "hungary": "HUN", "ireland": "IRL",
+    "iceland": "ISL", "israel": "ISR", "italy": "ITA", "jamaica": "JAM",
+    "jordan": "JOR", "kazakhstan": "KAZ", "kyrgyzstan": "KGZ",
+    "kuwait": "KWT", "lebanon": "LBN", "lesotho": "LSO", "lithuania": "LTU",
+    "luxembourg": "LUX", "latvia": "LVA", "moldova": "MDA",
+    "republic of moldova": "MDA", "maldives": "MDV",
+    "north macedonia": "MKD", "macedonia": "MKD",
+    "malta": "MLT", "mongolia": "MNG", "mauritius": "MUS",
+    "nicaragua": "NIC", "netherlands": "NLD", "the netherlands": "NLD",
+    "norway": "NOR", "new zealand": "NZL", "oman": "OMN", "panama": "PAN",
+    "poland": "POL", "portugal": "PRT", "paraguay": "PRY",
+    "palestine": "PSE", "state of palestine": "PSE",
+    "qatar": "QAT", "romania": "ROU",
+    "russia": "RUS", "russian federation": "RUS",
+    "solomon islands": "SLB", "el salvador": "SLV", "serbia": "SRB",
+    "sao tome and principe": "STP", "são tomé and príncipe": "STP",
+    "suriname": "SUR", "slovakia": "SVK", "slovenia": "SVN", "sweden": "SWE",
+    "eswatini": "SWZ", "swaziland": "SWZ", "seychelles": "SYC",
+    "syria": "SYR", "syrian arab republic": "SYR",
+    "tajikistan": "TJK", "turkmenistan": "TKM",
+    "timor-leste": "TLS", "east timor": "TLS",
+    "tonga": "TON", "trinidad and tobago": "TTO",
+    "turkey": "TUR", "türkiye": "TUR", "turkiye": "TUR",
+    "ukraine": "UKR", "uruguay": "URY", "uzbekistan": "UZB",
+    "venezuela": "VEN", "vanuatu": "VUT", "south africa": "ZAF",
+}
+
+
+def _extra_names(raw: str | None) -> list[str]:
+    """GDACS `country` 문자열에서 보강 표로만 읽히는 ISO3.
+
+    **정확히 일치할 때만** 잡는다 — 부분일치를 쓰면 "Georgia" 가 미국 주
+    이름에도 걸리는 식의 오귀속이 생긴다. GDACS 는 쉼표로 깔끔하게 주므로
+    정확일치로 충분하다.
+    """
+    if not raw:
+        return []
+    out: list[str] = []
+    for frag in re.split(r"[,;/]|\band\b", str(raw)):
+        iso3 = EXTRA_COUNTRY_NAMES.get(frag.strip().lower())
+        if iso3 and iso3 not in out:
+            out.append(iso3)
+    return out
+
+
 # ── 잠복 구간 표 ────────────────────────────────────────────────────────
 # (질병, 매칭 키워드, 최소일, 최대일, 근거)
 #
@@ -166,23 +238,57 @@ def _parse_date(raw: str | None) -> str | None:
     return None
 
 
-def _iso3_list(block: str) -> list[str]:
-    """이벤트가 가리키는 ISO3 목록.
+def _iso3_list(block: str) -> list[tuple[str, str]]:
+    """이벤트가 가리키는 (ISO3, 근거) 목록.
 
-    `gdacs:iso3` 를 먼저 믿는다. 다국가 이벤트라 쉼표로 여럿일 수 있다.
-    비었으면 `gdacs:country` 이름을 country_resolve 로 넘긴다 — **추측은
-    거기서도 안 한다.** 못 읽으면 빈 목록이고, 이벤트는 버려진다.
+    ★ 2026-08-28 프로덕션 첫 주기에서 고친 것 ★
+    처음엔 `gdacs:iso3` 가 있으면 거기서 끝냈다. 그런데 로그가 이랬다:
+
+        ⚠ Belize, Guatemala, Honduras, Mexico, Nicaragua, El Salvador:
+          DR 후 109일 — 홍역 감시창          ← 그런데 `감시 중 5개국`
+
+    이름은 6개인데 감시창은 **1개국에만** 열렸다.
+
+    이 샌드박스는 GDACS 에 못 나가서 실제 XML 을 못 봤다. 그래서 로그에 남은
+    숫자만으로 원인을 갈랐고, **원인이 둘 다였다.**
+
+    ① 옛 코드는 `iso3` 에 코드가 하나라도 있으면 거기서 끝냈다(early return).
+       근거: 같은 주기에 `Democratic Republic of Congo, Kenya, Tanzania,
+       Uganda` 줄이 있었는데 이 넷은 이름만으로도 전부 풀린다(실측). 그런데
+       `watched_country_count` 는 5 였고 출력도 5줄이었다 — 즉 이 이벤트도
+       한 나라만 잡혔다는 뜻이고, 이름을 아예 안 본 것이다.
+    ② 이름 해석이 중미를 몰랐다. `resolve_countries("Belize, Guatemala, …")`
+       → `['MEX']`. 실측으로 **52개국**이 흔한 영문명으로 안 풀렸다.
+       (처음엔 96 이라고 적었는데 그건 'name_i18n 에 en 필드가 없음' 을
+       '안 풀림' 으로 잘못 센 것이다. 다시 재서 52 로 바로잡았다.)
+
+    ②는 EXTRA_COUNTRY_NAMES 로 메우고, ①은 두 출처를 **합쳐서** 없앤다.
+    합치되 근거를 남긴다:
+      - `"iso3"`         — GDACS 가 코드로 명시한 나라. 확실하다.
+      - `"country_name"` — 이름 나열에서 해석한 나라. GDACS 가 영향국으로
+        적긴 했지만, 태풍 예상경로처럼 **아직 안 맞은 나라**가 섞일 수 있다.
+
+    두 근거를 같은 확신도로 쓰지 않도록 창마다 그대로 실어 보낸다.
+    이름 해석은 country_resolve 가 하므로 **여기서도 추측은 없다** —
+    사전에 없으면 안 넣는다.
     """
+    out: list[tuple[str, str]] = []
+    seen: set[str] = set()
+
     raw = _tag(block, "iso3")
-    out: list[str] = []
     if raw:
         for part in re.split(r"[,;/]", raw):
             code = part.strip().upper()
-            if len(code) == 3 and code.isalpha() and code not in out:
-                out.append(code)
-    if out:
-        return out
-    return resolve_countries(_tag(block, "country"))
+            if len(code) == 3 and code.isalpha() and code not in seen:
+                seen.add(code)
+                out.append((code, "iso3"))
+
+    names = _tag(block, "country")
+    for code in resolve_countries(names) + _extra_names(names):
+        if code not in seen:
+            seen.add(code)
+            out.append((code, "country_name"))
+    return out
 
 
 def parse_gdacs(xml: str) -> list[dict]:
@@ -205,7 +311,7 @@ def parse_gdacs(xml: str) -> list[dict]:
         if not date:
             continue
         event_id = _tag(block, "eventid") or ""
-        for iso3 in iso3s:
+        for iso3, attribution in iso3s:
             events.append({
                 # 같은 이벤트가 여러 나라를 덮으면 나라별로 하나씩 센다 —
                 # 감시창은 나라 단위로 열리기 때문이다.
@@ -214,6 +320,9 @@ def parse_gdacs(xml: str) -> list[dict]:
                 "type": etype,
                 "alert": alert,
                 "iso3": iso3,
+                # 이 나라가 코드로 명시된 것인지 이름 나열에서 읽힌 것인지 —
+                # 확신도가 다르므로 절대 뭉개지 않는다.
+                "attribution": attribution,
                 "country": _tag(block, "country"),
                 "date": date,
                 "title": (_tag(block, "title") or "")[:200],
@@ -331,6 +440,9 @@ def open_windows(today: dt.date | None = None) -> dict[str, list[dict]]:
                 "keywords": keywords,
                 "disaster_type": ev["type"],
                 "alert_level": ev["alert"],
+                # "iso3": GDACS 가 코드로 명시 / "country_name": 이름 나열에서 해석.
+                # 후자는 태풍 예상경로처럼 아직 안 맞은 나라가 섞일 수 있다.
+                "attribution": ev.get("attribution", "iso3"),
                 "country": ev.get("country"),
                 "disaster_date": ev["date"],
                 "days_since_disaster": elapsed,
@@ -351,13 +463,24 @@ def disaster_watch_report(today: dt.date | None = None) -> dict:
     today = today or dt.date.today()
     windows = open_windows(today)
     state = _load_state()
+    from .name_i18n import country_name
     countries = [
         {
             "country_iso3": iso3,
-            "country": items[0].get("country"),
+            # ★ GDACS 의 `country` 를 그대로 쓰면 안 된다 (2026-08-28) ★
+            # 광역 재난에서 그 필드는 영향국 **전부의 나열**이라, 나라 하나를
+            # 가리키는 자리에 넣으면 로그가 이렇게 나온다:
+            #   ⚠ Belize, Guatemala, Honduras, Mexico, ...: DR 후 109일
+            # 여섯 나라가 다 감시 중인 것처럼 읽히는데 실제로는 한 줄이다.
+            # ISO3 로 이름을 되찾고, 원문은 `gdacs_country` 로 따로 남긴다.
+            "country": country_name(iso3, "ko"),
+            "gdacs_country": items[0].get("country"),
             "open_windows": sorted(items, key=lambda w: w["days_since_disaster"]),
             "window_count": len(items),
             "diseases": sorted({w["disease"] for w in items}),
+            # 이 나라가 코드로 명시된 건지 이름 나열에서 읽힌 건지
+            "attribution": ("iso3" if any(w.get("attribution") == "iso3" for w in items)
+                            else "country_name"),
         }
         for iso3, items in windows.items()
     ]
@@ -400,6 +523,7 @@ def collect_disaster_watch() -> dict:
             {
                 "country_iso3": c["country_iso3"],
                 "country": c["country"],
+                "attribution": c["attribution"],
                 "diseases": c["diseases"],
                 "open_windows": [
                     {"disease": w["disease"], "disaster_type": w["disaster_type"],

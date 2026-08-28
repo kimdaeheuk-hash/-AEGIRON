@@ -681,11 +681,18 @@ def collect_free_sources() -> dict:
         from algorithms.disaster_watch import collect_disaster_watch
         result["disaster_watch"] = collect_disaster_watch()
         d = result["disaster_watch"]
-        log(f"  재난 감시창: GDACS {d['fetched']}건 수신(신규 {d['new']}) · "
-            f"감시 중 {d['watched_country_count']}개국 · 누적 {d['stored']}건")
+        # ★ 산술이 맞아 보여야 한다 (2026-08-28 첫 주기에서 고침) ★
+        # 처음엔 `신규 12 · 누적 10` 으로 찍혀 모순처럼 보였다. 실제로는
+        # 오래된 이벤트가 같은 호출에서 정리(prune)된 것인데 그 수를 안 찍었다.
+        # 읽는 사람이 계산기를 두드리게 만드는 로그는 안 읽히게 된다.
+        log(f"  재난 감시창: GDACS {d['fetched']}건 수신 "
+            f"(신규 {d['new']} · 만료정리 {d['pruned']} · 누적 {d['stored']}) · "
+            f"감시 중 {d['watched_country_count']}개국")
         for c in d["countries"][:5]:
             w = c["open_windows"][0]
-            log(f"    ⚠ {c['country'] or c['country_iso3']}: "
+            # 이름 나열에서 읽힌 나라는 확신도가 다르다 — 표시로 구분한다.
+            mark = "" if c.get("attribution") == "iso3" else "(이름해석)"
+            log(f"    ⚠ {c['country']}{mark}: "
                 f"{w['disaster_type']} 후 {w['days_since_disaster']}일 — "
                 f"{'·'.join(c['diseases'])} 감시창")
     except Exception as e:
@@ -717,6 +724,21 @@ def collect_free_sources() -> dict:
         log(f"  현지어 뉴스: {n['active_feeds']}/{n['total_feeds']}개 피드, "
             f"키워드 히트 {n['total_kw_hits']}건, 고경보 {n['high_alert_feeds']}개"
             f"{tag}{watch_tag}")
+        # ★ 문턱 0.08 은 임의값이다 — 보정하려면 분포가 있어야 한다 ★
+        # 2026-08-28 15:00 로그: `감시 중 5개국 · 승격 5개` — 감시 중인 나라가
+        # 전부 승격됐다. 그러면 감시창이 선별을 한 게 아니라 라벨을 붙인
+        # 것일 수 있다. 숫자를 또 찍어서 고치는 대신 며칠 쌓아 보고 정한다.
+        if n.get("watch_window_countries"):
+            dist = n.get("ratio_distribution") or {}
+            below = n.get("watch_below_threshold") or []
+            log(f"    ↳ 승격근거: "
+                + (", ".join(f"{d['country_iso3']} {d['ratio']}"
+                             for d in n.get("watch_promoted_detail", [])) or "없음")
+                + f" · 감시중 미달 {len(below)}개"
+                + (f" · 전체분포 p50={dist.get('p50')} p90={dist.get('p90')}"
+                   f" · {n['watch_alert_threshold']}이상 {dist.get('pct_at_or_above_watch')}%"
+                   f" / {n['alert_threshold']}이상 {dist.get('pct_at_or_above_normal')}%"
+                   if dist else ""))
         # ★ 재분류가 안 됐으면 그 사실과 사유를 반드시 찍는다 (2026-08-28) ★
         # 예전엔 실패하면 위의 tag 가 **조용히 빈 문자열이 될 뿐**이었다. 줄 모양이
         # 거의 같아서 아무도 눈치채지 못했고, 실측상 최소 29시간(2026-08-27 06:00
