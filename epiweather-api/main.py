@@ -2182,8 +2182,12 @@ def extra_sources():
 @app.get("/api/mobility", tags=["Phase2"])
 def mobility():
     """
-    이동성 신호 — OpenSky API로 주요 발병국 공항 24시간 항공편 수 조회.
-    항공편 급감 = 해당 지역 유행 간접 신호. 무료, 인증 불필요.
+    이동성 신호 — OpenSky API로 주요 발병국 공항 최근 1시간 항공편 수 조회.
+    항공편 급감 = 해당 지역 유행 간접 신호.
+
+    OpenSky는 무료지만 익명 쿼터가 거의 없어 OPENSKY_CLIENT_ID/SECRET(OAuth2)을
+    쓴다. 응답의 `auth_status`·`failure_reasons`가 **왜 못 가져왔는지**를 담는다
+    — 전 공항 실패 시 인증 거부인지 IP 차단인지 여기서 갈린다.
     """
     from algorithms.mobility import fetch_mobility_signals
     return fetch_mobility_signals()
