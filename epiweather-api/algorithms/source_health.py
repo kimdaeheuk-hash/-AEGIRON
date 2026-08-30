@@ -44,6 +44,26 @@ RENOTIFY_HOURS = 24.0
 # → 사흘이 넘으면 그건 지연이 아니다. 그때는 울린다.
 NO_DATA_ALARM_HOURS = 72.0
 
+# ── 간헐적으로만 성공하는 소스 (2026-08-30) ──────────────────────────
+# ★ 위의 두 장치를 **동시에** 빠져나가는 구멍이 있었다 ★
+#
+# `no_data` 는 연속실패 카운터를 리셋하고(정상 동작 — 함수는 멀쩡히 돌았으니까),
+# `long_no_data` 경보는 마지막 성공이 72시간을 넘어야 울린다. 그래서 **가끔 한 번씩
+# 성공하는 소스**는 두 그물을 다 통과한다:
+#
+#   - 성공할 때마다 last_success_at 이 갱신돼 staleness 가 72시간에 영영 못 닿고
+#   - no_data 라 consecutive_failures 는 계속 0 이고
+#   - healthy_count 는 no_data 를 아예 안 세므로 `정상 20/21` 로 보인다
+#
+# 실측(2026-08-30, GroqWatch): 14주기 중 성공 1회(7%) — 12주기가
+# SearchContextTooLarge 였는데 **경보가 하나도 울리지 않았다.** 8/29 도 22주기 중
+# 20주기 값없음(9%)이었다. 사실상 죽은 소스가 몇 주째 정상으로 집계된 것이다.
+#
+# 연속 카운팅으로는 이 모양을 잡을 수 없다. 그래서 **최근 N주기의 성공률**을 본다.
+FLAKY_WINDOW = 24          # 시간당 1주기 → 하루치
+FLAKY_SUCCESS_RATE = 0.5   # 하루의 절반도 성공 못 하면 그건 살아있는 게 아니다
+# 창이 다 차기 전에는 판정하지 않는다 — 배포 직후 몇 주기로 울리면 거짓 경보가 된다.
+
 # ── 추적에서 정식으로 제외한 소스 ──────────────────────────────────
 # {소스이름: 뺀 이유}. 여기 있는 소스는 record_cycle 이 기록하지 않고, 리포트의
 # 집계(healthy_count·total_tracked)와 경보에서 빠진다.
@@ -133,8 +153,34 @@ def record_source_result(source: str, ok: bool, error: str | None = None,
         entry["total_failures"] = entry.get("total_failures", 0) + 1
         if error:
             entry["last_error"] = error[:200]
+
+    # 최근 결과를 창 크기만큼만 들고 다닌다 — 누적 총계(total_*)로는 "지금
+    # 살아있나"를 알 수 없다. 한 달 전에 잘 돌던 이력이 오늘의 고장을 가린다.
+    recent = list(entry.get("recent_outcomes") or [])
+    recent.append(entry["last_outcome"])
+    entry["recent_outcomes"] = recent[-FLAKY_WINDOW:]
+
     data[source] = entry
     _save_raw(data)
+
+
+def _recent_success_rate(entry: dict) -> tuple[float | None, int]:
+    """(최근 성공률, 표본 수). 창이 다 안 찼으면 성공률은 None."""
+    recent = entry.get("recent_outcomes") or []
+    if len(recent) < FLAKY_WINDOW:
+        return None, len(recent)
+    ok = sum(1 for outcome in recent if outcome == "ok")
+    return ok / len(recent), len(recent)
+
+
+def is_flaky(entry: dict) -> bool:
+    """가끔만 성공하는 소스인가 — 연속 카운팅이 못 잡는 모양.
+
+    `no_data` 와 `ok` 를 오가며 두 그물을 다 빠져나가는 소스를 잡는다.
+    창이 다 차기 전에는 False 다(배포 직후 거짓 경보 방지).
+    """
+    rate, _ = _recent_success_rate(entry)
+    return rate is not None and rate < FLAKY_SUCCESS_RATE
 
 
 def record_cycle(result: dict, source_key_map: dict[str, str]) -> list[str]:
@@ -209,6 +255,11 @@ def _status_for(entry: dict) -> tuple[str, float | None]:
 
     if entry.get("consecutive_failures", 0) >= FAILING_STREAK:
         return "failing", staleness_hours
+    # ★ no_data 보다 먼저 판정한다 ★ 간헐 소스는 대부분의 주기가 no_data 라,
+    # no_data 를 먼저 보면 이 상태에 영영 도달하지 못한다 — 그게 GroqWatch 가
+    # 몇 주째 `정상 20/21` 에 묻혀 있던 이유다.
+    if is_flaky(entry):
+        return "flaky", staleness_hours
     if entry.get("last_outcome") == "no_data":
         return "no_data", staleness_hours
     if last_success is None:
@@ -226,12 +277,14 @@ def source_health_report() -> dict:
     degraded = []
     no_data = []
     long_no_data = []
+    flaky = []
     for source, entry in sorted(data.items()):
         if is_retired(source):
             # 집계·경보에서 뺀다. 파일에 남은 옛 항목이 여기로 새어 들어오면
             # staleness 만 계속 늘어 영영 울린다(위 RETIRED_SOURCES 주석 참고).
             continue
         status, staleness = _status_for(entry)
+        rate, samples = _recent_success_rate(entry)
         row = {
             "source": source,
             "status": status,
@@ -241,9 +294,19 @@ def source_health_report() -> dict:
             "last_failure_at": entry.get("last_failure_at"),
             "last_no_data_at": entry.get("last_no_data_at"),
             "last_error": entry.get("last_error"),
+            # 최근 창의 성공률 — 누적 총계는 옛 이력이 오늘의 고장을 가린다.
+            "recent_success_rate": round(rate, 3) if rate is not None else None,
+            "recent_samples": samples,
         }
         sources.append(row)
-        if status in ("failing", "stale"):
+        if status == "flaky":
+            degraded.append(source)
+            flaky.append({
+                "source": source,
+                "recent_success_rate": round(rate, 3) if rate is not None else None,
+                "window": samples,
+            })
+        elif status in ("failing", "stale"):
             degraded.append(source)
         elif status == "no_data":
             no_data.append(source)
@@ -259,6 +322,10 @@ def source_health_report() -> dict:
         "no_data_sources": no_data,
         # ★ 값없음이 NO_DATA_ALARM_HOURS 를 넘긴 것 ★ 이건 경보 대상이다.
         "long_no_data_sources": long_no_data,
+        # ★ 가끔만 성공하는 소스 ★ 연속 카운팅도 장기 값없음도 못 잡는 모양이다.
+        # 성공할 때마다 staleness 가 리셋되고 no_data 라 연속실패도 0 이라,
+        # 실측 7~9% 성공률의 GroqWatch 가 몇 주째 `정상 20/21` 에 묻혀 있었다.
+        "flaky_sources": flaky,
         # ★ 추적에서 뺀 소스 — 숨기지 않고 이유와 함께 드러낸다 ★
         # 집계에는 안 들어가지만 목록에는 남는다. 조용히 사라진 소스가 이
         # 시스템에서 가장 위험한 실패 방식이라, 뺀 것도 보이게 둔다.
@@ -312,7 +379,9 @@ def pending_notifications() -> dict:
         # '정상이거나 이미 아는 조건'이 대부분이라 매일 울리면 경보 피로만 쌓인다.
         # 대신 /api/status의 no_data_sources에 그대로 노출되고, 매일 아침 점검
         # 루틴이 읽는다 — 안 보이게 숨기는 게 아니라, 밀도를 낮춰 보이게 한다.
-        is_degraded = status in ("failing", "stale")
+        # flaky 도 degraded 다 — 이걸 빼면 '보이기는 하는데 안 울리는' 상태가 되고,
+        # 그건 지금까지와 똑같이 아무도 모르는 것이다.
+        is_degraded = status in ("failing", "stale", "flaky")
         # 값없음이 사흘을 넘기면 그것도 울린다. 짧은 no_data 는 여전히 조용하다 —
         # 경보 피로를 피하면서, 조용히 죽은 소스는 놓치지 않기 위한 선이다.
         long_no_data = (
@@ -323,7 +392,7 @@ def pending_notifications() -> dict:
         if is_degraded or long_no_data:
             last_notified = _parse_iso(entry.get("last_notified_at"))
             state_changed = (
-                notified not in ("failing", "stale") if is_degraded
+                notified not in ("failing", "stale", "flaky") if is_degraded
                 else notified != "no_data"
             )
             due = (
@@ -338,7 +407,7 @@ def pending_notifications() -> dict:
                     "staleness_hours": staleness,
                     "consecutive_failures": entry.get("consecutive_failures", 0),
                 })
-        elif status == "ok" and notified in ("failing", "stale", "no_data"):
+        elif status == "ok" and notified in ("failing", "stale", "no_data", "flaky"):
             recovered.append(source)
     return {"degraded": degraded, "recovered": recovered}
 
