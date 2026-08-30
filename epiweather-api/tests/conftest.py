@@ -66,6 +66,27 @@ def _no_outbound_http(request, monkeypatch):
     monkeypatch.setattr(requests.Session, "send", _blocked)
 
 
+@pytest.fixture(autouse=True)
+def _isolated_quality_state(tmp_path, monkeypatch):
+    """품질 헬스 상태 파일을 테스트마다 격리한다 (2026-08-30).
+
+    collector 를 돌리는 테스트(`test_health_summary_log.py`)가 `record_cycle` 을
+    호출하면서 **실제 `data/quality_health.json` 에 썼다.** `data/` 가 gitignore
+    라 커밋되지는 않지만, 남은 연속 위반 카운터가 다음 테스트의 `quality_report()`
+    에 그대로 보여 **순서 의존**이 생긴다. 지금은 우연히 안 깨질 뿐이다.
+
+    이 층은 "연속 몇 주기"를 파일에 누적하는 게 핵심이라 오염에 특히 취약하다 —
+    그래서 옵트인이 아니라 autouse 로 막는다.
+    """
+    try:
+        from algorithms import quality_health
+    except Exception:
+        return
+    monkeypatch.setattr(
+        quality_health, "QUALITY_FILE", tmp_path / "quality_health.json"
+    )
+
+
 @pytest.fixture()
 def isolated_db(tmp_path, monkeypatch):
     """테스트마다 독립된 임시 SQLite를 쓰게 해서 실제 운영 DB를 건드리지 않음."""
