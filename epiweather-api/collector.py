@@ -950,6 +950,50 @@ def collect_free_sources() -> dict:
     except Exception as e:
         log_error("HealthSummary", e)
 
+    # ★ 품질 불변식 — 소스가 살아있는 것과 값이 온전한 것은 다르다 (2026-08-30) ★
+    # 위의 소스 건강은 "값이 왔는가"만 본다. 2026-08 한 달의 사고 6건은 **전부 그
+    # 검사를 통과하면서** 일어났다 — local_news 는 정상적으로 값을 돌려주는데 그
+    # 값이 LLM 재분류를 거치지 않은 키워드 결과였던 게 대표적이다(8/28·8/30).
+    # 소스 헬스가 구조적으로 못 보는 층이라 따로 센다.
+    try:
+        from algorithms.quality_health import (
+            record_cycle as record_quality, summary_line,
+            pending_notifications as quality_pending, mark_notified as quality_notified,
+        )
+        record_quality(result)
+        log("  " + summary_line())
+
+        pending = quality_pending()
+        for d in pending["degraded"]:
+            span = f"{d['consecutive_violations']}주기째"
+            if d.get("violated_hours") is not None:
+                span += f"/{d['violated_hours']:.0f}시간"
+            log(f"  ⚠️ 품질 저하: {d['label']} {span} — {d['why']}")
+        for label in pending["recovered"]:
+            log(f"  ✅ 품질 회복: {label}")
+
+        from algorithms.notifier import notify_source_health
+        # 소스 알림과 같은 통로를 쓰되 모양을 맞춰 넘긴다. 통로를 새로 파면
+        # 한쪽만 고장 나도 아무도 모르는 자리가 하나 더 생긴다.
+        if pending["degraded"] or pending["recovered"]:
+            shaped = {
+                "degraded": [
+                    {"source": f"품질:{d['label']}", "status": "degraded",
+                     "staleness_hours": d.get("violated_hours"),
+                     "consecutive_failures": d["consecutive_violations"]}
+                    for d in pending["degraded"]
+                ],
+                "recovered": [f"품질:{label}" for label in pending["recovered"]],
+            }
+            if notify_source_health(shaped):
+                quality_notified(
+                    [d["key"] for d in pending["degraded"]] + pending["recovered"]
+                )
+    except Exception as e:
+        # 라벨을 SourceHealth 와 갈라둔다 — 섞이면 '어느 층이 고장났나'를
+        # 다시 추측하게 된다. 이 리포가 네 번 당한 게 정확히 그것이다.
+        log_error("QualityHealth", e)
+
     log("=== 무료 소스 수집 완료 ===")
     return result
 

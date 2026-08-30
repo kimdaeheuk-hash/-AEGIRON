@@ -393,6 +393,43 @@ async def _maybe_run_daily_brief() -> None:
         await _run_daily_brief_job(today)
 
 
+async def _run_prediction_resolution() -> None:
+    """미해소 예측을 공식 선언과 대조해 자동 채점한다 (2026-08-30).
+
+    ★ 왜 이게 없으면 안 되는가 ★
+    `predictions` 테이블에는 처음부터 `verified_at`·`lead_days`·`correct` 가 있었고
+    `prediction_scoring` 에는 Brier 채점기까지 있었는데, **그 사이를 잇는 게 없었다.**
+    해소는 수동 API 로만 가능했고 아무도 부르지 않았다. 그래서 예측은 쌓이는데
+    채점이 0건이었고, "남보다 먼저 안다"는 제품의 논지를 증명할 경로가 끊겨 있었다.
+
+    시간이 흘러도 증거가 안 생기는 구조였다 — 이 한 줄이 그걸 잇는다.
+    """
+    import collector
+
+    try:
+        from algorithms.prediction_resolver import resolve_due_predictions
+        outcome = await asyncio.to_thread(resolve_due_predictions)
+        resolved = outcome["resolved"]
+        if resolved:
+            hits = [r for r in resolved if r["correct"] == 1]
+            collector.log(
+                f"📋 예측 자동 채점: {len(resolved)}건 해소"
+                f"(적중 {len(hits)}건, 미결 {outcome['still_open']}건)"
+            )
+            for r in hits:
+                # ★ 이 줄이 이 제품의 논지가 처음으로 실측되는 자리다 ★
+                collector.log(
+                    f"   ★ 선행일수 실측: {r['country']}/{r['disease']} "
+                    f"{r['lead_days']}일 선행 (근거 {r['event_id']})"
+                )
+        else:
+            collector.log(
+                f"예측 자동 채점: 해소할 예측 없음(미결 {outcome['still_open']}건)"
+            )
+    except Exception as e:
+        _log_error(f"prediction_resolution: {type(e).__name__}: {e}")
+
+
 async def _scheduler_loop() -> None:
     # 재배포로 초기화되지 않게 디스크에서 읽어온다(주간작업과 같은 패턴).
     last_ai_run_date: dt.date | None = _load_last_ai_run()
@@ -431,6 +468,8 @@ async def _scheduler_loop() -> None:
             await _run_bulletin_collection()
             # 학습셋 백필도 같은 슬롯에서. 커버리지가 차면 GDELT를 아예 안 부른다.
             await _run_nowcast_maintenance()
+            # ★ 예측 자동 채점 ★ 이게 없어서 성적표가 영원히 비어 있었다.
+            await _run_prediction_resolution()
 
         await _maybe_run_daily_brief()
 
@@ -512,9 +551,65 @@ def status():
         # 소스별 헬스(㉔) — degraded_sources가 비어있지 않으면 조용히 죽은 소스가
         # 실제로 눈에 보이는 것. 조기경보 시스템의 '조용한 실패'를 막는 핵심 지표.
         "source_health": source_health_report(),
+        # 품질 불변식(2026-08-30) — 소스 헬스가 **구조적으로 못 보는** 층.
+        # 소스는 값을 돌려주는데 그 값을 만든 방식이 망가진 경우를 센다.
+        # 2026-08 사고 6건이 전부 이 유형이었다(소스 헬스는 내내 정상이었다).
+        "quality_health": _quality_health_safe(),
+        # 선행일수 실측 — 0건이면 0건이라고 말한다. 이 값이 비어 있는 동안에는
+        # 선행성 주장을 할 근거가 없다.
+        "lead_time": _lead_time_safe(),
         "recent_errors": _recent_errors(),
         "total_error_count": error_count,
     }
+
+
+def _quality_health_safe() -> dict | None:
+    """품질 헬스가 터져도 /api/status 전체를 죽이지 않는다.
+
+    다만 **조용히 없애지도 않는다** — 실패하면 그 사실이 그대로 실린다. 이 시스템에서
+    가장 나쁜 건 지표가 조용히 사라지는 것이다.
+    """
+    try:
+        from algorithms.quality_health import quality_report
+        return quality_report()
+    except Exception as e:
+        return {"error": f"{type(e).__name__}: {e}", "invariants": []}
+
+
+def _lead_time_safe() -> dict | None:
+    try:
+        from algorithms.prediction_resolver import lead_time_record
+        return lead_time_record()
+    except Exception as e:
+        return {"error": f"{type(e).__name__}: {e}", "measured_events": 0}
+
+
+@app.get("/api/launch-readiness", tags=["시스템"])
+def launch_readiness():
+    """런칭 준비도 — **"런칭해도 되나"를 의견이 아니라 측정값으로 낸다.**
+
+    관문 4개(수집 살아있음 · 조용한 저하 없음 · 선행일수 실측 · 캘리브레이션)를
+    라이브 데이터에서 계산하고, 막힌 이유와 무엇이 채워져야 풀리는지를 함께 낸다.
+
+    `ready_for` 가 용도별로 갈리는 이유: 무료 베타(신호 대시보드)는 지금도 되고,
+    유료 예보는 실측이 쌓여야 한다. 그 둘을 한 덩어리로 묻는 게 질문이 틀린 것이었다.
+
+    ⚠️ `lead_time` 관문은 **코드로 열 수 없다.** 실제 발병을 먼저 잡아야 열린다.
+    """
+    from algorithms.launch_readiness import readiness_report
+    return readiness_report()
+
+
+@app.get("/api/lead-time", tags=["시스템"])
+def lead_time():
+    """선행일수 실측 성적표 — 자동 채점된 예측만 집계한다.
+
+    `measured_events: 0` 이면 아직 증거가 없다는 뜻이고, 그 상태에서 "블루닷보다
+    빠르다" 같은 주장을 하면 근거가 없다. `benchmark_baselines` 의 블루닷 9일은
+    **넘어야 할 목표선**이지 우리 실적이 아니다.
+    """
+    from algorithms.prediction_resolver import lead_time_record
+    return lead_time_record()
 
 
 @app.get("/api/admin/api-key-usage", tags=["시스템"], dependencies=_auth)

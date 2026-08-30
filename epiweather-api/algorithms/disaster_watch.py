@@ -62,6 +62,17 @@ STATE_FILE = Path(__file__).resolve().parent.parent / "data" / "disaster_watch.j
 # 창을 여는 경보 등급. Green 을 넣지 않는 이유는 위 '정직성 경계선' 참조.
 OPENING_ALERT_LEVELS = {"orange", "red"}
 
+# ── 캘리브레이션 상태 — **단일 출처** (2026-08-30) ───────────────────
+# 예전엔 이 두 사실이 응답 dict 안에 `False` 리터럴로만 박혀 있었다. 그러면
+# 나중에 실제로 보정을 하고도 **응답은 영영 미보정이라고 말하거나**, 반대로
+# 리터럴만 True 로 고쳐놓고 실제 보정은 안 하는 일이 생긴다.
+# `launch_readiness` 가 런칭 관문을 이 값으로 판정하므로 한 곳에서만 정한다.
+#
+# 이 값을 True 로 바꾸려면 **우리 과거 데이터로 재보정한 근거를 함께 남겨라.**
+# 문헌값을 그대로 두고 플래그만 뒤집으면 그게 이 시스템 최악의 거짓말이 된다.
+WINDOWS_CALIBRATED = False    # 잠복 구간 — 문헌 기반, 우리 데이터로 미보정
+THRESHOLD_CALIBRATED = False  # 감시창 문턱 0.08 — 임의값, 실증 근거 없음
+
 # 이 일수를 넘긴 이벤트는 저장소에서 지운다(가장 긴 창 + 여유).
 EVENT_RETENTION_DAYS = 150
 
@@ -371,7 +382,8 @@ def disaster_watch_report(today: dt.date | None = None) -> dict:
         "opening_alert_levels": sorted(OPENING_ALERT_LEVELS),
         # ↓ 이 층이 무엇이 아닌지 — 항상 붙인다
         "is_prediction": False,
-        "windows_calibrated": False,
+        "windows_calibrated": WINDOWS_CALIBRATED,
+        "threshold_calibrated": THRESHOLD_CALIBRATED,
         "note": "감시창은 '이 기간에 이 질병 보도가 뜨면 우연으로 넘기지 말라'는 뜻이지 "
                 "발병 예측이 아니다. 잠복 구간은 문헌 기반 추정이며 이 시스템의 과거 "
                 "데이터로 보정하지 않았다(windows_calibrated=False).",
