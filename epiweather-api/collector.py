@@ -942,6 +942,14 @@ def collect_free_sources() -> dict:
                 for x in rep["long_no_data_sources"]
             )
             parts.append(f"❌ 장기 값없음 {aged}")
+        # ★ 가끔만 성공하는 소스 ★ 성공률까지 찍는다 — "값없음 GroqWatch" 만
+        # 보면 상시 항목처럼 읽혀서, 실제로 7% 성공률인 걸 몇 주째 아무도 몰랐다.
+        if rep.get("flaky_sources"):
+            spotty = ", ".join(
+                f"{x['source']}({x['recent_success_rate']:.0%}/{x['window']}주기)"
+                for x in rep["flaky_sources"]
+            )
+            parts.append(f"❌ 간헐 성공 {spotty}")
         if stale:
             parts.append(f"늙는중 {_brief(stale)}")
         if len(parts) == 1:
