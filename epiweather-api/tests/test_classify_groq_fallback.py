@@ -128,7 +128,7 @@ def test_falls_over_to_groq_when_cerebras_is_out_of_quota():
     feeds = [_feed(0.9, n_titles=4)]
     calls: list[str] = []
 
-    def fake_post(url, model, api_key, prompt):
+    def fake_post(url, model, api_key, prompt, reasoning_effort=None):
         calls.append(url)
         if url == cc.CEREBRAS_URL:
             return _response(402, text='{"code":"payment_required"}')
@@ -147,7 +147,7 @@ def test_cerebras_success_does_not_call_groq():
     feeds = [_feed(0.9, n_titles=4)]
     calls: list[str] = []
 
-    def fake_post(url, model, api_key, prompt):
+    def fake_post(url, model, api_key, prompt, reasoning_effort=None):
         calls.append(url)
         return _ok(4)
 
@@ -162,7 +162,7 @@ def test_both_failures_are_reported_not_just_the_last():
     """★어느 쪽이 왜 안 됐는지★ 하나만 남기면 또 추측하게 된다."""
     feeds = [_feed(0.9, n_titles=4)]
 
-    def fake_post(url, model, api_key, prompt):
+    def fake_post(url, model, api_key, prompt, reasoning_effort=None):
         if url == cc.CEREBRAS_URL:
             return _response(402, text="quota gone")
         return _response(429, text="tpm exceeded")
@@ -209,7 +209,7 @@ def test_404_advances_to_the_next_model():
     feeds = [_feed(0.9, n_titles=4)]
     tried: list[str] = []
 
-    def fake_post(url, model, api_key, prompt):
+    def fake_post(url, model, api_key, prompt, reasoning_effort=None):
         tried.append(model)
         if url == cc.CEREBRAS_URL:
             return _response(402, text="quota")
@@ -229,7 +229,7 @@ def test_non_404_does_not_burn_the_remaining_candidates():
     feeds = [_feed(0.9, n_titles=4)]
     tried: list[str] = []
 
-    def fake_post(url, model, api_key, prompt):
+    def fake_post(url, model, api_key, prompt, reasoning_effort=None):
         tried.append(model)
         if url == cc.CEREBRAS_URL:
             return _response(402, text="quota")
@@ -247,7 +247,7 @@ def test_successful_provider_is_recorded():
     """어느 제공자·모델이 먹었는지 남는다 — 다음엔 추측할 필요가 없다."""
     feeds = [_feed(0.9, n_titles=4)]
 
-    def fake_post(url, model, api_key, prompt):
+    def fake_post(url, model, api_key, prompt, reasoning_effort=None):
         if url == cc.CEREBRAS_URL:
             return _response(402, text="quota")
         return _ok(4)

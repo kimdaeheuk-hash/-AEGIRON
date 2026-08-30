@@ -74,6 +74,41 @@ GROQ_MODELS = [
 GROQ_TPM_BUDGET = 8000
 PROMPT_TOKEN_MARGIN = 2000      # 지시문 + 응답 + 안전 여유
 
+# ── ★ 2026-08-30 — 실패가 402·429 가 아니라 전부 JSONDecodeError 였다 ★ ────
+# 08-29 실측(프로덕션 로그, UTC 00~23시 24주기):
+#
+#     성공 10주기 / 실패 14주기(58%)  · 18~23시는 6주기 연속 실패
+#     실패 14회의 사유가 **전부** Cerebras 402 + Groq JSONDecodeError.
+#     429 도 402 도 Groq 쪽에서는 한 번도 없었다.
+#
+# 즉 **한도 문제가 아니라 응답을 못 읽은 것**이다. 파싱 실패 지점이
+# char 0 · 2 · 33 · 167 · 205 · 405 · 756 · 1079 · 1360 · 1552 · 1612 로
+# 제각각인데, 이건 "형식이 틀렸다" 가 아니라 **매번 다른 길이에서 잘렸다** 는
+# 모양이다.
+#
+# 대조가 원인을 좁혀준다: NewsWatch 는 **같은 모델·같은 파라미터**로 같은 24주기
+# 중 22번 성공했다. 다른 건 출력 길이뿐이다 — NewsWatch 는 두 문장, 이쪽은
+# 60개짜리 JSON 배열. 그래서 출력을 줄이고, 상한을 우리가 쥐고, 잘려도 건진다.
+#
+# ⚠️ 다만 "잘림" 과 "애초에 JSON 이 아님" 은 **아직 갈리지 않았다.** 코드가
+#    finish_reason 을 한 번도 안 찍었기 때문이다(이 커밋에서 찍게 했다).
+#    다음 점검 한 번이면 갈린다 — 단정하지 말고 로그를 읽어라.
+
+# 응답 상한을 우리가 명시한다. 예전엔 안 줘서 제공자 기본값에 맡겼고, 그 기본값이
+# 얼마인지 아무도 모른 채 잘림을 당했다. 프롬프트 예산(6,000)과 합쳐 TPM 8,000
+# 안에 들도록 1,500 으로 잡는다.
+MAX_COMPLETION_TOKENS = 1500
+
+# gpt-oss 계열은 **추론 토큰을 완성 토큰과 같은 예산에서 먼저 쓴다.** 60개를
+# 분류하며 추론이 예산을 다 먹으면 정작 배열이 못 나온다. 'low' 로 낮춰 예산을
+# 배열 쪽에 돌린다.
+#
+# ⚠️ 이 파라미터가 이 계정·이 모델에서 받아들여지는지는 **여기서 검증할 수 없다**
+#    (샌드박스가 프록시에 막혀 Groq 에 못 닿는다). 그래서 단정하지 않는다 —
+#    400 이 오면 빼고 한 번 더 보내고 어느 쪽이 먹었는지 남긴다. 모델 ID 를
+#    찍었다가 404 를 맞은 2026-08-28 의 교훈이 그대로 적용된다.
+REASONING_EFFORT = "low"
+
 # ── 프롬프트 크기를 우리가 통제하는 지점 ─────────────────────────────
 # ⚠️ 토큰 계산에서 한 번 틀렸다(2026-08-28): 영어 기준 "4자 = 1토큰"으로 잡았다가
 # 상한이 예산의 3배가 됐다. **이 시스템의 제목은 대부분 영어가 아니다** —
@@ -104,7 +139,13 @@ PROMPT_TEMPLATE = """다음은 {lang} 뉴스 제목 목록이다(0번부터 번�
 
 
 def classify_headlines(titles: list[str], lang: str, api_key: str) -> list[bool] | None:
-    """제목별 실제 발병 보도 여부 배치 판정. 실패하면 None(호출측이 키워드 매칭으로 폴백)."""
+    """제목별 실제 발병 보도 여부 배치 판정. 실패하면 None(호출측이 키워드 매칭으로 폴백).
+
+    ⚠️ **현재 아무도 안 부른다**(2026-08-30 확인 — 실사용 경로는 `classify_multi_feed`).
+    그래서 아래 `except Exception: return None` 과 상한 없는 요청을 2026-08-30
+    수리에서 손대지 않았다. **살려 쓸 일이 생기면 먼저 고쳐라** — 이 모듈이
+    네 번이나 사고를 낸 바로 그 모양(사유를 버리는 조용한 except)이 여기 남아 있다.
+    """
     if not titles:
         return []
     numbered = "\n".join(f"{i}: {t}" for i, t in enumerate(titles))
@@ -150,8 +191,9 @@ MULTI_PROMPT_TEMPLATE = """다음은 여러 나라 뉴스 제목 목록이다(0�
 보도"인지 판단해라. 여행경보·보건정책 발표·연구비 지원·과거사건 회고·무관한
 일반 기사는 전부 아니오.
 
-반드시 JSON 배열만 출력해(다른 텍스트·설명 절대 금지):
-[{{"i": 0, "relevant": true 또는 false}}, ...]
+해당하는 제목의 **번호만** 오름차순 JSON 배열로 출력해라. 다른 텍스트·설명은
+절대 금지고, 해당하는 게 없으면 빈 배열 [] 만 출력해라.
+예: [0, 3, 12]
 
 제목 목록:
 {titles}"""
@@ -220,17 +262,135 @@ def select_entries(feeds: list[dict]) -> list[tuple[int, str]]:
     return entries
 
 
-def _post(url: str, model: str, api_key: str, prompt: str) -> "requests.Response":
+def _post(url: str, model: str, api_key: str, prompt: str,
+          reasoning_effort: str | None = None) -> "requests.Response":
+    body = {
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.1,
+        # 상한을 우리가 쥔다 — 제공자 기본값이 얼마인지 모르는 채로 두지 않는다.
+        "max_tokens": MAX_COMPLETION_TOKENS,
+    }
+    if reasoning_effort:
+        body["reasoning_effort"] = reasoning_effort
     return requests.post(
         url,
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-        json={
-            "model": model,
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.1,
-        },
+        json=body,
         timeout=TIMEOUT,
     )
+
+
+def _message_text(message: dict) -> str:
+    """모델이 실제로 쓴 글을 꺼낸다.
+
+    gpt-oss 같은 추론 모델은 `content` 가 비고 추론이 `reasoning` 으로 따로 오는
+    경우가 있다. 예전엔 `content` 만 봐서 그 경우가 **`Expecting value: line 1
+    column 1 (char 0)`** 한 줄로만 남았다 — 빈 문자열을 파싱한 것이다.
+    """
+    text = (message.get("content") or "").strip()
+    if not text:
+        text = (message.get("reasoning") or "").strip()
+    # <think>…</think> 로 감싸 오는 제공자도 있다. 닫혔으면 뒤쪽만 쓴다.
+    if "</think>" in text:
+        text = text.split("</think>", 1)[1].strip()
+    return text.strip("`").strip()
+
+
+def _scan_array(text: str, start: int) -> tuple[list, bool]:
+    """`text[start] == '['` 로 보고 **완성된 원소만** 순서대로 꺼낸다.
+
+    ★ 잘려도 건지는 게 요점이다 ★ 예전엔 `json.loads` 한 방이라, 60개 중 59개가
+    멀쩡히 왔어도 마지막 하나가 잘리면 **전부 버리고 키워드로 떨어졌다.**
+    40개라도 분류된 게 0개보다 낫다.
+
+    반환: (원소들, 정상적으로 닫혔는가)
+    """
+    dec = json.JSONDecoder()
+    out: list = []
+    i, n = start + 1, len(text)
+    while i < n:
+        while i < n and text[i] in " \t\r\n,":
+            i += 1
+        if i >= n:
+            return out, False
+        if text[i] == "]":
+            return out, True
+        try:
+            value, i = dec.raw_decode(text, i)
+        except ValueError:
+            return out, False       # 여기서부터 잘렸거나 형식이 깨졌다
+        out.append(value)
+    return out, False
+
+
+def _usable(elements: list) -> int:
+    """이 배열에서 답으로 쓸 수 있는 원소가 몇 개인가."""
+    return sum(1 for e in elements
+               if (isinstance(e, int) and not isinstance(e, bool))
+               or (isinstance(e, dict) and isinstance(e.get("i"), int)))
+
+
+def _extract_elements(text: str) -> tuple[list, bool]:
+    """본문에서 답 배열을 꺼낸다 — **첫 대괄호를 무조건 믿지 않는다.**
+
+    ⚠️ 새 형식(번호만)에서 생기는 함정이다. 모델이 설명을 곁들이면서 각주처럼
+    `[1]` 을 쓰면 첫 대괄호가 그것이다. 예전 형식은 개체 배열이라 그런 걸
+    파싱하다 시끄럽게 실패했지만, 번호 배열은 `[1]` 도 **말이 되게 파싱돼서
+    조용히 틀린 답이 된다.** 조용히 틀리는 건 이 시스템에서 가장 나쁜 실패다.
+
+    그래서 모든 `[` 를 후보로 훑고 **쓸 수 있는 원소가 가장 많은 것**을 고른다.
+    같으면 뒤쪽을 고른다 — 모델은 최종 답을 마지막에 쓴다.
+    """
+    best: tuple[list, bool] | None = None
+    best_score = -1
+    i = text.find("[")
+    while i != -1:
+        elements, closed = _scan_array(text, i)
+        score = _usable(elements)
+        # 잘린 배열(닫히지 않음)은 그 자체가 '여기서 끝났다' 는 뜻이라 뒤에 더
+        # 나은 후보가 없다. 동점이면 뒤쪽을 택한다(>= 가 그 뜻이다).
+        if score >= best_score:
+            best, best_score = (elements, closed), score
+        i = text.find("[", i + 1)
+    return best if best is not None else ([], False)
+
+
+def _answered_flags(elements: list, closed: bool, n_entries: int) -> dict[int, bool]:
+    """모델 응답을 `{제목 인덱스: 발병보도인가}` 로 바꾼다.
+
+    ★ 답하지 않은 제목은 넣지 않는다 ★ 응답이 잘렸을 때 나머지를 `False` 로
+    채우면 **실제 발병 보도를 '무관함' 으로 덮어써서 신호를 지운다.** 없는 답을
+    지어내느니 그 제목은 키워드 값을 그대로 쓰게 둔다.
+
+    두 형식을 모두 받는다:
+      - 번호만       `[0, 3, 12]`                     (2026-08-30~ 요청 형식)
+      - 개체         `[{"i": 0, "relevant": true}]`   (예전 형식 · 모델이 옛 습관대로 답할 때)
+    """
+    flags: dict[int, bool] = {}
+
+    # 정상적으로 닫힌 빈 배열 = "해당하는 제목이 하나도 없다". 전부 아니오다.
+    if not elements and closed:
+        return {gi: False for gi in range(n_entries)}
+
+    ints = [e for e in elements if isinstance(e, int) and not isinstance(e, bool)]
+    if ints:
+        # 번호만 온 형식: 목록에 없는 번호는 "아니오" 다. 다만 **모델이 실제로
+        # 훑은 데까지만** 그렇게 볼 수 있다. 잘렸으면 마지막으로 답한 번호를
+        # 수위선으로 삼는다(오름차순으로 달라고 했고, 아니어도 보수적이다).
+        covered = n_entries - 1 if closed else max(ints)
+        listed = set(ints)
+        for gi in range(0, min(covered, n_entries - 1) + 1):
+            flags[gi] = gi in listed
+        return flags
+
+    for item in elements:
+        if not isinstance(item, dict):
+            continue
+        gi = item.get("i")
+        if isinstance(gi, int) and not isinstance(gi, bool) and 0 <= gi < n_entries:
+            flags[gi] = bool(item.get("relevant"))
+    return flags
 
 
 def classify_multi_feed(
@@ -286,7 +446,13 @@ def _try_classify(feeds, entries, url: str, model: str, api_key: str,
                   prompt: str) -> str | None:
     """제공자 하나로 시도. 성공이면 None, 실패면 사유."""
     try:
-        r = _post(url, model, api_key, prompt)
+        r = _post(url, model, api_key, prompt, REASONING_EFFORT)
+        # reasoning_effort 를 이 제공자가 모르면 400 이다. 그건 "이 요청이
+        # 틀렸다" 가 아니라 "이 파라미터가 없다" 는 뜻이므로, 빼고 한 번 더
+        # 보낸다. 검증할 수 없는 것을 단정하지 않는 대신 프로덕션이 답하게 한다.
+        if r.status_code == 400 and REASONING_EFFORT:
+            r = _post(url, model, api_key, prompt, None)
+
         # ── 실패 종류를 갈라서 남긴다 ────────────────────────────────────
         # 402(결제)·429(한도)·5xx(장애)·형식 문제는 조치가 전혀 다르다.
         # 예전엔 넷이 전부 같은 침묵이었다.
@@ -295,29 +461,41 @@ def _try_classify(feeds, entries, url: str, model: str, api_key: str,
         if r.status_code == 429:
             return f"분당 요청 한도(429): {r.text[:150]}"
         r.raise_for_status()
-        raw = r.json()["choices"][0]["message"]["content"].strip().strip("`")
+
+        choice = r.json()["choices"][0]
+        # ★ finish_reason 을 반드시 들고 간다 ★ 이게 없어서 2026-08-29 하루치
+        # 실패 14건이 전부 "JSONDecodeError" 한 덩어리로만 남았다. 'length' 면
+        # 잘린 것이고 'stop' 이면 모델이 애초에 JSON 을 안 준 것이다 —
+        # 조치가 서로 다른데 로그가 그 둘을 구분해주지 못했다.
+        finish = choice.get("finish_reason")
+        raw = _message_text(choice.get("message") or {})
         if raw.lower().startswith("json"):
             raw = raw[4:].strip()
-        start, end = raw.find("["), raw.rfind("]")
-        if start != -1 and end != -1:
-            raw = raw[start:end + 1]
-        data = json.loads(raw)
-        if not isinstance(data, list):
-            return f"응답이 배열이 아님({type(data).__name__}): {raw[:150]}"
+
+        if "[" not in raw:
+            return (f"응답에 JSON 배열이 없음 (finish_reason={finish}, "
+                    f"본문 {len(raw)}자): {raw[:120]}")
+        elements, closed = _extract_elements(raw)
+        # 빈 배열 `[]` 은 실패가 아니라 **"해당하는 제목이 하나도 없다"** 는
+        # 정당한 답이다. 이걸 실패로 치면 조용한 날마다 키워드로 떨어진다.
+        if not elements and not closed:
+            return (f"JSON 배열을 읽지 못함 (finish_reason={finish}, "
+                    f"본문 {len(raw)}자): {raw[raw.find('['):][:120]}")
     except Exception as e:
         return f"{type(e).__name__}: {str(e)[:180]}"
 
-    relevant_flags = [False] * len(entries)
-    for item in data:
-        if not isinstance(item, dict):
-            continue
-        gi = item.get("i")
-        if isinstance(gi, int) and 0 <= gi < len(entries):
-            relevant_flags[gi] = bool(item.get("relevant"))
+    # 잘린 응답도 **답한 데까지는** 쓴다. 답하지 않은 제목은 건드리지 않는다.
+    flags = _answered_flags(elements, closed, len(entries))
+    if not flags:
+        return (f"배열은 읽었지만 쓸 수 있는 항목이 없음 "
+                f"(finish_reason={finish}, 원소 {len(elements)}개)")
 
     per_feed_titles: dict[int, list[str]] = {}
     per_feed_relevant: dict[int, list[str]] = {}
-    for (fi, t), is_rel in zip(entries, relevant_flags):
+    for gi, (fi, t) in enumerate(entries):
+        is_rel = flags.get(gi)
+        if is_rel is None:
+            continue                      # 모델이 답하지 않은 제목 — 키워드 값을 그대로 둔다
         per_feed_titles.setdefault(fi, []).append(t)
         if is_rel:
             per_feed_relevant.setdefault(fi, []).append(t)
@@ -332,4 +510,12 @@ def _try_classify(feeds, entries, url: str, model: str, api_key: str,
         feed["llm_relevant_count"] = len(relevant)
         feed["llm_hit_ratio"] = round(len(relevant) / max(len(titles), 1), 3)
         feed["llm_relevant_titles"] = relevant[:5]
+
+    # 몇 개를 보내 몇 개를 답받았는지 남긴다. 잘린 응답으로 절반만 분류된 채
+    # 도는 걸 "성공" 으로만 적으면, 커버가 조용히 반토막 나도 아무도 모른다.
+    marker = next((f for f in feeds if "llm_hit_ratio" in f), None)
+    if marker is not None:
+        marker["llm_answered_titles"] = len(flags)
+        marker["llm_sent_titles"] = len(entries)
+        marker["llm_finish_reason"] = finish
     return None

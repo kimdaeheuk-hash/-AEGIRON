@@ -347,6 +347,15 @@ def fetch_all_local_news(cerebras_key: str | None = None,
 
     classified = sum(1 for r in results if "llm_hit_ratio" in r)
 
+    # ★ 부분 성공을 성공으로만 적지 않는다 (2026-08-30) ★
+    # 응답이 잘려도 답받은 데까지는 쓴다. 그건 0개보다 낫지만, 커버가 반토막
+    # 났다는 사실 자체는 보여야 한다 — 안 보이면 "12개 피드" 가 몇 주씩 이어져도
+    # 아무도 이상하다고 못 느낀다.
+    answered = next((r.get("llm_answered_titles") for r in results
+                     if r.get("llm_answered_titles") is not None), None)
+    sent = next((r.get("llm_sent_titles") for r in results
+                 if r.get("llm_sent_titles") is not None), None)
+
     return {
         "total_feeds":     len(LOCAL_FEEDS),
         "active_feeds":    len(active_feeds),
@@ -358,6 +367,11 @@ def fetch_all_local_news(cerebras_key: str | None = None,
         "llm_classified_feeds": classified,
         "llm_failure_reason":   llm_reason if classified == 0 else None,
         "high_alert_basis":     "llm" if classified else "keyword",
+        # ↓ 보낸 제목 중 몇 개를 실제로 답받았는지. 둘이 다르면 응답이 잘린 것이다.
+        "llm_answered_titles":  answered,
+        "llm_sent_titles":      sent,
+        "llm_provider":         next(
+            (r.get("llm_provider") for r in results if r.get("llm_provider")), None),
         # ↓ 감시창이 실제로 무엇을 바꿨는지. 0 이면 '창은 열렸지만 아무것도
         #   끌어올리지 못했다' 는 뜻이고, 그것도 알 가치가 있는 사실이다.
         "watch_window_countries": len(windows),

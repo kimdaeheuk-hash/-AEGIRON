@@ -708,7 +708,15 @@ def collect_free_sources() -> dict:
         )
         n = result["local_news"]
         classified = n.get("llm_classified_feeds", 0)
-        tag = f", LLM 재분류 {classified}개 피드" if classified else ""
+        # 잘린 응답으로 절반만 답받았으면 그것도 같은 줄에 적는다 — 감시창 승격을
+        # 고경보와 같은 줄에 붙인 것과 같은 이유다. 따로 두면 "12개 피드" 만 읽고
+        # 커버가 반토막인 걸 모른 채 지나간다.
+        answered, sent = n.get("llm_answered_titles"), n.get("llm_sent_titles")
+        tag = ""
+        if classified:
+            tag = f", LLM 재분류 {classified}개 피드"
+            if answered is not None and sent and answered < sent:
+                tag += f"(제목 {answered}/{sent} — 응답 잘림)"
         # 감시창이 몇 개를 끌어올렸는지는 **고경보 수와 같은 줄에** 있어야 한다.
         # 따로 찍으면 "고경보 43개" 만 읽고 문턱이 달라진 걸 모른 채 지나간다.
         promoted = n.get("watch_promoted_feeds", 0)
