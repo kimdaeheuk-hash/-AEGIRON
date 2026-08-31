@@ -70,6 +70,11 @@ _EN: dict[str, str] = {
     "democratic republic of the congo": "COD", "democratic republic of congo": "COD",
     "dr congo": "COD", "drc": "COD", "congo dem rep": "COD",
     "republic of congo": "COG", "congo": "COG",
+    # ★ 괄호로 두 콩고를 가르는 표기 ★ 조각 분리자가 괄호에서 먼저 쪼개는 바람에
+    # "Congo (Kinshasa)" 가 앞 조각 "Congo" 만 보고 COG(콩고공화국)로 갔다.
+    # 킨샤사는 COD(콩고민주공화국) 수도다 — 에볼라 발원지를 이웃 나라로 붙이던 셈.
+    # 아래 두 줄은 쪼개기 **전에** 전체 문자열로 정확히 맞춰본다(resolve_countries).
+    "congo kinshasa": "COD", "congo brazzaville": "COG",
     "uganda": "UGA", "kenya": "KEN", "tanzania": "TZA",
     "united republic of tanzania": "TZA", "rwanda": "RWA", "burundi": "BDI",
     "ethiopia": "ETH", "somalia": "SOM", "djibouti": "DJI",
@@ -117,7 +122,13 @@ _EN: dict[str, str] = {
 _NOT_A_COUNTRY = re.compile(
     r"크루즈|선박|여객선|cruise|ship|vessel|"
     r"전\s*세계|전세계|worldwide|global|전지구|"
-    r"아프리카(?!\s*공화국)|africa(?!n\s+republic)|"
+    # ★ (?<!south ) 가 없으면 South Africa 가 통째로 버려진다 (2026-08-31 실측) ★
+    # 한글 '남아프리카공화국'은 뒤의 '공화국' 덕에 살아남는데 영문 'South Africa'는
+    # 대륙 언급으로 오인돼 조용히 사라졌다. 영문 기사·WHO 문서가 주 입력인데
+    # 남아공이 안 잡히면 조기경보에 큰 구멍이다.
+    # 'southern africa'(지역 표현)는 그대로 막힌다 — 앞 6글자가 'thern '이 아니라
+    # 'south '일 때만 예외로 둔다.
+    r"아프리카(?!\s*공화국)|(?<!south )africa(?!n\s+republic)|"
     r"서태평양|서부태평양|남태평양|태평양|western\s+pacific|pacific|"
     r"유럽|europe|아시아|asia|중동|middle\s+east|아메리카|americas|"
     r"대서양|atlantic|인도양|"
@@ -166,6 +177,22 @@ def _match_fragment(frag: str) -> str | None:
     return None
 
 
+# 괄호로 나라를 가르는 표기 — 쪼개면 뜻이 바뀌므로 미리 표준 이름으로 바꾼다.
+# ★ 실측 (2026-08-31) ★ 항공 노선 데이터의 국가명이 "Congo (Kinshasa)" 였는데
+# 앞 조각 "Congo" 만 보고 COG(콩고공화국)로 갔다. 킨샤사는 COD(콩고민주공화국)
+# 수도다 — 에볼라 발원지를 이웃 나라에 붙이고 있었던 셈이다.
+_PAREN_FORMS: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"congo\s*\(\s*kinshasa\s*\)", re.I),     "DR Congo"),
+    (re.compile(r"congo\s*\(\s*brazzaville\s*\)", re.I),  "Republic of Congo"),
+)
+
+
+def _expand_paren_forms(text: str) -> str:
+    for pattern, canonical in _PAREN_FORMS:
+        text = pattern.sub(canonical, text)
+    return text
+
+
 def resolve_countries(location: str | None) -> list[str]:
     """location 자유문장 → 언급된 모든 ISO3(등장 순서, 중복 제거).
 
@@ -173,8 +200,13 @@ def resolve_countries(location: str | None) -> list[str]:
     모두에 대한 증거다. 하나만 남기면 나머지 나라의 조기신호를 통째로 잃는다."""
     if not location:
         return []
+
+    # 괄호 표기를 먼저 표준 이름으로 바꾼다 — 아래에서 괄호를 분리자로 쪼개기 때문에
+    # 그냥 두면 "Congo (Kinshasa)" 가 앞 조각 "Congo" 만 남아 뜻이 뒤집힌다.
+    text = _expand_paren_forms(str(location))
+
     out: list[str] = []
-    for frag in _SPLIT.split(str(location)):
+    for frag in _SPLIT.split(text):
         iso = _match_fragment(frag)
         if iso and iso not in out:
             out.append(iso)

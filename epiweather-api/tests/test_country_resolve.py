@@ -93,3 +93,43 @@ def test_signal_countries_ignores_malformed_stored_code():
     """모델 오출력(소문자·전체국명)이 그대로 들어오면 무시하고 location으로 간다."""
     assert signal_countries({"country_iso3": "congo", "location": "우간다"}) == ["UGA"]
     assert signal_countries({"country_iso3": None, "location": None}) == []
+
+
+# ── 2026-08-31 실측으로 잡은 두 가지 ────────────────────────────────────────
+# 항공 노선 데이터의 국가명을 훑다가 나왔다. 235개 이름 중 107개가 해석에
+# 실패했는데, 그 안에 남아프리카공화국이 있었다.
+
+def test_south_africa_is_not_thrown_away_as_a_continent():
+    """★핵심★ 영문 'South Africa' 가 대륙 언급으로 오인돼 버려지고 있었다.
+
+    '아프리카/africa' 는 대륙 표현이라 걸러내는데, 그 필터가 South Africa 를
+    같이 삼켰다. 한글 '남아프리카공화국'은 뒤의 '공화국' 덕에 살아남아서
+    한쪽 언어에서만 조용히 사라졌다 — 영문 기사·WHO 문서가 주 입력인데
+    남아공이 안 잡히면 조기경보에 구멍이 생긴다.
+    """
+    assert resolve_country("South Africa") == "ZAF"
+    assert resolve_country("남아프리카공화국") == "ZAF"
+    assert resolve_countries("South Africa and Nigeria") == ["ZAF", "NGA"]
+
+
+def test_continent_mentions_are_still_filtered_out():
+    """대륙·지역 표현은 그대로 막혀야 한다 — 남아공만 예외로 뺀 것이다."""
+    assert resolve_country("Southern Africa") is None
+    assert resolve_country("across Africa") is None
+    assert resolve_country("아프리카") is None
+
+
+def test_the_two_congos_are_told_apart():
+    """★핵심★ 괄호로 가르는 두 콩고를 뒤바꾸지 않는다.
+
+    조각 분리자가 괄호에서 먼저 쪼개는 바람에 "Congo (Kinshasa)" 가 앞 조각
+    "Congo" 만 보고 COG(콩고공화국)로 갔다. 킨샤사는 COD(콩고민주공화국)
+    수도이고 우리 시뮬레이션의 발원지다 — 발병을 이웃 나라에 붙이던 셈이다.
+    """
+    assert resolve_country("Congo (Kinshasa)") == "COD"
+    assert resolve_country("Congo (Brazzaville)") == "COG"
+    # 괄호 표기가 다른 나라와 같이 나와도 둘 다 살아야 한다
+    assert resolve_countries("Congo (Kinshasa), Uganda") == ["COD", "UGA"]
+    # 괄호 없는 기존 표기도 그대로
+    assert resolve_country("DR Congo") == "COD"
+    assert resolve_country("Republic of Congo") == "COG"
