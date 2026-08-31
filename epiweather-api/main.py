@@ -1166,6 +1166,23 @@ def risk_quantification_country(country: str):
         )
 
 
+@app.get("/api/pipeline-stages", tags=["시스템"])
+def pipeline_stages():
+    """
+    아이기론 파이프라인 9단계 — **이름의 단일 출처**.
+
+    대외 자료·영상·포트폴리오는 전부 이걸 읽어야 한다. 여기 없는 단계 이름을
+    문서에 쓰면 그건 지어낸 것이다(실제로 그런 일이 있었다 — 포트폴리오 PDF 에
+    코드에 없는 단계 이름이 들어갔다).
+
+    3·4·7 단계는 2026-08-31 에 이름을 붙였다. 새로 만든 기능이 아니라 이미
+    돌고 있던 모듈에 번호를 부여한 것이고, 응답의 `newly_named` 로 그 사실을
+    숨기지 않고 밝힌다.
+    """
+    from algorithms.pipeline_stages import pipeline_summary
+    return pipeline_summary()
+
+
 @app.get("/api/disaster-watch", tags=["GAI"])
 def disaster_watch():
     """
