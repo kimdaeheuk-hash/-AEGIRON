@@ -2149,9 +2149,20 @@ def digital_twin_simulate(
     days: int = 180,
 ):
     """
-    디지털 트윈 — 다도시 전파 시뮬레이션.
-    origin에서 발생한 감염이 항공 네트워크를 타고 서울까지 도달하는 경로·일정 예측.
-    origin: Kinshasa, Bangkok, Riyadh 등 / threat: flu | novel | severe
+    디지털 트윈 — 전 세계 전파 시뮬레이션 (159개국).
+
+    발원지에서 **육로 국경**(314개)과 **항공 노선**(11개)을 타고 각 나라에
+    언제 도달하는지 예측한다.
+
+    origin: 도시 이름(Kinshasa, Bangkok …) 또는 ISO3 국가코드(NGA, BRA, IND)
+    threat: flu | novel | severe
+
+    ★ 결과를 읽을 때 ★ 안 걸린 나라는 두 부류로 나뉘어 나온다.
+      * `not_reached`      — 경로는 있는데 기간 안에 안 온 나라
+      * `no_route_modeled` — **가는 길 자체를 모르는 나라.** 안전하다는 뜻이
+                             아니다. 항공 노선 실측이 11개뿐이라 아메리카
+                             대륙은 통째로 여기 들어간다.
+    한계는 `limits` 에 같이 실려 나간다.
     """
     from algorithms.digital_twin import simulate_spread
     if threat not in ("flu", "novel", "severe"):
