@@ -720,8 +720,15 @@ def collect_free_sources() -> dict:
         # 감시창이 몇 개를 끌어올렸는지는 **고경보 수와 같은 줄에** 있어야 한다.
         # 따로 찍으면 "고경보 43개" 만 읽고 문턱이 달라진 걸 모른 채 지나간다.
         promoted = n.get("watch_promoted_feeds", 0)
-        watch_tag = (f", 감시창 승격 {promoted}개(문턱 {n['alert_threshold']}→"
-                     f"{n['watch_alert_threshold']})" if promoted else "")
+        # ★ 어느 나라가 올라왔는지까지 찍는다 (2026-08-31) ★
+        # 예전엔 "감시창 승격 5개" 라고만 나왔다. 그런데 아침 점검에서 정말
+        # 알아야 하는 건 개수가 아니라 **어디냐** 다 — 네팔이 올라왔는지
+        # 아닌지를 로그만 보고 알 수 없으면 매번 API를 따로 뒤져야 한다.
+        where = n.get("watch_promoted_countries") or []
+        where_tag = f"[{'·'.join(where[:8])}{'…' if len(where) > 8 else ''}]" if where else ""
+        watch_tag = (f", 감시창 승격 {promoted}개{where_tag}"
+                     f"(문턱 {n['alert_threshold']}→{n['watch_alert_threshold']})"
+                     if promoted else "")
         log(f"  현지어 뉴스: {n['active_feeds']}/{n['total_feeds']}개 피드, "
             f"키워드 히트 {n['total_kw_hits']}건, 고경보 {n['high_alert_feeds']}개"
             f"{tag}{watch_tag}")

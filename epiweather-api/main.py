@@ -2353,9 +2353,35 @@ def local_news():
     """
     현지어 뉴스 RSS — 스와힐리어·프랑스어·태국어·베트남어 감염병 키워드 감지.
     영어 번역 전에 감지. hit_ratio가 높을수록 현지 감염병 보도 활발.
+
+    ★ 재난 감시창을 같이 반영한다 (2026-08-31) ★
+    예전엔 이 엔드포인트가 감시창 없이 불렀다. 수집기는 넘기는데 API 는 안
+    넘겼다. 그래서 **같은 피드가 수집기에서는 고경보인데 API 로 보면 평범한
+    피드로 보였다.**
+
+    실측: 2026-08-26 네팔 홍수로 감시창이 열려 있는 동안 `gn_np` 는 0.11 이었다.
+    평시 문턱 0.15 에는 못 미치고 감시창 문턱 0.08 은 넘는 값 — 수집기는
+    고경보로 올렸는데 API 응답에는 창이 열렸다는 표시조차 없었다. 대시보드나
+    기자가 API 를 보면 실제와 다른 그림을 본다.
+
+    감시창을 못 읽으면 조용히 평시 문턱으로 돌지 않고 `watch_windows_error`
+    로 밝힌다 — 문턱이 말없이 달라지면 고경보 수를 아무도 해석할 수 없다.
+
+    참고: 이 엔드포인트는 LLM 재분류를 돌리지 않는다(호출마다 쿼터를 태우게
+    되므로). 그래서 비율이 키워드 기준이라 수집기 값과 다를 수 있다.
     """
     from algorithms.local_news import fetch_all_local_news
-    return fetch_all_local_news()
+    from algorithms.disaster_watch import open_windows
+
+    try:
+        windows, windows_error = open_windows(), None
+    except Exception as e:                       # noqa: BLE001 - 사유를 들고 간다
+        windows, windows_error = None, f"{type(e).__name__}: {str(e)[:150]}"
+
+    out = fetch_all_local_news(watch_windows=windows)
+    if windows_error:
+        out["watch_windows_error"] = windows_error
+    return out
 
 
 @app.get("/api/animal-signals", tags=["Phase2"])

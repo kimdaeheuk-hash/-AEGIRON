@@ -333,6 +333,11 @@ def fetch_all_local_news(cerebras_key: str | None = None,
             }
 
     high_alert = []
+    # ★ 몇 개인지만으로는 부족하다 ★ 조기경보에서 "5개가 올라왔다"보다
+    # "네팔·중국이 올라왔다"가 훨씬 쓸모 있는 정보다. 어느 나라인지 안 남기면
+    # 로그를 보는 사람이 매번 API를 따로 뒤져야 한다 — GroqWatch 가
+    # "0개 공항 확인" 한 줄만 남겨서 열흘을 헤맸던 것과 같은 모양이다.
+    watch_promoted_countries: list[str] = []
     for r in active_feeds:
         ratio = r.get("llm_hit_ratio", r.get("hit_ratio", 0))
         watched = "watch_window" in r
@@ -343,6 +348,9 @@ def fetch_all_local_news(cerebras_key: str | None = None,
             # 평시 문턱이었으면 안 걸렸을 피드 — 감시창 때문에 올라온 것이다.
             r["alert_basis"] = "disaster_watch_window"
             watch_promoted += 1
+            iso = r["watch_window"]["country_iso3"]
+            if iso not in watch_promoted_countries:
+                watch_promoted_countries.append(iso)
         high_alert.append(r)
 
     classified = sum(1 for r in results if "llm_hit_ratio" in r)
@@ -376,6 +384,8 @@ def fetch_all_local_news(cerebras_key: str | None = None,
         #   끌어올리지 못했다' 는 뜻이고, 그것도 알 가치가 있는 사실이다.
         "watch_window_countries": len(windows),
         "watch_promoted_feeds":   watch_promoted,
+        # ↓ 어느 나라가 감시창 덕에 올라왔는지. 수집 로그가 이걸 그대로 찍는다.
+        "watch_promoted_countries": sorted(watch_promoted_countries),
         "alert_threshold":        ALERT_THRESHOLD,
         "watch_alert_threshold":  WATCH_ALERT_THRESHOLD,
         # 낮춘 문턱(0.08)은 임의값이다 — 근거처럼 인용되지 않게 못박는다.

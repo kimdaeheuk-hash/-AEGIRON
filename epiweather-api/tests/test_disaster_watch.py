@@ -438,3 +438,78 @@ def test_full_detail_still_available_from_the_report():
     dw.record_events(dw.parse_gdacs(_rss(_item())), today=dt.date(2026, 8, 25))
     w = dw.disaster_watch_report(dt.date(2026, 8, 30))["countries"][0]["open_windows"][0]
     assert w["rationale"] and w["keywords"]
+
+
+# ── 2026-08-31 실측으로 잡은 두 구멍 ────────────────────────────────────────
+# 캡틴이 "네팔 감시는 어때?" 라고 물어 운영을 들여다보다 나왔다. 감지 자체는
+# 멀쩡히 돌고 있었는데, **밖에서 그걸 볼 방법이 없었다.**
+
+def test_log_can_name_which_countries_were_promoted():
+    """★핵심★ 승격된 나라 이름이 결과에 있어야 한다.
+
+    예전엔 수집 로그가 "감시창 승격 5개" 라고만 찍었다. 그런데 아침 점검에서
+    정말 알아야 하는 건 개수가 아니라 **어디냐** 다 — 네팔이 올라왔는지를
+    로그만 보고 알 수 없으면 매번 API 를 따로 뒤져야 한다. GroqWatch 가
+    "0개 공항 확인" 한 줄만 남겨 열흘을 헤맸던 것과 같은 모양이다.
+    """
+    out = _run_local_news([_feed("gn_np", 0.10)], _NEPAL_WINDOW)
+
+    assert out["watch_promoted_countries"] == ["NPL"]
+
+
+def test_promoted_countries_are_deduplicated_and_sorted():
+    """한 나라에 피드가 여럿이어도 이름은 한 번만 — 로그 한 줄에 들어가야 한다."""
+    windows = dict(_NEPAL_WINDOW)
+    windows["BRA"] = [{"disease": "뎅기·말라리아", "disaster_type": "FL",
+                       "days_since_disaster": 20}]
+    feeds = [_feed("gn_np", 0.10), _feed("gn_br", 0.10), _feed("gn_kr", 0.10)]
+
+    out = _run_local_news(feeds, windows)
+
+    assert out["watch_promoted_countries"] == ["BRA", "NPL"]   # 정렬·중복 없음
+
+
+def test_nothing_promoted_reports_an_empty_list_not_a_missing_key():
+    """0건도 사실이다 — 키가 아예 없으면 '안 봤다'와 구분이 안 된다."""
+    out = _run_local_news([_feed("gn_np", 0.50)], _NEPAL_WINDOW)
+
+    assert out["watch_promoted_countries"] == []
+
+
+def test_public_api_reflects_the_watch_window():
+    """★핵심★ 공개 API 가 감시창을 반영해야 한다.
+
+    실측(2026-08-31): `/api/local-news` 가 fetch_all_local_news() 를 **감시창
+    없이** 불렀다. 수집기는 넘기는데 API 는 안 넘겼다. 그래서 네팔 홍수로 창이
+    열린 동안 gn_np(0.11)가 수집기에서는 고경보인데 API 로 보면 창이 열렸다는
+    표시조차 없는 평범한 피드였다 — 대시보드나 기자가 실제와 다른 그림을 본다.
+    """
+    import main
+
+    captured = {}
+
+    def fake_fetch(*args, **kwargs):
+        captured["windows"] = kwargs.get("watch_windows")
+        return {"high_alert": [], "feeds": []}
+
+    with patch.object(ln, "fetch_all_local_news", fake_fetch), \
+         patch("algorithms.disaster_watch.open_windows", lambda: _NEPAL_WINDOW):
+        main.local_news()
+
+    assert captured["windows"] == _NEPAL_WINDOW, "API 가 감시창을 안 넘기고 있다"
+
+
+def test_public_api_says_so_when_it_cannot_read_the_windows():
+    """감시창을 못 읽으면 조용히 평시 문턱으로 돌지 않고 사유를 밝힌다."""
+    import main
+
+    def boom():
+        raise OSError("state file gone")
+
+    with patch.object(ln, "fetch_all_local_news",
+                      lambda *a, **k: {"high_alert": [], "feeds": []}), \
+         patch("algorithms.disaster_watch.open_windows", boom):
+        out = main.local_news()
+
+    assert "watch_windows_error" in out, "못 읽었는데 아무 말도 안 하고 있다"
+    assert "OSError" in out["watch_windows_error"]
