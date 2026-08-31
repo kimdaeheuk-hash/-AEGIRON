@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import urllib.parse
 from pathlib import Path
 from unittest.mock import patch
 
@@ -268,9 +269,11 @@ def test_unknown_iso2_is_none_not_a_guess():
 
 # ── ★ 감시창이 실제로 뉴스를 바꾸는가 ★ ─────────────────────────────
 
-def _feed(slug, ratio):
+def _feed(slug, ratio, item_count=100):
+    """기사 수 기본값이 100인 이유: 표본이 MIN_ITEMS_FOR_ALERT(20) 미만이면
+    새 가드가 판정 자체를 안 한다. 예전 픽스처는 10건이라 전부 걸렸다."""
     return {"slug": slug, "lang": "x", "region": "y", "status": "ok",
-            "item_count": 10, "keyword_hits": int(ratio * 10),
+            "item_count": item_count, "keyword_hits": int(ratio * item_count),
             "hit_ratio": ratio, "_all_titles": ["t"]}
 
 
@@ -288,10 +291,12 @@ _NEPAL_WINDOW = {"NPL": [{"disease": "콜레라·장티푸스", "disaster_type":
 
 def test_watch_window_promotes_a_feed_normally_ignored():
     """★이 층의 존재 이유★ 평시라면 넘겼을 보도를 감시창이 붙잡는다."""
-    feeds = [_feed("gn_np", 0.10), _feed("gn_kr", 0.10)]
+    # gn_np 는 국가 한정 피드(COUNTRY_TERMS)라 문턱이 0.20/0.11 이다.
+    # 0.15 는 평시(0.20)엔 못 미치고 감시창(0.11)은 넘는 값 — 이 층의 요점.
+    feeds = [_feed("gn_np", 0.15), _feed("gn_kr", 0.10)]
 
     without = _run_local_news(feeds, None)
-    assert without["high_alert_feeds"] == 0, "0.10 은 평시 문턱 0.15 를 못 넘는다"
+    assert without["high_alert_feeds"] == 0, "감시창 없이는 둘 다 문턱 아래다"
 
     with_window = _run_local_news(feeds, _NEPAL_WINDOW)
     promoted = [f["slug"] for f in with_window["high_alert"]]
@@ -301,13 +306,14 @@ def test_watch_window_promotes_a_feed_normally_ignored():
 
 def test_the_lowered_threshold_is_never_silent():
     """문턱이 조용히 달라지면 고경보 수를 아무도 해석할 수 없다."""
-    out = _run_local_news([_feed("gn_np", 0.10)], _NEPAL_WINDOW)
+    out = _run_local_news([_feed("gn_np", 0.15)], _NEPAL_WINDOW)
     feed = out["high_alert"][0]
     assert feed["alert_basis"] == "disaster_watch_window"
     assert feed["watch_window"]["diseases"] == ["콜레라·장티푸스"]
     assert feed["watch_window"]["disasters"] == ["FL"]
     assert feed["watch_window"]["min_days_since_disaster"] == 6
     assert out["alert_threshold"] == ln.ALERT_THRESHOLD
+    assert out["scoped_alert_threshold"] == ln.SCOPED_ALERT_THRESHOLD
     assert out["watch_alert_threshold"] == ln.WATCH_ALERT_THRESHOLD
     assert out["threshold_calibrated"] is False, "임의로 정한 값을 근거처럼 두면 안 된다"
 
@@ -452,7 +458,7 @@ def test_log_can_name_which_countries_were_promoted():
     로그만 보고 알 수 없으면 매번 API 를 따로 뒤져야 한다. GroqWatch 가
     "0개 공항 확인" 한 줄만 남겨 열흘을 헤맸던 것과 같은 모양이다.
     """
-    out = _run_local_news([_feed("gn_np", 0.10)], _NEPAL_WINDOW)
+    out = _run_local_news([_feed("gn_np", 0.15)], _NEPAL_WINDOW)
 
     assert out["watch_promoted_countries"] == ["NPL"]
 
@@ -462,7 +468,8 @@ def test_promoted_countries_are_deduplicated_and_sorted():
     windows = dict(_NEPAL_WINDOW)
     windows["BRA"] = [{"disease": "뎅기·말라리아", "disaster_type": "FL",
                        "days_since_disaster": 20}]
-    feeds = [_feed("gn_np", 0.10), _feed("gn_br", 0.10), _feed("gn_kr", 0.10)]
+    # gn_np 는 국가 한정(문턱 0.11), gn_br·gn_kr 은 아님(문턱 0.08)
+    feeds = [_feed("gn_np", 0.15), _feed("gn_br", 0.10), _feed("gn_kr", 0.10)]
 
     out = _run_local_news(feeds, windows)
 
@@ -513,3 +520,105 @@ def test_public_api_says_so_when_it_cannot_read_the_windows():
 
     assert "watch_windows_error" in out, "못 읽었는데 아무 말도 안 하고 있다"
     assert "OSError" in out["watch_windows_error"]
+
+
+# ── 되돌림 피드 (2026-08-31) ────────────────────────────────────────────────
+# 실측: 179개 피드 중 102개가 서로 완전히 같은 기사를 받고 있었다. 구글 뉴스가
+# 자체 뉴스판이 없는 나라에 언어 기본판을 되돌려 주기 때문이다. 잠비아·미국·
+# 사모아가 글자 하나까지 같은 기사 100건을 받았다.
+
+def test_country_terms_cover_the_fallback_feeds():
+    """되돌림 피드에는 나라 이름이 붙어 있어야 한다 — 안 붙으면 또 겹친다."""
+    slugs = {f[0] for f in ln.LOCAL_FEEDS}
+
+    assert len(ln.COUNTRY_TERMS) == 102
+    assert set(ln.COUNTRY_TERMS) <= slugs, "없는 피드에 이름을 붙여놨다"
+    # 실측에서 되돌림이 확인된 대표들
+    for slug in ("gn_zm", "gn_us", "gn_ws", "gn_so", "gn_ss", "gn_ml", "gn_ma"):
+        assert slug in ln.COUNTRY_TERMS, f"{slug} 이 되돌림 목록에서 빠졌다"
+
+
+def test_scoped_feeds_actually_carry_the_country_in_the_query():
+    """URL 질의에 나라 이름이 실제로 들어갔는지 — 표만 있고 안 쓰면 소용없다."""
+    url = next(f[3] for f in ln.LOCAL_FEEDS if f[0] == "gn_zm")
+    plain = next(f[3] for f in ln.LOCAL_FEEDS if f[0] == "gn_cd")
+
+    assert "Zambia" in urllib.parse.unquote(url)
+    assert "Zambia" not in urllib.parse.unquote(plain), "한정 대상이 아닌 피드가 바뀌었다"
+
+
+def test_duplicate_feeds_are_never_reported_as_that_countrys_alert():
+    """★★핵심★★ 남의 기사를 그 나라 이름으로 경보하지 않는다.
+
+    되돌림 묶음이 문턱을 넘으면 36개국이 한꺼번에 경보가 뜬다. 그건 그 나라
+    신호가 아니라 언어 기본판이다 — **없는 발병을 있다고 말하는 것**이 된다.
+    """
+    same = ["같은 기사 A", "같은 기사 B", "같은 기사 C", "같은 기사 D"]
+    feeds = [_feed("gn_zm", 0.50), _feed("gn_us", 0.50), _feed("gn_cd", 0.50)]
+    feeds[0]["_all_titles"] = ["hdr", "hdr2"] + same
+    feeds[1]["_all_titles"] = ["hdr", "hdr2"] + same          # 잠비아와 동일
+    feeds[2]["_all_titles"] = ["hdr", "hdr2", "다른 기사", "또 다른", "세번째"]
+
+    out = _run_local_news(feeds, None)
+    alerted = {f["slug"] for f in out["high_alert"]}
+
+    assert "gn_zm" not in alerted and "gn_us" not in alerted, "겹친 피드가 경보로 나갔다"
+    assert "gn_cd" in alerted, "고유 피드까지 막으면 안 된다"
+    assert out["duplicated_feeds"] == 2
+    assert ["gn_us", "gn_zm"] in out["duplicate_feed_groups"]
+
+
+def test_duplicate_detection_runs_every_cycle_not_from_a_fixed_list():
+    """되돌림은 요청마다 흔들린다 — 목록을 박아두면 놓친다.
+
+    실측(2026-08-31): 네팔이 한 번은 고유였다가 다음 번엔 아프가니스탄·
+    스리랑카와 같은 기사를 받았다. 그래서 매 수집마다 제목으로 판정한다.
+    """
+    same = ["A", "B", "C", "D"]
+    # COUNTRY_TERMS 에 없는(=되돌림 목록 밖) 피드끼리 겹쳐도 잡혀야 한다
+    feeds = [_feed("gn_cd", 0.50), _feed("gn_kr", 0.50)]
+    for f in feeds:
+        f["_all_titles"] = ["hdr", "hdr2"] + same
+
+    out = _run_local_news(feeds, None)
+
+    assert out["duplicated_feeds"] == 2, "고정 목록이 아니라 그때그때 봐야 한다"
+    assert out["high_alert_feeds"] == 0
+
+
+def test_too_few_items_is_not_treated_as_a_signal():
+    """★핵심★ 표본 부족은 '모른다'다 — 경보도 아니고 정상도 아니다.
+
+    국가 한정을 걸면 기사 5건에 키워드 6종이 잡혀 ratio 1.2 가 나오기도 한다.
+    그걸 신호로 읽으면 조용한 나라마다 가짜 경보가 뜬다.
+    """
+    out = _run_local_news([_feed("gn_zm", 1.2, item_count=5)], None)
+
+    assert out["high_alert_feeds"] == 0, "기사 5건짜리가 경보로 나갔다"
+    assert out["too_few_items_feeds"] == ["gn_zm"], "판정 못 한 사실을 안 남겼다"
+    assert out["min_items_for_alert"] == 20
+
+
+def test_scoped_feeds_use_a_higher_threshold_than_plain_ones():
+    """국가 한정 피드는 분모가 작아 비율이 구조적으로 높다 — 문턱이 달라야 한다.
+
+    실측: 나라 이름을 넣자 102개 중 73개(72%)가 0.15 를 넘었다. 0.20 은 표본
+    20건 이상 81개에서 경보율 28% 로, 현재 운영점(179개 중 약 50개)과 같다.
+    """
+    ratio = 0.17          # 평시 0.15 위, 국가한정 0.20 아래
+    out = _run_local_news([_feed("gn_zm", ratio), _feed("gn_cd", ratio)], None)
+    alerted = {f["slug"] for f in out["high_alert"]}
+
+    assert "gn_cd" in alerted, "한정 안 된 피드는 0.15 문턱 그대로여야 한다"
+    assert "gn_zm" not in alerted, "한정된 피드에 옛 문턱을 쓰고 있다"
+    assert ln.SCOPED_ALERT_THRESHOLD > ln.ALERT_THRESHOLD
+
+
+def test_the_feed_count_no_longer_pretends_to_be_country_count():
+    """"179개 피드" 가 179개국을 본다는 뜻이 아니라는 걸 응답이 말해야 한다."""
+    out = _run_local_news([_feed("gn_zm", 0.5), _feed("gn_cd", 0.5)], None)
+
+    for key in ("duplicate_feed_groups", "duplicated_feeds", "distinct_feed_sets",
+                "country_scoped_feeds", "too_few_items_feeds"):
+        assert key in out, f"{key} 를 안 내보내고 있다"
+    assert out["country_scoped_feeds"] == 102

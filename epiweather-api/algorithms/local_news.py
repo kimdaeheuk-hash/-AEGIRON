@@ -210,8 +210,82 @@ _WORLD_SOURCES_EXTRA: list[tuple[str, str, str, str, str, list[str]]] = [
 ]
 
 # (slug, 언어, 지역, RSS URL, 감염병 키워드[현지어+공통 질병명])
+# ── 구글이 나라를 무시하고 언어 기본판을 주는 피드들 (2026-08-31 실측) ──────
+#
+# ★ 179개 피드 중 102개가 서로 완전히 같은 기사를 받고 있었다 ★
+# 구글 뉴스는 **자체 뉴스판이 없는 나라**에 gl/ceid 를 줘도 언어 기본판으로
+# 되돌려 준다. 그래서 잠비아·미국·사모아가 글자 하나까지 똑같은 기사 100건을
+# 받았다. 되돌림 묶음은 12개였고 가장 큰 것이 36개국짜리 범용 영어 묶음이다.
+#
+# 이게 왜 심각한가:
+#   * 소말리아·남수단·잠비아 같은 **발병 위험국의 현지 신호를 아예 못 본다.**
+#     대신 호주 조류독감 기사를 본다.
+#   * 그 묶음이 문턱을 넘으면 **36개국이 한꺼번에 경보**가 뜬다. 나라별 신호가
+#     아닌데 나라별로 보인다.
+#
+# 고치는 방법: 질의에 그 나라 이름을 넣는다. 실측으로 되돌림이 **0개**가 됐고,
+# 안 보이던 신호가 드러났다 — 잠비아 탄저 의심 684건, 캄보디아 H5N1 사람 감염.
+#
+# 이름은 **그 피드의 언어로** 적는다. 영어 이름보다 기사가 더 많이 잡힌다
+# (실측: 차드 Tchad 28건 vs Chad 14건, 모로코 المغرب 15건 vs Morocco 6건).
+COUNTRY_TERMS: dict[str, str] = {
+    # 범용 영어 되돌림 (36)
+    "gn_al": "Albania", "gn_am": "Armenia", "gn_ba": "Bosnia", "gn_bb": "Barbados",
+    "gn_bs": "Bahamas", "gn_bt": "Bhutan", "gn_bz": "Belize", "gn_er": "Eritrea",
+    "gn_fj": "Fiji", "gn_ge": "Georgia", "gn_gm": "Gambia", "gn_gy": "Guyana",
+    "gn_hr": "Croatia", "gn_is": "Iceland", "gn_jm": "Jamaica", "gn_la": "Laos",
+    "gn_lr": "Liberia", "gn_ls": "Lesotho", "gn_mk": "Macedonia", "gn_mn": "Mongolia",
+    "gn_mt": "Malta", "gn_mu": "Mauritius", "gn_mv": "Maldives", "gn_mw": "Malawi",
+    "gn_sb": '"Solomon Islands"', "gn_sc": "Seychelles", "gn_sl": '"Sierra Leone"',
+    "gn_so": "Somalia", "gn_ss": '"South Sudan"', "gn_sz": "Eswatini",
+    "gn_to": "Tonga", "gn_tt": "Trinidad", "gn_us": '"United States"',
+    "gn_vu": "Vanuatu", "gn_ws": "Samoa", "gn_zm": "Zambia",
+    # 프랑스어 (15)
+    "gn_bf": '"Burkina Faso"', "gn_bi": "Burundi", "gn_bj": "Bénin",
+    "gn_cf": "Centrafrique", "gn_cg": "Congo-Brazzaville", "gn_ci": "\"Côte d'Ivoire\"",
+    "gn_dj": "Djibouti", "gn_ga": "Gabon", "gn_ht": "Haïti", "gn_km": "Comores",
+    "gn_lu": "Luxembourg", "gn_ml": "Mali", "gn_ne": "Niger", "gn_td": "Tchad",
+    "gn_tg": "Togo",
+    # 아랍어 (16)
+    "gn_ae": "الإمارات", "gn_bh": "البحرين", "gn_dz": "الجزائر", "gn_jo": "الأردن",
+    "gn_kw": "الكويت", "gn_lb": "لبنان", "gn_ly": "ليبيا", "gn_ma": "المغرب",
+    "gn_mr": "موريتانيا", "gn_om": "عُمان", "gn_ps": "فلسطين", "gn_qa": "قطر",
+    "gn_sy": "سوريا", "gn_tn": "تونس", "gn_sd": "السودان", "gn_ye": "اليمن",
+    # 스페인어 (11)
+    "gn_cr": '"Costa Rica"', "gn_do": '"República Dominicana"', "gn_ec": "Ecuador",
+    "gn_gq": '"Guinea Ecuatorial"', "gn_gt": "Guatemala", "gn_hn": "Honduras",
+    "gn_ni": "Nicaragua", "gn_pa": "Panamá", "gn_py": "Paraguay",
+    "gn_sv": '"El Salvador"', "gn_uy": "Uruguay",
+    # 러시아어권 (7)
+    "gn_az": "Азербайджан", "gn_by": "Беларусь", "gn_kg": "Кыргызстан",
+    "gn_kz": "Казахстан", "gn_tj": "Таджикистан", "gn_tm": "Туркменистан",
+    "gn_uz": "Узбекистан",
+    # 포르투갈어 (6)
+    "gn_ao": "Angola", "gn_cv": '"Cabo Verde"', "gn_gw": '"Guiné-Bissau"',
+    "gn_pt": "Portugal", "gn_st": '"São Tomé"', "gn_tl": '"Timor-Leste"',
+    # 나머지 소묶음 (11)
+    "gn_af": "افغانستان", "gn_lk": '"Sri Lanka"', "gn_np": "नेपाल",
+    "gn_cy": "Κύπρος", "gn_gr": "Ελλάδα", "gn_ir": "ایران", "gn_kh": "Cambodia",
+    "gn_md": "Moldova", "gn_ro": "România", "gn_nl": "Nederland", "gn_sr": "Suriname",
+}
+
+
+def _scoped(url: str, slug: str) -> str:
+    """되돌림 피드면 질의에 나라 이름을 덧붙인다. 아니면 그대로."""
+    term = COUNTRY_TERMS.get(slug)
+    if not term:
+        return url
+    from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
+    p = urlparse(url)
+    q = parse_qs(p.query)
+    q["q"] = ["(%s) %s" % (q["q"][0], term)]
+    return urlunparse(p._replace(
+        query=urlencode({k: v[0] for k, v in q.items()}, quote_via=quote)))
+
+
 LOCAL_FEEDS: list[tuple[str, str, str, str, list[str]]] = [
-    (slug, lang, region, _gnews(local_terms, hl, gl), local_terms + UNIVERSAL_DISEASE_TERMS)
+    (slug, lang, region, _scoped(_gnews(local_terms, hl, gl), slug),
+     local_terms + UNIVERSAL_DISEASE_TERMS)
     for (slug, lang, region, hl, gl, local_terms) in (_WORLD_SOURCES + _WORLD_SOURCES_EXTRA)
 ]
 
@@ -266,6 +340,27 @@ ALERT_THRESHOLD = 0.15
 # 우리 과거 데이터로 재보정하기 전까지 이 숫자를 근거처럼 인용하지 마라.
 WATCH_ALERT_THRESHOLD = 0.08
 
+# ── 국가 한정 피드용 문턱 (2026-08-31) ──────────────────────────────────────
+# 질의에 나라 이름을 넣으면 기사 수가 줄고(중앙값 100 → 46) `hit_ratio` 가
+# 구조적으로 올라간다. `_count_keyword_hits` 가 **키워드 종류 수**를 세기
+# 때문에 분모만 작아지는 셈이다. 실측으로 102개 중 73개(72%)가 0.15 를 넘었다
+# — 그대로 두면 경보가 쏟아진다.
+#
+# ★ 0.20 은 찍은 값이 아니라 '지금 경보량을 유지하는' 값이다 ★
+# 표본 20건 이상인 81개 피드에서 문턱별 경보 비율을 재보니:
+#     0.15 → 64%   0.20 → 28%   0.25 → 16%   0.30 → 7%
+# 현재 전체 179개 중 고경보가 약 50개(28%)다. 0.20 이 그 운영점을 그대로
+# 유지한다. 역학적 근거가 아니라 **운영점 일치**이므로 threshold_calibrated 는
+# 여전히 False 다 — 이 숫자를 근거처럼 인용하지 마라.
+SCOPED_ALERT_THRESHOLD = 0.20
+SCOPED_WATCH_ALERT_THRESHOLD = 0.11   # 0.20 × (0.08/0.15), 감시창 완화 비율 유지
+
+# ★ 표본이 적으면 판정하지 않는다 ★
+# 국가 한정을 걸면 기사 5건에 키워드 6종이 잡혀 ratio 1.2 가 나오기도 한다.
+# 그건 신호가 아니라 표본 부족이다. '모른다'와 '괜찮다'는 다르므로 고경보로
+# 올리지도, 정상으로 세지도 않고 따로 보고한다(too_few_items).
+MIN_ITEMS_FOR_ALERT = 20
+
 
 def _feed_iso3(slug: str) -> str | None:
     """피드 슬러그(`gn_np`) → ISO3(`NPL`). 모르면 추측하지 않고 None.
@@ -309,6 +404,29 @@ def fetch_all_local_news(cerebras_key: str | None = None,
     else:
         llm_reason = "CEREBRAS_API_KEY·GROQ_API_KEY 둘 다 없음"
 
+    # ── 되돌림(중복) 감지 — 제목을 버리기 전에 해야 한다 ────────────────
+    # ★ 이건 상시로 돌아야 한다 ★ 되돌림은 고정이 아니라 **요청마다 흔들린다.**
+    # 실측(2026-08-31)에서 네팔이 한 번은 고유였다가 다음 번엔 아프가니스탄·
+    # 스리랑카와 같은 기사를 받았다. 한 번 조사해서 목록을 박아두면 놓친다.
+    #
+    # 겹친 피드는 고경보로 올리지 않는다 — 그 나라 신호가 아닌 것을 그 나라
+    # 이름으로 경보하면 **없는 발병을 있다고 말하는 것**이 된다.
+    import hashlib
+    _by_titles: dict[str, list[str]] = {}
+    for r in results:
+        titles = r.get("_all_titles") or []
+        if len(titles) < 3:            # 머리글뿐이면 판정 불가
+            continue
+        joined = chr(10).join(sorted(titles[2:]))
+        key = hashlib.md5(joined.encode("utf-8", "ignore")).hexdigest()
+        _by_titles.setdefault(key, []).append(r["slug"])
+    duplicate_groups = [sorted(v) for v in _by_titles.values() if len(v) > 1]
+    duplicated = {slug for g in duplicate_groups for slug in g}
+    for r in results:
+        if r["slug"] in duplicated:
+            r["duplicate_of"] = sorted(
+                next(g for g in duplicate_groups if r["slug"] in g)) 
+
     total_hits = 0
     for r in results:
         total_hits += r.get("keyword_hits", 0)
@@ -333,6 +451,7 @@ def fetch_all_local_news(cerebras_key: str | None = None,
             }
 
     high_alert = []
+    too_few_items: list[str] = []
     # ★ 몇 개인지만으로는 부족하다 ★ 조기경보에서 "5개가 올라왔다"보다
     # "네팔·중국이 올라왔다"가 훨씬 쓸모 있는 정보다. 어느 나라인지 안 남기면
     # 로그를 보는 사람이 매번 API를 따로 뒤져야 한다 — GroqWatch 가
@@ -341,10 +460,23 @@ def fetch_all_local_news(cerebras_key: str | None = None,
     for r in active_feeds:
         ratio = r.get("llm_hit_ratio", r.get("hit_ratio", 0))
         watched = "watch_window" in r
-        threshold = WATCH_ALERT_THRESHOLD if watched else ALERT_THRESHOLD
+        scoped = r["slug"] in COUNTRY_TERMS
+        r["country_scoped"] = scoped
+
+        # ① 다른 피드와 같은 기사를 받고 있으면 그 나라 신호가 아니다
+        if "duplicate_of" in r:
+            continue
+        # ② 표본이 너무 적으면 판정하지 않는다
+        if r.get("item_count", 0) < MIN_ITEMS_FOR_ALERT:
+            too_few_items.append(r["slug"])
+            continue
+
+        normal = SCOPED_ALERT_THRESHOLD if scoped else ALERT_THRESHOLD
+        threshold = ((SCOPED_WATCH_ALERT_THRESHOLD if scoped else WATCH_ALERT_THRESHOLD)
+                     if watched else normal)
         if ratio < threshold:
             continue
-        if watched and ratio < ALERT_THRESHOLD:
+        if watched and ratio < normal:
             # 평시 문턱이었으면 안 걸렸을 피드 — 감시창 때문에 올라온 것이다.
             r["alert_basis"] = "disaster_watch_window"
             watch_promoted += 1
@@ -382,6 +514,16 @@ def fetch_all_local_news(cerebras_key: str | None = None,
             (r.get("llm_provider") for r in results if r.get("llm_provider")), None),
         # ↓ 감시창이 실제로 무엇을 바꿨는지. 0 이면 '창은 열렸지만 아무것도
         #   끌어올리지 못했다' 는 뜻이고, 그것도 알 가치가 있는 사실이다.
+        # ── 되돌림·표본 상태 (2026-08-31) ─────────────────────────────
+        # 예전엔 "179/179개 피드" 라고만 보고해서 179개국을 보는 것처럼 읽혔다.
+        # 실제로는 절반 넘게 같은 기사를 받고 있었다.
+        "duplicate_feed_groups":  duplicate_groups,
+        "duplicated_feeds":       len(duplicated),
+        "distinct_feed_sets":     len(_by_titles),
+        "country_scoped_feeds":   len(COUNTRY_TERMS),
+        "too_few_items_feeds":    sorted(too_few_items),
+        "min_items_for_alert":    MIN_ITEMS_FOR_ALERT,
+        "scoped_alert_threshold": SCOPED_ALERT_THRESHOLD,
         "watch_window_countries": len(windows),
         "watch_promoted_feeds":   watch_promoted,
         # ↓ 어느 나라가 감시창 덕에 올라왔는지. 수집 로그가 이걸 그대로 찍는다.

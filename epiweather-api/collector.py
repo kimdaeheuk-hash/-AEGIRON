@@ -729,9 +729,21 @@ def collect_free_sources() -> dict:
         watch_tag = (f", 감시창 승격 {promoted}개{where_tag}"
                      f"(문턱 {n['alert_threshold']}→{n['watch_alert_threshold']})"
                      if promoted else "")
-        log(f"  현지어 뉴스: {n['active_feeds']}/{n['total_feeds']}개 피드, "
+        # ★ "179/179개 피드" 는 179개국을 본다는 뜻이 아니다 (2026-08-31) ★
+        # 실측에서 179개 중 102개가 서로 완전히 같은 기사를 받고 있었다. 구글이
+        # 자체 뉴스판 없는 나라에 언어 기본판을 되돌려 주기 때문이다. 되돌림은
+        # 요청마다 흔들리므로 매 수집에서 판정하고, 그 결과를 같은 줄에 남긴다.
+        # 표본 부족도 같이 적는다 — '판정 못 했다'와 '조용하다'는 다르다.
+        dup, few = n.get("duplicated_feeds", 0), len(n.get("too_few_items_feeds") or [])
+        quality_tag = ""
+        if dup:
+            quality_tag += f", 겹친 피드 {dup}개(경보 제외)"
+        if few:
+            quality_tag += f", 표본부족 {few}개(판정 안 함)"
+        log(f"  현지어 뉴스: {n['active_feeds']}/{n['total_feeds']}개 피드"
+            f"(고유 {n.get('distinct_feed_sets', '?')}묶음), "
             f"키워드 히트 {n['total_kw_hits']}건, 고경보 {n['high_alert_feeds']}개"
-            f"{tag}{watch_tag}")
+            f"{tag}{watch_tag}{quality_tag}")
         # ★ 재분류가 안 됐으면 그 사실과 사유를 반드시 찍는다 (2026-08-28) ★
         # 예전엔 실패하면 위의 tag 가 **조용히 빈 문자열이 될 뿐**이었다. 줄 모양이
         # 거의 같아서 아무도 눈치채지 못했고, 실측상 최소 29시간(2026-08-27 06:00
