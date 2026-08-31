@@ -57,11 +57,11 @@ def test_ninety_days_would_have_hidden_everything():
 def test_faster_pathogen_arrives_sooner():
     """물리적으로 맞는 방향인지 — R0 가 높으면 더 빨리 도달해야 한다.
 
-    기간을 365일로 잡는다. 전 세계 모델로 바꾼 뒤 실측하니 독감(R0 2.2)은
-    서울까지 **199일**이 걸려서, 180일로 재면 "미도달"이라 비교 자체가
-    안 된다. 느린 병원체가 안 오는 게 아니라 창이 짧았던 것이다.
+    기간을 365일로 잡는다. 180일로 재면 느린 병원체가 "미도달"로 나와서
+    비교 자체가 안 된다 — 안 오는 게 아니라 창이 짧은 것이다.
 
-        중증(3.4) 121일 · 신종(2.8) 148일 · 독감(2.2) 199일
+        항공 실측을 붙인 뒤(2026-08-31):
+        중증(3.4) 104일 · 신종(2.8) 127일 · 독감(2.2) 170일
     """
     severe = simulate_spread(origin="Kinshasa", threat="severe", days=365)
     novel  = simulate_spread(origin="Kinshasa", threat="novel",  days=365)
@@ -71,8 +71,11 @@ def test_faster_pathogen_arrives_sooner():
     for r in (severe, novel, flu):
         assert r["seoul_arrival_day"] is not None, "365일이면 셋 다 도달해야 비교가 된다"
     assert severe["seoul_arrival_day"] < novel["seoul_arrival_day"] < flu["seoul_arrival_day"]
-    # 퍼진 범위도 같은 순서여야 한다
-    assert severe["countries_reached"] > novel["countries_reached"] > flu["countries_reached"]
+    # 사망자 규모도 같은 순서여야 한다.
+    # (도달 *국가 수* 로는 이제 비교가 안 된다 — 항공 실측을 붙인 뒤로는
+    #  셋 다 1년이면 159개국에 다 간다. 차이는 '어디까지'가 아니라 '언제·얼마나'다.)
+    deaths = lambda r: sum(c["final_deaths"] for c in r["countries"])
+    assert deaths(severe) > deaths(novel) > deaths(flu)
 
 
 def test_origin_country_actually_grows():
@@ -202,20 +205,42 @@ def test_border_pairs_are_deduplicated():
 
 # ── 5. 모르는 것을 안다고 하지 않기 ─────────────────────────────────────────
 
-def test_unreachable_countries_are_not_reported_as_safe():
-    """★★핵심★★ "안 퍼졌다"와 "갈 길을 모른다"를 절대 섞지 않는다.
+def test_real_flight_data_closed_the_americas_hole():
+    """★핵심★ 항공 실측을 붙여서 아메리카 대륙이 닿게 됐는지.
 
-    실측(2026-08-31): 전 세계로 넓히자 미국·브라질이 365일에도 미도달로
-    찍혔다. 아메리카행 항공 노선이 데이터에 없어서 **그래프상 닿을 길이
-    아예 없기** 때문이다. 이걸 미도달로 내보내면 보는 사람은 안전하다고
-    읽는다 — 조기경보 시스템이 낼 수 있는 최악의 거짓말이다.
+    손으로 적은 11개 노선만 있던 시절엔 미국·브라질이 365일에도 미도달로
+    찍혔다. 안 퍼져서가 아니라 아메리카행 노선이 데이터에 하나도 없어서
+    **그래프상 갈 길이 없었던** 것이다(2026-08-31 실측).
     """
     r = simulate_spread(origin="Kinshasa", threat="novel", days=365)
+    reached = {c["country"] for c in r["countries"]}
 
-    assert "no_route_modeled" in r, "경로 미보유 국가를 따로 안 내보내고 있다"
-    assert "USA" in r["no_route_modeled"]
-    assert "USA" not in r["not_reached"], "닿을 수 없는 나라가 미도달로 섞여 있다"
-    assert r["limits"]["no_route_warning"], "경로가 없는데 경고 문구가 비어 있다"
+    assert r["no_route_modeled"] == [], "아직도 닿을 수 없는 나라가 남아 있다"
+    for iso in ("USA", "BRA", "CAN", "MEX", "GBR", "ARG"):
+        assert iso in reached, f"{iso} 에 못 갔다 — 항공망이 다시 끊겼다"
+    # 육로가 먼저, 먼 대륙은 항공으로 — 경로 종류가 지리와 맞아야 한다
+    assert _row(r, "UGA")["arrival_route"] == "land"
+    assert _row(r, "USA")["arrival_route"] == "air"
+
+
+def test_missing_flight_cache_never_reads_as_safe(monkeypatch):
+    """★★핵심★★ 항공 캐시가 없어도 "안 퍼졌다"고 말하지 않는다.
+
+    캐시 파일이 빠지면 항공망이 통째로 사라져서 예전 상태로 돌아간다.
+    그때 아메리카가 `not_reached`(=안 왔다)로 나오면 보는 사람은 안전하다고
+    읽는다 — 조기경보가 낼 수 있는 최악의 거짓말이다. 그런 상황에서는
+    `no_route_modeled`(=갈 길을 모른다)로 나와야 하고, 경고도 붙어야 한다.
+    """
+    import algorithms.digital_twin as dt
+    monkeypatch.setattr(dt, "load_flight_routes",
+                        lambda: ({}, "캐시 없음(시험)"))
+
+    r = dt.simulate_spread(origin="Kinshasa", threat="novel", days=365)
+
+    assert "USA" in r["no_route_modeled"], "갈 길이 없는데 미도달로 섞였다"
+    assert "USA" not in r["not_reached"]
+    assert r["limits"]["air_routes_loaded"] is False
+    assert r["limits"]["air_routes_error"]
     assert "안전" in r["limits"]["no_route_warning"]
 
 
@@ -247,6 +272,42 @@ def test_limits_are_always_reported():
     r = simulate_spread(origin="Kinshasa", threat="novel", days=180)
     limits = r["limits"]
 
-    assert limits["air_is_sparse"] is True
+    assert limits["air_routes_loaded"] is True, "항공 실측 캐시를 못 읽고 있다"
     assert limits["land_traffic_is_estimated"] is True
     assert limits["population_is_approximate"] is True
+    # 항공 데이터가 몇 년 것인지 늘 밝힌다 — 2014년 기준이라 오해하기 쉽다
+    assert "2014" in limits["air_data_year"]
+
+
+# ── 6. 항공 노선 캐시 자체 ──────────────────────────────────────────────────
+# scripts/collect_flight_routes.py 가 구운 파일이다. 시뮬레이션은 이것만 읽고
+# 인터넷에 나가지 않는다.
+
+def test_flight_cache_is_present_and_substantial():
+    """캐시가 있어야 하고, 손으로 적던 11개와 자릿수가 달라야 한다."""
+    from algorithms.digital_twin import load_flight_routes
+
+    routes, error = load_flight_routes()
+
+    assert error is None, f"항공 캐시를 못 읽는다: {error}"
+    assert len(routes) > 1_000, "노선 수가 너무 적다 — 수집이 반쯤 실패했다"
+
+
+def test_flight_cache_matches_known_big_markets():
+    """굵은 국제선 시장이 실제로 굵게 나오는지 — 조인이 어긋나면 여기서 걸린다."""
+    from algorithms.digital_twin import load_flight_routes
+
+    routes, _ = load_flight_routes()
+
+    for pair in (("ESP", "GBR"), ("MEX", "USA"), ("CAN", "USA"), ("GBR", "USA")):
+        assert routes.get(pair, 0) > 300, f"{pair} 가 굵게 안 나온다"
+
+
+def test_flight_cache_has_no_domestic_pairs():
+    """같은 나라끼리는 항공 간선이 아니다 — SEIR 이 이미 나라 안 전파를 다룬다."""
+    from algorithms.digital_twin import load_flight_routes
+
+    routes, _ = load_flight_routes()
+
+    assert not [p for p in routes if p[0] == p[1]]
+    assert all(a < b for a, b in routes), "나라쌍 순서가 정규화되지 않았다"

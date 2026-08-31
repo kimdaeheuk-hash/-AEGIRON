@@ -29,6 +29,11 @@
 """
 from __future__ import annotations
 
+import io
+import json
+import os
+from functools import lru_cache
+
 from .common import THREAT
 from .country_borders import (
     LAND_BORDERS, POPULATION, is_open, POPULATION_IS_APPROXIMATE,
@@ -48,24 +53,56 @@ COUNTRY_NAME: dict[str, str] = {
 }
 
 # ── 항공망 ──────────────────────────────────────────────────────────────────
-# 실제 노선의 주간 편수다. 도시 쌍으로 적혀 있고 나라 쌍으로 환산해서 쓴다.
-# ★ 이 표가 육로망보다 훨씬 성기다 ★ 11개 노선뿐이라, 여기 없는 대륙 간
-# 경로는 시뮬레이션에서 육로로만 이어진다. 실제보다 느리게 나오는 원인이다.
-FLIGHT_CONNECTIONS: dict[tuple[str, str], int] = {
-    ("Kinshasa",  "Dubai"):    2,
-    ("Kinshasa",  "Riyadh"):   1,
-    ("Kampala",   "Dubai"):    3,
-    ("Riyadh",    "Seoul"):    2,
-    ("Dubai",     "Seoul"):    4,
-    ("Dubai",     "Bangkok"):  7,
-    ("Bangkok",   "Seoul"):   20,
-    ("Bangkok",   "Hanoi"):   14,
-    ("Hanoi",     "Seoul"):   17,
-    ("Jakarta",   "Seoul"):    6,
-    ("Jakarta",   "Bangkok"):  7,
-}
+# ★ 2026-08-31: 손으로 적던 11개 노선을 실측 데이터로 바꿨다 ★
+# 11개뿐이던 시절엔 아메리카 대륙이 그래프에서 통째로 떨어져 나가, 미국·브라질이
+# 1년을 돌려도 "미도달"로 찍혔다. 안 퍼진 게 아니라 갈 길을 몰랐던 것이다.
+#
+# 지금은 나라쌍 2,057개를 캐시에서 읽는다(OurAirports + OpenFlights, 둘 다 무료).
+# 캐시를 굽는 건 scripts/collect_flight_routes.py 이고, **시뮬레이션은 파일만
+# 읽는다** — 돌리는 중에 인터넷에 나가지 않는다.
+# ★ data/ 가 아니라 코드 옆에 둔다 ★ epiweather-api/data/ 는 실행 중에 생기는
+# 캐시·DB 스냅샷을 담는 곳이라 저장소에서 통째로 제외돼 있다. 항공 노선표는
+# 코드와 같이 배포돼야 하는 **참조 데이터**라, 거기 두면 운영에서 사라진다.
+FLIGHT_ROUTES_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "reference", "flight_routes_by_country.json",
+)
 
-PASSENGERS_PER_FLIGHT = 250   # 항공기 평균 탑승객 수
+# 노선 1개 = 하루 몇 명인가.
+# ★ 이 계수는 찍은 값이 아니라 실제 시장에서 역산해 맞춘 값이다 ★
+# 원본에 편수·승객 수가 없어서 나라쌍별 '노선 개수'만 나온다. 그래서 널리
+# 알려진 연간 여객 개략치로 굵은 시장 네 곳을 역산했다(2026-08-31):
+#
+#     스페인-영국  994개 노선 · 연 5,000만명 → 노선당 138명/일
+#     멕시코-미국  742개 노선 · 연 3,000만명 → 노선당 111명/일
+#     캐나다-미국  729개 노선 · 연 2,500만명 → 노선당  94명/일
+#     영국-미국    410개 노선 · 연 2,000만명 → 노선당 134명/일
+#
+# 서로 독립인 네 시장이 94~138명으로 모였다. 가운데인 120을 쓴다.
+# 연간 여객은 개략치이므로 이 계수도 자릿수 맞추기지 정밀값이 아니다.
+PASSENGERS_PER_ROUTE_PER_DAY = 120
+
+
+@lru_cache(maxsize=1)
+def load_flight_routes() -> tuple[dict[tuple[str, str], int], str | None]:
+    """(나라쌍 → 노선 수, 못 읽은 이유). 없으면 **비었다고 말한다** — 조용히 넘기지 않는다."""
+    try:
+        with io.open(FLIGHT_ROUTES_PATH, encoding="utf-8") as fh:
+            payload = json.load(fh)
+    except FileNotFoundError:
+        return {}, ("항공 노선 캐시가 없다. "
+                    "`python scripts/collect_flight_routes.py` 를 먼저 돌려야 한다.")
+    except (json.JSONDecodeError, OSError) as exc:
+        return {}, f"항공 노선 캐시를 읽지 못했다: {exc}"
+
+    routes: dict[tuple[str, str], int] = {}
+    for key, count in (payload.get("route_counts") or {}).items():
+        a, _, b = key.partition("|")
+        if a and b and count:
+            routes[(a, b)] = int(count)
+    if not routes:
+        return {}, "항공 노선 캐시가 비어 있다."
+    return routes, None
 
 # ── 육로 통행량 ─────────────────────────────────────────────────────────────
 # ★ 실측이 아니라 자릿수 추정이다 ★
@@ -111,12 +148,13 @@ def build_movement_network() -> list[tuple[str, str, float, str]]:
             if traffic > 0:
                 edges.append((iso, nb, traffic, "land"))
 
-    # 항공 — 도시 쌍을 나라 쌍으로 환산
-    for (city_a, city_b), weekly in FLIGHT_CONNECTIONS.items():
-        a, b = CITY_TO_COUNTRY.get(city_a), CITY_TO_COUNTRY.get(city_b)
-        if a is None or b is None or a == b:
-            continue
-        edges.append((a, b, weekly * PASSENGERS_PER_FLIGHT / 7, "air"))
+    # 항공 — 실측 노선 수를 하루 왕래 인원으로 환산
+    known = set(POPULATION)
+    routes, _ = load_flight_routes()
+    for (a, b), route_count in routes.items():
+        if a not in known or b not in known:
+            continue          # 노드에 없는 나라(섬나라 일부·속령)는 건너뛴다
+        edges.append((a, b, route_count * PASSENGERS_PER_ROUTE_PER_DAY, "air"))
 
     return edges
 
@@ -270,6 +308,7 @@ def simulate_spread(
         (not_reached if iso in connected else no_route).append(iso)
 
     air_pairs = {(a, b) if a < b else (b, a) for a, b, _, k in edges if k == "air"}
+    _, air_load_error = load_flight_routes()
 
     return {
         "origin":           origin,
@@ -288,15 +327,19 @@ def simulate_spread(
         "no_route_modeled": sorted(no_route),
         # ── 이 결과를 어디까지 믿어도 되는지 ────────────────────────────
         "limits": {
-            "air_network_coverage": f"{len(air_pairs)}개 노선 (육로 국경은 "
-                                    f"{sum(1 for *_, k in edges if k == 'land')}개)",
-            "air_is_sparse": True,
+            "air_network_coverage": f"항공 {len(air_pairs)}개 나라쌍 · "
+                                    f"육로 {sum(1 for *_, k in edges if k == 'land')}개 국경",
+            "air_routes_loaded": air_load_error is None,
+            "air_routes_error": air_load_error,
+            "air_data_year": "2014 (OpenFlights, 2017-02 갱신)",
             "land_traffic_is_estimated": True,
             "population_is_approximate": POPULATION_IS_APPROXIMATE,
             "unreachable_countries": len(no_route),
-            "note": "항공 노선 실측이 11개뿐이라 대륙 간 확산은 실제보다 느리게 "
-                    "나옵니다. 육로 통행량은 인구 기반 추정이며 지형·비자·계절을 "
-                    "반영하지 않습니다.",
+            "note": "항공 노선은 2014년 기준 실측 데이터입니다 — 나라 사이 연결 "
+                    "유무는 잘 안 변하지만 편수는 많이 바뀌었습니다. 노선 수를 "
+                    "사람 수로 바꾼 계수(노선당 120명/일)는 굵은 시장 네 곳에서 "
+                    "역산한 자릿수 값입니다. 육로 통행량은 인구 기반 추정이며 "
+                    "지형·비자·계절을 반영하지 않습니다.",
             "no_route_warning": (
                 f"{len(no_route)}개국은 발원지에서 갈 경로를 이 모델이 "
                 f"모릅니다(항공 노선 미보유). **안전하다는 뜻이 아닙니다.**"
