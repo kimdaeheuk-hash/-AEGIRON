@@ -427,6 +427,39 @@ def fetch_all_local_news(cerebras_key: str | None = None,
             r["duplicate_of"] = sorted(
                 next(g for g in duplicate_groups if r["slug"] in g)) 
 
+    # ── 창 안 질병이 실제로 보이는가 (2026-09-01) ────────────────────────
+    # ★ 제목을 버리기 전에 해야 한다 ★
+    #
+    # 실측: 네팔에 홍수 감시창(콜레라·렙토스피라)이 6일째 열려 있는데, 정작
+    # 그 나라에서 번지고 있던 것은 **조류독감**이었다(보건부 전국 경보·중앙동물원
+    # 폐쇄·여러 지역 살처분). 문턱은 나라 전체에 걸리므로 신호 자체는 잡혔지만,
+    # 보고서에는 "감시창 승격 — 렙토스피라증·콜레라" 라고 찍혔다.
+    #
+    # **잡은 것과 이름표가 달랐다.** 그걸 그대로 두면 읽는 사람은 콜레라가
+    # 오고 있다고 이해한다. 창 안 신호와 창 밖 신호는 뜻이 완전히 다르다:
+    #
+    #     창 안  — 예상한 병이 실제로 오고 있다 (감시창이 맞아가는 중)
+    #     창 밖  — 다른 병이 오고 있다 (재난과 무관하거나, 우리가 모르는 경로)
+    #
+    # 조류독감을 홍수 규칙에 넣는 것은 답이 아니다. 홍수가 조류독감을 만들지는
+    # 않으므로, 인과 없는 규칙을 넣으면 그 표 전체의 신뢰가 무너진다.
+    # 대신 **무엇이 잡혔는지를 정직하게 갈라 적는다.**
+    _windows_pre = watch_windows or {}
+    for r in results:
+        iso3 = _feed_iso3(r.get("slug", ""))
+        if not iso3 or iso3 not in _windows_pre:
+            continue
+        blob = " ".join(r.get("_all_titles") or []).lower()
+        # ★ 판단할 수 있는 창만 판단한다 ★
+        # 키워드가 없는 창은 "다른 병이 왔다" 가 아니라 **모른다** 이다.
+        # 모르는 것을 창 밖으로 단정하면 없는 경보를 만들어낸다.
+        checkable = [w for w in _windows_pre[iso3] if w.get("keywords")]
+        r["_window_checkable"] = bool(checkable)
+        r["_diseases_seen"] = sorted({
+            w["disease"] for w in checkable
+            if any(k.lower() in blob for k in w["keywords"])
+        })
+
     total_hits = 0
     for r in results:
         total_hits += r.get("keyword_hits", 0)
@@ -443,11 +476,19 @@ def fetch_all_local_news(cerebras_key: str | None = None,
     for r in active_feeds:
         iso3 = _feed_iso3(r.get("slug", ""))
         if iso3 and iso3 in windows:
+            seen = r.pop("_diseases_seen", [])
+            checkable = r.pop("_window_checkable", False)
             r["watch_window"] = {
                 "country_iso3": iso3,
                 "diseases": sorted({w["disease"] for w in windows[iso3]}),
                 "disasters": sorted({w["disaster_type"] for w in windows[iso3]}),
                 "min_days_since_disaster": min(w["days_since_disaster"] for w in windows[iso3]),
+                # 창에 든 질병 중 **실제로 보도에 나타난** 것.
+                "diseases_seen": seen,
+                # 창은 열렸는데 창 안 질병이 하나도 안 보인다 = 다른 게 오고 있다.
+                # 키워드가 없어 대조할 수 없으면 **모른다** 이지 창 밖이 아니다.
+                "off_window": checkable and not seen,
+                "window_checkable": checkable,
             }
 
     high_alert = []
@@ -457,6 +498,9 @@ def fetch_all_local_news(cerebras_key: str | None = None,
     # 로그를 보는 사람이 매번 API를 따로 뒤져야 한다 — GroqWatch 가
     # "0개 공항 확인" 한 줄만 남겨서 열흘을 헤맸던 것과 같은 모양이다.
     watch_promoted_countries: list[str] = []
+    # 창이 열린 나라에서 고경보가 났는데 창 안 질병은 안 보이는 경우.
+    # "예상한 게 왔다" 와 "다른 게 왔다" 를 한 덩어리로 두면 둘 다 못 읽는다.
+    off_window_signals: list[dict] = []
     for r in active_feeds:
         ratio = r.get("llm_hit_ratio", r.get("hit_ratio", 0))
         watched = "watch_window" in r
@@ -483,6 +527,14 @@ def fetch_all_local_news(cerebras_key: str | None = None,
             iso = r["watch_window"]["country_iso3"]
             if iso not in watch_promoted_countries:
                 watch_promoted_countries.append(iso)
+        if watched and r["watch_window"]["off_window"]:
+            # 고경보로 올라온 피드인데 창 안 질병이 안 보인다 → 창 밖 신호다.
+            off_window_signals.append({
+                "slug": r["slug"],
+                "country_iso3": r["watch_window"]["country_iso3"],
+                "expected": r["watch_window"]["diseases"],
+                "hit_ratio": r.get("llm_hit_ratio", r.get("hit_ratio")),
+            })
         high_alert.append(r)
 
     classified = sum(1 for r in results if "llm_hit_ratio" in r)
@@ -528,6 +580,11 @@ def fetch_all_local_news(cerebras_key: str | None = None,
         "watch_promoted_feeds":   watch_promoted,
         # ↓ 어느 나라가 감시창 덕에 올라왔는지. 수집 로그가 이걸 그대로 찍는다.
         "watch_promoted_countries": sorted(watch_promoted_countries),
+        # ★ 창 밖 신호 ★ 감시창이 열린 나라인데 창 안 질병은 안 보이고 다른
+        # 것이 올라온 경우. 실측(2026-09-01): 네팔 홍수 창(콜레라·렙토스피라)이
+        # 열린 채로 조류독감이 번지고 있었다. 감시창이 틀린 게 아니라 **다른
+        # 것이 온 것**이고, 그 사실 자체가 봐야 할 신호다.
+        "off_window_signals": off_window_signals,
         "alert_threshold":        ALERT_THRESHOLD,
         "watch_alert_threshold":  WATCH_ALERT_THRESHOLD,
         # 낮춘 문턱(0.08)은 임의값이다 — 근거처럼 인용되지 않게 못박는다.

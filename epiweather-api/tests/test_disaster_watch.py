@@ -285,8 +285,10 @@ def _run_local_news(feeds, windows):
             return ln.fetch_all_local_news(watch_windows=windows)
 
 
+# 실제 open_windows() 가 주는 모양 그대로 — keywords 가 있어야 창 안/밖을 가른다.
 _NEPAL_WINDOW = {"NPL": [{"disease": "콜레라·장티푸스", "disaster_type": "FL",
-                          "days_since_disaster": 6}]}
+                          "days_since_disaster": 6,
+                          "keywords": ["cholera", "typhoid", "콜레라", "장티푸스", "설사"]}]}
 
 
 def test_watch_window_promotes_a_feed_normally_ignored():
@@ -622,3 +624,90 @@ def test_the_feed_count_no_longer_pretends_to_be_country_count():
                 "country_scoped_feeds", "too_few_items_feeds"):
         assert key in out, f"{key} 를 안 내보내고 있다"
     assert out["country_scoped_feeds"] == 102
+
+
+# ── 창 밖 신호 (2026-09-01) ─────────────────────────────────────────────────
+# 실측: 네팔에 홍수 감시창(콜레라·렙토스피라)이 6일째 열려 있는데, 정작 그 나라
+# 에서 번지던 것은 **조류독감**이었다 — 보건부 전국 경보·중앙동물원 폐쇄·여러
+# 지역 살처분. 문턱은 나라 전체에 걸리므로 신호는 잡혔지만 보고서에는
+# "감시창 승격 — 렙토스피라증·콜레라" 라고 찍혔다. 잡은 것과 이름표가 달랐다.
+
+def _feed_with_titles(slug, ratio, titles):
+    f = _feed(slug, ratio)
+    f["_all_titles"] = ["hdr", "hdr2"] + titles
+    return f
+
+
+def test_off_window_signal_is_not_labelled_as_the_expected_disease():
+    """★★핵심★★ 창 안 질병이 안 보이면 그렇게 말한다.
+
+    네팔 조류독감을 "콜레라·장티푸스 감시창 승격" 으로 보고하면, 읽는 사람은
+    콜레라가 오고 있다고 이해한다. 대응이 완전히 달라진다.
+    """
+    feeds = [_feed_with_titles("gn_np", 0.15, [
+        "Health Ministry issues nationwide alert over spreading bird flu outbreak",
+        "Central Zoo closes indefinitely after bird flu outbreak",
+    ])]
+
+    out = _run_local_news(feeds, _NEPAL_WINDOW)
+    feed = out["high_alert"][0]
+
+    assert feed["watch_window"]["off_window"] is True
+    assert feed["watch_window"]["diseases_seen"] == []
+    assert out["off_window_signals"][0]["country_iso3"] == "NPL"
+    assert out["off_window_signals"][0]["expected"] == ["콜레라·장티푸스"]
+
+
+def test_in_window_signal_is_reported_as_such():
+    """예상한 병이 실제로 오면 그것도 분명히 말한다 — 감시창이 맞아가는 중이다."""
+    feeds = [_feed_with_titles("gn_np", 0.15, [
+        "Cholera outbreak reported in flood-hit district",
+        "설사 환자 급증",
+    ])]
+
+    out = _run_local_news(feeds, _NEPAL_WINDOW)
+    feed = out["high_alert"][0]
+
+    assert feed["watch_window"]["off_window"] is False
+    assert feed["watch_window"]["diseases_seen"] == ["콜레라·장티푸스"]
+    assert out["off_window_signals"] == []
+
+
+def test_off_window_only_counts_feeds_that_actually_alerted():
+    """조용한 나라를 창 밖 신호로 만들지 않는다 — 고경보가 난 것만 센다."""
+    feeds = [_feed_with_titles("gn_np", 0.01, ["아무 관련 없는 기사"])]
+
+    out = _run_local_news(feeds, _NEPAL_WINDOW)
+
+    assert out["high_alert_feeds"] == 0
+    assert out["off_window_signals"] == []
+
+
+def test_countries_without_a_window_are_never_off_window():
+    """창이 없는 나라는 창 밖이라는 개념 자체가 없다."""
+    feeds = [_feed_with_titles("gn_kr", 0.50, ["bird flu outbreak"])]
+
+    out = _run_local_news(feeds, _NEPAL_WINDOW)
+
+    assert out["high_alert_feeds"] == 1
+    assert "watch_window" not in out["high_alert"][0]
+    assert out["off_window_signals"] == []
+
+
+def test_unjudgeable_window_is_not_called_off_window():
+    """★핵심★ 대조할 수 없는 창을 "다른 병이 왔다"고 하지 않는다.
+
+    키워드가 없는 창은 창 안인지 밖인지 **알 수 없다.** 그걸 창 밖으로 단정하면
+    없는 경보를 만들어낸다 — 이 저장소가 known.ts·source_health 에서 계속
+    고쳐온 "모른다를 단정으로 바꾸는" 바로 그 병이다.
+    """
+    no_kw = {"NPL": [{"disease": "콜레라·장티푸스", "disaster_type": "FL",
+                      "days_since_disaster": 6}]}          # keywords 없음
+    feeds = [_feed_with_titles("gn_np", 0.15, ["bird flu outbreak"])]
+
+    out = _run_local_news(feeds, no_kw)
+    win = out["high_alert"][0]["watch_window"]
+
+    assert win["window_checkable"] is False, "대조 불가를 표시하지 않고 있다"
+    assert win["off_window"] is False, "모르는 것을 창 밖으로 단정했다"
+    assert out["off_window_signals"] == []

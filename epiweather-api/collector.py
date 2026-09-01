@@ -728,6 +728,16 @@ def collect_free_sources() -> dict:
         # 예전엔 "감시창 승격 5개" 라고만 나왔다. 그런데 아침 점검에서 정말
         # 알아야 하는 건 개수가 아니라 **어디냐** 다 — 네팔이 올라왔는지
         # 아닌지를 로그만 보고 알 수 없으면 매번 API를 따로 뒤져야 한다.
+        # ★ 창 밖 신호는 따로 찍는다 (2026-09-01) ★
+        # 실측: 네팔에 홍수 감시창(콜레라·렙토스피라)이 열린 채로 조류독감이
+        # 번지고 있었다. 승격 개수만 찍으면 "콜레라가 오고 있다" 로 읽힌다.
+        # 예상한 게 온 것과 다른 게 온 것은 대응이 다르다.
+        off = n.get("off_window_signals") or []
+        if off:
+            log("  ⚠ 창 밖 신호 %d건 — 감시창이 열린 나라인데 창 안 질병이 안 보인다:" % len(off))
+            for o in off[:5]:
+                log("      %s(%s) ratio=%s · 창은 %s 를 보는 중"
+                    % (o["slug"], o["country_iso3"], o["hit_ratio"], "·".join(o["expected"])))
         where = n.get("watch_promoted_countries") or []
         where_tag = f"[{'·'.join(where[:8])}{'…' if len(where) > 8 else ''}]" if where else ""
         watch_tag = (f", 감시창 승격 {promoted}개{where_tag}"
