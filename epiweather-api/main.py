@@ -1362,6 +1362,25 @@ def countermeasure_gap():
     return report
 
 
+@app.get("/api/biodefense/procurement", tags=["Stage 8: 바이오방어"])
+def biodefense_procurement(days: int = 7):
+    """★ 국가 조달 감시 ★ 정부가 지금 무엇을 사려고 하는가.
+
+    국가사업은 어느 날 갑자기 오지 않는다 — **입찰공고로 먼저 나오고** 보통
+    2~3주 뒤에 닫힌다. 늦게 알면 그걸로 끝이다.
+
+    조달청 나라장터 공고를 바이오안보 낱말로 훑는다. 다만 나라장터 검색은
+    느슨해서 무관한 공고가 딸려 나오므로(실측: '방역' 에 여행사 공고), 받아온
+    뒤 **공고명·분류명에서 그 낱말을 우리가 다시 짚는다.** 못 짚으면 버린다.
+
+    ★ '우리가 딸 수 있는 사업' 목록이 아니다 ★ 참가자격·실적요건은 공고문
+    HWP 안에 있고 이 API 로는 보이지 않는다. 금액도 배정예산이지 낙찰가가 아니다.
+    """
+    from algorithms.procurement_watch import watch_bids
+
+    return watch_bids(days=days)
+
+
 @app.get("/api/biodefense/posture", tags=["Stage 8: 바이오방어"])
 def biodefense_posture():
     """
