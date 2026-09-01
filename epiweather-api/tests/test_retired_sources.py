@@ -21,6 +21,12 @@ RETIRED_SOURCES 장치를 두고, 그 성질을 여기서 고정한다.
 동시에 반대 방향의 실패도 막는다: **뺐다고 안 보이면 안 된다.** 조용히 사라진
 소스는 이 시스템에서 가장 위험한 실패 방식이라, retired_sources 로 이유와 함께
 계속 드러나야 한다.
+
+※ 2026-09-01 — 이 파일의 시험용 소스 이름을 GroqWatch → NewsWatch 로 바꿨다.
+   아래 사고 기록은 실제 GroqWatch 이야기 그대로다. 다만 GroqWatch 는 그날
+   은퇴했고(성공률 0%, NewsWatch 로 교대) 은퇴한 소스는 record_cycle 이 아예
+   기록하지 않아 시험 픽스처로 쓸 수 없다. 지금 그 층에 있는 것이 NewsWatch 이므로
+   **다음에 같은 모양이 생기면 잡힐 대상**으로 이름을 옮겼다.
 """
 from __future__ import annotations
 
@@ -117,10 +123,20 @@ def test_retired_sources_stay_visible_with_a_reason(health_file):
 
 
 def test_retired_list_is_reported_even_with_no_history(health_file):
-    """헬스 파일이 비어 있어도(새 볼륨) 뺀 목록은 그대로 보인다."""
+    """헬스 파일이 비어 있어도(새 볼륨) 뺀 목록은 그대로 보인다.
+
+    ★ 목록을 통째로 고정하지 않는다 ★ 예전엔 ["Mobility"] 로 못박아 뒀는데,
+    2026-09-01 에 GroqWatch 를 은퇴시키자 이 테스트가 깨졌다. 은퇴가 늘어나는 건
+    정상이고 그때마다 테스트를 고치는 건 신호가 아니라 잡음이다. 지켜야 할 것은
+    "등록된 것이 빠짐없이 보고되는가" 이지 "몇 개인가" 가 아니다.
+    """
     _write(health_file, {})
     rep = sh.source_health_report()
-    assert [r["source"] for r in rep["retired_sources"]] == ["Mobility"]
+    reported = {r["source"] for r in rep["retired_sources"]}
+    assert reported == set(sh.RETIRED_SOURCES), "등록된 은퇴 소스가 보고에서 빠졌다"
+    assert reported, "은퇴 목록이 비어 있다 — 이력이 없어도 보여야 한다"
+    for row in rep["retired_sources"]:
+        assert row.get("reason"), f"{row['source']} 에 사유가 없다"
 
 
 # ── 되살리기가 한 줄이어야 한다 ───────────────────────────────────
@@ -141,7 +157,7 @@ def test_un_retiring_restores_normal_tracking(health_file, monkeypatch):
 def test_only_the_named_source_is_retired(health_file):
     """다른 소스는 영향받지 않는다 — 은퇴가 전역 스위치가 되면 안 된다."""
     assert sh.is_retired("Mobility") is True
-    for other in ("KDCA", "GroqWatch", "Wikipedia_Ebola", "WHO_AFRO"):
+    for other in ("KDCA", "NewsWatch", "Wikipedia_Ebola", "WHO_AFRO"):
         assert sh.is_retired(other) is False, other
 
 

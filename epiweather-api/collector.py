@@ -383,6 +383,10 @@ FREE_SOURCE_HEALTH_KEYS = {
     "GenomicVariants": "genomic_variants", "SocialSignal": "social_signal",
     "Mobility": "mobility", "LocalNews": "local_news", "SupplyChain": "supply_chain",
     "ExtraSources": "extra_sources", "WAHIS": "wahis", "GroqWatch": "groq_pulse",
+    # NewsWatch — GroqWatch 를 대체해 정식 소스가 됐다(2026-09-01). 나란히 돌린
+    # 나흘간 GroqWatch 0% 대 NewsWatch 100% 였다. 실험층일 때는 죽어도 아무도
+    # 몰랐는데, 이제 이 층이 죽으면 소스 헬스에서 보인다.
+    "NewsWatch": "news_pulse",
     # 재난 감시창(2026-08-28). NewsWatch 와 달리 **실험층이 아니라서** 여기 넣는다 —
     # 이 층이 죽으면 현지어 뉴스가 평시 문턱으로 조용히 돌아가므로, 죽은 걸
     # 아는 게 중요하다. GDACS 가 Railway 에서 막히면(OpenSky 처럼) 여기서 보인다.
@@ -796,8 +800,16 @@ def collect_free_sources() -> dict:
         result["wahis"] = None
         log_error("WAHIS", e)
 
+    # ★ 은퇴한 소스는 부르지도 않는다 (2026-09-01) ★
+    # 추적에서만 빼면 호출은 계속되고, GroqWatch 의 경우 그게 실제로 해로웠다 —
+    # NewsWatch 가 같은 GROQ_API_KEY 로 도는데 GroqWatch 가 매시간 4,000 토큰씩
+    # 분당 한도 8,000 에서 태우고 실패했다. 죽은 소스가 산 소스의 예산을 먹는다.
+    from algorithms.source_health import RETIRED_SOURCES
     groq_key = os.environ.get("GROQ_API_KEY")
-    if groq_key:
+    if is_retired("GroqWatch"):
+        result["groq_pulse"] = None
+        log(f"  ⏭ GroqWatch 은퇴 — 호출하지 않음 ({RETIRED_SOURCES['GroqWatch'][:40]}…)")
+    elif groq_key:
         from algorithms.groq_watch import fetch_groq_pulse, TierLimitReached
         try:
             result["groq_pulse"] = fetch_groq_pulse(groq_key)
@@ -863,7 +875,7 @@ def collect_free_sources() -> dict:
                 log("  NewsWatch: 새 신호 없음")
         except Exception as e:
             result["news_pulse"] = None
-            # 실험 층이라 소스 헬스에는 안 들어가지만, **왜 실패했는지는 남긴다.**
+            # 2026-09-01 부터 정식 소스다 — 소스 헬스에 실패로 기록된다.
             log(f"  ❌ NewsWatch 실패: {type(e).__name__}: {e}")
             log_error("NewsWatch", e)
     else:

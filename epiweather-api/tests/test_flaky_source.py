@@ -19,6 +19,12 @@ SearchContextTooLarge). 08-29 도 22주기 중 20주기 값없음(9%). 사실상
 3. flaky 는 degraded 이고 **울린다** — 보이기만 하고 안 울리면 지금과 똑같다
 4. 정상 지연이 잦은 소스(위키)를 거짓 경보로 만들지 않는다
 5. 회복하면 복구로 알린다
+
+※ 2026-09-01 — 이 파일의 시험용 소스 이름을 GroqWatch → NewsWatch 로 바꿨다.
+   아래 사고 기록은 실제 GroqWatch 이야기 그대로다. 다만 GroqWatch 는 그날
+   은퇴했고(성공률 0%, NewsWatch 로 교대) 은퇴한 소스는 record_cycle 이 아예
+   기록하지 않아 시험 픽스처로 쓸 수 없다. 지금 그 층에 있는 것이 NewsWatch 이므로
+   **다음에 같은 모양이 생기면 잡힐 대상**으로 이름을 옮겼다.
 """
 from __future__ import annotations
 
@@ -54,23 +60,23 @@ def test_mostly_no_data_with_occasional_success_is_caught():
     staleness 도 계속 리셋된다(가끔 성공하니까). 그런데도 잡혀야 한다.
     """
     pattern = ["ok" if i % 12 == 0 else "no_data" for i in range(sh.FLAKY_WINDOW)]
-    _run("GroqWatch", pattern)
+    _run("NewsWatch", pattern)
 
-    row = _row("GroqWatch")
+    row = _row("NewsWatch")
     assert row["status"] == "flaky", f"간헐 성공을 잡아야 한다: {row}"
     assert row["recent_success_rate"] == pytest.approx(2 / 24, abs=0.01)
 
     report = sh.source_health_report()
-    assert "GroqWatch" in report["degraded_sources"], "flaky 는 degraded 다"
-    assert any(f["source"] == "GroqWatch" for f in report["flaky_sources"])
+    assert "NewsWatch" in report["degraded_sources"], "flaky 는 degraded 다"
+    assert any(f["source"] == "NewsWatch" for f in report["flaky_sources"])
 
 
 def test_flaky_source_actually_alarms():
     """★보이기만 하고 안 울리면 지금까지와 똑같다★"""
-    _run("GroqWatch", ["no_data"] * (sh.FLAKY_WINDOW - 1) + ["ok"])
+    _run("NewsWatch", ["no_data"] * (sh.FLAKY_WINDOW - 1) + ["ok"])
 
     pending = sh.pending_notifications()
-    assert any(d["source"] == "GroqWatch" and d["status"] == "flaky"
+    assert any(d["source"] == "NewsWatch" and d["status"] == "flaky"
                for d in pending["degraded"])
 
 
@@ -79,10 +85,10 @@ def test_flaky_is_judged_before_no_data():
 
     간헐 소스는 **대부분의 주기가 no_data** 라, 판정 순서가 곧 이 기능의 생사다.
     """
-    _run("GroqWatch", ["no_data"] * (sh.FLAKY_WINDOW - 1) + ["ok"])
+    _run("NewsWatch", ["no_data"] * (sh.FLAKY_WINDOW - 1) + ["ok"])
     # 마지막 주기를 no_data 로 만들어도 flaky 로 잡혀야 한다
-    sh.record_source_result("GroqWatch", ok=False, no_data=True)
-    assert _row("GroqWatch")["status"] == "flaky"
+    sh.record_source_result("NewsWatch", ok=False, no_data=True)
+    assert _row("NewsWatch")["status"] == "flaky"
 
 
 # ── ★거짓 경보를 만들지 않는다★ ────────────────────────────────────
@@ -124,12 +130,12 @@ def test_window_only_looks_at_recent_cycles():
 # ── 회복 ────────────────────────────────────────────────────────────
 
 def test_recovery_is_reported():
-    _run("GroqWatch", ["no_data"] * (sh.FLAKY_WINDOW - 1) + ["ok"])
-    sh.mark_notified(["GroqWatch"])
+    _run("NewsWatch", ["no_data"] * (sh.FLAKY_WINDOW - 1) + ["ok"])
+    sh.mark_notified(["NewsWatch"])
 
-    _run("GroqWatch", ["ok"] * sh.FLAKY_WINDOW)   # 되살아났다
-    assert _row("GroqWatch")["status"] == "ok"
-    assert "GroqWatch" in sh.pending_notifications()["recovered"]
+    _run("NewsWatch", ["ok"] * sh.FLAKY_WINDOW)   # 되살아났다
+    assert _row("NewsWatch")["status"] == "ok"
+    assert "NewsWatch" in sh.pending_notifications()["recovered"]
 
 
 def test_retired_source_is_still_excluded():

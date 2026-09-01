@@ -1,6 +1,12 @@
 """소스별 헬스·신선도 추적(㉔) — '조용한 실패'가 실제로 눈에 보이는지,
 연속 실패가 failing으로 승격되고 성공하면 리셋되는지, 그리고 소스가 죽는
-순간을 딱 한 번만 잡아 반복 통보를 막는지 확인."""
+순간을 딱 한 번만 잡아 반복 통보를 막는지 확인.
+※ 2026-09-01 — 이 파일의 시험용 소스 이름을 GroqWatch → NewsWatch 로 바꿨다.
+   아래 사고 기록은 실제 GroqWatch 이야기 그대로다. 다만 GroqWatch 는 그날
+   은퇴했고(성공률 0%, NewsWatch 로 교대) 은퇴한 소스는 record_cycle 이 아예
+   기록하지 않아 시험 픽스처로 쓸 수 없다. 지금 그 층에 있는 것이 NewsWatch 이므로
+   **다음에 같은 모양이 생기면 잡힐 대상**으로 이름을 옮겼다.
+"""
 from __future__ import annotations
 import datetime as dt
 
@@ -188,11 +194,11 @@ def test_no_data_excluded_from_healthy_count():
     sh.record_source_result("CIDRAP", ok=True)
     # 예시는 살아있는 소스로 — 은퇴한 이름(Mobility)은 리포트에서 필터되어
     # 이 테스트가 조용히 아무것도 안 세게 된다.
-    sh.record_source_result("GroqWatch", ok=False, no_data=True)
+    sh.record_source_result("NewsWatch", ok=False, no_data=True)
     report = sh.source_health_report()
     assert report["total_tracked"] == 2
     assert report["healthy_count"] == 1              # 2가 아니라 1
-    assert report["no_data_sources"] == ["GroqWatch"]
+    assert report["no_data_sources"] == ["NewsWatch"]
 
 
 def test_record_cycle_treats_declared_no_data_key_as_no_data():
@@ -208,10 +214,10 @@ def test_record_cycle_catches_hollow_payload():
     # 2026-08-28 에 추적에서 빠졌으므로 같은 '모든 값이 None' 모양을 살아있는
     # 소스로 재현한다 — 검사하는 것은 _is_empty 의 일반 동작이다.
     result = {"groq_pulse": {"pulse": None, "tokens_used": None}}
-    sh.record_cycle(result, {"GroqWatch": "groq_pulse"})
+    sh.record_cycle(result, {"NewsWatch": "groq_pulse"})
     report = sh.source_health_report()
     assert report["healthy_count"] == 0
-    assert report["no_data_sources"] == ["GroqWatch"]
+    assert report["no_data_sources"] == ["NewsWatch"]
 
 
 def test_zero_is_real_data_not_missing():
