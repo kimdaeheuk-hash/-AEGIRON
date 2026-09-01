@@ -52,6 +52,7 @@ from pathlib import Path
 import requests
 
 from .country_resolve import resolve_countries
+from .glacier_regions import coverage_summary as glacier_coverage, glacier_context
 
 USER_AGENT = {"User-Agent": "EpiWeather-DisasterWatch/1.0 (epiweather.kr)"}
 TIMEOUT = 20
@@ -362,6 +363,17 @@ def disaster_watch_report(today: dt.date | None = None) -> dict:
     today = today or dt.date.today()
     windows = open_windows(today)
     state = _load_state()
+    # ★ 빙하 산맥 지역이면 맥락을 붙인다 (2026-09-01) ★
+    # 2026-08-26 네팔 Rasuwa 홍수(사망 359명+)는 랑탕리룽 빙하 붕괴가 일으킨
+    # 연쇄 재해였다. 그런데 GDACS 는 그걸 그냥 FL(홍수)로 준다 — 우리는 사건을
+    # 받고 있었지만 **어디서 왔는지는 몰랐다.**
+    #
+    # 그 차이가 중요하다. 빙하 기원 홍수는 비 없이 맑은 날 갑자기 오고, 고산
+    # 오지를 치며, 의료 접근이 나빠 **발병 보고가 느리다.** 보고가 느린 지역일수록
+    # 낮은 문턱으로 볼 이유가 크다.
+    #
+    # 잠복기 창은 건드리지 않는다 — 콜레라 잠복기는 홍수 원인이 빙하든 몬순이든
+    # 같다. 여기서 하는 것은 **맥락을 붙이는 것**이지 역학을 바꾸는 게 아니다.
     countries = [
         {
             "country_iso3": iso3,
@@ -369,6 +381,8 @@ def disaster_watch_report(today: dt.date | None = None) -> dict:
             "open_windows": sorted(items, key=lambda w: w["days_since_disaster"]),
             "window_count": len(items),
             "diseases": sorted({w["disease"] for w in items}),
+            # 빙하 산맥이 없는 나라는 None 이다 — 빈 dict 로 채우지 않는다.
+            "glacier": glacier_context(iso3),
         }
         for iso3, items in windows.items()
     ]
@@ -380,6 +394,12 @@ def disaster_watch_report(today: dt.date | None = None) -> dict:
         "updated_at": state.get("updated_at"),
         "data_source": "GDACS (Global Disaster Alert and Coordination System, 무료·키 불필요)",
         "opening_alert_levels": sorted(OPENING_ALERT_LEVELS),
+        # 지금 감시 중인 나라 가운데 빙하 산맥 지역은 어디인가.
+        "glacier_regions_watched": sorted(
+            c["country_iso3"] for c in countries if c["glacier"]
+        ),
+        # 무엇을 덮고 무엇을 못 하는지 함께 낸다.
+        "glacier_coverage": glacier_coverage(),
         # ↓ 이 층이 무엇이 아닌지 — 항상 붙인다
         "is_prediction": False,
         "windows_calibrated": WINDOWS_CALIBRATED,
