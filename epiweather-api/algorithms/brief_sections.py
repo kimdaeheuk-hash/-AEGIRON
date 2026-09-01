@@ -86,6 +86,11 @@ def clean_news_titles(titles: list | None) -> list[str]:
 _POLAR_TITLE = {
     "ko": "극지 감시", "en": "Polar watch", "fr": "Veille polaire",
 }
+_POLAR_BASE = {
+    "ko": "{period} 기준 {phrase}.",
+    "en": "For {period}, {phrase}.",
+    "fr": "Pour {period}, {phrase}.",
+}
 _POLAR_LEAD = {
     "ko": "{name}의 지난 30일 중 {thaw}일이 해빙일이었습니다. "
           "기온 추세 {heat:+.1f}℃, 영구동토 해빙 압력 {pressure:.1f}로 관측 {n}개 지역 중 가장 높습니다.",
@@ -133,6 +138,16 @@ def build_polar_section(lang: str = "ko") -> dict | None:
         pressure=pressure(top),
         n=len(regions),
     )
+    # ★ 평년 대비를 붙인다 (2026-09-01) ★ "해빙 30일" 만으로는 많은 건지 적은
+    # 건지 알 수 없다. 그리고 이건 **우리가 잰 값**이지 인용이 아니다.
+    # 자료가 모자라면 아무 말도 붙이지 않는다 — 억지로 채우지 않는다.
+    from .polar_baseline import describe as _describe
+    base = top.get("baseline") or {}
+    if base.get("available"):
+        phrase = _describe(base.get("anomaly_c"), lang)
+        if phrase:
+            lead += " " + _pick(_POLAR_BASE, lang).format(
+                period=base.get("reference_period"), phrase=phrase)
 
     rows = []
     for r in ranked:
@@ -142,6 +157,9 @@ def build_polar_section(lang: str = "ko") -> dict | None:
             "pressure": round(float(t.get("permafrost_thaw_pressure") or 0.0), 1),
             "thaw_days_30d": int(t.get("thaw_days_30d") or 0),
             "heat_trend_c": round(float(t.get("heat_trend_c") or 0.0), 1),
+            # 자료가 없으면 None 이다 — 0 으로 채우면 '평년과 같음' 으로 읽힌다.
+            "anomaly_c": (r.get("baseline") or {}).get("anomaly_c")
+                         if (r.get("baseline") or {}).get("available") else None,
         })
 
     # 실제 기사 제목만. 검색어·피드이름은 clean_news_titles 가 걸러낸다.

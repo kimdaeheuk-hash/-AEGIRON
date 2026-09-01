@@ -27,6 +27,7 @@ from __future__ import annotations
 import statistics
 
 from .climate_signals import fetch_climate
+from .polar_baseline import month_baseline
 from .local_news import fetch_local_feed, _gnews
 
 # (region_key, 이름, lat, lng, 뉴스 hl, 뉴스 gl)
@@ -109,6 +110,10 @@ def compute_region(region: tuple) -> dict:
     watch_score = round(statistics.mean(parts), 1) if parts else None
 
     return {
+        # ★ 기준선 (2026-09-01) ★ 절대값만으로는 많은 건지 적은 건지 알 수 없다.
+        # "해빙 30일" 이 원래 그런 건지 이례적인 건지가 빠져 있었다.
+        # 자료가 모자라면 available=False 로 **모른다고 말한다.**
+        "baseline": month_baseline(lat, lng),
         "region": key,
         "name": name,
         "thaw": thaw,
