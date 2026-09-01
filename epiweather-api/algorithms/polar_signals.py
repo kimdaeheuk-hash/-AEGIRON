@@ -28,6 +28,7 @@ import statistics
 
 from .climate_signals import fetch_climate
 from .polar_baseline import month_baseline
+from .polar_trend import month_trend
 from .local_news import fetch_local_feed, _gnews
 
 # (region_key, 이름, lat, lng, 뉴스 hl, 뉴스 gl)
@@ -114,6 +115,12 @@ def compute_region(region: tuple) -> dict:
         # "해빙 30일" 이 원래 그런 건지 이례적인 건지가 빠져 있었다.
         # 자료가 모자라면 available=False 로 **모른다고 말한다.**
         "baseline": month_baseline(lat, lng),
+        # ★ 기준선과 추세는 다른 질문이다 (2026-09-01) ★
+        # 기준선: 올해가 평년보다 더웠나 (한 해가 튄 것일 수 있다)
+        # 추세  : 몇 년째 어느 방향으로 가고 있나
+        # 실측에서 알래스카·캐나다는 평년 대비 +1.9/+1.8℃ 인데 추세는 거의
+        # 평평했다 — 기준선만 봤으면 여섯 곳 모두 덥다고 읽었을 것이다.
+        "trend": month_trend(lat, lng),
         "region": key,
         "name": name,
         "thaw": thaw,

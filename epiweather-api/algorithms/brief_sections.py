@@ -86,6 +86,9 @@ def clean_news_titles(titles: list | None) -> list[str]:
 _POLAR_TITLE = {
     "ko": "극지 감시", "en": "Polar watch", "fr": "Veille polaire",
 }
+_POLAR_TREND = {
+    "ko": "{phrase}.", "en": "It is {phrase}.", "fr": "Il est {phrase}.",
+}
 _POLAR_BASE = {
     "ko": "{period} 기준 {phrase}.",
     "en": "For {period}, {phrase}.",
@@ -142,12 +145,18 @@ def build_polar_section(lang: str = "ko") -> dict | None:
     # 건지 알 수 없다. 그리고 이건 **우리가 잰 값**이지 인용이 아니다.
     # 자료가 모자라면 아무 말도 붙이지 않는다 — 억지로 채우지 않는다.
     from .polar_baseline import describe as _describe
+    from .polar_trend import describe as _describe_trend
     base = top.get("baseline") or {}
     if base.get("available"):
         phrase = _describe(base.get("anomaly_c"), lang)
         if phrase:
             lead += " " + _pick(_POLAR_BASE, lang).format(
                 period=base.get("reference_period"), phrase=phrase)
+    # ★ 추세는 기준선과 다른 말이다 ★ 한 해가 튄 것과 몇 년째 오르는 것은
+    # 다르고, 실제로 여섯 곳 중 둘은 평년보다 더웠지만 추세는 평평했다.
+    trend_phrase = _describe_trend(top.get("trend"), lang)
+    if trend_phrase:
+        lead += " " + _pick(_POLAR_TREND, lang).format(phrase=trend_phrase)
 
     rows = []
     for r in ranked:
@@ -160,6 +169,11 @@ def build_polar_section(lang: str = "ko") -> dict | None:
             # 자료가 없으면 None 이다 — 0 으로 채우면 '평년과 같음' 으로 읽힌다.
             "anomaly_c": (r.get("baseline") or {}).get("anomaly_c")
                          if (r.get("baseline") or {}).get("available") else None,
+            # 판정 못 했으면 None. 0 으로 채우면 '변화 없음' 으로 읽힌다.
+            "trend_c_per_decade": (r.get("trend") or {}).get("slope_c_per_decade")
+                                  if (r.get("trend") or {}).get("available") else None,
+            "trend_direction": (r.get("trend") or {}).get("direction")
+                               if (r.get("trend") or {}).get("available") else None,
         })
 
     # 실제 기사 제목만. 검색어·피드이름은 clean_news_titles 가 걸러낸다.
