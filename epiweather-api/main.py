@@ -1362,6 +1362,63 @@ def countermeasure_gap():
     return report
 
 
+@app.get("/api/biodefense/posture", tags=["Stage 8: 바이오방어"])
+def biodefense_posture():
+    """
+    ★ 국가 바이오안보 대비 태세 ★ 병원체별로 **어디까지 와 있는가** 를 낸다.
+
+    비축 유무(WHO ICG)만 보면 "없다" 가 다 같은 없음으로 보인다. 그런데
+    뎅기·말라리아는 약이 이미 시판 중인데 비축 체계가 없는 것이고, 마버그·
+    라싸열은 약 자체가 2상이다. **대응이 완전히 다르다.**
+
+    그래서 비축(ICG)과 임상 파이프라인(ClinicalTrials.gov)을 겹쳐 다섯 칸으로
+    나눈다: 비축 있음 / 후기 임상 완료 / 후기 임상 중 / 초기 임상 / 등록 연구 없음.
+
+    ★ 점수를 내지 않는다 ★ "니파 32점" 같은 숫자를 만들면 그 32 를 설명할
+    근거가 우리에게 없다. 임상시험 수도 준비도가 아니다 — 관심의 양이지
+    물량이 아니고, 등록부에 없다고 개발이 없는 것도 아니다(군사·기밀 프로그램은
+    등재되지 않는다).
+    """
+    from algorithms.countermeasure_pipeline import (
+        PATHOGEN_QUERIES, fetch_pipeline, readiness_stage,
+    )
+    from algorithms.countermeasure_stockpile import stockpile_status
+
+    rows, failed = [], 0
+    for name_ko, query in PATHOGEN_QUERIES.items():
+        pipeline = fetch_pipeline(query)
+        if not pipeline.get("available"):
+            failed += 1
+        status = stockpile_status(name_ko)
+        has = bool(status.get("has_global_stockpile"))
+        rows.append({
+            "pathogen": name_ko,
+            "has_global_stockpile": has,
+            "study_count": pipeline.get("study_count"),
+            "furthest_phase_ko": pipeline.get("furthest_phase_ko"),
+            **readiness_stage(pipeline, has),
+        })
+
+    order = {"stockpiled": 0, "approved_path": 1, "late_trial": 2,
+             "early_trial": 3, "research_only": 4,
+             "no_registered_trial": 5, "unknown": 6}
+    rows.sort(key=lambda r: (order.get(r["stage"], 9), r["pathogen"]))
+    return {
+        "pathogens": rows,
+        "pathogen_count": len(rows),
+        "lookup_failed": failed,
+        "sources": ["WHO ICG (국제 비상 비축)", "ClinicalTrials.gov API v2 (미국 NIH)"],
+        "is_readiness_score": False,
+        "limits": [
+            "임상시험 수는 준비도가 아니다 — 관심의 양이지 물량이 아니다.",
+            "3상을 통과해도 생산·비축은 전혀 다른 문제다.",
+            "등록부에 없다고 개발이 없는 것이 아니다(군사·기밀 프로그램 미등재).",
+            "한국 국가 비축은 비공개이며 이 보고에 포함되지 않는다.",
+            "이 목록은 위험 순위가 아니다.",
+        ],
+    }
+
+
 @app.get("/api/polar-watch", tags=["GAI"])
 def polar_watch():
     """
