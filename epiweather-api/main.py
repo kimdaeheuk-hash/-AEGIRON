@@ -1340,6 +1340,28 @@ def travel_notices():
     return travel_notices_summary()
 
 
+@app.get("/api/countermeasure-gap", tags=["Stage 8: 바이오방어"])
+def countermeasure_gap():
+    """
+    대응제 비축 격차 — 지금 신호가 잡히는 위협 중 **국제 비상 비축이 있는 것과
+    없는 것**을 가른다.
+
+    ★ 왜 이 각도인가 ★ 국가 비축 재고는 비공개다(안보 사안이고, 알아내려 해서도
+    안 된다). 대신 공개되는 것이 있다 — WHO ICG 국제 비상 비축에 어떤 질병이
+    들어 있는가. "우리 창고에 뭐가 있나" 는 못 봐도 "이 병에 세계가 즉시 꺼낼
+    물량이 있는가" 는 볼 수 있고, 없는 쪽은 발병하면 조달부터 시작해야 한다.
+
+    말하지 않는 것: 재고량(있다 ≠ 충분하다) · 한국 비축 · 변이별 효능.
+    판정 못 한 질병명은 격차로 세지 않고 unclassified 로 따로 센다.
+    """
+    from algorithms.countermeasure_stockpile import gap_report
+    rows = db.list_extracted_signals(limit=500)
+    diseases = [r.get("disease") for r in rows if isinstance(r, dict)]
+    report = gap_report(diseases)
+    report["signals_examined"] = len(rows)
+    return report
+
+
 @app.get("/api/polar-watch", tags=["GAI"])
 def polar_watch():
     """
