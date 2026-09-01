@@ -65,8 +65,22 @@ BIOSECURITY_KEYWORDS: dict[str, list[str]] = {
 }
 
 
+# ★ 같은 키가 이름 두 개로 있다 ★ 운영에는 예전부터 `KDCA_API_KEY` 라는 이름으로
+# 들어 있었는데, 실측해보니 캡틴이 새로 준 `DATA_GO_KR_KEY` 와 **같은 값**이었다
+# (지문 대조 2026-09-02). 원래 공공데이터포털 키 하나가 질병관리청·나라장터를
+# 함께 여는 구조인데, 이름이 질병관리청만 가리키고 있었다.
+#
+# 이름을 하나로 정리하되(DATA_GO_KR_KEY 가 맞는 이름), 예전 이름도 계속 받는다 —
+# 운영 변수를 못 고치는 상황에서 조용히 "키 없음" 이 되면 안 된다.
+_KEY_NAMES = ("DATA_GO_KR_KEY", "KDCA_API_KEY")
+
+
 def _key() -> str | None:
-    return (os.environ.get("DATA_GO_KR_KEY") or "").strip() or None
+    for name in _KEY_NAMES:
+        value = (os.environ.get(name) or "").strip()
+        if value:
+            return value
+    return None
 
 
 def _search(keyword: str, operation: str, begin: str, end: str,
@@ -175,7 +189,8 @@ def watch_bids(days: int = 7, today: dt.datetime | None = None) -> dict:
     key = _key()
     if not key:
         return {"available": False,
-                "reason": "DATA_GO_KR_KEY 가 설정되지 않았다",
+                "reason": "공공데이터포털 키가 없다 "
+                          f"({' 또는 '.join(_KEY_NAMES)})",
                 "is_eligibility_check": False}
 
     days = max(1, min(days, MAX_WINDOW_DAYS))

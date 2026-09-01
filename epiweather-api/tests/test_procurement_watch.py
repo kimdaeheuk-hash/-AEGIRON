@@ -141,13 +141,36 @@ def test_missing_key_is_not_an_empty_result(monkeypatch):
 
     섞으면 키가 만료된 날 "이번 주엔 국가사업 공고가 없었다" 고 보고하게 된다.
     """
-    monkeypatch.setattr(pw, "_key", lambda: None)
+    for name in pw._KEY_NAMES:
+        monkeypatch.delenv(name, raising=False)
 
     out = watch_bids(days=7)
 
     assert out["available"] is False
-    assert "DATA_GO_KR_KEY" in out["reason"]
+    assert "키가 없다" in out["reason"]
     assert "bids" not in out and "bid_count" not in out
+
+
+@pytest.mark.parametrize("name", ["DATA_GO_KR_KEY", "KDCA_API_KEY"])
+def test_either_key_name_works(monkeypatch, name):
+    """★핵심★ 운영엔 예전 이름(KDCA_API_KEY)으로 들어 있다 — 같은 키다.
+
+    실측(2026-09-02) 지문 대조로 두 값이 동일함을 확인했다. 새 이름만 보면
+    운영에서 조용히 "키 없음" 이 되어 공고가 통째로 사라진다.
+    """
+    for other in pw._KEY_NAMES:
+        monkeypatch.delenv(other, raising=False)
+    monkeypatch.setenv(name, "dummy-key")
+
+    assert pw._key() == "dummy-key"
+
+
+def test_new_name_wins_when_both_are_set(monkeypatch):
+    """둘 다 있으면 맞는 이름(DATA_GO_KR_KEY)을 쓴다."""
+    monkeypatch.setenv("DATA_GO_KR_KEY", "new")
+    monkeypatch.setenv("KDCA_API_KEY", "old")
+
+    assert pw._key() == "new"
 
 
 def test_lookup_failure_is_reported_not_swallowed(monkeypatch):
