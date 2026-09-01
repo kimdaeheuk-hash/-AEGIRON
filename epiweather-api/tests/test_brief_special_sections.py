@@ -230,3 +230,112 @@ def test_silence_honesty_names_the_actual_false_positives():
     assert "경험 규칙" in h              # 검증된 임계값이 아니라고 밝힌다
     assert "계절성" in h                 # 실제 오탐 원인
     assert "확인해볼 것" in h            # 결론이 아니라 단서라고 못박는다
+
+
+# ── 재난 뒤 감시창 섹션 (2026-09-01) ────────────────────────────────────────
+# 이 층이 브리핑에 없던 것이 이상했다. 네팔·인도·중국에 창이 13개 열려 있고
+# 전부 빙하 산맥 지역인데, 브리핑을 보는 사람은 그걸 몰랐다.
+
+def _dw_report(countries):
+    return {"countries": countries, "data_source": "GDACS"}
+
+
+_CTY = {
+    "country_iso3": "NPL", "country": "Nepal", "window_count": 2,
+    "diseases": ["렙토스피라증", "콜레라·장티푸스"],
+    "open_windows": [
+        {"disease": "콜레라·장티푸스", "disaster_type": "FL", "days_since_disaster": 6,
+         "title": "Orange flood alert in Nepal"},
+        {"disease": "렙토스피라증", "disaster_type": "FL", "days_since_disaster": 6,
+         "title": "Orange flood alert in Nepal"},
+    ],
+    "glacier": {"glacier_region": True, "ranges": ["히말라야"],
+                "exposure_tier": "high", "why_it_matters": "…", "not_a_prediction": "…"},
+}
+
+
+def test_watch_section_appears_in_the_brief(monkeypatch):
+    """★핵심★ 열린 창이 있으면 브리핑에 나간다."""
+    import algorithms.brief_sections as bs
+    monkeypatch.setattr("algorithms.disaster_watch.disaster_watch_report",
+                        lambda: _dw_report([_CTY]))
+
+    section = bs.build_disaster_watch_section("ko")
+
+    assert section["id"] == "disaster_watch"
+    assert "1개국" in section["lead"] and "2개" in section["lead"]
+    assert section["rows"][0]["country_iso3"] == "NPL"
+
+
+def test_nothing_open_means_no_section(monkeypatch):
+    """할 말이 없으면 안 쓴다 — 빈 섹션으로 브리핑을 늘리지 않는다."""
+    import algorithms.brief_sections as bs
+    monkeypatch.setattr("algorithms.disaster_watch.disaster_watch_report",
+                        lambda: _dw_report([]))
+
+    assert bs.build_disaster_watch_section("ko") is None
+
+
+def test_glacier_context_is_shown_but_not_as_a_cause(monkeypatch):
+    """★핵심★ 빙하는 맥락이지 원인이 아니다.
+
+    "빙하 때문에 홍수가 났다" 로 읽히면 지어낸 판정이 된다. 우리가 아는 것은
+    그 나라에 빙하 산맥이 있다는 지리뿐이다.
+    """
+    import algorithms.brief_sections as bs
+    monkeypatch.setattr("algorithms.disaster_watch.disaster_watch_report",
+                        lambda: _dw_report([_CTY]))
+
+    section = bs.build_disaster_watch_section("ko")
+
+    assert "빙하 산맥 지역" in section["lead"]
+    assert "빙하 때문" not in section["lead"]
+    assert "원인 규명이 아닙니다" in section["honesty"]
+
+
+def test_country_without_glacier_gets_none_not_blank(monkeypatch):
+    """빙하가 없는 나라는 None 이다 — 빈 값으로 채우면 '있음'으로 읽힌다."""
+    import algorithms.brief_sections as bs
+    plain = {**_CTY, "country_iso3": "BRA", "country": "Brazil", "glacier": None}
+    monkeypatch.setattr("algorithms.disaster_watch.disaster_watch_report",
+                        lambda: _dw_report([plain]))
+
+    row = bs.build_disaster_watch_section("ko")["rows"][0]
+
+    assert row["glacier_ranges"] is None
+    assert row["glacier_tier"] is None
+
+
+def test_section_never_calls_itself_a_forecast(monkeypatch):
+    """감시창은 예측이 아니다 — 문구가 그렇게 읽히면 안 된다."""
+    import algorithms.brief_sections as bs
+    monkeypatch.setattr("algorithms.disaster_watch.disaster_watch_report",
+                        lambda: _dw_report([_CTY]))
+
+    section = bs.build_disaster_watch_section("ko")
+
+    assert "예측이 아닙니다" in section["honesty"]
+    assert section["grade"] == "watch"
+
+
+def test_disaster_code_is_translated_not_leaked(monkeypatch):
+    """"day 32 after FL" 처럼 내부 코드를 독자에게 내보내지 않는다."""
+    import algorithms.brief_sections as bs
+    monkeypatch.setattr("algorithms.disaster_watch.disaster_watch_report",
+                        lambda: _dw_report([_CTY]))
+
+    for lang, word in (("ko", "홍수"), ("en", "flooding"), ("fr", "inondation")):
+        lead = bs.build_disaster_watch_section(lang)["lead"]
+        assert word in lead
+        assert "after FL" not in lead and "FL 발생" not in lead
+
+
+def test_unknown_disaster_code_is_kept_not_invented(monkeypatch):
+    """모르는 코드는 그대로 둔다 — 그럴듯한 이름을 지어내지 않는다."""
+    import algorithms.brief_sections as bs
+    odd = {**_CTY, "open_windows": [
+        {**_CTY["open_windows"][0], "disaster_type": "XX"}]}
+    monkeypatch.setattr("algorithms.disaster_watch.disaster_watch_report",
+                        lambda: _dw_report([odd]))
+
+    assert "XX" in bs.build_disaster_watch_section("ko")["lead"]

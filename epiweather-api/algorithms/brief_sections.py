@@ -391,8 +391,143 @@ def build_unexplained_section(lang: str = "ko", limit: int = 4) -> dict | None:
 
 # ─── 조립 ────────────────────────────────────────────────────────────────────
 
+# ─── 🌊 재난 뒤 감시창 ───────────────────────────────────────────────────────
+#
+# 이 층이 브리핑에 없던 것이 이상했다(2026-09-01). 지금 네팔·인도·중국에 창이
+# 13개 열려 있고 전부 빙하 산맥 지역인데, 브리핑을 보는 사람은 그걸 몰랐다.
+#
+# ★ 이건 예측이 아니다 ★ "재난이 났으니 이 병이 온다" 가 아니라 "이 기간에
+# 이 병 보도가 뜨면 우연으로 넘기지 말라" 는 뜻이다. 문구가 그렇게 읽히게 쓴다.
+
+_DW_TITLE = {
+    "ko": "재난 뒤 감시창", "en": "Post-disaster watch", "fr": "Veille post-catastrophe",
+}
+_DW_LEAD = {
+    "ko": "{n}개국에 감시창 {w}개가 열려 있습니다. "
+          "가장 오래된 것은 {top_country} — {top_disaster} 발생 {top_days}일째입니다.",
+    "en": "{w} watch windows are open across {n} countries. "
+          "The oldest is {top_country} — day {top_days} after {top_disaster}.",
+    "fr": "{w} fenêtres de veille sont ouvertes dans {n} pays. "
+          "La plus ancienne : {top_country}, {top_days}e jour après {top_disaster}.",
+}
+_DW_GLACIER = {
+    "ko": "이 가운데 {g}개국이 빙하 산맥 지역입니다. 빙하 기원 홍수는 비 없이 "
+          "갑자기 오고 고산 오지를 쳐서, 발병 보고가 느립니다.",
+    "en": "{g} of these are glaciated mountain regions. Glacier-origin floods arrive "
+          "suddenly without rain and strike remote high-altitude areas, so outbreak "
+          "reporting is slower.",
+    "fr": "{g} d'entre eux sont des régions de montagne englacée. Les crues d'origine "
+          "glaciaire surviennent sans pluie et frappent des zones reculées : "
+          "le signalement des épidémies y est plus lent.",
+}
+_DW_OFF = {
+    "ko": "창 밖 신호 {o}건 — 감시창이 열린 나라인데 창 안 질병이 아닌 것이 잡혔습니다.",
+    "en": "{o} off-window signals — in watched countries, but not the diseases the window expects.",
+    "fr": "{o} signaux hors fenêtre — dans des pays surveillés, mais pas les maladies attendues.",
+}
+_DW_HONESTY = {
+    "ko": "감시창은 예측이 아닙니다. '이 기간에 이 질병 보도가 뜨면 우연으로 넘기지 "
+          "말라'는 뜻이며, 잠복 구간은 문헌 기반 추정이고 이 시스템 데이터로 보정하지 "
+          "않았습니다. 빙하 표시는 그 나라에 빙하 산맥이 있다는 지리적 사실이지 "
+          "'빙하 때문'이라는 원인 규명이 아닙니다.",
+    "en": "A watch window is not a forecast. It means 'if this disease is reported in this "
+          "period, do not dismiss it as coincidence.' Incubation ranges are from literature, "
+          "not calibrated on our own data. The glacier tag is a geographic fact about the "
+          "country, not a finding that the flood was glacier-caused.",
+    "fr": "Une fenêtre de veille n'est pas une prévision. Les plages d'incubation viennent "
+          "de la littérature et ne sont pas calibrées sur nos données. Le marqueur glaciaire "
+          "est un fait géographique, non une attribution de cause.",
+}
+# GDACS 재해코드 → 사람이 읽는 말. 영어판에 "day 32 after FL" 이 나가면
+# 읽는 사람이 FL 을 모른다 — 코드는 우리 내부 표기지 독자의 말이 아니다.
+_DISASTER_NAME = {
+    "FL": {"ko": "홍수", "en": "flooding", "fr": "inondation"},
+    "EQ": {"ko": "지진", "en": "an earthquake", "fr": "un séisme"},
+    "TC": {"ko": "열대저기압", "en": "a tropical cyclone", "fr": "un cyclone tropical"},
+    "TS": {"ko": "쓰나미", "en": "a tsunami", "fr": "un tsunami"},
+    "VO": {"ko": "화산 분화", "en": "a volcanic eruption", "fr": "une éruption volcanique"},
+    "DR": {"ko": "가뭄", "en": "drought", "fr": "la sécheresse"},
+}
+
+
+def _disaster_name(code: str | None, lang: str) -> str:
+    """모르는 코드는 그대로 둔다 — 지어내지 않는다."""
+    return _pick(_DISASTER_NAME.get(code or "", {"ko": code or "?"}), lang)
+
+
+def build_disaster_watch_section(lang: str = "ko") -> dict | None:
+    """재난 뒤 감시창. 열린 창이 없으면 할 말이 없으므로 None."""
+    from .disaster_watch import disaster_watch_report
+
+    data = disaster_watch_report() or {}
+    countries = [c for c in (data.get("countries") or []) if isinstance(c, dict)]
+    if not countries:
+        return None
+
+    total_windows = sum(c.get("window_count") or 0 for c in countries)
+    if total_windows == 0:
+        return None
+
+    # 가장 오래된 창 = 재난 후 가장 많은 날이 지난 것. 시간이 갈수록 창이 닫히므로
+    # "아직 열려 있는데 오래됐다" 가 가장 주의를 끄는 항목이다.
+    oldest = max(
+        (w for c in countries for w in (c.get("open_windows") or [])),
+        key=lambda w: w.get("days_since_disaster") or 0,
+        default=None,
+    )
+    if not oldest:
+        return None
+
+    glacier_countries = [c for c in countries if c.get("glacier")]
+    lead = _pick(_DW_LEAD, lang).format(
+        n=len(countries), w=total_windows,
+        top_country=oldest.get("country") or "?",
+        top_disaster=_disaster_name(oldest.get("disaster_type"), lang),
+        top_days=oldest.get("days_since_disaster") or 0,
+    )
+    if glacier_countries:
+        lead += " " + _pick(_DW_GLACIER, lang).format(g=len(glacier_countries))
+
+    rows = []
+    for c in sorted(countries, key=lambda x: -(x.get("window_count") or 0)):
+        g = c.get("glacier")
+        rows.append({
+            "country": c.get("country") or c.get("country_iso3"),
+            "country_iso3": c.get("country_iso3"),
+            "window_count": c.get("window_count"),
+            "diseases": c.get("diseases") or [],
+            # 빙하 산맥이 없는 나라는 None 이다 — 빈 값으로 채우지 않는다.
+            "glacier_ranges": g["ranges"] if g else None,
+            "glacier_tier": g["exposure_tier"] if g else None,
+        })
+
+    citations = [
+        w.get("title") for c in countries for w in (c.get("open_windows") or [])
+        if w.get("title")
+    ]
+    seen, uniq = set(), []
+    for t in citations:
+        if t not in seen:
+            seen.add(t)
+            uniq.append(t)
+
+    return {
+        "id": "disaster_watch",
+        "icon": "🌊",
+        "title": _pick(_DW_TITLE, lang),
+        "lead": lead,
+        "why": None,
+        "rows": rows,
+        "citations": uniq[:4],
+        "grade": "watch",
+        "honesty": _pick(_DW_HONESTY, lang),
+        "data_source": data.get("data_source"),
+    }
+
+
 _BUILDERS = (
     ("silence", build_silence_section),          # 조용해진 곳이 제일 앞 — 아무도 안 보는 각도
+    ("disaster_watch", build_disaster_watch_section),   # 지금 열려 있는 창 — 가장 현재형이다
     ("polar", build_polar_section),
     ("forecast", build_forecast_section),
     ("unexplained", build_unexplained_section),
