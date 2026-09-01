@@ -391,6 +391,15 @@ FREE_SOURCE_HEALTH_KEYS = {
     # 이 층이 죽으면 현지어 뉴스가 평시 문턱으로 조용히 돌아가므로, 죽은 걸
     # 아는 게 중요하다. GDACS 가 Railway 에서 막히면(OpenSky 처럼) 여기서 보인다.
     "DisasterWatch": "disaster_watch",
+    # 극지 관찰층(2026-09-01 수집 편입). 그전까지는 /api/polar-watch 를 **부를 때만**
+    # 계산됐다 — 기능은 있는데 감시는 안 하고 있었다. 쌓이는 게 없어 추세를 못 보고,
+    # Open-Meteo 나 러시아어 뉴스가 막혀도 어디에도 안 잡혔다.
+    #
+    # ★ 하루 한 번이 아니라 매시간인 이유 ★ 소스 헬스는 **매 주기 기록**을 전제로
+    # 돈다. 하루 한 번만 돌면 나머지 23주기가 값없음으로 쌓여 거짓 경보가 된다.
+    # 호출량은 6개 관측지 × (기후+뉴스) = 12건으로, 이미 매시간 179개 피드를
+    # 받는 현지어 뉴스에 비하면 무시할 수준이다.
+    "PolarWatch": "polar_watch",
 }
 
 
@@ -854,6 +863,24 @@ def collect_free_sources() -> dict:
     else:
         result["groq_pulse"] = None
         log("  ⏭ GROQ_API_KEY 없음 — Groq 웹서치 건너뜀")
+
+    # ── 극지 관찰층 (2026-09-01 수집 편입) ─────────────────────────────
+    # ★ 경보가 아니라 관찰이다 ★ watch_grade=True 로 경보 파이프라인과 분리돼
+    # 있다. 여기서 수집하는 이유는 울리기 위해서가 아니라 **쌓기 위해서**다 —
+    # 동토 해빙은 추세가 핵심인데, 부를 때만 계산하면 매번 그 순간만 보게 된다.
+    try:
+        from algorithms.polar_signals import polar_watch_all
+        result["polar_watch"] = polar_watch_all()
+        pw = result["polar_watch"]
+        regions = pw.get("regions") or []
+        top = sorted(regions, key=lambda r: -(r.get("polar_watch_score") or 0))[:3]
+        log("  극지 관찰: %d개 관측지 · 등급 %s · 상위 %s"
+            % (len(regions), pw.get("grade"),
+               ", ".join("%s(%.0f)" % (r["name"][:10], r["polar_watch_score"]) for r in top)))
+    except Exception as e:
+        result["polar_watch"] = None
+        log(f"  ❌ 극지 관찰 실패: {type(e).__name__}: {e}")
+        log_error("PolarWatch", e)
 
     # ── NewsWatch — GroqWatch 무료 대체 후보를 **나란히** 돌린다 (2026-08-28) ──
     # GroqWatch 가 주기의 57% 를 티어 한도로 실패하는데 유료 전환은 선택지가
