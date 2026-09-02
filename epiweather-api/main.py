@@ -1362,6 +1362,56 @@ def countermeasure_gap():
     return report
 
 
+@app.get("/api/biodefense/vaccine-supply", tags=["Stage 8: 바이오방어"])
+def biodefense_vaccine_supply():
+    """★ 백신 공급 구조 ★ 비축이 있어도 **다시 채울 수 있는가**.
+
+    발할라에는 생산 주권 축이 원래 설계돼 있었지만(`domestic_producible`)
+    값이 손으로 넣은 참/거짓이었다. WHO 사전적격성 목록으로 실제 근거를 붙인다.
+
+    ★ 여기서 나오는 발견 ★ 국제 비상 비축 5종 중 **에볼라·엠폭스는 사전적격성
+    제조사가 한 곳뿐이다.** 비축이 있다는 것과 공급이 안전하다는 것은 다른 말이다 —
+    그 하나가 멈추면 비축은 다시 안 채워진다. 비축 목록만 봐서는 안 보인다.
+
+    ★ '못 만든다' 고 말하지 않는다 ★ 사전적격성은 UN 조달용 심사라, 자국 시장만
+    겨냥한 백신은 아예 신청하지 않는다. 목록에 없는 것과 못 만드는 것은 다르다.
+    """
+    from algorithms.countermeasure_stockpile import ICG_STOCKPILES, KNOWN_GAP_ALIASES
+    from algorithms.vaccine_supply import chokepoints, supply_for_disease
+
+    stockpiled = {v["name_ko"] for v in ICG_STOCKPILES.values()}
+    rows, unknown = [], []
+    for name in sorted(stockpiled | set(KNOWN_GAP_ALIASES)):
+        supply = supply_for_disease(name)
+        if not supply.get("available"):
+            unknown.append({"disease": name, "reason": supply.get("reason")})
+            continue
+        rows.append({
+            "disease": name,
+            "has_global_stockpile": name in stockpiled,
+            "prequalified_count": supply["prequalified_count"],
+            "manufacturer_count": supply.get("manufacturer_count", 0),
+            "is_single_source": supply.get("is_single_source"),
+            "authority_countries": supply.get("authority_countries", []),
+            "korea_supervises": supply.get("korea_supervises", False),
+        })
+
+    # ★ 가장 날카로운 줄 ★ 비축은 있는데 공급원이 하나인 병.
+    fragile = [r["disease"] for r in rows
+               if r["has_global_stockpile"] and r["is_single_source"]]
+
+    return {
+        "diseases": rows,
+        "stockpiled_but_single_source": fragile,
+        "no_vaccine_term": unknown,
+        "chokepoints": chokepoints(),
+        "note": "비축이 '있다' 는 것과 공급이 안전하다는 것은 다른 말이다. "
+                "사전적격성 제조사가 하나면 그 하나가 멈출 때 비축을 다시 채울 "
+                "경로가 없다.",
+        "sources": ["WHO ICG (국제 비상 비축)", "WHO Prequalified Vaccines"],
+    }
+
+
 @app.get("/api/biodefense/capacity/{iso3}", tags=["Stage 8: 바이오방어"])
 def biodefense_capacity(iso3: str, year: int | None = None):
     """★ 국가 대비 역량 ★ 그 나라가 **스스로 신고한** 15개 역량.

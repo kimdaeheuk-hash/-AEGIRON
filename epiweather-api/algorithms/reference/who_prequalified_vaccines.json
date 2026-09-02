@@ -1,0 +1,2856 @@
+{
+ "source": "WHO Prequalified Vaccines (사전적격성 목록)",
+ "source_url": "https://extranet.who.int/prequal/vaccines/prequalified-vaccines",
+ "snapshot_date": "2026-09-02",
+ "record_count": 284,
+ "vaccine_type_count": 56,
+ "manufacturer_count": 51,
+ "unmapped_authorities": [],
+ "records": [
+  {
+   "prequalified_date": "16/01/2025",
+   "vaccine_type": "Hepatitis B (Paediatric)",
+   "brand": "BEVAC®",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Biological E. Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "16/01/2025",
+   "vaccine_type": "Hepatitis B",
+   "brand": "BEVAC®",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Biological E. Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "14/11/2025",
+   "vaccine_type": "Pneumococcal (conjugate)",
+   "brand": "PNEUBEVAX 14®",
+   "presentation": "Vial",
+   "doses": "5",
+   "manufacturer": "Biological E. Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "12/03/2025",
+   "vaccine_type": "Respiratory Syncytical Virus vaccine",
+   "brand": "Abrysvo",
+   "presentation": "Two vial set (active + excipient)",
+   "doses": "1",
+   "manufacturer": "Pfizer Europe MA EEIG",
+   "regulatory_authority": "European Medicines Agency",
+   "authority_country": "EUR"
+  },
+  {
+   "prequalified_date": "08/05/2017",
+   "vaccine_type": "Diphtheria-Tetanus-Pertussis (acellular)",
+   "brand": "Adacel",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Sanofi Vaccines Canada Ltd.",
+   "regulatory_authority": "Health Canada - Santé Canada",
+   "authority_country": "CAN"
+  },
+  {
+   "prequalified_date": "11/03/1999",
+   "vaccine_type": "Diphtheria-Tetanus",
+   "brand": "Adsorbed DT Vaccine",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "PT Bio Farma (Persero)",
+   "regulatory_authority": "National Agency of Drug and Food Control Indonesia",
+   "authority_country": "IDN"
+  },
+  {
+   "prequalified_date": "07/02/2020",
+   "vaccine_type": "Influenza, seasonal (Trivalent)",
+   "brand": "Afluria®",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Seqirus Limited",
+   "regulatory_authority": "US Food and Drug Administration- Office of Vaccine Research and Review",
+   "authority_country": "USA"
+  },
+  {
+   "prequalified_date": "05/03/2019",
+   "vaccine_type": "Influenza, seasonal (Quadrivalent)",
+   "brand": "Afluria® Quadrivalent",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Seqirus Limited",
+   "regulatory_authority": "US Food and Drug Administration- Office of Vaccine Research and Review",
+   "authority_country": "USA"
+  },
+  {
+   "prequalified_date": "14/02/2023",
+   "vaccine_type": "Varicella",
+   "brand": "BARYCELA inj.",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "GC Biopharma Corp.",
+   "regulatory_authority": "Ministry of Food and Drug Safety",
+   "authority_country": "KOR"
+  },
+  {
+   "prequalified_date": "01/01/1987",
+   "vaccine_type": "BCG",
+   "brand": "BCG Freeze Dried Glutamate vaccine",
+   "presentation": "Ampoule",
+   "doses": "10",
+   "manufacturer": "Japan BCG Laboratory",
+   "regulatory_authority": "Pharmaceutical and Medical Devices Agency",
+   "authority_country": "JPN"
+  },
+  {
+   "prequalified_date": "01/01/1987",
+   "vaccine_type": "BCG",
+   "brand": "BCG Freeze Dried Glutamate vaccine",
+   "presentation": "Ampoule",
+   "doses": "20",
+   "manufacturer": "Japan BCG Laboratory",
+   "regulatory_authority": "Pharmaceutical and Medical Devices Agency",
+   "authority_country": "JPN"
+  },
+  {
+   "prequalified_date": "29/05/2003",
+   "vaccine_type": "BCG",
+   "brand": "BCG Vaccine",
+   "presentation": "Vial",
+   "doses": "20",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "03/12/2024",
+   "vaccine_type": "BCG",
+   "brand": "BCG Vaccine",
+   "presentation": "Vial + Ampoule",
+   "doses": "20",
+   "manufacturer": "GreenSignal Bio Pharma Pvt Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "01/02/1991",
+   "vaccine_type": "BCG",
+   "brand": "BCG Vaccine",
+   "presentation": "Ampoule",
+   "doses": "10",
+   "manufacturer": "BB- NCIPD EAD (Bul Bio-National Center of Infectious and Parasitic Diseases EAD)",
+   "regulatory_authority": "Bulgarian Drug Agency",
+   "authority_country": "BGR"
+  },
+  {
+   "prequalified_date": "01/02/1991",
+   "vaccine_type": "BCG",
+   "brand": "BCG Vaccine",
+   "presentation": "Ampoule",
+   "doses": "20",
+   "manufacturer": "BB- NCIPD EAD (Bul Bio-National Center of Infectious and Parasitic Diseases EAD)",
+   "regulatory_authority": "Bulgarian Drug Agency",
+   "authority_country": "BGR"
+  },
+  {
+   "prequalified_date": "27/09/1994",
+   "vaccine_type": "BCG",
+   "brand": "BCG Vaccine AJV",
+   "presentation": "Two vial set (active + excipient)",
+   "doses": "10",
+   "manufacturer": "AJ Vaccines A/S",
+   "regulatory_authority": "Danish Medicines Agency",
+   "authority_country": "DNK"
+  },
+  {
+   "prequalified_date": "16/01/2025",
+   "vaccine_type": "Hepatitis B",
+   "brand": "BEVAC®",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Biological E. Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "16/01/2025",
+   "vaccine_type": "Hepatitis B (Paediatric)",
+   "brand": "BEVAC®",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Biological E. Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "09/10/2023",
+   "vaccine_type": "Covid-19",
+   "brand": "BIMERVAX",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "HIPRA HUMAN HEALTH, S.L.U",
+   "regulatory_authority": "European Medicines Agency",
+   "authority_country": "EUR"
+  },
+  {
+   "prequalified_date": "20/03/2015",
+   "vaccine_type": "Polio Vaccine - Oral (OPV) Trivalent",
+   "brand": "BIOPOLIO",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Bharat Biotech International Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "20/03/2015",
+   "vaccine_type": "Polio Vaccine - Oral (OPV) Trivalent",
+   "brand": "BIOPOLIO",
+   "presentation": "Vial",
+   "doses": "20",
+   "manufacturer": "Bharat Biotech International Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "25/08/2017",
+   "vaccine_type": "Polio Vaccine - Oral (OPV) Bivalent Types 1 and 3",
+   "brand": "BIOPOLIO B1/3",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Bharat Biotech International Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "20/03/2015",
+   "vaccine_type": "Polio Vaccine - Oral (OPV) Bivalent Types 1 and 3",
+   "brand": "BIOPOLIO B1/3",
+   "presentation": "Vial",
+   "doses": "20",
+   "manufacturer": "Bharat Biotech International Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "16/11/2021",
+   "vaccine_type": "Polio Vaccine - Oral (OPV) Bivalent Types 1 and 3",
+   "brand": "Bivalent OPV Type 1 and 3 Poliomyelitis Vaccine, Live (Oral)",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Panacea Biotec Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "07/12/2018",
+   "vaccine_type": "Polio Vaccine - Oral (OPV) Bivalent Types 1 and 3",
+   "brand": "Bivalent OPV Type 1 and 3 Poliomyelitis Vaccine, Live (Oral)",
+   "presentation": "Vial",
+   "doses": "20",
+   "manufacturer": "Panacea Biotec Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "05/11/2015",
+   "vaccine_type": "Polio Vaccine - Oral (OPV) Bivalent Types 1 and 3",
+   "brand": "Bivalent Oral Poliomyelitis Vaccine Type 1&3 (bOPV 1&3)",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "PT Bio Farma (Persero)",
+   "regulatory_authority": "National Agency of Drug and Food Control Indonesia",
+   "authority_country": "IDN"
+  },
+  {
+   "prequalified_date": "26/05/2010",
+   "vaccine_type": "Polio Vaccine - Oral (OPV) Bivalent Types 1 and 3",
+   "brand": "Bivalent Oral Poliomyelitis Vaccine Type 1&3 (bOPV 1&3)",
+   "presentation": "Vial",
+   "doses": "20",
+   "manufacturer": "PT Bio Farma (Persero)",
+   "regulatory_authority": "National Agency of Drug and Food Control Indonesia",
+   "authority_country": "IDN"
+  },
+  {
+   "prequalified_date": "19/03/2010",
+   "vaccine_type": "Polio Vaccine - Oral (OPV) Bivalent Types 1 and 3",
+   "brand": "Bivalent type 1&3 Oral Poliomyelitis vaccine, IP (bOPV1&3)",
+   "presentation": "Vial",
+   "doses": "20",
+   "manufacturer": "Haffkine Bio Pharmaceutical Corporation Ltd",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "09/07/2013",
+   "vaccine_type": "Diphtheria-Tetanus-Pertussis (acellular)",
+   "brand": "Boostrix",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "GlaxoSmithKline Biologicals SA",
+   "regulatory_authority": "Federal Agency for Medicines and Health Products",
+   "authority_country": "BEL"
+  },
+  {
+   "prequalified_date": "14/10/2021",
+   "vaccine_type": "Human Papillomavirus (Bivalent)",
+   "brand": "Cecolin®",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Xiamen Innovax Biotech Co. Ltd.",
+   "regulatory_authority": "National Medical Products Administration",
+   "authority_country": "CHN"
+  },
+  {
+   "prequalified_date": "17/12/2009",
+   "vaccine_type": "Influenza, Pandemic (H1N1)",
+   "brand": "Celtura",
+   "presentation": "Vial",
+   "doses": "17",
+   "manufacturer": "Seqirus GmbH",
+   "regulatory_authority": "Paul-Ehrlich-Institut",
+   "authority_country": "DEU"
+  },
+  {
+   "prequalified_date": "08/07/2009",
+   "vaccine_type": "Human Papillomavirus (Bivalent)",
+   "brand": "Cervarix",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "GlaxoSmithKline Biologicals SA",
+   "regulatory_authority": "Federal Agency for Medicines and Health Products",
+   "authority_country": "BEL"
+  },
+  {
+   "prequalified_date": "08/07/2009",
+   "vaccine_type": "Human Papillomavirus (Bivalent)",
+   "brand": "Cervarix",
+   "presentation": "Vial",
+   "doses": "2",
+   "manufacturer": "GlaxoSmithKline Biologicals SA",
+   "regulatory_authority": "Federal Agency for Medicines and Health Products",
+   "authority_country": "BEL"
+  },
+  {
+   "prequalified_date": "09/10/2024",
+   "vaccine_type": "Covid-19",
+   "brand": "Comirnaty®",
+   "presentation": "Vial",
+   "doses": "",
+   "manufacturer": "BioNTech Manufacturing GmbH",
+   "regulatory_authority": "European Medicines Agency",
+   "authority_country": "EUR"
+  },
+  {
+   "prequalified_date": "13/06/2025",
+   "vaccine_type": "Covid-19",
+   "brand": "COVOVAX™",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "19/12/2023",
+   "vaccine_type": "Malaria",
+   "brand": "CYVAC",
+   "presentation": "Vial",
+   "doses": "2",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "25/03/2020",
+   "vaccine_type": "Dengue Tetravalent (live, attenuated)",
+   "brand": "Dengvaxia",
+   "presentation": "Two vial set (active + excipient)",
+   "doses": "5",
+   "manufacturer": "Sanofi Winthrop Industrie",
+   "regulatory_authority": "Agence nationale de sécurité du médicament et des produits de santé",
+   "authority_country": "FRA"
+  },
+  {
+   "prequalified_date": "09/05/2006",
+   "vaccine_type": "Diphtheria-Tetanus",
+   "brand": "Diftet",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "BB- NCIPD EAD (Bul Bio-National Center of Infectious and Parasitic Diseases EAD)",
+   "regulatory_authority": "Bulgarian Drug Agency",
+   "authority_country": "BGR"
+  },
+  {
+   "prequalified_date": "09/05/2006",
+   "vaccine_type": "Diphtheria-Tetanus",
+   "brand": "Diftet",
+   "presentation": "Vial",
+   "doses": "20",
+   "manufacturer": "BB- NCIPD EAD (Bul Bio-National Center of Infectious and Parasitic Diseases EAD)",
+   "regulatory_authority": "Bulgarian Drug Agency",
+   "authority_country": "BGR"
+  },
+  {
+   "prequalified_date": "04/04/1995",
+   "vaccine_type": "Diphtheria-Tetanus",
+   "brand": "Diphtheria and Tetanus Vaccine Adsorbed (Paediatric)",
+   "presentation": "Ampoule",
+   "doses": "1",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "04/04/1995",
+   "vaccine_type": "Diphtheria-Tetanus",
+   "brand": "Diphtheria and Tetanus Vaccine Adsorbed (Pediatric)",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "04/04/1995",
+   "vaccine_type": "Diphtheria-Tetanus",
+   "brand": "Diphtheria and Tetanus Vaccine Adsorbed (Pediatric)",
+   "presentation": "Vial",
+   "doses": "20",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "04/04/1995",
+   "vaccine_type": "Diphtheria-Tetanus (reduced antigen content)",
+   "brand": "Diphtheria and Tetanus Vaccine Adsorbed for Adults and Adolescents",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "04/04/1995",
+   "vaccine_type": "Diphtheria-Tetanus (reduced antigen content)",
+   "brand": "Diphtheria and Tetanus Vaccine Adsorbed for Adults and Adolescents",
+   "presentation": "Vial",
+   "doses": "20",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "04/04/1995",
+   "vaccine_type": "Diphtheria-Tetanus (reduced antigen content)",
+   "brand": "Diphtheria and Tetanus Vaccine Adsorbed for Adults and Adolescents",
+   "presentation": "Ampoule",
+   "doses": "1",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "04/04/1995",
+   "vaccine_type": "Diphtheria-Tetanus-Pertussis (whole cell)",
+   "brand": "Diphtheria-Tetanus-Pertussis Vaccine Adsorbed",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "04/04/1995",
+   "vaccine_type": "Diphtheria-Tetanus-Pertussis (whole cell)",
+   "brand": "Diphtheria-Tetanus-Pertussis Vaccine Adsorbed",
+   "presentation": "Vial",
+   "doses": "20",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "04/04/1995",
+   "vaccine_type": "Diphtheria-Tetanus-Pertussis (whole cell)",
+   "brand": "Diphtheria-Tetanus-Pertussis Vaccine Adsorbed",
+   "presentation": "Ampoule",
+   "doses": "1",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "23/06/2010",
+   "vaccine_type": "Diphtheria-Tetanus-Pertussis (whole cell)-Haemophilus influenzae type b",
+   "brand": "Diphtheria, Tetanus, Pertussis and Haemophilus influenzae type b Conjugate Vaccine",
+   "presentation": "Vial + Ampoule",
+   "doses": "1",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "26/05/2010",
+   "vaccine_type": "Diphtheria-Tetanus-Pertussis (whole cell)-Hepatitis B-Haemophilus influenzae type b",
+   "brand": "Diphtheria, Tetanus, Pertussis, Hepatitis B and Haemophilus influenzae type b Conjugate Vaccine",
+   "presentation": "Vial + Ampoule",
+   "doses": "1",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "26/05/2010",
+   "vaccine_type": "Diphtheria-Tetanus-Pertussis (whole cell)-Hepatitis B-Haemophilus influenzae type b",
+   "brand": "Diphtheria, Tetanus, Pertussis, Hepatitis B and Haemophilus influenzae type b Conjugate Vaccine",
+   "presentation": "Vial + Ampoule",
+   "doses": "2",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "26/05/2010",
+   "vaccine_type": "Diphtheria-Tetanus-Pertussis (whole cell)-Hepatitis B-Haemophilus influenzae type b",
+   "brand": "Diphtheria, Tetanus, Pertussis, Hepatitis B and Haemophilus influenzae type b Conjugate Vaccine",
+   "presentation": "Vial + Ampoule",
+   "doses": "10",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "22/09/2010",
+   "vaccine_type": "Diphtheria-Tetanus-Pertussis (whole cell)-Hepatitis B-Haemophilus influenzae type b",
+   "brand": "Diphtheria, Tetanus, Pertussis, Hepatitis B and Haemophilus influenzae type b Conjugate Vaccine Adsorbed",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "22/09/2010",
+   "vaccine_type": "Diphtheria-Tetanus-Pertussis (whole cell)-Hepatitis B-Haemophilus influenzae type b",
+   "brand": "Diphtheria, Tetanus, Pertussis, Hepatitis B and Haemophilus influenzae type b Conjugate Vaccine Adsorbed",
+   "presentation": "Vial",
+   "doses": "2",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "22/09/2010",
+   "vaccine_type": "Diphtheria-Tetanus-Pertussis (whole cell)-Hepatitis B-Haemophilus influenzae type b",
+   "brand": "Diphtheria, Tetanus, Pertussis, Hepatitis B and Haemophilus influenzae type b Conjugate Vaccine Adsorbed",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "06/04/2001",
+   "vaccine_type": "Diphtheria-Tetanus-Pertussis (whole cell)",
+   "brand": "DTP Vaccine",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "PT Bio Farma (Persero)",
+   "regulatory_authority": "National Agency of Drug and Food Control Indonesia",
+   "authority_country": "IDN"
+  },
+  {
+   "prequalified_date": "25/10/2001",
+   "vaccine_type": "cholera: inactivated oral",
+   "brand": "Dukoral",
+   "presentation": "Vial + Buffer Sachet",
+   "doses": "1",
+   "manufacturer": "Valneva Sweden AB",
+   "regulatory_authority": "Medical Products Agency",
+   "authority_country": "SWE"
+  },
+  {
+   "prequalified_date": "02/10/2013",
+   "vaccine_type": "Diphtheria-Tetanus-Pertussis (whole cell)-Hepatitis B-Haemophilus influenzae type b",
+   "brand": "Easyfive-TT",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Panacea Biotec Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "02/10/2013",
+   "vaccine_type": "Diphtheria-Tetanus-Pertussis (whole cell)-Hepatitis B-Haemophilus influenzae type b",
+   "brand": "Easyfive-TT",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Panacea Biotec Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "01/01/1987",
+   "vaccine_type": "Hepatitis B",
+   "brand": "Engerix",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "GlaxoSmithKline Biologicals SA",
+   "regulatory_authority": "Federal Agency for Medicines and Health Products",
+   "authority_country": "BEL"
+  },
+  {
+   "prequalified_date": "01/01/1987",
+   "vaccine_type": "Hepatitis B",
+   "brand": "Engerix",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "GlaxoSmithKline Biologicals SA",
+   "regulatory_authority": "Federal Agency for Medicines and Health Products",
+   "authority_country": "BEL"
+  },
+  {
+   "prequalified_date": "01/01/1987",
+   "vaccine_type": "Hepatitis B",
+   "brand": "Engerix",
+   "presentation": "Vial",
+   "doses": "20",
+   "manufacturer": "GlaxoSmithKline Biologicals SA",
+   "regulatory_authority": "Federal Agency for Medicines and Health Products",
+   "authority_country": "BEL"
+  },
+  {
+   "prequalified_date": "12/11/2019",
+   "vaccine_type": "Ebola Zaire (rVSV∆G-ZEBOV-GP, live attenuated)",
+   "brand": "ERVEBO",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Merck Sharp & Dohme LLC",
+   "regulatory_authority": "European Medicines Agency",
+   "authority_country": "EUR"
+  },
+  {
+   "prequalified_date": "10/02/2016",
+   "vaccine_type": "Diphtheria-Tetanus-Pertussis (whole cell)-Hepatitis B-Haemophilus influenzae type b",
+   "brand": "Eupenta",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "LG Chem Ltd",
+   "regulatory_authority": "Ministry of Food and Drug Safety",
+   "authority_country": "KOR"
+  },
+  {
+   "prequalified_date": "10/02/2016",
+   "vaccine_type": "Diphtheria-Tetanus-Pertussis (whole cell)-Hepatitis B-Haemophilus influenzae type b",
+   "brand": "Eupenta",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "LG Chem Ltd",
+   "regulatory_authority": "Ministry of Food and Drug Safety",
+   "authority_country": "KOR"
+  },
+  {
+   "prequalified_date": "01/06/2021",
+   "vaccine_type": "Polio Vaccine - Inactivated Sabin (sIPV)",
+   "brand": "Eupolio Inj.",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "LG Chem Ltd",
+   "regulatory_authority": "Ministry of Food and Drug Safety",
+   "authority_country": "KOR"
+  },
+  {
+   "prequalified_date": "21/12/2020",
+   "vaccine_type": "Polio Vaccine - Inactivated Sabin (sIPV)",
+   "brand": "Eupolio Inj.",
+   "presentation": "Vial",
+   "doses": "5",
+   "manufacturer": "LG Chem Ltd",
+   "regulatory_authority": "Ministry of Food and Drug Safety",
+   "authority_country": "KOR"
+  },
+  {
+   "prequalified_date": "22/11/1996",
+   "vaccine_type": "Hepatitis B",
+   "brand": "Euvax B",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "LG Chem Ltd",
+   "regulatory_authority": "Ministry of Food and Drug Safety",
+   "authority_country": "KOR"
+  },
+  {
+   "prequalified_date": "21/01/2020",
+   "vaccine_type": "Hepatitis B (Paediatric)",
+   "brand": "Euvax B",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "LG Chem Ltd",
+   "regulatory_authority": "Ministry of Food and Drug Safety",
+   "authority_country": "KOR"
+  },
+  {
+   "prequalified_date": "22/11/1996",
+   "vaccine_type": "Hepatitis B",
+   "brand": "Euvax B",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "LG Chem Ltd",
+   "regulatory_authority": "Ministry of Food and Drug Safety",
+   "authority_country": "KOR"
+  },
+  {
+   "prequalified_date": "23/12/2015",
+   "vaccine_type": "cholera: inactivated oral",
+   "brand": "Euvichol",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "EuBiologics Co., Ltd.",
+   "regulatory_authority": "Ministry of Food and Drug Safety",
+   "authority_country": "KOR"
+  },
+  {
+   "prequalified_date": "11/08/2017",
+   "vaccine_type": "cholera: inactivated oral",
+   "brand": "Euvichol-Plus",
+   "presentation": "Plastic Tube",
+   "doses": "1",
+   "manufacturer": "EuBiologics Co., Ltd.",
+   "regulatory_authority": "Ministry of Food and Drug Safety",
+   "authority_country": "KOR"
+  },
+  {
+   "prequalified_date": "12/04/2024",
+   "vaccine_type": "cholera: inactivated oral",
+   "brand": "Euvichol®-S",
+   "presentation": "Plastic Tube",
+   "doses": "1",
+   "manufacturer": "EuBiologics Co., Ltd.",
+   "regulatory_authority": "Ministry of Food and Drug Safety",
+   "authority_country": "KOR"
+  },
+  {
+   "prequalified_date": "09/01/2025",
+   "vaccine_type": "Influenza, seasonal (Trivalent)",
+   "brand": "FLU-M®",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Saint Petersburg Scientific Research Institute of Vaccines and Serums of the FMBA of Russia",
+   "regulatory_authority": "Centro para el Control Estatal de la Calidad de los Medicamentos",
+   "authority_country": "CUB"
+  },
+  {
+   "prequalified_date": "04/11/2015",
+   "vaccine_type": "Influenza, seasonal (Quadrivalent)",
+   "brand": "Fluzone Quadrivalent (labelled as FluQuadri in other markets)",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Sanofi Vaccines US Inc.",
+   "regulatory_authority": "US Food and Drug Administration- Office of Vaccine Research and Review",
+   "authority_country": "USA"
+  },
+  {
+   "prequalified_date": "04/11/2015",
+   "vaccine_type": "Influenza, seasonal (Quadrivalent)",
+   "brand": "Fluzone Quadrivalent (labelled as FluQuadri in other markets)",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Sanofi Vaccines US Inc.",
+   "regulatory_authority": "US Food and Drug Administration- Office of Vaccine Research and Review",
+   "authority_country": "USA"
+  },
+  {
+   "prequalified_date": "09/07/2024",
+   "vaccine_type": "Influenza, seasonal (Trivalent)",
+   "brand": "Fluzone® (Fluprevli™ in other markets)",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Sanofi Vaccines US Inc.",
+   "regulatory_authority": "US Food and Drug Administration- Office of Vaccine Research and Review",
+   "authority_country": "USA"
+  },
+  {
+   "prequalified_date": "16/12/2009",
+   "vaccine_type": "Influenza, Pandemic (H1N1)",
+   "brand": "Focetria",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Seqirus Vaccines Limited",
+   "regulatory_authority": "CBER/FDA",
+   "authority_country": "USA"
+  },
+  {
+   "prequalified_date": "09/02/2018",
+   "vaccine_type": "Human Papillomavirus (Ninevalent)",
+   "brand": "Gardasil 9",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Merck Sharp & Dohme LLC",
+   "regulatory_authority": "European Medicines Agency",
+   "authority_country": "EUR"
+  },
+  {
+   "prequalified_date": "11/08/2026",
+   "vaccine_type": "Human Papillomavirus (Ninevalent)",
+   "brand": "Gardasil 9",
+   "presentation": "Vial",
+   "doses": "2",
+   "manufacturer": "Merck Sharp & Dohme LLC",
+   "regulatory_authority": "European Medicines Agency",
+   "authority_country": "EUR"
+  },
+  {
+   "prequalified_date": "20/05/2009",
+   "vaccine_type": "Human Papillomavirus (Quadrivalent)",
+   "brand": "Gardasil",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Merck Sharp & Dohme LLC",
+   "regulatory_authority": "European Medicines Agency",
+   "authority_country": "EUR"
+  },
+  {
+   "prequalified_date": "12/04/2011",
+   "vaccine_type": "Influenza, seasonal (Trivalent)",
+   "brand": "GC FLU inj",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "GC Biopharma Corp.",
+   "regulatory_authority": "Ministry of Food and Drug Safety",
+   "authority_country": "KOR"
+  },
+  {
+   "prequalified_date": "07/11/2012",
+   "vaccine_type": "Influenza, seasonal (Trivalent)",
+   "brand": "GC FLU Multi inj.",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "GC Biopharma Corp.",
+   "regulatory_authority": "Ministry of Food and Drug Safety",
+   "authority_country": "KOR"
+  },
+  {
+   "prequalified_date": "21/12/2016",
+   "vaccine_type": "Influenza, seasonal (Quadrivalent)",
+   "brand": "GC FLU Quadrivalent inj.",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "GC Biopharma Corp.",
+   "regulatory_authority": "Ministry of Food and Drug Safety",
+   "authority_country": "KOR"
+  },
+  {
+   "prequalified_date": "03/04/2017",
+   "vaccine_type": "Influenza, seasonal (Quadrivalent)",
+   "brand": "GC FLU Quadrivalent Multi inj.",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "GC Biopharma Corp.",
+   "regulatory_authority": "Ministry of Food and Drug Safety",
+   "authority_country": "KOR"
+  },
+  {
+   "prequalified_date": "11/05/2010",
+   "vaccine_type": "Influenza, Pandemic (H1N1)",
+   "brand": "Green Flu-S",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "GC Biopharma Corp.",
+   "regulatory_authority": "Ministry of Food and Drug Safety",
+   "authority_country": "KOR"
+  },
+  {
+   "prequalified_date": "17/11/2008",
+   "vaccine_type": "Haemophilus influenzae type b",
+   "brand": "Haemophilus influenzae type b Conjugate Vaccine",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "19/07/2013",
+   "vaccine_type": "Hepatitis A (Human Diploid Cell), Inactivated (Adult)",
+   "brand": "Havrix 1440 Adult",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "GlaxoSmithKline Biologicals SA",
+   "regulatory_authority": "Federal Agency for Medicines and Health Products",
+   "authority_country": "BEL"
+  },
+  {
+   "prequalified_date": "19/07/2013",
+   "vaccine_type": "Hepatitis A (Human Diploid Cell), Inactivated (Paediatric)",
+   "brand": "Havrix 720 Junior",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "GlaxoSmithKline Biologicals SA",
+   "regulatory_authority": "Federal Agency for Medicines and Health Products",
+   "authority_country": "BEL"
+  },
+  {
+   "prequalified_date": "22/12/2017",
+   "vaccine_type": "Hepatitis A (Human Diploid Cell), Inactivated (Paediatric)",
+   "brand": "HEALIVE",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Sinovac Biotech Co. Ltd",
+   "regulatory_authority": "National Medical Products Administration",
+   "authority_country": "CHN"
+  },
+  {
+   "prequalified_date": "22/12/2017",
+   "vaccine_type": "Hepatitis A (Human Diploid Cell), Inactivated (Adult)",
+   "brand": "HEALIVE",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Sinovac Biotech Co. Ltd",
+   "regulatory_authority": "National Medical Products Administration",
+   "authority_country": "CHN"
+  },
+  {
+   "prequalified_date": "11/12/2001",
+   "vaccine_type": "Hepatitis B",
+   "brand": "Heberbiovac HB",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Centro de Ingenieria Genetica y Biotecnologia",
+   "regulatory_authority": "Centro para el Control Estatal de la Calidad de los Medicamentos",
+   "authority_country": "CUB"
+  },
+  {
+   "prequalified_date": "11/12/2001",
+   "vaccine_type": "Hepatitis B",
+   "brand": "Heberbiovac HB",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Centro de Ingenieria Genetica y Biotecnologia",
+   "regulatory_authority": "Centro para el Control Estatal de la Calidad de los Medicamentos",
+   "authority_country": "CUB"
+  },
+  {
+   "prequalified_date": "12/11/2004",
+   "vaccine_type": "Hepatitis B",
+   "brand": "Hepatitis B Vaccine (rDNA) (Adult)",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "12/11/2004",
+   "vaccine_type": "Hepatitis B",
+   "brand": "Hepatitis B Vaccine (rDNA) (Adult)",
+   "presentation": "Ampoule or Vial",
+   "doses": "1",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "12/11/2004",
+   "vaccine_type": "Hepatitis B",
+   "brand": "Hepatitis B Vaccine (rDNA) (Paediatric)",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "12/11/2004",
+   "vaccine_type": "Hepatitis B",
+   "brand": "Hepatitis B Vaccine (rDNA) (Paedriatic)",
+   "presentation": "Ampoule or Vial",
+   "doses": "1",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "21/03/2024",
+   "vaccine_type": "Diphtheria-Tetanus-Pertussis (whole cell)-Hepatitis B-Haemophilus influenzae type b-Polio (Inactivated)",
+   "brand": "HEXASIIL",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "21/03/2024",
+   "vaccine_type": "Diphtheria-Tetanus-Pertussis (whole cell)-Hepatitis B-Haemophilus influenzae type b-Polio (Inactivated)",
+   "brand": "HEXASIIL",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "19/12/2014",
+   "vaccine_type": "Diphtheria-Tetanus-Pertussis (acellular)-Hepatitis B-Haemophilus influenzae type b-Polio (Inactivated)",
+   "brand": "Hexaxim",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Sanofi Winthrop Industrie",
+   "regulatory_authority": "European Medicines Agency",
+   "authority_country": "EUR"
+  },
+  {
+   "prequalified_date": "25/05/2018",
+   "vaccine_type": "Influenza, seasonal (Trivalent)",
+   "brand": "IL-YANG FLU Vaccine INJ.",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "IL-YANG PHARMACEUTICAL CO., LTD.",
+   "regulatory_authority": "Ministry of Food and Drug Safety",
+   "authority_country": "KOR"
+  },
+  {
+   "prequalified_date": "18/09/2014",
+   "vaccine_type": "Japanese Encephalitis Vaccine (live, attenuated)",
+   "brand": "IMOJEV MD",
+   "presentation": "Two vial set (active + excipient)",
+   "doses": "4",
+   "manufacturer": "Global Biotech Products Co., Ltd",
+   "regulatory_authority": "Thai Food and Drug Administration",
+   "authority_country": "THA"
+  },
+  {
+   "prequalified_date": "09/12/2005",
+   "vaccine_type": "Polio Vaccine - Inactivated (IPV)",
+   "brand": "IMOVAX POLIO",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Sanofi Winthrop Industrie",
+   "regulatory_authority": "Agence nationale de sécurité du médicament et des produits de santé",
+   "authority_country": "FRA"
+  },
+  {
+   "prequalified_date": "13/09/2024",
+   "vaccine_type": "Smallpox and Mpox vaccine (Live Modified Vaccinia Virus Ankara)",
+   "brand": "Imvanex® (also approved under the name of JYNNEOS by the USFDA and IMVAMUNE by Health Canada)",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Bavarian Nordic A/S",
+   "regulatory_authority": "European Medicines Agency",
+   "authority_country": "EUR"
+  },
+  {
+   "prequalified_date": "28/01/2010",
+   "vaccine_type": "Influenza, Pandemic (H1N1)",
+   "brand": "Influenza A (H1N1) 2009 monovalent vaccine",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Sanofi Vaccines US Inc.",
+   "regulatory_authority": "CBER/FDA",
+   "authority_country": "USA"
+  },
+  {
+   "prequalified_date": "28/01/2010",
+   "vaccine_type": "Influenza, Pandemic (H1N1)",
+   "brand": "Influenza A (H1N1) 2009 monovalent vaccine",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Sanofi Vaccines US Inc.",
+   "regulatory_authority": "CBER/FDA",
+   "authority_country": "USA"
+  },
+  {
+   "prequalified_date": "25/02/2010",
+   "vaccine_type": "Influenza, Pandemic (H1N1)",
+   "brand": "Influenza A (H1N1) 2009 monovalent vaccine",
+   "presentation": "Sprayer",
+   "doses": "1",
+   "manufacturer": "MedImmune",
+   "regulatory_authority": "CBER/FDA",
+   "authority_country": "USA"
+  },
+  {
+   "prequalified_date": "17/02/2025",
+   "vaccine_type": "Influenza, seasonal (Trivalent)",
+   "brand": "Influenza trivalent vaccine (split virion, inactivated)",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Instituto Butantan",
+   "regulatory_authority": "Agencia Nacional da Vigilancia Sanitaria",
+   "authority_country": "BRA"
+  },
+  {
+   "prequalified_date": "26/04/2021",
+   "vaccine_type": "Influenza, seasonal (Trivalent)",
+   "brand": "influenza trivalent vaccine (split virion, inactivated)",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Instituto Butantan",
+   "regulatory_authority": "Agencia Nacional da Vigilancia Sanitaria",
+   "authority_country": "BRA"
+  },
+  {
+   "prequalified_date": "20/10/2023",
+   "vaccine_type": "Influenza, seasonal (Trivalent)",
+   "brand": "Influenza Vaccine (Split Virion), Inactivated",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Changchun Institute of Biological Products Co., Ltd",
+   "regulatory_authority": "National Medical Products Administration",
+   "authority_country": "CHN"
+  },
+  {
+   "prequalified_date": "05/03/2025",
+   "vaccine_type": "Influenza, seasonal (Trivalent)",
+   "brand": "None",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Saint Petersburg Scientific Research Institute of Vaccines and Serums of the FMBA of Russia",
+   "regulatory_authority": "Centro para el Control Estatal de la Calidad de los Medicamentos",
+   "authority_country": "CUB"
+  },
+  {
+   "prequalified_date": "19/02/2024",
+   "vaccine_type": "Influenza, seasonal (Quadrivalent)",
+   "brand": "Influvac® Tetra",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Abbott Biologicals BV",
+   "regulatory_authority": "Medicines Evaluation Board (MEB)",
+   "authority_country": "NLD"
+  },
+  {
+   "prequalified_date": "23/12/2010",
+   "vaccine_type": "Polio Vaccine - Inactivated (IPV)",
+   "brand": "IPV Vaccine AJV",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "AJ Vaccines A/S",
+   "regulatory_authority": "Danish Medicines Agency",
+   "authority_country": "DNK"
+  },
+  {
+   "prequalified_date": "08/10/2013",
+   "vaccine_type": "Japanese Encephalitis Vaccine (live, attenuated)",
+   "brand": "Japanese Encephalitis Vaccine Live (SA14-14-2)",
+   "presentation": "Two vial set (active + excipient)",
+   "doses": "1",
+   "manufacturer": "Chengdu Institute of Biological Products Co.,Ltd",
+   "regulatory_authority": "National Medical Products Administration",
+   "authority_country": "CHN"
+  },
+  {
+   "prequalified_date": "08/10/2013",
+   "vaccine_type": "Japanese Encephalitis Vaccine (live, attenuated)",
+   "brand": "Japanese Encephalitis Vaccine Live (SA14-14-2)",
+   "presentation": "Two vial set (active + excipient)",
+   "doses": "5",
+   "manufacturer": "Chengdu Institute of Biological Products Co.,Ltd",
+   "regulatory_authority": "National Medical Products Administration",
+   "authority_country": "CHN"
+  },
+  {
+   "prequalified_date": "03/08/2016",
+   "vaccine_type": "Japanese Encephalitis Vaccine (Inactivated) (3µg Pediatric)",
+   "brand": "JEEV® (3µg)",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Biological E. Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "02/10/2018",
+   "vaccine_type": "Japanese Encephalitis Vaccine (Inactivated) (3µg Pediatric)",
+   "brand": "JEEV® (3µg)",
+   "presentation": "Vial",
+   "doses": "5",
+   "manufacturer": "Biological E. Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "12/07/2013",
+   "vaccine_type": "Japanese Encephalitis Vaccine (Inactivated) 6µg",
+   "brand": "JEEV® (6µg)",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Biological E. Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "02/10/2018",
+   "vaccine_type": "Japanese Encephalitis Vaccine (Inactivated) 6µg",
+   "brand": "JEEV® (6µg)",
+   "presentation": "Vial",
+   "doses": "5",
+   "manufacturer": "Biological E. Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "24/09/2019",
+   "vaccine_type": "Measles and Rubella",
+   "brand": "Measles and Rubella Vaccine (Live) (Attenuated, Freeze Dried)",
+   "presentation": "Vial + Ampoule",
+   "doses": "1",
+   "manufacturer": "Biological E. Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "24/09/2019",
+   "vaccine_type": "Measles and Rubella",
+   "brand": "Measles and Rubella Vaccine (Live) (Attenuated, Freeze Dried)",
+   "presentation": "Vial + Ampoule",
+   "doses": "5",
+   "manufacturer": "Biological E. Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "24/09/2019",
+   "vaccine_type": "Measles and Rubella",
+   "brand": "Measles and Rubella Vaccine (Live) (Attenuated, Freeze Dried)",
+   "presentation": "Vial + Ampoule",
+   "doses": "10",
+   "manufacturer": "Biological E. Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "18/07/2000",
+   "vaccine_type": "Measles and Rubella",
+   "brand": "Measles and Rubella Vaccine, Live, Attenuated",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "18/07/2000",
+   "vaccine_type": "Measles and Rubella",
+   "brand": "Measles and Rubella Vaccine, Live, Attenuated",
+   "presentation": "Vial",
+   "doses": "2",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "18/07/2000",
+   "vaccine_type": "Measles and Rubella",
+   "brand": "Measles and Rubella Vaccine, Live, Attenuated",
+   "presentation": "Vial",
+   "doses": "5",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "18/07/2000",
+   "vaccine_type": "Measles and Rubella",
+   "brand": "Measles and Rubella Vaccine, Live, Attenuated",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "04/09/2006",
+   "vaccine_type": "Measles",
+   "brand": "Measles vaccine",
+   "presentation": "Vial",
+   "doses": "20",
+   "manufacturer": "PT Bio Farma (Persero)",
+   "regulatory_authority": "National Agency of Drug and Food Control Indonesia",
+   "authority_country": "IDN"
+  },
+  {
+   "prequalified_date": "09/04/1997",
+   "vaccine_type": "Measles",
+   "brand": "Measles vaccine",
+   "presentation": "Vial + Ampoule",
+   "doses": "10",
+   "manufacturer": "PT Bio Farma (Persero)",
+   "regulatory_authority": "National Agency of Drug and Food Control Indonesia",
+   "authority_country": "IDN"
+  },
+  {
+   "prequalified_date": "15/01/2026",
+   "vaccine_type": "Measles",
+   "brand": "Measles vaccine (Live)",
+   "presentation": "Vial",
+   "doses": "5",
+   "manufacturer": "Biological E. Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "15/01/2026",
+   "vaccine_type": "Measles",
+   "brand": "Measles vaccine (Live)",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Biological E. Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "15/02/1993",
+   "vaccine_type": "Measles",
+   "brand": "Measles Vaccine, Live, Attenuated",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "15/02/1993",
+   "vaccine_type": "Measles",
+   "brand": "Measles Vaccine, Live, Attenuated",
+   "presentation": "Vial",
+   "doses": "2",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "15/02/1993",
+   "vaccine_type": "Measles",
+   "brand": "Measles Vaccine, Live, Attenuated",
+   "presentation": "Vial",
+   "doses": "5",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "15/02/1993",
+   "vaccine_type": "Measles",
+   "brand": "Measles Vaccine, Live, Attenuated",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "08/08/2003",
+   "vaccine_type": "Measles, Mumps and Rubella",
+   "brand": "Measles, Mumps and Rubella Vaccine, Live, Attenuated",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "08/08/2003",
+   "vaccine_type": "Measles, Mumps and Rubella",
+   "brand": "Measles, Mumps and Rubella Vaccine, Live, Attenuated",
+   "presentation": "Vial",
+   "doses": "2",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "08/08/2003",
+   "vaccine_type": "Measles, Mumps and Rubella",
+   "brand": "Measles, Mumps and Rubella Vaccine, Live, Attenuated",
+   "presentation": "Vial",
+   "doses": "5",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "08/08/2003",
+   "vaccine_type": "Measles, Mumps and Rubella",
+   "brand": "Measles, Mumps and Rubella Vaccine, Live, Attenuated",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "21/03/2014",
+   "vaccine_type": "Meningococcal ACYW-135 (conjugate vaccine)",
+   "brand": "Menactra",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Sanofi Vaccines US Inc.",
+   "regulatory_authority": "CBER/FDA",
+   "authority_country": "USA"
+  },
+  {
+   "prequalified_date": "06/07/2023",
+   "vaccine_type": "Menigococcal ACYWX (Polysaccharide conjugate)",
+   "brand": "MenFive™",
+   "presentation": "Vial + Ampoule",
+   "doses": "1",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "06/07/2023",
+   "vaccine_type": "Menigococcal ACYWX (Polysaccharide conjugate)",
+   "brand": "MenFive™",
+   "presentation": "Vial + Ampoule",
+   "doses": "5",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "30/12/2014",
+   "vaccine_type": "Meningococcal A Conjugate 5 µg",
+   "brand": "Meningococcal A Conjugate 5 micrograms MenAfriVac 5µg",
+   "presentation": "Vial + Ampoule",
+   "doses": "10",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "23/06/2010",
+   "vaccine_type": "Meningococcal A Conjugate 10 µg",
+   "brand": "Meningococcal A Conjugate MenAfriVac",
+   "presentation": "Vial + Ampoule",
+   "doses": "10",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "28/01/2022",
+   "vaccine_type": "Meningococcal ACYW-135 Tetanus Toxoid (conjugate vaccine)",
+   "brand": "MenQuadfi",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Sanofi Vaccines US Inc.",
+   "regulatory_authority": "European Medicines Agency",
+   "authority_country": "EUR"
+  },
+  {
+   "prequalified_date": "30/04/2026",
+   "vaccine_type": "Meningococcal ACYW-135 (conjugate vaccine)",
+   "brand": "Menveo (Liq)",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "GlaxoSmithKline Vaccines S.r.l.",
+   "regulatory_authority": "European Medicines Agency",
+   "authority_country": "EUR"
+  },
+  {
+   "prequalified_date": "31/07/2013",
+   "vaccine_type": "Meningococcal ACYW-135 (conjugate vaccine)",
+   "brand": "Menveo (Lyo)",
+   "presentation": "Two vial set (active + active)",
+   "doses": "1",
+   "manufacturer": "GlaxoSmithKline Vaccines S.r.l.",
+   "regulatory_authority": "European Medicines Agency",
+   "authority_country": "EUR"
+  },
+  {
+   "prequalified_date": "03/11/2009",
+   "vaccine_type": "Polio Vaccine - Oral (OPV) Monovalent Type 1",
+   "brand": "Monovalent Oral Poliomyelitis Vaccine Type 1 (mOPV1)",
+   "presentation": "Vial",
+   "doses": "20",
+   "manufacturer": "PT Bio Farma (Persero)",
+   "regulatory_authority": "National Agency of Drug and Food Control Indonesia",
+   "authority_country": "IDN"
+  },
+  {
+   "prequalified_date": "21/06/2019",
+   "vaccine_type": "Polio Vaccine - Oral (OPV) Monovalent Type 2",
+   "brand": "Monovalent Oral Poliomyelitis Vaccine Type 2",
+   "presentation": "Vial",
+   "doses": "20",
+   "manufacturer": "PT Bio Farma (Persero)",
+   "regulatory_authority": "National Agency of Drug and Food Control Indonesia",
+   "authority_country": "IDN"
+  },
+  {
+   "prequalified_date": "03/11/2009",
+   "vaccine_type": "Polio Vaccine - Oral (OPV) Monovalent Type 1",
+   "brand": "Monovalent type 1 Oral Poliomyelitis vaccine, IP (mOPV1)",
+   "presentation": "Vial",
+   "doses": "20",
+   "manufacturer": "Haffkine Bio Pharmaceutical Corporation Ltd",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "15/07/2022",
+   "vaccine_type": "Malaria",
+   "brand": "Mosquirix",
+   "presentation": "Two vial set (active + active)",
+   "doses": "2",
+   "manufacturer": "GlaxoSmithKline Biologicals SA",
+   "regulatory_authority": "European Medicines Agency",
+   "authority_country": "EUR"
+  },
+  {
+   "prequalified_date": "26/03/2009",
+   "vaccine_type": "Yellow Fever",
+   "brand": "n/a",
+   "presentation": "Ampoule",
+   "doses": "2",
+   "manufacturer": "Federal State Autonomous Scientific Institution «Chumakov Federal Scientific Center for Research & Development of Immune-And Biological Products», Russian Academy of Sciences",
+   "regulatory_authority": "Federal Service on Surveillance in Healthcare (ROSZDRAVNADZOR) of the Russian Federation",
+   "authority_country": "RUS"
+  },
+  {
+   "prequalified_date": "26/03/2009",
+   "vaccine_type": "Yellow Fever",
+   "brand": "n/a",
+   "presentation": "Ampoule",
+   "doses": "5",
+   "manufacturer": "Federal State Autonomous Scientific Institution «Chumakov Federal Scientific Center for Research & Development of Immune-And Biological Products», Russian Academy of Sciences",
+   "regulatory_authority": "Federal Service on Surveillance in Healthcare (ROSZDRAVNADZOR) of the Russian Federation",
+   "authority_country": "RUS"
+  },
+  {
+   "prequalified_date": "26/03/2009",
+   "vaccine_type": "Yellow Fever",
+   "brand": "n/a",
+   "presentation": "Ampoule",
+   "doses": "10",
+   "manufacturer": "Federal State Autonomous Scientific Institution «Chumakov Federal Scientific Center for Research & Development of Immune-And Biological Products», Russian Academy of Sciences",
+   "regulatory_authority": "Federal Service on Surveillance in Healthcare (ROSZDRAVNADZOR) of the Russian Federation",
+   "authority_country": "RUS"
+  },
+  {
+   "prequalified_date": "26/11/2012",
+   "vaccine_type": "Influenza, Pandemic (H1N1)",
+   "brand": "NASOVAC Influenza Vaccine, Live Attenuated (Human) Freeze-Dried",
+   "presentation": "Vial + Ampoule",
+   "doses": "1",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "26/11/2012",
+   "vaccine_type": "Influenza, Pandemic (H1N1)",
+   "brand": "NASOVAC Influenza Vaccine, Live Attenuated (Human) Freeze-Dried",
+   "presentation": "Vial + Ampoule",
+   "doses": "5",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "30/09/2015",
+   "vaccine_type": "Influenza, seasonal (Trivalent)",
+   "brand": "Nasovac-S3 Influenza Vaccine (Human, Live Attenuated )(Liquid)",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "31/08/2016",
+   "vaccine_type": "Meningococcal ACYW-135 (conjugate vaccine)",
+   "brand": "Nimenrix",
+   "presentation": "Vial + Ampoule",
+   "doses": "1",
+   "manufacturer": "Pfizer Europe MA EEIG",
+   "regulatory_authority": "European Medicines Agency",
+   "authority_country": "EUR"
+  },
+  {
+   "prequalified_date": "06/07/2011",
+   "vaccine_type": "Diphtheria-Tetanus (reduced antigen content)",
+   "brand": "none",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "PT Bio Farma (Persero)",
+   "regulatory_authority": "National Agency of Drug and Food Control Indonesia",
+   "authority_country": "IDN"
+  },
+  {
+   "prequalified_date": "17/09/2014",
+   "vaccine_type": "Diphtheria-Tetanus (reduced antigen content)",
+   "brand": "None used on labelling for supply through UN agencies. Also marketed with labelled commercial name BE Td",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Biological E. Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "17/09/2014",
+   "vaccine_type": "Diphtheria-Tetanus (reduced antigen content)",
+   "brand": "None used on labelling for supply through UN agencies. Also marketed with labelled commercial name BE Td",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Biological E. Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "09/03/2020",
+   "vaccine_type": "Diphtheria-Tetanus (reduced antigen content)",
+   "brand": "None used on labelling for supply through UN agencies. Also marketed with labelled commercial name BE Td",
+   "presentation": "Vial",
+   "doses": "20",
+   "manufacturer": "Biological E. Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "12/07/2012",
+   "vaccine_type": "Tetanus Toxoid",
+   "brand": "None used on labelling for supply through UN agencies. Also marketed with labelled commercial name BEtt.",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Biological E. Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "12/07/2012",
+   "vaccine_type": "Tetanus Toxoid",
+   "brand": "None used on labelling for supply through UN agencies. Also marketed with labelled commercial name BEtt.",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Biological E. Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "21/12/2009",
+   "vaccine_type": "Tetanus Toxoid",
+   "brand": "None used on labelling for supply through UN agencies. Also marketed with labelled commercial name BEtt.",
+   "presentation": "Vial",
+   "doses": "20",
+   "manufacturer": "Biological E. Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "18/05/2012",
+   "vaccine_type": "Diphtheria-Tetanus-Pertussis (whole cell)-Hepatitis B-Haemophilus influenzae type b",
+   "brand": "None used on labelling for supply through UN agencies. Also marketed with labelled commercial name ComBE Five (Liquid).",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Biological E. Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "27/11/2014",
+   "vaccine_type": "Diphtheria-Tetanus-Pertussis (whole cell)-Hepatitis B-Haemophilus influenzae type b",
+   "brand": "None used on labelling for supply through UN agencies. Also marketed with labelled commercial name ComBE Five (Liquid).",
+   "presentation": "Vial",
+   "doses": "2",
+   "manufacturer": "Biological E. Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "27/11/2014",
+   "vaccine_type": "Diphtheria-Tetanus-Pertussis (whole cell)-Hepatitis B-Haemophilus influenzae type b",
+   "brand": "None used on labelling for supply through UN agencies. Also marketed with labelled commercial name ComBE Five (Liquid).",
+   "presentation": "Vial",
+   "doses": "5",
+   "manufacturer": "Biological E. Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "18/05/2012",
+   "vaccine_type": "Diphtheria-Tetanus-Pertussis (whole cell)-Hepatitis B-Haemophilus influenzae type b",
+   "brand": "None used on labelling for supply through UN agencies. Also marketed with labelled commercial name ComBE Five (Liquid).",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Biological E. Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "01/09/2011",
+   "vaccine_type": "Diphtheria-Tetanus-Pertussis (whole cell)-Hepatitis B-Haemophilus influenzae type b",
+   "brand": "None used on labelling for supply through UN agencies. Also marketed with labelled commercial name ComBE Five (Reconstituted).",
+   "presentation": "Two vial set (active + active)",
+   "doses": "1",
+   "manufacturer": "Biological E. Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "01/09/2011",
+   "vaccine_type": "Diphtheria-Tetanus-Pertussis (whole cell)-Hepatitis B-Haemophilus influenzae type b",
+   "brand": "None used on labelling for supply through UN agencies. Also marketed with labelled commercial name ComBE Five (Reconstituted).",
+   "presentation": "Two vial set (active + active)",
+   "doses": "10",
+   "manufacturer": "Biological E. Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "31/07/2014",
+   "vaccine_type": "Diphtheria-Tetanus-Pertussis (whole cell)",
+   "brand": "None used on labelling for supply through UN agencies. Also marketed with labelled commercial name TRIPVAC",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Biological E. Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "31/07/2014",
+   "vaccine_type": "Diphtheria-Tetanus-Pertussis (whole cell)",
+   "brand": "None used on labelling for supply through UN agencies. Also marketed with labelled commercial name TRIPVAC",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Biological E. Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "31/08/2020",
+   "vaccine_type": "Polio Vaccine - Oral (OPV) Trivalent",
+   "brand": "Oral Poliomyelitis Vaccines (Oral Drops)",
+   "presentation": "Vial",
+   "doses": "20",
+   "manufacturer": "PT Bio Farma (Persero)",
+   "regulatory_authority": "National Agency of Drug and Food Control Indonesia",
+   "authority_country": "IDN"
+  },
+  {
+   "prequalified_date": "18/12/2020",
+   "vaccine_type": "Influenza, Pandemic (H5N1)",
+   "brand": "Pandemic Live Attenuated Vaccine",
+   "presentation": "Sprayer",
+   "doses": "1",
+   "manufacturer": "AstraZeneca Pharmaceuticals LP.",
+   "regulatory_authority": "European Medicines Agency",
+   "authority_country": "EUR"
+  },
+  {
+   "prequalified_date": "22/01/2010",
+   "vaccine_type": "Influenza, Pandemic (H1N1)",
+   "brand": "Panenza",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Sanofi Winthrop Industrie",
+   "regulatory_authority": "Agence nationale de sécurité du médicament et des produits de santé",
+   "authority_country": "FRA"
+  },
+  {
+   "prequalified_date": "01/12/2009",
+   "vaccine_type": "Influenza, Pandemic (H1N1)",
+   "brand": "Panvax",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Seqirus Limited",
+   "regulatory_authority": "Therapeutic Goods Administration",
+   "authority_country": "AUS"
+  },
+  {
+   "prequalified_date": "19/12/2014",
+   "vaccine_type": "Diphtheria-Tetanus-Pertussis (whole cell)-Hepatitis B-Haemophilus influenzae type b",
+   "brand": "Pentabio",
+   "presentation": "Vial",
+   "doses": "5",
+   "manufacturer": "PT Bio Farma (Persero)",
+   "regulatory_authority": "National Agency of Drug and Food Control Indonesia",
+   "authority_country": "IDN"
+  },
+  {
+   "prequalified_date": "19/12/2014",
+   "vaccine_type": "Diphtheria-Tetanus-Pertussis (whole cell)-Hepatitis B-Haemophilus influenzae type b",
+   "brand": "Pentabio",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "PT Bio Farma (Persero)",
+   "regulatory_authority": "National Agency of Drug and Food Control Indonesia",
+   "authority_country": "IDN"
+  },
+  {
+   "prequalified_date": "21/04/2020",
+   "vaccine_type": "Polio Vaccine - Inactivated (IPV)",
+   "brand": "Picovax",
+   "presentation": "Vial",
+   "doses": "5",
+   "manufacturer": "AJ Vaccines A/S",
+   "regulatory_authority": "Danish Medicines Agency",
+   "authority_country": "DNK"
+  },
+  {
+   "prequalified_date": "14/11/2025",
+   "vaccine_type": "Pneumococcal (conjugate)",
+   "brand": "PNEUBEVAX 14®",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Biological E. Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "18/12/2019",
+   "vaccine_type": "Pneumococcal (conjugate)",
+   "brand": "PNEUMOSIL®",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "18/12/2019",
+   "vaccine_type": "Pneumococcal (conjugate)",
+   "brand": "PNEUMOSIL®",
+   "presentation": "Vial",
+   "doses": "5",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "19/01/2024",
+   "vaccine_type": "Pneumococcal (conjugate)",
+   "brand": "PNEUMOSIL",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "29/10/2009",
+   "vaccine_type": "Polio Vaccine - Oral (OPV) Monovalent Type 1",
+   "brand": "Polio Sabin Mono T1",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "GlaxoSmithKline Biologicals SA",
+   "regulatory_authority": "Federal Agency for Medicines and Health Products",
+   "authority_country": "BEL"
+  },
+  {
+   "prequalified_date": "29/10/2009",
+   "vaccine_type": "Polio Vaccine - Oral (OPV) Monovalent Type 1",
+   "brand": "Polio Sabin Mono T1",
+   "presentation": "Vial",
+   "doses": "20",
+   "manufacturer": "GlaxoSmithKline Biologicals SA",
+   "regulatory_authority": "Federal Agency for Medicines and Health Products",
+   "authority_country": "BEL"
+  },
+  {
+   "prequalified_date": "05/10/2010",
+   "vaccine_type": "Polio Vaccine - Oral (OPV) Monovalent Type 3",
+   "brand": "Polio Sabin Mono Three (oral)",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "GlaxoSmithKline Biologicals SA",
+   "regulatory_authority": "Federal Agency for Medicines and Health Products",
+   "authority_country": "BEL"
+  },
+  {
+   "prequalified_date": "05/10/2010",
+   "vaccine_type": "Polio Vaccine - Oral (OPV) Monovalent Type 3",
+   "brand": "Polio Sabin Mono Three (oral)",
+   "presentation": "Vial",
+   "doses": "20",
+   "manufacturer": "GlaxoSmithKline Biologicals SA",
+   "regulatory_authority": "Federal Agency for Medicines and Health Products",
+   "authority_country": "BEL"
+  },
+  {
+   "prequalified_date": "11/05/2011",
+   "vaccine_type": "Polio Vaccine - Oral (OPV) Monovalent Type 2",
+   "brand": "Polio Sabin Mono Two (oral)",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "GlaxoSmithKline Biologicals SA",
+   "regulatory_authority": "Federal Agency for Medicines and Health Products",
+   "authority_country": "BEL"
+  },
+  {
+   "prequalified_date": "11/05/2011",
+   "vaccine_type": "Polio Vaccine - Oral (OPV) Monovalent Type 2",
+   "brand": "Polio Sabin Mono Two (oral)",
+   "presentation": "Vial",
+   "doses": "20",
+   "manufacturer": "GlaxoSmithKline Biologicals SA",
+   "regulatory_authority": "Federal Agency for Medicines and Health Products",
+   "authority_country": "BEL"
+  },
+  {
+   "prequalified_date": "29/10/2009",
+   "vaccine_type": "Polio Vaccine - Oral (OPV) Bivalent Types 1 and 3",
+   "brand": "Polio Sabin One and Three",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "GlaxoSmithKline Biologicals SA",
+   "regulatory_authority": "Federal Agency for Medicines and Health Products",
+   "authority_country": "BEL"
+  },
+  {
+   "prequalified_date": "29/10/2009",
+   "vaccine_type": "Polio Vaccine - Oral (OPV) Bivalent Types 1 and 3",
+   "brand": "Polio Sabin One and Three",
+   "presentation": "Vial",
+   "doses": "20",
+   "manufacturer": "GlaxoSmithKline Biologicals SA",
+   "regulatory_authority": "Federal Agency for Medicines and Health Products",
+   "authority_country": "BEL"
+  },
+  {
+   "prequalified_date": "06/12/2010",
+   "vaccine_type": "Polio Vaccine - Inactivated (IPV)",
+   "brand": "Poliomyelitis vaccine",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Bilthoven Biologicals B.V.",
+   "regulatory_authority": "Medicines Evaluation Board (MEB)",
+   "authority_country": "NLD"
+  },
+  {
+   "prequalified_date": "27/12/2023",
+   "vaccine_type": "Polio Vaccine - Novel Oral (nOPV) Type 2",
+   "brand": "Polio Vaccine - Novel Oral (nOPV) Type 2",
+   "presentation": "Vial",
+   "doses": "50",
+   "manufacturer": "PT Bio Farma (Persero)",
+   "regulatory_authority": "National Agency of Drug and Food Control Indonesia",
+   "authority_country": "IDN"
+  },
+  {
+   "prequalified_date": "10/02/2026",
+   "vaccine_type": "Polio Vaccine - Novel Oral (nOPV) Type 2",
+   "brand": "Poliomyelitis Vaccine - Novel Oral (nOPV) Type 2 (Biological E. bulk)",
+   "presentation": "Vial",
+   "doses": "20",
+   "manufacturer": "Biological E. Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "10/02/2026",
+   "vaccine_type": "Polio Vaccine - Novel Oral (nOPV) Type 2",
+   "brand": "Poliomyelitis Vaccine - Novel Oral (nOPV) Type 2 (Biological E. bulk)",
+   "presentation": "Vial",
+   "doses": "50",
+   "manufacturer": "Biological E. Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "29/07/2024",
+   "vaccine_type": "Polio Vaccine - Novel Oral (nOPV) Type 2",
+   "brand": "Poliomyelitis Vaccine - Novel Oral (nOPV) Type 2 (PT Bio Farma bulk)",
+   "presentation": "Vial",
+   "doses": "50",
+   "manufacturer": "Biological E. Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "29/07/2024",
+   "vaccine_type": "Polio Vaccine - Novel Oral (nOPV) Type 2",
+   "brand": "Poliomyelitis Vaccine - Novel Oral (nOPV) Type 2 (PT BioFarma bulk)",
+   "presentation": "Vial",
+   "doses": "20",
+   "manufacturer": "Biological E. Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "02/07/2026",
+   "vaccine_type": "Polio Vaccine - Novel Oral (nOPV) Type 2",
+   "brand": "Polio Vaccine - Novel Oral (nOPV) Type 2",
+   "presentation": "Vial",
+   "doses": "20",
+   "manufacturer": "PT Bio Farma (Persero)",
+   "regulatory_authority": "National Agency of Drug and Food Control Indonesia",
+   "authority_country": "IDN"
+  },
+  {
+   "prequalified_date": "28/10/2016",
+   "vaccine_type": "Polio Vaccine - Inactivated (IPV)",
+   "brand": "Poliomyelitis Vaccine (Inactivated)",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "28/10/2016",
+   "vaccine_type": "Polio Vaccine - Inactivated (IPV)",
+   "brand": "Poliomyelitis Vaccine (Inactivated)",
+   "presentation": "Vial",
+   "doses": "2",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "28/10/2016",
+   "vaccine_type": "Polio Vaccine - Inactivated (IPV)",
+   "brand": "Poliomyelitis Vaccine (Inactivated)",
+   "presentation": "Vial",
+   "doses": "5",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "11/07/2019",
+   "vaccine_type": "Polio Vaccine - Inactivated (IPV)",
+   "brand": "Poliomyelitis Vaccine (Inactivated)",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "21/12/2017",
+   "vaccine_type": "Polio Vaccine - Oral (OPV) Bivalent Types 1 and 3",
+   "brand": "Poliomyelitis Vaccine (live, oral attenuated, human Diploid Cell), type 1 and 3",
+   "presentation": "Vial",
+   "doses": "20",
+   "manufacturer": "Beijing Institute of Biological Products Co., Ltd.",
+   "regulatory_authority": "National Medical Products Administration",
+   "authority_country": "CHN"
+  },
+  {
+   "prequalified_date": "11/07/2025",
+   "vaccine_type": "Polio Vaccine - Oral (OPV) Bivalent Types 1 and 3",
+   "brand": "Poliomyelitis Vaccine (Oral) Bivalent Type 1 and 3 (Bilthoven Biologicals B.V. Bulk)",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "11/07/2025",
+   "vaccine_type": "Polio Vaccine - Oral (OPV) Bivalent Types 1 and 3",
+   "brand": "Poliomyelitis Vaccine (Oral) Bivalent Type 1 and 3 (Bilthoven Biologicals B.V. Bulk)",
+   "presentation": "Vial",
+   "doses": "20",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "22/10/2014",
+   "vaccine_type": "Polio Vaccine - Oral (OPV) Bivalent Types 1 and 3",
+   "brand": "Poliomyelitis Vaccine (Oral), Bivalent types 1 and 3 (PT Bio Farma Bulk)",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "04/02/2013",
+   "vaccine_type": "Polio Vaccine - Oral (OPV) Bivalent Types 1 and 3",
+   "brand": "Poliomyelitis Vaccine (Oral), Bivalent types 1 and 3 (PT Bio Farma Bulk)",
+   "presentation": "Vial",
+   "doses": "20",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "06/06/2022",
+   "vaccine_type": "Polio Vaccine - Inactivated Sabin (sIPV)",
+   "brand": "Poliomyelitis Vaccine (Vero Cell), Inactivated, Sabin Strains",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Sinovac Biotech Co. Ltd",
+   "regulatory_authority": "National Medical Products Administration",
+   "authority_country": "CHN"
+  },
+  {
+   "prequalified_date": "15/02/2022",
+   "vaccine_type": "Polio Vaccine - Inactivated Sabin (sIPV)",
+   "brand": "Poliomyelitis Vaccine (Vero Cell), Inactivated, Sabin Strains",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Beijing Institute of Biological Products Co., Ltd.",
+   "regulatory_authority": "National Medical Products Administration",
+   "authority_country": "CHN"
+  },
+  {
+   "prequalified_date": "29/08/2024",
+   "vaccine_type": "Polio Vaccine - Inactivated Sabin (sIPV)",
+   "brand": "Poliomyelitis Vaccine (Vero Cell), Inactivated, Sabin Strains",
+   "presentation": "Vial",
+   "doses": "5",
+   "manufacturer": "Sinovac Biotech Co. Ltd",
+   "regulatory_authority": "National Medical Products Administration",
+   "authority_country": "CHN"
+  },
+  {
+   "prequalified_date": "18/07/2025",
+   "vaccine_type": "Polio Vaccine - Inactivated Sabin (sIPV)",
+   "brand": "Poliomyelitis Vaccine (Vero Cell), Inactivated, Sabin Strains",
+   "presentation": "Vial",
+   "doses": "5",
+   "manufacturer": "Beijing Institute of Biological Products Co., Ltd.",
+   "regulatory_authority": "National Medical Products Administration",
+   "authority_country": "CHN"
+  },
+  {
+   "prequalified_date": "28/11/2014",
+   "vaccine_type": "Polio Vaccine - Inactivated (IPV)",
+   "brand": "Poliomyelitis vaccine multidose",
+   "presentation": "Vial",
+   "doses": "5",
+   "manufacturer": "Bilthoven Biologicals B.V.",
+   "regulatory_authority": "Medicines Evaluation Board (MEB)",
+   "authority_country": "NLD"
+  },
+  {
+   "prequalified_date": "29/02/2024",
+   "vaccine_type": "Polio Vaccine - Inactivated (IPV)",
+   "brand": "Poliomyelitis vaccine multidose",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Bilthoven Biologicals B.V.",
+   "regulatory_authority": "Medicines Evaluation Board (MEB)",
+   "authority_country": "NLD"
+  },
+  {
+   "prequalified_date": "02/02/2006",
+   "vaccine_type": "Polio Vaccine - Oral (OPV) Trivalent",
+   "brand": "Polioviral vaccine",
+   "presentation": "Vial",
+   "doses": "20",
+   "manufacturer": "Haffkine Bio Pharmaceutical Corporation Ltd",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "20/08/2010",
+   "vaccine_type": "Pneumococcal (conjugate)",
+   "brand": "Prevenar 13",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Pfizer Europe MA EEIG",
+   "regulatory_authority": "European Medicines Agency",
+   "authority_country": "EUR"
+  },
+  {
+   "prequalified_date": "14/07/2016",
+   "vaccine_type": "Pneumococcal (conjugate)",
+   "brand": "Prevenar 13 Multidose Vial",
+   "presentation": "Vial",
+   "doses": "4",
+   "manufacturer": "Pfizer Europe MA EEIG",
+   "regulatory_authority": "European Medicines Agency",
+   "authority_country": "EUR"
+  },
+  {
+   "prequalified_date": "09/03/2001",
+   "vaccine_type": "Measles, Mumps and Rubella",
+   "brand": "Priorix",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "GlaxoSmithKline Biologicals SA",
+   "regulatory_authority": "Federal Agency for Medicines and Health Products",
+   "authority_country": "BEL"
+  },
+  {
+   "prequalified_date": "21/12/2011",
+   "vaccine_type": "Measles, Mumps and Rubella",
+   "brand": "Priorix",
+   "presentation": "Vial",
+   "doses": "2",
+   "manufacturer": "GlaxoSmithKline Biologicals SA",
+   "regulatory_authority": "Federal Agency for Medicines and Health Products",
+   "authority_country": "BEL"
+  },
+  {
+   "prequalified_date": "09/05/2024",
+   "vaccine_type": "Dengue Tetravalent (live, attenuated)",
+   "brand": "Qdenga",
+   "presentation": "Two vial set (active + excipient)",
+   "doses": "1",
+   "manufacturer": "Takeda Pharmaceuticals International AG Ireland Branch",
+   "regulatory_authority": "European Medicines Agency",
+   "authority_country": "EUR"
+  },
+  {
+   "prequalified_date": "26/04/2010",
+   "vaccine_type": "Haemophilus influenzae type b",
+   "brand": "Quimi-Hib",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Centro de Ingenieria Genetica y Biotecnologia",
+   "regulatory_authority": "Centro para el Control Estatal de la Calidad de los Medicamentos",
+   "authority_country": "CUB"
+  },
+  {
+   "prequalified_date": "19/12/2023",
+   "vaccine_type": "Malaria",
+   "brand": "CYVAC",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "20/12/2018",
+   "vaccine_type": "Rabies",
+   "brand": "Rabies Vaccine Inactivated (Freeze Dried)(RABIVAX-S)",
+   "presentation": "Vial + Ampoule",
+   "doses": "1",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "06/01/2009",
+   "vaccine_type": "Measles, Mumps and Rubella",
+   "brand": "rHA M-M-R II",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Merck Sharp & Dohme LLC",
+   "regulatory_authority": "European Medicines Agency",
+   "authority_country": "EUR"
+  },
+  {
+   "prequalified_date": "12/03/2009",
+   "vaccine_type": "Rotavirus",
+   "brand": "Rotarix",
+   "presentation": "Plastic Tube",
+   "doses": "1",
+   "manufacturer": "GlaxoSmithKline Biologicals SA",
+   "regulatory_authority": "Federal Agency for Medicines and Health Products",
+   "authority_country": "BEL"
+  },
+  {
+   "prequalified_date": "14/02/2019",
+   "vaccine_type": "Rotavirus",
+   "brand": "Rotarix",
+   "presentation": "Plastic Tube",
+   "doses": "5",
+   "manufacturer": "GlaxoSmithKline Biologicals SA",
+   "regulatory_authority": "Federal Agency for Medicines and Health Products",
+   "authority_country": "BEL"
+  },
+  {
+   "prequalified_date": "12/03/2009",
+   "vaccine_type": "Rotavirus",
+   "brand": "Rotarix",
+   "presentation": "Applicator",
+   "doses": "1",
+   "manufacturer": "GlaxoSmithKline Biologicals SA",
+   "regulatory_authority": "Federal Agency for Medicines and Health Products",
+   "authority_country": "BEL"
+  },
+  {
+   "prequalified_date": "21/09/2018",
+   "vaccine_type": "Rotavirus (live, attenuated)",
+   "brand": "ROTASIIL",
+   "presentation": "Two vial set (active + excipient)",
+   "doses": "1",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "21/09/2018",
+   "vaccine_type": "Rotavirus (live, attenuated)",
+   "brand": "ROTASIIL",
+   "presentation": "Two vial set (active + excipient)",
+   "doses": "2",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "13/09/2023",
+   "vaccine_type": "Rotavirus (live, attenuated)",
+   "brand": "ROTASIIL-Liquid",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "08/10/2021",
+   "vaccine_type": "Rotavirus (live, attenuated)",
+   "brand": "ROTASIIL-Liquid",
+   "presentation": "Vial",
+   "doses": "2",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "18/02/2021",
+   "vaccine_type": "Rotavirus (live, attenuated)",
+   "brand": "ROTASIIL-Liquid",
+   "presentation": "Plastic Tube",
+   "doses": "1",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "28/01/2020",
+   "vaccine_type": "Rotavirus (live, attenuated)",
+   "brand": "ROTASIIL®Thermo",
+   "presentation": "Two vial set (active + excipient)",
+   "doses": "1",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "28/01/2020",
+   "vaccine_type": "Rotavirus (live, attenuated)",
+   "brand": "ROTASIIL®Thermo",
+   "presentation": "Two vial set (active + excipient)",
+   "doses": "2",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "07/10/2008",
+   "vaccine_type": "Rotavirus",
+   "brand": "Rotateq",
+   "presentation": "Plastic Tube",
+   "doses": "1",
+   "manufacturer": "Merck Sharp & Dohme LLC",
+   "regulatory_authority": "CBER/FDA",
+   "authority_country": "USA"
+  },
+  {
+   "prequalified_date": "05/01/2018",
+   "vaccine_type": "Rotavirus (live, attenuated)",
+   "brand": "Rotavac",
+   "presentation": "Vial",
+   "doses": "5",
+   "manufacturer": "Bharat Biotech International Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "05/01/2018",
+   "vaccine_type": "Rotavirus (live, attenuated)",
+   "brand": "Rotavac",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Bharat Biotech International Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "18/06/2021",
+   "vaccine_type": "Rotavirus (live, attenuated)",
+   "brand": "ROTAVAC 5D®",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Bharat Biotech International Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "18/06/2021",
+   "vaccine_type": "Rotavirus (live, attenuated)",
+   "brand": "ROTAVAC 5D®",
+   "presentation": "Vial",
+   "doses": "5",
+   "manufacturer": "Bharat Biotech International Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "01/09/2006",
+   "vaccine_type": "Rubella",
+   "brand": "Rubella Vaccine, Live, Attenuated",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "01/09/2006",
+   "vaccine_type": "Rubella",
+   "brand": "Rubella Vaccine, Live, Attenuated",
+   "presentation": "Vial",
+   "doses": "2",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "01/09/2006",
+   "vaccine_type": "Rubella",
+   "brand": "Rubella Vaccine, Live, Attenuated",
+   "presentation": "Vial",
+   "doses": "5",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "01/09/2006",
+   "vaccine_type": "Rubella",
+   "brand": "Rubella Vaccine, Live, Attenuated",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "25/05/2018",
+   "vaccine_type": "Influenza, seasonal (Trivalent)",
+   "brand": "Serinflu",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Abbott Biologicals BV",
+   "regulatory_authority": "Medicines Evaluation Board (MEB)",
+   "authority_country": "NLD"
+  },
+  {
+   "prequalified_date": "25/09/2025",
+   "vaccine_type": "cholera: inactivated oral",
+   "brand": "Shanchol",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "GCBC Vaccines Private Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "01/10/2018",
+   "vaccine_type": "Polio Vaccine - Inactivated (IPV)",
+   "brand": "ShanIPV™",
+   "presentation": "Vial",
+   "doses": "5",
+   "manufacturer": "Sanofi Healthcare India Private Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "22/04/2022",
+   "vaccine_type": "Polio Vaccine - Inactivated (IPV)",
+   "brand": "ShanIPV™",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Sanofi Healthcare India Private Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "14/10/2022",
+   "vaccine_type": "Yellow Fever",
+   "brand": "SinSaVac™",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Federal State Autonomous Scientific Institution «Chumakov Federal Scientific Center for Research & Development of Immune-And Biological Products», Russian Academy of Sciences",
+   "regulatory_authority": "Federal Service on Surveillance in Healthcare (ROSZDRAVNADZOR) of the Russian Federation",
+   "authority_country": "RUS"
+  },
+  {
+   "prequalified_date": "27/12/2019",
+   "vaccine_type": "Influenza, seasonal (Quadrivalent)",
+   "brand": "SKYCellflu Quadrivalent inj.",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "SK Bioscience Co., Ltd.",
+   "regulatory_authority": "Ministry of Food and Drug Safety",
+   "authority_country": "KOR"
+  },
+  {
+   "prequalified_date": "27/12/2019",
+   "vaccine_type": "Influenza, seasonal (Quadrivalent)",
+   "brand": "SKYCellflu Quadrivalent Multi inj.",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "SK Bioscience Co., Ltd.",
+   "regulatory_authority": "Ministry of Food and Drug Safety",
+   "authority_country": "KOR"
+  },
+  {
+   "prequalified_date": "15/05/2019",
+   "vaccine_type": "Influenza, seasonal (Trivalent)",
+   "brand": "SKYCellflu® inj.",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "SK Bioscience Co., Ltd.",
+   "regulatory_authority": "Ministry of Food and Drug Safety",
+   "authority_country": "KOR"
+  },
+  {
+   "prequalified_date": "08/04/2019",
+   "vaccine_type": "Influenza, seasonal (Trivalent)",
+   "brand": "SKYCellflu® Multi inj.",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "SK Bioscience Co., Ltd.",
+   "regulatory_authority": "Ministry of Food and Drug Safety",
+   "authority_country": "KOR"
+  },
+  {
+   "prequalified_date": "21/02/2024",
+   "vaccine_type": "Typhoid (Conjugate)",
+   "brand": "SKYTyphoid Multi Inj.",
+   "presentation": "Vial",
+   "doses": "5",
+   "manufacturer": "SK Bioscience Co., Ltd.",
+   "regulatory_authority": "Ministry of Food and Drug Safety",
+   "authority_country": "KOR"
+  },
+  {
+   "prequalified_date": "09/12/2019",
+   "vaccine_type": "Varicella",
+   "brand": "SKYVaricella Inj.",
+   "presentation": "Two vial set (active + excipient)",
+   "doses": "1",
+   "manufacturer": "SK Bioscience Co., Ltd.",
+   "regulatory_authority": "Ministry of Food and Drug Safety",
+   "authority_country": "KOR"
+  },
+  {
+   "prequalified_date": "20/03/2001",
+   "vaccine_type": "Yellow Fever",
+   "brand": "Stabilized Yellow Fever Vaccine",
+   "presentation": "Ampoule",
+   "doses": "5",
+   "manufacturer": "Institut Pasteur de Dakar",
+   "regulatory_authority": "Ministère de la Santé publique",
+   "authority_country": "SEN"
+  },
+  {
+   "prequalified_date": "20/03/2001",
+   "vaccine_type": "Yellow Fever",
+   "brand": "Stabilized Yellow Fever Vaccine",
+   "presentation": "Ampoule",
+   "doses": "10",
+   "manufacturer": "Institut Pasteur de Dakar",
+   "regulatory_authority": "Ministère de la Santé publique",
+   "authority_country": "SEN"
+  },
+  {
+   "prequalified_date": "20/03/2001",
+   "vaccine_type": "Yellow Fever",
+   "brand": "Stabilized Yellow Fever Vaccine",
+   "presentation": "Ampoule",
+   "doses": "20",
+   "manufacturer": "Institut Pasteur de Dakar",
+   "regulatory_authority": "Ministère de la Santé publique",
+   "authority_country": "SEN"
+  },
+  {
+   "prequalified_date": "01/01/1987",
+   "vaccine_type": "Yellow Fever",
+   "brand": "STAMARIL",
+   "presentation": "Vial + Ampoule",
+   "doses": "10",
+   "manufacturer": "Sanofi Winthrop Industrie",
+   "regulatory_authority": "Agence nationale de sécurité du médicament et des produits de santé",
+   "authority_country": "FRA"
+  },
+  {
+   "prequalified_date": "30/10/2009",
+   "vaccine_type": "Pneumococcal (conjugate)",
+   "brand": "Synflorix",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "GlaxoSmithKline Biologicals SA",
+   "regulatory_authority": "European Medicines Agency",
+   "authority_country": "EUR"
+  },
+  {
+   "prequalified_date": "19/03/2010",
+   "vaccine_type": "Pneumococcal (conjugate)",
+   "brand": "Synflorix",
+   "presentation": "Vial",
+   "doses": "2",
+   "manufacturer": "GlaxoSmithKline Biologicals SA",
+   "regulatory_authority": "European Medicines Agency",
+   "authority_country": "EUR"
+  },
+  {
+   "prequalified_date": "16/10/2017",
+   "vaccine_type": "Pneumococcal (conjugate)",
+   "brand": "Synflorix",
+   "presentation": "Vial",
+   "doses": "4",
+   "manufacturer": "GlaxoSmithKline Biologicals SA",
+   "regulatory_authority": "European Medicines Agency",
+   "authority_country": "EUR"
+  },
+  {
+   "prequalified_date": "09/05/2006",
+   "vaccine_type": "Diphtheria-Tetanus (reduced antigen content)",
+   "brand": "Tetadif",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "BB- NCIPD EAD (Bul Bio-National Center of Infectious and Parasitic Diseases EAD)",
+   "regulatory_authority": "Bulgarian Drug Agency",
+   "authority_country": "BGR"
+  },
+  {
+   "prequalified_date": "09/05/2006",
+   "vaccine_type": "Diphtheria-Tetanus (reduced antigen content)",
+   "brand": "Tetadif",
+   "presentation": "Vial",
+   "doses": "20",
+   "manufacturer": "BB- NCIPD EAD (Bul Bio-National Center of Infectious and Parasitic Diseases EAD)",
+   "regulatory_authority": "Bulgarian Drug Agency",
+   "authority_country": "BGR"
+  },
+  {
+   "prequalified_date": "04/04/1995",
+   "vaccine_type": "Tetanus Toxoid",
+   "brand": "Tetanus Toxoid Vaccine Adsorbed",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "04/04/1995",
+   "vaccine_type": "Tetanus Toxoid",
+   "brand": "Tetanus Toxoid Vaccine Adsorbed",
+   "presentation": "Vial",
+   "doses": "20",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "04/04/1995",
+   "vaccine_type": "Tetanus Toxoid",
+   "brand": "Tetanus Toxoid Vaccine Adsorbed",
+   "presentation": "Ampoule",
+   "doses": "1",
+   "manufacturer": "Serum Institute of India Pvt. Ltd.",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "09/05/2006",
+   "vaccine_type": "Tetanus Toxoid",
+   "brand": "Tetatox",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "BB- NCIPD EAD (Bul Bio-National Center of Infectious and Parasitic Diseases EAD)",
+   "regulatory_authority": "Bulgarian Drug Agency",
+   "authority_country": "BGR"
+  },
+  {
+   "prequalified_date": "09/05/2006",
+   "vaccine_type": "Tetanus Toxoid",
+   "brand": "Tetatox",
+   "presentation": "Vial",
+   "doses": "20",
+   "manufacturer": "BB- NCIPD EAD (Bul Bio-National Center of Infectious and Parasitic Diseases EAD)",
+   "regulatory_authority": "Bulgarian Drug Agency",
+   "authority_country": "BGR"
+  },
+  {
+   "prequalified_date": "11/03/1999",
+   "vaccine_type": "Tetanus Toxoid",
+   "brand": "TT vaccine",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "PT Bio Farma (Persero)",
+   "regulatory_authority": "National Agency of Drug and Food Control Indonesia",
+   "authority_country": "IDN"
+  },
+  {
+   "prequalified_date": "11/03/1999",
+   "vaccine_type": "Tetanus Toxoid",
+   "brand": "TT vaccine",
+   "presentation": "Vial",
+   "doses": "20",
+   "manufacturer": "PT Bio Farma (Persero)",
+   "regulatory_authority": "National Agency of Drug and Food Control Indonesia",
+   "authority_country": "IDN"
+  },
+  {
+   "prequalified_date": "29/10/2003",
+   "vaccine_type": "Tetanus Toxoid",
+   "brand": "TT vaccine",
+   "presentation": "Uniject",
+   "doses": "1",
+   "manufacturer": "PT Bio Farma (Persero)",
+   "regulatory_authority": "National Agency of Drug and Food Control Indonesia",
+   "authority_country": "IDN"
+  },
+  {
+   "prequalified_date": "22/12/2017",
+   "vaccine_type": "Typhoid (Conjugate)",
+   "brand": "Typbar-TCV",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Bharat Biotech International Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "22/12/2017",
+   "vaccine_type": "Typhoid (Conjugate)",
+   "brand": "Typbar-TCV",
+   "presentation": "Vial",
+   "doses": "5",
+   "manufacturer": "Bharat Biotech International Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "04/12/2020",
+   "vaccine_type": "Typhoid (Conjugate)",
+   "brand": "TYPHIBEV®",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Biological E. Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "04/12/2020",
+   "vaccine_type": "Typhoid (Conjugate)",
+   "brand": "TYPHIBEV®",
+   "presentation": "Vial",
+   "doses": "5",
+   "manufacturer": "Biological E. Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "03/11/2022",
+   "vaccine_type": "Varicella",
+   "brand": "Varicella Vaccine, Live",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Sinovac (Dalian) Vaccine Technology Co., Ltd.",
+   "regulatory_authority": "National Medical Products Administration",
+   "authority_country": "CHN"
+  },
+  {
+   "prequalified_date": "09/02/2018",
+   "vaccine_type": "Varicella",
+   "brand": "Varivax",
+   "presentation": "Two vial set (active + excipient)",
+   "doses": "1",
+   "manufacturer": "Merck Sharp & Dohme LLC",
+   "regulatory_authority": "CBER/FDA",
+   "authority_country": "USA"
+  },
+  {
+   "prequalified_date": "30/06/2011",
+   "vaccine_type": "Influenza, seasonal (Trivalent)",
+   "brand": "Vaxigrip",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Sanofi Winthrop Industrie",
+   "regulatory_authority": "Agence nationale de sécurité du médicament et des produits de santé",
+   "authority_country": "FRA"
+  },
+  {
+   "prequalified_date": "15/10/2020",
+   "vaccine_type": "Influenza, seasonal (Quadrivalent)",
+   "brand": "VaxigripTetra",
+   "presentation": "Vial",
+   "doses": "10",
+   "manufacturer": "Sanofi Winthrop Industrie",
+   "regulatory_authority": "Agence nationale de sécurité du médicament et des produits de santé",
+   "authority_country": "FRA"
+  },
+  {
+   "prequalified_date": "06/02/2019",
+   "vaccine_type": "Rabies",
+   "brand": "VaxiRab N",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Zydus Lifesciences Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  },
+  {
+   "prequalified_date": "22/06/2005",
+   "vaccine_type": "Rabies",
+   "brand": "VERORAB",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Sanofi Winthrop Industrie",
+   "regulatory_authority": "Agence nationale de sécurité du médicament et des produits de santé",
+   "authority_country": "FRA"
+  },
+  {
+   "prequalified_date": "02/08/2024",
+   "vaccine_type": "Human Papillomavirus (Bivalent)",
+   "brand": "Walrinvax®",
+   "presentation": "Vial",
+   "doses": "1",
+   "manufacturer": "Yuxi Zerun Biotechnology Co., Ltd",
+   "regulatory_authority": "National Medical Products Administration",
+   "authority_country": "CHN"
+  },
+  {
+   "prequalified_date": "17/10/2001",
+   "vaccine_type": "Yellow Fever",
+   "brand": "Yellow Fever",
+   "presentation": "Two vial set (active + excipient)",
+   "doses": "5",
+   "manufacturer": "Bio-Manguinhos/Fiocruz",
+   "regulatory_authority": "Agencia Nacional da Vigilancia Sanitaria",
+   "authority_country": "BRA"
+  },
+  {
+   "prequalified_date": "10/12/2007",
+   "vaccine_type": "Yellow Fever",
+   "brand": "Yellow Fever",
+   "presentation": "Two vial set (active + excipient)",
+   "doses": "10",
+   "manufacturer": "Bio-Manguinhos/Fiocruz",
+   "regulatory_authority": "Agencia Nacional da Vigilancia Sanitaria",
+   "authority_country": "BRA"
+  },
+  {
+   "prequalified_date": "21/10/2024",
+   "vaccine_type": "Typhoid (Conjugate)",
+   "brand": "ZyVac® TCV",
+   "presentation": "Vial",
+   "doses": "5",
+   "manufacturer": "Zydus Lifesciences Limited",
+   "regulatory_authority": "Central Drugs Standard Control Organization",
+   "authority_country": "IND"
+  }
+ ],
+ "limits": [
+  "WHO 사전적격성은 UN 조달용 심사다. 여기 없다고 그 나라가 백신을 못 만든다는 뜻이 아니다 — 자국 시장만 겨냥한 백신은 신청하지 않는다.",
+  "규제기관은 감독 관할이지 제조지가 아니다. 회사가 다른 나라 공장에서 만들 수 있다.",
+  "목록에 제조사가 한 곳뿐이라고 세상에 한 곳뿐인 것은 아니다. 사전적격성을 받은 곳이 하나라는 뜻이다."
+ ]
+}
