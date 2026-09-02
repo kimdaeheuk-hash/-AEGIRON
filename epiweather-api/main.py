@@ -1362,6 +1362,68 @@ def countermeasure_gap():
     return report
 
 
+@app.get("/api/biodefense/capacity/{iso3}", tags=["Stage 8: 바이오방어"])
+def biodefense_capacity(iso3: str, year: int | None = None):
+    """★ 국가 대비 역량 ★ 그 나라가 **스스로 신고한** 15개 역량.
+
+    WHO 국제보건규칙 자가평가(SPAR) — 194개국 × 15개 역량 × 2021~2023.
+
+    ★★ 이 숫자는 자가평가다 ★★ 나라가 자기 점수를 스스로 매긴다. WHO 가 검증한
+    값이 아니다. 그래서 '역량' 이 아니라 **'신고한 점수'** 라고 부른다.
+
+    ★ 합산 점수를 만들지 않는다 ★ 15개를 평균 내면 "한국 99.5점" 이 나오는데,
+    실험실과 방사선 비상을 더해서 나눌 근거가 없다. 대신 세계 중앙값보다 뒤처진
+    역량이 **몇 개인가** 를 센다 — 이건 셀 수 있는 사실이다.
+    """
+    from algorithms.ihr_capacity import country_capacity
+
+    return country_capacity(iso3, year=year)
+
+
+@app.get("/api/biodefense/capacity-gap", tags=["Stage 8: 바이오방어"])
+def biodefense_capacity_gap():
+    """★ 재난이 난 나라는 대비가 돼 있는가 ★ 감시창 × 신고 역량.
+
+    아이기론은 GDACS 로 재난을 잡아 그 나라에 감시창을 연다(`disaster_watch`).
+    그 나라가 WHO 에 신고한 대비 역량을 겹치면, **지금 무슨 일이 났는데 그 나라가
+    어디가 약하다고 스스로 말했는지** 가 한 화면에 온다.
+
+    실측(2026-09-02): 네팔은 15개 중 8개를 세계 중앙값 아래로 신고했고, 그중에
+    실험실과 감시가 있다.
+
+    ★ 예측이 아니다 ★ 역량이 낮다고 발병한다는 뜻이 아니고, 높다고 안 난다는
+    뜻도 아니다. 두 사실을 나란히 놓을 뿐이다.
+    """
+    from algorithms.disaster_watch import watched_countries
+    from algorithms.ihr_capacity import country_capacity
+
+    rows, unknown = [], []
+    for iso3 in sorted(watched_countries()):
+        capacity = country_capacity(iso3)
+        if not capacity.get("available"):
+            # ★ 신고가 없는 나라를 최악으로 세지 않는다 ★ 따로 담는다.
+            unknown.append({"iso3": iso3, "reason": capacity.get("reason")})
+            continue
+        rows.append({
+            "iso3": iso3,
+            "year": capacity["year"],
+            "behind_world_count": capacity["behind_world_count"],
+            "behind_world": capacity["behind_world"],
+        })
+    rows.sort(key=lambda r: (-r["behind_world_count"], r["iso3"]))
+
+    return {
+        "watched_country_count": len(rows) + len(unknown),
+        "countries": rows,
+        "no_self_report": unknown,
+        "is_self_assessed": True,
+        "is_prediction": False,
+        "note": "감시창이 열린 나라와 그 나라가 WHO 에 신고한 대비 역량을 "
+                "나란히 놓은 것이다. 역량이 낮다고 발병한다는 뜻이 아니다.",
+        "sources": ["GDACS (재난 경보)", "WHO IHR 자가평가(SPAR)"],
+    }
+
+
 @app.get("/api/biodefense/procurement", tags=["Stage 8: 바이오방어"])
 def biodefense_procurement(days: int = 7):
     """★ 국가 조달 감시 ★ 정부가 지금 무엇을 사려고 하는가.
