@@ -1045,6 +1045,20 @@ def ai_provider_status():
     return provider_status()
 
 
+@app.get("/api/ai/extract-compare", tags=["AI"], dependencies=_auth)
+def ai_extract_compare(limit: int = 30, source: Optional[str] = None):
+    """추출 모델 교체 판단용 짝 비교 — 이미 쌓인 원문을 현재 NIM 설정으로 다시
+    뽑아, 기존 라벨과 어디서 갈리는지 센다.
+
+    정확도가 아니라 '불일치·과충전' 측정이다(기존 라벨도 검증된 정답이 아님).
+    사람 없이 오류로 셀 수 있는 건 rule_violations뿐 — 특히 date_invented는
+    원문에 연도가 없는데 날짜를 만들어낸 것이라 명백한 위반이다.
+
+    NIM을 호출하므로 비용이 든다 → 인증 필수. limit은 작게 시작할 것."""
+    from algorithms.extract_compare import run_comparison
+    return run_comparison(limit=limit, source=source)
+
+
 @app.get("/api/ai/training-data/stats", tags=["AI"])
 def ai_training_data_stats(limit: int = 5000):
     """매일 쌓이는 LLM 추출 결과를 '독자 모델 학습셋' 관점으로 집계 — 규모·라벨

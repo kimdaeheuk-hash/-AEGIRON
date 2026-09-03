@@ -132,12 +132,12 @@ def _nim_config() -> dict | None:
     }
 
 
-def _nim_extract(text: str, source: str, conf: dict) -> dict | None:
-    """NIM(OpenAI 호환 chat/completions)으로 추출. 실패 시 None(→ 다음 경로).
-    프롬프트·파싱은 nlp_extract와 동일 헬퍼를 재사용해 스키마 일관성을 보장한다."""
+def nim_raw(text: str, conf: dict) -> str | None:
+    """NIM 원시 응답 문자열. 파싱 전 단계라 '모델이 스키마를 얼마나 지켰나'를
+    재는 비교 도구(extract_compare)가 여기를 쓴다. 실패 시 None."""
     import requests
 
-    from .nlp_extract import build_prompt, parse_extraction
+    from .nlp_extract import build_prompt
 
     try:
         resp = requests.post(
@@ -153,10 +153,19 @@ def _nim_extract(text: str, source: str, conf: dict) -> dict | None:
             timeout=NIM_TIMEOUT_SEC,
         )
         resp.raise_for_status()
-        content = resp.json()["choices"][0]["message"]["content"]
+        return resp.json()["choices"][0]["message"]["content"]
     except Exception:
         return None
 
+
+def _nim_extract(text: str, source: str, conf: dict) -> dict | None:
+    """NIM(OpenAI 호환 chat/completions)으로 추출. 실패 시 None(→ 다음 경로).
+    프롬프트·파싱은 nlp_extract와 동일 헬퍼를 재사용해 스키마 일관성을 보장한다."""
+    from .nlp_extract import parse_extraction
+
+    content = nim_raw(text, conf)
+    if content is None:
+        return None
     return parse_extraction(content, text, source)
 
 
