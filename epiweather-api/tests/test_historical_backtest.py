@@ -91,7 +91,10 @@ def test_backtest_all_known_events_aggregates_verified_cases_only(isolated_db):
     result = backtest_all_known_events()
     assert result["summary"]["events_checked"] == 2
     assert result["summary"]["events_with_verified_lead_time"] == 1
-    assert result["summary"]["mean_lead_days"] == 3.0
+    # msf 는 라이브 수집 소스다 — 실측 칸에 들어가야 한다.
+    assert result["summary"]["live_measured_events"] == 1
+    assert result["summary"]["live_mean_lead_days"] == 3.0
+    assert result["summary"]["retrospective_events"] == 0
 
 
 def test_lead_days_output_always_carries_detection_baseline(isolated_db):
@@ -173,3 +176,99 @@ def test_covid_event_attaches_bluedot_comparison_without_false_victory(isolated_
     assert comp["bluedot_lead_days"] == 9
     assert comp["aegiron_lead_days"] is None  # 당시 시스템 부재 → 실측 없음
     assert "실측 없음" in comp["verdict"]
+
+
+# ── 사후 조립을 실측과 섞지 않는다 (2026-09-03 발견) ──────────────────────
+
+def _declare(dbmod, event_id="ebola_x", date="2026-05-16"):
+    dbmod.upsert_timeline_event(event_id, "에볼라 테스트", date,
+                                "who_pheic", "WHO PHEIC 선언", "WHO DON", "who")
+
+
+def _signal(dbmod, source, day, trust=1.0):
+    dbmod.create_extracted_signal(
+        source=source, disease="에볼라", location="DRC", signal_type="급증",
+        severity=["spike"], symptom=None, transmission=None, source_trust=trust,
+        signal_date=day, raw_text="t")
+
+
+def test_backfill_signals_are_labelled_retrospective(isolated_db):
+    """★★핵심★★ 사후 조립 데이터로 잰 선행일수를 실측이라 하지 않는다.
+
+    2026-09-03 점검에서 발견한 결함이다. 2018·2019·2020 사건이 "검증됨 · 선행
+    56일" 로 나오고 있었는데, 그때 아이기론은 **존재하지 않았다.** 그 신호는
+    `nowcast_backfill` 이 지금 GDELT 뉴스량으로 조립해 넣은 것이었고, 그 모듈
+    스스로 "전향 검증 전 실전대체 금지" 라고 밝힌 데이터였다.
+    """
+    import db as dbmod
+    _declare(dbmod)
+    _signal(dbmod, "gdelt_backfill", "2026-05-13", trust=0.5)
+
+    (row,) = [r for r in backtest_all_known_events()["results"] if r.get("lead_days")]
+
+    assert row["evidence_class"] == "retrospective"
+    assert row["is_live_measurement"] is False
+    assert "존재하지 않았다" in row["evidence_note"]
+    assert "선행성 증거가 아니다" in row["evidence_note"]
+
+
+def test_live_and_retrospective_are_never_averaged_together(isolated_db):
+    """★★핵심★★ 둘을 한 평균에 섞지 않는다.
+
+    예전엔 합쳐서 18.0일이라는 한 숫자를 냈다. 그 숫자는 대부분 사후 조립분이라,
+    제안서에 "18일 먼저 잡습니다" 로 쓰면 근거를 댈 수 없었다.
+    """
+    import db as dbmod
+    _declare(dbmod, "ebola_live", "2026-05-16")
+    _signal(dbmod, "msf", "2026-05-13")                     # 실측 3일
+    _declare(dbmod, "ebola_old", "2019-07-17")
+    _signal(dbmod, "gdelt_backfill", "2019-06-10", trust=0.5)   # 사후 37일
+
+    summary = backtest_all_known_events()["summary"]
+
+    assert summary["live_measured_events"] == 1
+    assert summary["live_mean_lead_days"] == 3.0, "사후분이 실측 평균에 섞였다"
+    assert summary["retrospective_events"] == 1
+    assert summary["retrospective_mean_lead_days"] == 37.0
+    assert "mean_lead_days" not in summary, "합친 숫자가 아직 나온다"
+    assert summary["mean_lead_days_combined_is_not_evidence"] is True
+
+
+def test_mixed_sources_are_not_counted_as_evidence(isolated_db):
+    """★핵심★ 실측과 사후가 한 사건에 섞이면 증거로 쓰지 않는다."""
+    import db as dbmod
+    _declare(dbmod)
+    _signal(dbmod, "msf", "2026-05-13")
+    _signal(dbmod, "gdelt_backfill", "2026-05-12", trust=0.5)
+
+    result = backtest_all_known_events()
+    (row,) = [r for r in result["results"] if r.get("lead_days")]
+
+    assert row["evidence_class"] == "mixed"
+    assert row["is_live_measurement"] is False
+    assert result["summary"]["live_measured_events"] == 0
+
+
+def test_evidence_note_names_the_reason_not_just_a_label(isolated_db):
+    """★핵심★ 등급만 붙이고 끝내지 않는다 — 왜 증거가 아닌지 문장으로 남긴다."""
+    import db as dbmod
+    _declare(dbmod)
+    _signal(dbmod, "msf", "2026-05-13")
+
+    (row,) = [r for r in backtest_all_known_events()["results"] if r.get("lead_days")]
+
+    assert row["evidence_class"] == "live"
+    assert "실제로 돌던 시점" in row["evidence_note"]
+    assert row["signal_sources"] == ["msf"]
+
+
+def test_summary_points_at_the_only_quotable_number(isolated_db):
+    """★핵심★ 무엇을 인용해도 되는지 요약이 직접 말한다."""
+    import db as dbmod
+    _declare(dbmod)
+    _signal(dbmod, "msf", "2026-05-13")
+
+    note = backtest_all_known_events()["summary"]["evidence_note"]
+
+    assert "live_mean_lead_days 로만" in note
+    assert "실전대체 금지" in note

@@ -79,12 +79,40 @@ def _detection_baseline() -> dict:
 LOOKAHEAD_DAYS_AFTER_DECLARATION = 7   # 선언 직후 신호(사후 확인용)도 소폭 포함
 
 
-def _daily_severity_series(disease_key: str, start: dt.date, end: dt.date) -> dict[str, float]:
-    """disease_key(normalize_disease 정규화명)에 매칭되는 실제 extracted_signals를
-    날짜별로 묶어 신뢰도가중 평균 심각도를 계산 — event_dedup.dedupe_events()와
-    같은 산식(신뢰도가중 평균)을 날짜 단위로 쪼갠 것."""
+# ★★ 사후 조립 데이터를 실측과 섞지 않기 위한 표식 ★★ (2026-09-03)
+#
+# 2018·2019·2020·2022 사건이 "검증됨 · 선행 56일" 로 나오고 있었다. 그때 아이기론은
+# 존재하지 않았다. 그 신호는 `nowcast_backfill` 이 **지금** GDELT 뉴스량으로 조립해
+# 넣은 것이다(source="gdelt_backfill", trust 0.5). 그 모듈 자신이 docstring 에
+# "라이브 추출과 분포가 달라 과거적합으로만 라벨링하고 전향 검증 전 실전대체 금지"
+# 라고 적어뒀는데, 백테스트가 그 경고를 무시하고 실측과 **한 평균에 섞고** 있었다.
+#
+# 그 평균이 18.0일이었다. 그 숫자를 제안서에 "18일 먼저 잡습니다" 로 쓰면,
+# 근거를 물었을 때 내놓을 것이 사후에 만든 뉴스량 대리지표뿐이다.
+BACKFILL_SOURCES = {"gdelt_backfill"}
+
+
+def _evidence_class(sources: set[str]) -> str:
+    """이 사건의 근거가 실측인가, 사후 조립인가."""
+    if not sources:
+        return "none"
+    backfill = sources & BACKFILL_SOURCES
+    if backfill == sources:
+        return "retrospective"       # 전부 사후 조립 — 선행성 증거가 아니다
+    if backfill:
+        return "mixed"               # 섞였다 — 증거로 쓸 수 없다
+    return "live"                    # 아이기론이 실제로 돌던 시점의 신호
+
+
+def _daily_severity_series(disease_key: str, start: dt.date, end: dt.date):
+    """날짜별 신뢰도가중 평균 심각도와 **그 신호의 출처 집합**을 함께 낸다.
+
+    출처를 같이 내는 이유는 하나다 — 사후 조립 데이터로 잰 '선행일수' 를 실측인
+    것처럼 쓰지 않기 위해서다.
+    """
     records = db.list_extracted_signals(limit=2000)
     by_day: dict[str, list[tuple[float, float]]] = {}
+    sources: set[str] = set()
     for r in records:
         if normalize_disease(r.get("disease")) != disease_key:
             continue
@@ -99,13 +127,14 @@ def _daily_severity_series(disease_key: str, start: dt.date, end: dt.date) -> di
             continue
         severity = SIGNAL_TYPE_SEVERITY.get(r["signal_type"], 40)
         by_day.setdefault(day, []).append((severity, r["source_trust"]))
+        sources.add(r.get("source") or "unknown")
 
     result: dict[str, float] = {}
     for day, pairs in by_day.items():
         weight_sum = sum(t for _, t in pairs)
         if weight_sum:
             result[day] = round(sum(s * t for s, t in pairs) / weight_sum, 1)
-    return result
+    return result, sources
 
 
 def backtest_event(event_id: str) -> dict:
@@ -142,7 +171,8 @@ def _backtest_event_core(event_id: str) -> dict:
     end = declaration_date + dt.timedelta(days=LOOKAHEAD_DAYS_AFTER_DECLARATION)
     disease_key = normalize_disease(timeline["event_name"])
 
-    severity_by_day = _daily_severity_series(disease_key, start, end)
+    severity_by_day, signal_sources = _daily_severity_series(disease_key, start, end)
+    evidence = _evidence_class(signal_sources)
     if not severity_by_day:
         return {
             "event_id": event_id, "verified": False,
@@ -176,6 +206,17 @@ def _backtest_event_core(event_id: str) -> dict:
         "declaration_milestone": declaration["milestone"],
         "first_high_severity_signal_date": first_high_day,
         "lead_days": lead_days,
+        # ★ 이 선행일수가 무엇으로 잰 것인지 ★ 없으면 사후 조립 수치가 실측처럼 인용된다.
+        "evidence_class": evidence,
+        "signal_sources": sorted(signal_sources),
+        "is_live_measurement": evidence == "live",
+        "evidence_note": {
+            "live": "아이기론이 실제로 돌던 시점의 수집 신호로 잰 값이다.",
+            "retrospective": "사후에 조립한 GDELT 뉴스량 대리지표로 잰 값이다 — "
+                             "아이기론은 이 사건 당시 존재하지 않았다. 선행성 증거가 아니다.",
+            "mixed": "실측 신호와 사후 조립 신호가 섞였다 — 증거로 쓸 수 없다.",
+            "none": "신호 없음.",
+        }[evidence],
         "signal_days_checked": len(severity_by_day),
         # lead_days를 기준선 없이 인용하지 못하게 항상 부착(㉗)
         "detection_baseline": _detection_baseline(),
@@ -189,7 +230,13 @@ def backtest_all_known_events() -> dict:
     event_ids = [e["event_id"] for e in db.list_timeline_events()]
     results = [backtest_event(eid) for eid in event_ids]
     verified = [r for r in results if r.get("verified") and r.get("would_have_alerted")]
-    lead_days_list = [r["lead_days"] for r in verified]
+    # ★★ 실측과 사후 조립을 한 평균에 섞지 않는다 ★★
+    live = [r for r in verified if r.get("evidence_class") == "live"]
+    retro = [r for r in verified if r.get("evidence_class") in ("retrospective", "mixed")]
+
+    def _mean(rows):
+        vals = [r["lead_days"] for r in rows]
+        return round(sum(vals) / len(vals), 1) if vals else None
 
     benchmarked = [r["bluedot_comparison"] for r in results if "bluedot_comparison" in r]
     measured_head_to_head = [c for c in benchmarked if c["aegiron_lead_days"] is not None]
@@ -201,7 +248,22 @@ def backtest_all_known_events() -> dict:
         "summary": {
             "events_checked": len(results),
             "events_with_verified_lead_time": len(verified),
-            "mean_lead_days": round(sum(lead_days_list) / len(lead_days_list), 1) if lead_days_list else None,
+            # ★ 실측 ★ 아이기론이 실제로 돌던 시점의 신호로만 잰 것.
+            "live_measured_events": len(live),
+            "live_mean_lead_days": _mean(live),
+            "live_lead_days": sorted(r["lead_days"] for r in live),
+            # ★ 사후 되짚기 ★ GDELT 뉴스량으로 지금 조립한 것. 증거가 아니다.
+            "retrospective_events": len(retro),
+            "retrospective_mean_lead_days": _mean(retro),
+            # 예전엔 이 둘을 합쳐 한 숫자(18.0일)를 냈다. 그 숫자는 대부분 사후
+            # 조립분이라, 제안서에 "18일 먼저" 로 쓰면 근거를 댈 수 없었다.
+            "mean_lead_days_combined_is_not_evidence": True,
+            "evidence_note": (
+                "선행성 주장은 live_mean_lead_days 로만 한다. retrospective 는 "
+                "nowcast_backfill 이 지금 조립한 GDELT 뉴스량 대리지표이고, 그 모듈 "
+                "스스로 '전향 검증 전 실전대체 금지' 라고 밝힌 데이터다. "
+                "아이기론이 존재하지 않던 시점의 사건을 '며칠 먼저 잡았다' 고 말할 수 없다."
+            ),
             "bluedot_benchmarked_events": len(benchmarked),
             "bluedot_head_to_head_measured": len(measured_head_to_head),
             "bluedot_note": "블루닷 비교 중 aegiron_lead_days가 실측된 건만 실제 head-to-head. "

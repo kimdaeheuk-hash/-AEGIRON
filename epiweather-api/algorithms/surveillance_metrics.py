@@ -110,12 +110,34 @@ def detection_summary(backtest_results: list[dict]) -> dict:
     # 알려진 발병만 있으므로 FN은 '데이터가 있었는데 임계값을 못 넘은 이벤트'.
     tp = len(detected)
     fn = len(evaluable) - len(detected)
+
+    # ★★ 실측만 따로 낸다 ★★ (2026-09-03)
+    # 여기 들어오는 사건 대부분은 아이기론이 존재하지 않던 시절 것이고, 그 신호는
+    # nowcast_backfill 이 지금 GDELT 뉴스량으로 조립한 대리지표다. 그걸 섞은
+    # 탐지율(0.833)을 EIOS 아프리카 0.810 과 나란히 놓으면 **우리가 이긴 것처럼
+    # 보인다.** 실제로 아이기론이 돌던 시점 실측은 사건 한 건뿐이었다.
+    live_eval = [r for r in evaluable if r.get("evidence_class") == "live"]
+    live_detected = [r for r in live_eval if r.get("would_have_alerted")]
+    live_leads = [r["lead_days"] for r in live_detected if isinstance(r.get("lead_days"), int)]
+    live_tp = len(live_detected)
+    live_fn = len(live_eval) - live_tp
+
     return {
         "evaluable_events": len(evaluable),
         "detected_events": tp,
         "detection_proportion": _safe_div(tp, len(evaluable)),   # EIOS의 '탐지율'과 동형
         "sensitivity": sensitivity(tp, fn),                       # = 탐지율(여기선 동일)
         "timeliness": timeliness_stats(lead_days),
+        # ★ 이 숫자들에는 사후 조립분이 섞여 있다 ★ 벤치마크 비교에 쓰면 안 된다.
+        "includes_retrospective": any(
+            r.get("evidence_class") in ("retrospective", "mixed") for r in evaluable),
+        "live_only": {
+            "evaluable_events": len(live_eval),
+            "detected_events": live_tp,
+            "detection_proportion": _safe_div(live_tp, len(live_eval)),
+            "sensitivity": sensitivity(live_tp, live_fn),
+            "timeliness": timeliness_stats(live_leads),
+        },
         "specificity": None,
         "false_alarm_rate": None,
         "negative_baseline_note": NEGATIVE_BASELINE_NOTE,
@@ -123,6 +145,9 @@ def detection_summary(backtest_results: list[dict]) -> dict:
             "eios_africa_detection_proportion": 0.810,
             "eios_africa_sensitivity": 0.474,
             "source": "EIOS Africa evaluation, BMC Public Health 2025 (DOI 10.1186/s12889-025-21998-9)",
+            "comparable_field": "live_only",
+            "note": "EIOS 와 견줄 수 있는 건 live_only 뿐이다. 상위 수치에는 아이기론이 "
+                    "존재하지 않던 시점 사건이 사후 조립 데이터로 섞여 있다.",
         },
         "metric_standard": ["sensitivity", "specificity", "ppv", "false_alarm_rate",
                             "f_measure", "timeliness", "AMOC_curve"],

@@ -100,9 +100,14 @@ def quantify_portfolio() -> dict:
         "countries": entries,
         "empirical_basis": {
             "verified_lead_time_cases": bt["summary"]["events_with_verified_lead_time"],
-            "mean_observed_lead_days": bt["summary"]["mean_lead_days"],
+            # ★ 실측만 쓴다 ★ 예전엔 사후 조립(GDELT 뉴스량)까지 섞인 평균을 실었다.
+            # 아이기론이 존재하지 않던 시점의 사건으로 "며칠 먼저" 를 말할 수 없다.
+            "live_measured_cases": bt["summary"]["live_measured_events"],
+            "mean_observed_lead_days": bt["summary"]["live_mean_lead_days"],
             "note": "노출 지수는 상대 비교용 모델 지표이며 절대 발생 확률이 아님. "
-                    "위 사례 수가 이 모델의 실측 근거 규모 — 표본이 작을수록 보수적으로 해석할 것.",
+                    "mean_observed_lead_days 는 아이기론이 실제로 돌던 시점의 신호로 "
+                    "잰 것만 센다(사후 조립 데이터 제외) — 그래서 사례 수가 작다. "
+                    "표본이 작을수록 보수적으로 해석할 것.",
         },
         "disclaimer": "exposure_index는 정책적 가중치로 합성한 상대 지표다. "
                       "보험·금융용 실제 요율 산정에 쓰려면 자체 기저율로 재보정이 필요하다.",
