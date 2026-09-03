@@ -584,6 +584,38 @@ def _lead_time_safe() -> dict | None:
         return {"error": f"{type(e).__name__}: {e}", "measured_events": 0}
 
 
+def _ledger_safe() -> dict | None:
+    try:
+        from algorithms.lead_time_ledger import ledger_record
+        return ledger_record()
+    except Exception as e:
+        return {"error": f"{type(e).__name__}: {e}", "measured_events": 0}
+
+
+@app.get("/api/lead-time-ledger", tags=["후향 검증"])
+def lead_time_ledger(outcome: Optional[str] = None, limit: int = 100):
+    """★ 선행성 원장 ★ "우리가 언제 알았나" 를 **선언 전에** 적어둔 기록.
+
+    지금까지는 선언이 난 뒤에 신호를 거꾸로 뒤져 "그때 갖고 있었나" 를 따졌다.
+    그러다 에볼라 DRC 2026 에서 **선언 42~85일 뒤에 적재한 신호**로 "선언보다
+    5일 먼저" 를 계산하는 사고가 났다(2026-09-03 발견).
+
+    이 원장은 순서를 뒤집는다 — 매 수집 주기에 문턱을 넘는 순간 그 자리에서
+    적고, 선언은 그 뒤에 온다. 그러므로 `crossed_at` 이 선언일보다 앞선다는
+    **사실 자체가 증거**다. 나중에 무엇을 적재하든 이미 적힌 시각은 안 바뀐다.
+
+    ★ 빗나간 것도 남긴다 ★ 문턱을 넘었는데 기한 내 선언이 없으면
+    `no_declaration` 으로 닫는다. 맞은 것만 세면 정밀도만 남고 재현율이 사라진다.
+    """
+    from algorithms.lead_time_ledger import list_entries
+
+    db.init_db()
+    return {
+        "summary": _ledger_safe(),
+        "entries": list_entries(outcome=outcome, limit=limit),
+    }
+
+
 @app.get("/api/launch-readiness", tags=["시스템"])
 def launch_readiness():
     """런칭 준비도 — **"런칭해도 되나"를 의견이 아니라 측정값으로 낸다.**

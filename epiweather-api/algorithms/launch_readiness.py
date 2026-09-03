@@ -103,16 +103,37 @@ def _lead_time_gate() -> dict:
                      f"판정 불가: {type(e).__name__}",
                      "예측 채점이 돌면 판정된다", ["paid"])
 
+    # ★ 선행성 원장도 함께 센다 ★ (2026-09-03)
+    # 예측 채점은 90일 기한이라 첫 결과가 늦게 나온다. 원장은 문턱을 넘는 순간
+    # 선제적으로 적어두므로, 다음 공식 선언이 나면 그 자리에서 채점된다 —
+    # 실제로는 이쪽이 먼저 열릴 가능성이 높다. 두 경로 중 하나라도 실측이면 연다.
+    ledger = {}
+    try:
+        from algorithms.lead_time_ledger import ledger_record
+        ledger = ledger_record()
+    except Exception:                                # noqa: BLE001
+        ledger = {}
+
     n = record.get("measured_events") or 0
-    passed = n >= 1
+    ledger_n = ledger.get("measured_events") or 0
+    passed = (n + ledger_n) >= 1
     if passed:
-        detail = (f"실측 {n}건 · 중앙값 {record.get('median_lead_days')}일 "
-                  f"· 최고 {record.get('best_lead_days')}일")
+        parts = []
+        if n:
+            parts.append(f"예측 채점 {n}건 · 중앙값 {record.get('median_lead_days')}일 "
+                         f"· 최고 {record.get('best_lead_days')}일")
+        if ledger_n:
+            # ★ 오경보를 같이 적는다 ★ 안 적으면 정밀도 없는 성적표가 인용된다.
+            parts.append(f"원장 실측 {ledger_n}건 · 평균 {ledger.get('mean_lead_days')}일 "
+                         f"· 오경보 {ledger.get('false_alarms')}건")
+        detail = " / ".join(parts)
     else:
-        detail = ("실측 0건 — 공식 선언과 대조된 예측이 아직 없다. "
-                  "이 상태에서 선행성을 주장하면 근거가 없다")
+        detail = ("실측 0건 — 공식 선언과 대조된 기록이 아직 없다. "
+                  "이 상태에서 선행성을 주장하면 근거가 없다. "
+                  f"원장이 추적 중인 문턱 통과 {ledger.get('open_crossings') or 0}건")
     return _gate("lead_time", "선행일수 실측", passed, detail,
-                 "실제 발병 1건을 먼저 잡아 자동 채점되면 열린다. "
+                 "실제 발병 1건을 먼저 잡아 자동 채점되면 열린다"
+                 "(예측 채점 또는 선행성 원장). "
                  "**코드로 열 수 없다 — 시간과 사건이 필요하다**", ["paid"])
 
 

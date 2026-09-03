@@ -992,6 +992,39 @@ def collect_free_sources() -> dict:
     except Exception as e:
         log_error("PredictionLog", e)
 
+    # ── 선행성 원장 (2026-09-03 편입) ─────────────────────────────────────
+    # ★ 왜 여기서 쓰는가 ★ 지금까지는 **선언이 난 뒤에** extracted_signals 를
+    # 거꾸로 뒤져 "그때 갖고 있었나" 를 따졌다. 그러다 에볼라 DRC 2026 에서
+    # 선언 42~85일 **뒤에** 적재한 신호로 "선언보다 5일 먼저" 를 계산하는 사고가
+    # 났다. 순서를 뒤집는다 — 문턱을 넘는 순간 그 자리에서 적고, 선언은 그
+    # 뒤에 온다. 그러면 crossed_at 이 선언보다 앞선다는 사실 자체가 증거다.
+    try:
+        from algorithms.lead_time_ledger import (
+            ledger_record, resolve_ledger, scan_and_record,
+        )
+        import db
+        db.init_db()
+        opened = scan_and_record()
+        for entry in opened:
+            log("  🔖 선행성 원장: %s / %s 문턱 통과(심각도 %.1f) — 선언 전 기록"
+                % (entry["disease"], entry["country_iso3"] or "국가미상", entry["severity"]))
+        outcome = resolve_ledger()
+        for hit in outcome["closed_declared"]:
+            # ★ 이 줄이 제품의 논지가 처음으로 실측되는 자리다 ★
+            log("  ★ 선행일수 실측: %s — 공식 선언보다 %+d일 (%s)"
+                % (hit["disease"], hit["lead_days"], hit["event_id"]))
+        if outcome["closed_no_declaration"]:
+            # 빗나간 것도 말한다. 안 그러면 정밀도만 있는 성적표가 된다.
+            log("  선행성 원장: 기한 내 선언 없음 %d건(오경보로 닫음)"
+                % outcome["closed_no_declaration"])
+        record = ledger_record()
+        log("  선행성 원장: 실측 %d건 · 오경보 %d건 · 추적 중 %d건"
+            % (record["measured_events"], record["false_alarms"],
+               record["open_crossings"]))
+    except Exception as e:
+        log(f"  ❌ 선행성 원장 실패: {type(e).__name__}: {e}")
+        log_error("LeadTimeLedger", e)
+
     # 소스별 헬스 기록(㉔) — result의 각 키가 None이면 이번 주기 수집 실패로
     # 판정. 주기당 소스별 정확히 1회만 기록해 "어느 소스가 며칠째 죽었는지"를
     # /api/status에서 눈에 보이게 한다(조용한 실패 제거).

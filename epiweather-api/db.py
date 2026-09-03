@@ -119,6 +119,38 @@ CREATE TABLE IF NOT EXISTS countermeasure_stockpile (
     created_at           TEXT NOT NULL,
     updated_at           TEXT NOT NULL
 );
+
+-- ★★ 선행성 원장 ★★ (2026-09-03)
+-- "우리가 언제 알았나" 를 **선언이 나기 전에** 못 박아 두는 표.
+--
+-- 왜 필요한가: 지금까지는 선언이 난 뒤에 extracted_signals 를 뒤져서 "그때
+-- 갖고 있었나" 를 따졌다. 그 방식은 나중에 적재된 신호와 그때 손에 있던 신호를
+-- 가리기 어려웠고, 실제로 에볼라 DRC 2026 에서 **선언 42~85일 뒤에 넣은 신호로
+-- "선언보다 5일 먼저" 를 계산하는 사고**가 났다.
+--
+-- 이 표는 **매 수집 주기에 선제적으로** 쓰인다. 어떤 (질병, 국가) 가 경보
+-- 문턱을 처음 넘은 순간을 그 자리에서 기록한다. 선언은 그 뒤에 온다. 그러므로
+-- crossed_at 은 선언보다 앞설 수밖에 없고, 그 순서 자체가 증거가 된다.
+--
+-- ★ 빗나간 것도 남긴다 ★ 문턱을 넘었는데 끝내 선언이 안 난 것(오경보)도 그대로
+-- 둔다. 맞은 것만 남기면 정밀도만 있고 재현율이 사라져 숫자가 무의미해진다.
+CREATE TABLE IF NOT EXISTS lead_time_ledger (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    disease        TEXT NOT NULL,           -- normalize_disease 정규화명
+    country_iso3   TEXT,                    -- 없을 수 있다(다국가·미상)
+    crossed_at     TEXT NOT NULL,           -- 문턱을 넘은 것을 기록한 시각(UTC)
+    severity       REAL NOT NULL,           -- 그때의 신뢰도가중 심각도
+    threshold      REAL NOT NULL,           -- 그때 적용된 문턱(뒤에 바뀌어도 추적됨)
+    signal_ids     TEXT NOT NULL,           -- JSON 배열 — 근거가 된 extracted_signals.id
+    -- 아래는 선언이 온 뒤에 채워진다. 그전까지 NULL 이고, NULL 인 채로 기한이
+    -- 지나면 오경보로 닫는다.
+    resolved_at    TEXT,
+    event_id       TEXT,                    -- outbreak_timeline 의 사건
+    declared_on    TEXT,                    -- 공식 선언일
+    lead_days      INTEGER,                 -- 선언일 - crossed_at(날짜)
+    outcome        TEXT,                    -- declared / no_declaration / open
+    UNIQUE(disease, country_iso3, crossed_at)
+);
 """
 
 

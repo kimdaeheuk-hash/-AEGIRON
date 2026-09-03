@@ -128,3 +128,43 @@ def test_calibration_flags_have_a_single_source():
     assert hasattr(dw, "WINDOWS_CALIBRATED")
     assert hasattr(dw, "THRESHOLD_CALIBRATED")
     assert dw.WINDOWS_CALIBRATED is False, "문헌값을 그대로 두고 뒤집으면 안 된다"
+
+
+def test_ledger_alone_can_open_the_lead_time_gate(_all_green, monkeypatch):
+    """★핵심★ 선행성 원장만으로도 관문이 열린다.
+
+    예측 채점은 90일 기한이라 첫 결과가 늦다. 원장은 문턱을 넘는 순간 선제적으로
+    적어두므로 다음 공식 선언이 나면 그 자리에서 채점된다 — 실제로는 이쪽이
+    먼저 열릴 가능성이 높다.
+    """
+    monkeypatch.setattr(
+        "algorithms.prediction_resolver.lead_time_record",
+        lambda: {"measured_events": 0, "is_evidence": False},
+    )
+    monkeypatch.setattr(
+        "algorithms.lead_time_ledger.ledger_record",
+        lambda: {"measured_events": 1, "mean_lead_days": 9.0,
+                 "false_alarms": 2, "open_crossings": 3},
+    )
+    report = lr.readiness_report()
+
+    gate = _gate(report, "lead_time")
+    assert gate["passed"] is True
+    assert "원장 실측 1건" in gate["detail"]
+    assert "오경보 2건" in gate["detail"], "오경보를 숨기면 정밀도 없는 성적표가 인용된다"
+
+
+def test_blocked_gate_shows_what_is_being_tracked(_all_green, monkeypatch):
+    """★핵심★ 막혀 있을 때 '지금 몇 건을 추적 중인지'를 보여준다 — 죽은 게 아니다."""
+    monkeypatch.setattr(
+        "algorithms.prediction_resolver.lead_time_record",
+        lambda: {"measured_events": 0, "is_evidence": False},
+    )
+    monkeypatch.setattr(
+        "algorithms.lead_time_ledger.ledger_record",
+        lambda: {"measured_events": 0, "false_alarms": 0, "open_crossings": 4},
+    )
+    gate = _gate(lr.readiness_report(), "lead_time")
+
+    assert gate["passed"] is False
+    assert "추적 중인 문턱 통과 4건" in gate["detail"]
