@@ -202,29 +202,59 @@ def compute_readiness(countermeasures: list[dict], threats: list[dict]) -> dict:
     uncovered = []
     sovereignty_gap = []
 
+    unrated_threats = []
+
     for th in threats:
         pathogen = th.get("pathogen")
-        # 이 위협을 표적으로 하고 선언 효능이 임계 이상인 대응제들
-        covering = [
-            cm for cm in countermeasures
-            if pathogen in cm.get("targets", [])
-            and (cm.get("declared_efficacy") or 0) >= COVERAGE_MIN_EFFICACY
-        ]
-        best = max((cm.get("declared_efficacy") or 0) for cm in covering) if covering else 0.0
+        targeting = [cm for cm in countermeasures if pathogen in cm.get("targets", [])]
+
+        # ★★ 세 갈래로 나눈다 — 모르는 것을 '없음' 으로 접지 않는다 ★★
+        # 예전엔 `(효능 or 0) >= 임계` 한 줄이라, **효능 미기재가 효능 0 으로**
+        # 접혔다. 그 결과 실제 등록된 국가 비축으로 돌려보니(2026-09-03):
+        #
+        #     생산 주권 0.0%  — 국산 H5N1 백신·탄저 백신이 있는데도 0%
+        #
+        # 국내 개발 백신 넷의 효능이 미기재였기 때문이다. "보수적" 이라고 적혀
+        # 있었지만, 국가 문서에서 역량을 **과소** 보고하는 것은 과대 보고만큼
+        # 위험하다. 그래서 이 시스템이 다른 데서 다 하는 방식으로 돌린다 —
+        # 있다 / 없다 / **모른다**.
+        covering, unrated = [], []
+        for cm in targeting:
+            efficacy = cm.get("declared_efficacy")
+            if efficacy is None:
+                unrated.append(cm)                      # 표적은 맞는데 효능 미기재
+            elif efficacy >= COVERAGE_MIN_EFFICACY:
+                covering.append(cm)
+            # 효능이 적혀 있는데 임계 미만이면 그건 '모름' 이 아니라 '부족' 이다.
+
+        best = max((cm["declared_efficacy"] for cm in covering), default=0.0)
         domestic = any(cm.get("domestic_producible") for cm in covering)
+
+        if covering:
+            status = "covered"
+        elif unrated:
+            status = "unrated"                          # 판정 불가 — 미커버가 아니다
+        else:
+            status = "uncovered"
 
         row = {
             "pathogen": pathogen,
             "severity": th.get("severity"),
             "covered": bool(covering),
+            "coverage_status": status,
             "best_declared_efficacy": round(best, 3) if covering else None,
             "covering_countermeasures": [cm["name"] for cm in covering],
+            # 효능만 채우면 판정이 서는 것들 — 무엇을 알아내야 하는지 알려준다.
+            "unrated_countermeasures": [cm["name"] for cm in unrated],
+            "unrated_domestic": any(cm.get("domestic_producible") for cm in unrated),
             "domestic_production": domestic,
         }
         threat_rows.append(row)
 
-        if not covering:
+        if status == "uncovered":
             uncovered.append(pathogen)                  # 아예 못 막는 위협
+        elif status == "unrated":
+            unrated_threats.append(pathogen)            # ★ 미커버로 세지 않는다 ★
         elif not domestic:
             sovereignty_gap.append(pathogen)            # 막지만 국산 생산 불가(주권 격차)
 
@@ -266,7 +296,14 @@ def compute_readiness(countermeasures: list[dict], threats: list[dict]) -> dict:
         "coverage": {
             "covered": covered_n,
             "uncovered": len(uncovered),
-            "coverage_rate": round(covered_n / n, 3) if n else None,
+            # ★ 판정 불가를 따로 센다 ★ 미커버에 섞으면 "못 막는다" 로 읽힌다.
+            "unrated": len(unrated_threats),
+            "unrated_threats": unrated_threats,
+            # 비율은 **판정된 것들 안에서만** 낸다. 모르는 것을 분모에 넣고
+            # 분자에서 빼면, 자료 미기재가 곧바로 낮은 준비도로 둔갑한다.
+            "coverage_rate": (round(covered_n / (covered_n + len(uncovered)), 3)
+                              if (covered_n + len(uncovered)) else None),
+            "rate_excludes_unrated": True,
             "uncovered_threats": uncovered,
             "severity_weighted_rate": severity_weighted_coverage_rate,
             "priority_uncovered_threats": [
@@ -278,6 +315,12 @@ def compute_readiness(countermeasures: list[dict], threats: list[dict]) -> dict:
             "import_dependent_covered": len(sovereignty_gap),
             "sovereignty_rate": round(domestic_n / covered_n, 3) if covered_n else None,
             "import_dependent_threats": sovereignty_gap,
+            # 국산 대응제가 있는데 효능 미기재라 커버 판정이 안 선 위협.
+            # 이 칸이 비어 있지 않으면 주권 비율을 낮게 읽으면 안 된다.
+            "domestic_but_unrated_threats": [
+                r["pathogen"] for r in threat_rows
+                if r["coverage_status"] == "unrated" and r["unrated_domestic"]
+            ],
             "severity_weighted_sovereignty_rate": severity_weighted_sovereignty_rate,
             "priority_import_dependent_threats": [
                 {"pathogen": r["pathogen"], "severity": r["severity"]} for r in priority_import_dependent
@@ -293,7 +336,7 @@ def compute_readiness(countermeasures: list[dict], threats: list[dict]) -> dict:
         "disclaimer": (
             "효능은 '예측'이 아니라 각 대응제의 선언(라벨/문헌) 효능 집계다. 변이별 분자 "
             "중화 예측(escape)은 구조·면역 모델(BioNeMo·CEPI 표준) 연동이 필요한 Phase 2 "
-            "이며, 여기서는 지어내지 않는다. 커버리지 불명은 보수적으로 미커버 처리. "
+            "이며, 여기서는 지어내지 않는다. 효능이 기재되지 않은 대응제는 '미커버' 가 아니라 '판정 불가(unrated)' 로 따로 세고 비율의 분모에서 뺀다 — 자료 미기재가 낮은 준비도로 둔갑하면 국가 역량을 과소 보고하게 되고, 그건 과대 보고만큼 위험하다. 효능이 기재되었으나 임계 미만인 것은 '부족' 이라 미커버로 센다. "
             "severity_weighted 지표는 severity 미입력 위협을 중립값(0.5)으로 처리한다. "
             "유전체 파운데이션 모델(Evo2)로 병원체 변이를 예측하는 경로는 진핵숙주 감염 "
             "바이러스에 대해 실측상 작동하지 않는다(학습 제외) — genomic_screening_capability "

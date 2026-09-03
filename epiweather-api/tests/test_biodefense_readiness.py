@@ -251,3 +251,99 @@ def test_illustrative_reflects_real_bundibugyo_gap():
     assert "Ebola_Bundibugyo" in r["coverage"]["uncovered_threats"]   # 백신 없음 → 미커버
     assert "Ebola_Zaire" in r["resilience"]["import_only_covered"]     # 백신 있으나 수입
     assert "분디부조" in r["real_case_note"]
+
+
+# ── 효능 미기재를 '효능 없음' 으로 접지 않는다 (2026-09-03 점검에서 발견) ──
+
+def _korean_stockpile():
+    """실제 등록된 국가 비축 형태 — 국산인데 효능이 안 적혀 있다."""
+    return [
+        {"name": "지씨플루H5N1멀티주(GC녹십자, 국내개발)",
+         "targets": ["H5N1"], "declared_efficacy": None, "domestic_producible": True},
+        {"name": "배리트락스주(탄저, 국산 신약 39호)",
+         "targets": ["Anthrax"], "declared_efficacy": None, "domestic_producible": True},
+        {"name": "천연두 백신(수입)",
+         "targets": ["Novel"], "declared_efficacy": 0.85, "domestic_producible": False},
+    ]
+
+
+_THREE = [
+    {"pathogen": "H5N1", "severity": 0.48},
+    {"pathogen": "Anthrax", "severity": 0.45},
+    {"pathogen": "Novel"},
+    {"pathogen": "Ebola", "severity": 0.5},
+]
+
+
+def test_unrated_countermeasure_is_not_counted_as_uncovered():
+    """★★핵심★★ 효능 미기재를 '못 막는다' 로 접지 않는다.
+
+    2026-09-03 점검에서 발견한 실제 결함이다. 등록된 국가 비축으로 돌렸더니
+    **생산 주권 0.0%** 가 나왔다 — 국산 H5N1 백신과 탄저 백신이 있는데도.
+    `(효능 or 0) >= 임계` 한 줄이 미기재를 0 으로 접고 있었다.
+
+    국가 문서에서 역량을 **과소** 보고하는 것은 과대 보고만큼 위험하다.
+    """
+    r = br.compute_readiness(_korean_stockpile(), _THREE)
+
+    assert set(r["coverage"]["unrated_threats"]) == {"H5N1", "Anthrax"}
+    assert r["coverage"]["uncovered_threats"] == ["Ebola"], "판정 불가가 미커버에 섞였다"
+    assert r["coverage"]["unrated"] == 2
+
+
+def test_rate_excludes_what_could_not_be_judged():
+    """★핵심★ 모르는 것을 분모에 넣고 분자에서 빼지 않는다.
+
+    그러면 자료 미기재가 그대로 낮은 준비도로 둔갑한다.
+    """
+    r = br.compute_readiness(_korean_stockpile(), _THREE)
+
+    assert r["coverage"]["rate_excludes_unrated"] is True
+    # 판정된 것은 Novel(커버) · Ebola(미커버) 둘뿐이다.
+    assert r["coverage"]["coverage_rate"] == 0.5
+
+
+def test_domestic_but_unrated_is_surfaced():
+    """★★핵심★★ 주권 0% 를 그대로 읽으면 안 되는 경우를 짚어준다.
+
+    이 칸이 비어 있지 않으면 "국산 생산 역량이 없다" 가 아니라
+    "효능을 안 적어서 판정이 안 선다" 이다.
+    """
+    r = br.compute_readiness(_korean_stockpile(), _THREE)
+
+    assert r["sovereignty"]["sovereignty_rate"] == 0.0
+    assert set(r["sovereignty"]["domestic_but_unrated_threats"]) == {"H5N1", "Anthrax"}
+
+
+def test_known_low_efficacy_is_still_uncovered():
+    """★핵심★ 효능이 **적혀 있는데** 임계 미만이면 그건 '모름' 이 아니라 '부족' 이다.
+
+    이걸 판정 불가로 옮기면, 효능이 낮다고 밝힌 대응제가 오히려 유리해진다.
+    """
+    weak = [{"name": "약한 것", "targets": ["Ebola"],
+             "declared_efficacy": 0.1, "domestic_producible": True}]
+
+    r = br.compute_readiness(weak, [{"pathogen": "Ebola", "severity": 0.5}])
+
+    assert r["coverage"]["uncovered_threats"] == ["Ebola"]
+    assert r["coverage"]["unrated"] == 0
+    assert r["matrix"][0]["coverage_status"] == "uncovered"
+
+
+def test_unrated_names_what_must_be_filled_in():
+    """무엇을 알아내면 판정이 서는지 이름으로 알려준다."""
+    row = next(r for r in br.compute_readiness(_korean_stockpile(), _THREE)["matrix"]
+               if r["pathogen"] == "H5N1")
+
+    assert row["coverage_status"] == "unrated"
+    assert row["unrated_countermeasures"] == ["지씨플루H5N1멀티주(GC녹십자, 국내개발)"]
+    assert row["unrated_domestic"] is True
+
+
+def test_disclaimer_explains_the_three_states():
+    """★핵심★ 세 갈래로 나눈다는 사실이 문서에 남아 있어야 한다."""
+    disclaimer = br.compute_readiness(_korean_stockpile(), _THREE)["disclaimer"]
+
+    assert "판정 불가" in disclaimer
+    assert "분모에서 뺀다" in disclaimer
+    assert "과소 보고" in disclaimer
