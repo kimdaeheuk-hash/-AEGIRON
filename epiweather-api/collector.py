@@ -904,7 +904,7 @@ def collect_free_sources() -> dict:
         from algorithms.valhalla_watch import valhalla_snapshot
         result["valhalla"] = valhalla_snapshot()
         v = result["valhalla"]
-        proc, pipe = v.get("procurement") or {}, v.get("pipeline") or {}
+        proc = v.get("procurement") or {}
         ready = v.get("readiness") or {}
         log("  발할라: 조달 %s건(%s) · 백신 단일공급원 %s종 · 대응제 %s건%s"
             % ((proc.get("value") or {}).get("bid_count", "?"),
@@ -913,10 +913,14 @@ def collect_free_sources() -> dict:
                ready.get("countermeasure_count", "?"),
                " · 판정불가 %s" % ready["unrated"] if ready.get("unrated") else ""))
         # 무거운 조각이 오래 굳어 있으면 조용히 지나가지 않는다.
-        for name, part in (("조달", proc), ("파이프라인", pipe)):
-            if part.get("reason", "").startswith("갱신 실패"):
-                log("  ⚠ 발할라 %s %s (%s시간 전 값 사용)"
-                    % (name, part["reason"], part.get("age_hours")))
+        # ★ 판정은 valhalla_watch.stale_parts 가 한다 ★ 여기서 직접 짜다가
+        # `part.get("reason", "")` 로 터졌다(2026-09-03) — 키가 있는데 값이 None
+        # 이면 .get 의 기본값이 안 먹는다.
+        from algorithms.valhalla_watch import stale_parts
+        _KO = {"procurement": "조달", "pipeline": "파이프라인"}
+        for key, part in stale_parts(v):
+            log("  ⚠ 발할라 %s %s (%s시간 전 값 사용)"
+                % (_KO.get(key, key), part["reason"], part.get("age_hours")))
     except Exception as e:
         result["valhalla"] = None
         log(f"  ❌ 발할라 관찰 실패: {type(e).__name__}: {e}")

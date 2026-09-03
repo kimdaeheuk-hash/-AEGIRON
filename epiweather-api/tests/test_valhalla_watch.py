@@ -219,3 +219,42 @@ def test_endpoint_says_when_nothing_has_been_collected_yet(isolated):
 
     assert body["available"] is False
     assert "한 번도 돌리지 않았다" in body["reason"]
+
+
+# ── 굳은 조각 판정 (2026-09-03 운영 장애에서 나옴) ─────────────────────────
+
+def test_success_does_not_look_like_a_failure(isolated, no_network):
+    """★★핵심★★ 성공한 조각을 '갱신 실패' 로 읽지 않는다.
+
+    수집기에서 `part.get("reason", "")` 로 짰다가 운영에서 터졌다 —
+    **키가 있는데 값이 None** 이면 `.get` 의 기본값이 안 먹는다. 성공 시
+    reason 이 None 이라 첫 성공 주기에서 AttributeError 가 났고, 발할라 층
+    전체가 실패로 기록됐다(2026-09-03 11:11 운영 로그).
+    """
+    out = vw.valhalla_snapshot()
+
+    assert out["procurement"]["reason"] is None
+    assert vw.stale_parts(out) == [], "성공을 실패로 읽었다"
+
+
+def test_stale_parts_finds_only_real_failures(isolated, no_network, monkeypatch):
+    """★핵심★ 주기 전이라 안 받은 것은 실패가 아니다."""
+    start = dt.datetime(2026, 9, 3, tzinfo=dt.timezone.utc)
+    vw.valhalla_snapshot(now=start)
+
+    # 주기 전 — 재사용이지 실패가 아니다.
+    reused = vw.valhalla_snapshot(now=start + dt.timedelta(hours=1))
+    assert vw.stale_parts(reused) == []
+
+    monkeypatch.setattr(vw, "_fetch_procurement",
+                        lambda: (_ for _ in ()).throw(ConnectionError("x")))
+    failed = vw.valhalla_snapshot(now=start + dt.timedelta(hours=7))
+
+    names = [name for name, _ in vw.stale_parts(failed)]
+    assert names == ["procurement"]
+
+
+def test_stale_parts_survives_a_dead_layer(isolated):
+    """조각이 통째로 없거나 None 이어도 판정이 터지지 않는다."""
+    assert vw.stale_parts({}) == []
+    assert vw.stale_parts({"procurement": None, "pipeline": "이상한 값"}) == []

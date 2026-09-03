@@ -100,7 +100,7 @@ def _refresh_heavy(key: str, every_hours: int, fetch, state: dict, now) -> dict:
     except Exception as exc:                              # noqa: BLE001
         # 실패했는데 지난 값을 새 값처럼 내지 않는다. 사유와 나이를 남긴다.
         return {"refreshed": False,
-                "reason": "갱신 실패: %s" % type(exc).__name__,
+                "reason": "%s: %s" % (FAILURE_PREFIX, type(exc).__name__),
                 "age_hours": _age_hours(saved.get("fetched_at"), now),
                 "value": saved.get("value")}
     state[key] = {"fetched_at": now.isoformat(), "value": value}
@@ -175,6 +175,29 @@ def _fetch_pipeline() -> dict:
     if failed == len(PATHOGEN_QUERIES):
         raise RuntimeError("모든 병원체 조회 실패")
     return {"stages": stages, "lookup_failed": failed}
+
+
+# 갱신에 실패한 조각의 사유 앞머리. 로그·경고가 이 낱말로 구분한다.
+FAILURE_PREFIX = "갱신 실패"
+
+
+def stale_parts(snapshot: dict) -> list[tuple[str, dict]]:
+    """갱신에 **실패해서** 굳은 조각들. 주기 전이라 안 받은 것은 실패가 아니다.
+
+    ★ 왜 함수로 뺐나 ★ 수집기에서 `part.get("reason", "")` 로 짜다가 터졌다
+    (2026-09-03 운영). 키가 **있는데 값이 None** 이면 `.get` 의 기본값은 안
+    먹는다. 성공했을 때 reason 이 None 이라 첫 성공 주기에서 바로 AttributeError
+    가 났고, 발할라 층 전체가 실패로 기록됐다. 판정을 한 곳에 모으고 시험한다.
+    """
+    out = []
+    for name in ("procurement", "pipeline"):
+        part = snapshot.get(name)
+        if not isinstance(part, dict):
+            continue
+        reason = part.get("reason") or ""          # None 도 빈 문자열로 받는다
+        if reason.startswith(FAILURE_PREFIX):
+            out.append((name, part))
+    return out
 
 
 def valhalla_snapshot(now=None) -> dict:
