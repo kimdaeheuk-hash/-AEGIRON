@@ -1362,6 +1362,44 @@ def countermeasure_gap():
     return report
 
 
+@app.get("/api/biodefense/valhalla", tags=["Stage 8: 바이오방어"])
+def biodefense_valhalla():
+    """★ 발할라 현재 상태 ★ **수집기가 쌓아둔 값**을 즉시 돌려준다.
+
+    2026-09-03 이전까지 발할라는 부를 때만 계산됐다. 그래서 어제와 비교할 수
+    없었고, `/api/biodefense/procurement` 는 나라장터를 66번 부르느라 47초가
+    걸렸다. 이제 수집기가 매 주기 쌓고, 이 엔드포인트는 그걸 읽기만 한다.
+
+    ★ 굳은 값을 새 값인 척하지 않는다 ★ 조각마다 `refreshed` 와 `age_hours` 가
+    붙는다. 조달은 6시간, 임상 파이프라인은 24시간마다 갱신되므로 그 사이에는
+    나이가 든 값이다. 갱신에 실패하면 사유가 남고 나이가 계속 자란다.
+    """
+    from algorithms.valhalla_watch import STATE_FILE, _age_hours, _load_state, _now
+
+    state = _load_state()
+    if not state:
+        # ★ 아직 안 쌓인 것을 '값 없음' 으로 말하지 않는다 ★
+        return {"available": False,
+                "reason": "수집기가 아직 발할라를 한 번도 돌리지 않았다",
+                "state_file": STATE_FILE.name}
+
+    now = _now()
+    parts = {}
+    for key, entry in state.items():
+        if not isinstance(entry, dict):
+            continue
+        parts[key] = {"age_hours": _age_hours(entry.get("fetched_at"), now),
+                      "fetched_at": entry.get("fetched_at"),
+                      "value": entry.get("value")}
+    return {
+        "available": True,
+        "parts": parts,
+        "note": "수집기가 쌓아둔 값이다. age_hours 는 그 조각이 몇 시간 된 "
+                "값인지를 말한다 — 지금 이 순간의 값이 아니다.",
+        "refresh_hours": {"procurement": 6, "pipeline": 24},
+    }
+
+
 @app.get("/api/biodefense/vaccine-supply", tags=["Stage 8: 바이오방어"])
 def biodefense_vaccine_supply():
     """★ 백신 공급 구조 ★ 비축이 있어도 **다시 채울 수 있는가**.

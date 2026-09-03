@@ -400,6 +400,14 @@ FREE_SOURCE_HEALTH_KEYS = {
     # 호출량은 6개 관측지 × (기후+뉴스) = 12건으로, 이미 매시간 179개 피드를
     # 받는 현지어 뉴스에 비하면 무시할 수준이다.
     "PolarWatch": "polar_watch",
+    # 발할라 관찰층(2026-09-03 수집 편입). 그전까지는 엔드포인트를 **부를 때만**
+    # 계산됐다 — 극지층과 같은 문제였다. 쌓이는 게 없으니 어제와 비교할 수 없고,
+    # 나라장터나 ClinicalTrials 가 막혀도 어디에도 안 잡혔다.
+    #
+    # ★ 무거운 조각이 주기마다 안 돌아도 이 키는 매 주기 채워진다 ★ 가벼운
+    # 조각(준비태세·백신 공급)이 로컬이라 항상 값이 있기 때문이다. 그래서
+    # 6시간·24시간 주기를 쓰면서도 헬스에 거짓 값없음이 쌓이지 않는다.
+    "Valhalla": "valhalla",
 }
 
 
@@ -881,6 +889,38 @@ def collect_free_sources() -> dict:
         result["polar_watch"] = None
         log(f"  ❌ 극지 관찰 실패: {type(e).__name__}: {e}")
         log_error("PolarWatch", e)
+
+    # ── 발할라 관찰층 (2026-09-03 수집 편입) ───────────────────────────
+    # ★ 점검에서 드러난 것 ★ 발할라는 **부를 때만** 계산됐다. 극지층이
+    # 2026-09-01 에 겪은 것과 똑같다 — 기능은 있는데 감시는 안 하고 있었다.
+    # 어제 백신 공급이 어땠는지 오늘 비교할 수가 없었다.
+    #
+    # ★ 조각마다 주기가 다르다 ★ 준비태세·백신 공급은 로컬이라 매 주기 채우고,
+    # 조달(나라장터 66회·47초)은 6시간, 임상 파이프라인은 24시간마다 새로 받는다.
+    # 그래도 `valhalla` 키는 매 주기 채워지므로 소스 헬스가 정상으로 돈다 —
+    # 무거운 걸 하루 한 번만 돌리면 나머지 23주기가 값없음으로 쌓여 거짓 경보가
+    # 된다(극지층 주석의 그 함정).
+    try:
+        from algorithms.valhalla_watch import valhalla_snapshot
+        result["valhalla"] = valhalla_snapshot()
+        v = result["valhalla"]
+        proc, pipe = v.get("procurement") or {}, v.get("pipeline") or {}
+        ready = v.get("readiness") or {}
+        log("  발할라: 조달 %s건(%s) · 백신 단일공급원 %s종 · 대응제 %s건%s"
+            % ((proc.get("value") or {}).get("bid_count", "?"),
+               "갱신" if proc.get("refreshed") else "%s시간 전 값" % proc.get("age_hours"),
+               (v.get("vaccine_chokepoints") or {}).get("single_source_count", "?"),
+               ready.get("countermeasure_count", "?"),
+               " · 판정불가 %s" % ready["unrated"] if ready.get("unrated") else ""))
+        # 무거운 조각이 오래 굳어 있으면 조용히 지나가지 않는다.
+        for name, part in (("조달", proc), ("파이프라인", pipe)):
+            if part.get("reason", "").startswith("갱신 실패"):
+                log("  ⚠ 발할라 %s %s (%s시간 전 값 사용)"
+                    % (name, part["reason"], part.get("age_hours")))
+    except Exception as e:
+        result["valhalla"] = None
+        log(f"  ❌ 발할라 관찰 실패: {type(e).__name__}: {e}")
+        log_error("Valhalla", e)
 
     # ── NewsWatch — GroqWatch 무료 대체 후보를 **나란히** 돌린다 (2026-08-28) ──
     # GroqWatch 가 주기의 57% 를 티어 한도로 실패하는데 유료 전환은 선택지가

@@ -210,10 +210,22 @@ def test_every_section_carries_its_limits():
                                      "측정 불가 — 조건2·3은 추출 시점에 모델이 직접 판단한 "
                                      "known_disease 필드로 판정함."}
 
-    with patch("algorithms.negative_space.scan_negative_space", return_value=payload_silence),          patch("algorithms.polar_signals.polar_watch_all", return_value=payload_polar),          patch("algorithms.forecast_engine.forecast_summary", return_value=payload_forecast),          patch("algorithms.unexplained.scan_unexplained", return_value=payload_unexplained):
+    # ★ 다섯 층을 전부 채운다 ★ 예전엔 재난 감시창을 안 채워서, 열린 창이 없는
+    # 깨끗한 기계에서만 통과했다(2026-09-03 발견 — 수집기를 한 번 돌리자 창이
+    # 열리며 5개가 됐다). 층 하나가 검사에서 빠지면 그 층에 정직성 문구가 없어도
+    # 아무도 모른다.
+    payload_disaster = {"countries": [
+        {"country": "네팔", "country_iso3": "NPL", "window_count": 1,
+         "diseases": ["콜레라"],
+         "open_windows": [{"country": "네팔", "disaster_type": "FL",
+                           "days_since_disaster": 12, "closes_in_days": 18}]}]}
+
+    with patch("algorithms.negative_space.scan_negative_space", return_value=payload_silence),          patch("algorithms.disaster_watch.disaster_watch_report", return_value=payload_disaster),          patch("algorithms.polar_signals.polar_watch_all", return_value=payload_polar),          patch("algorithms.forecast_engine.forecast_summary", return_value=payload_forecast),          patch("algorithms.unexplained.scan_unexplained", return_value=payload_unexplained):
         sections = bs.build_special_sections("ko")
 
-    assert len(sections) == 4
+    # 개수를 손으로 적지 않는다 — 층이 늘면 이 검사도 같이 늘어야 한다.
+    assert len(sections) == len(bs._BUILDERS)
+    assert {s["id"] for s in sections} == {name for name, _ in bs._BUILDERS}
     for sec in sections:
         assert sec.get("honesty"), f"{sec['id']} 섹션에 정직성 문구가 없다"
         assert len(sec["honesty"]) > 20, f"{sec['id']} 정직성 문구가 너무 짧다"
