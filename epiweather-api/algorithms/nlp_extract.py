@@ -110,10 +110,19 @@ def extract_signal(raw_text: str, source: str, api_key: str) -> dict | None:
 EXTRACTION_DEDUP_WINDOW_DAYS = 3  # 같은 source의 원문이 이 기간 내 그대로 재수집되면 재추출 안 함
 
 
-def extract_from_global_watch(
-    watch_result: dict, api_key: str, dedup_window_days: int = EXTRACTION_DEDUP_WINDOW_DAYS,
-) -> list[dict]:
+def extract_from_global_watch_detailed(
+    watch_result: dict, api_key: str | None = None,
+    dedup_window_days: int = EXTRACTION_DEDUP_WINDOW_DAYS,
+) -> dict:
     """run_global_watch() 결과의 signals 리스트 중 text가 있는 항목만 구조화.
+
+    추출은 aegiron_model을 거친다 — NIM(자체/NVIDIA 호스팅) → 로컬 → 외부 LLM
+    순으로 시도되고, 어느 경로가 처리했는지가 레코드의 ai_provider에 남는다.
+    예전엔 여기서 Claude를 직접 불러서, NIM 키를 넣어도 운영에선 안 쓰였다.
+
+    providers는 '어느 모델이 몇 건 뽑았나'다. NIM을 켰는데 여기가 계속
+    external_llm_fallback이면 NIM이 실패해 폴백 중이라는 뜻 — 조용히 넘어가지
+    않도록 수집기가 이 값을 로그로 찍는다.
 
     global_watch.py의 소스(WHO EMRO·Africa CDC 등)는 고정 피드라 매시간
     수집기가 돌아도 기사가 안 바뀌면 원문(raw_text)도 완전히 그대로다 —
@@ -125,7 +134,14 @@ def extract_from_global_watch(
     새 신호로 취급 — 완전 일치만 건너뛰므로 실제 갱신을 놓치지 않는다."""
     import db
 
-    extracted = []
+    from .aegiron_model import extract_record
+
+    extracted: list[dict] = []
+    providers: dict[str, int] = {}
+    blocked = 0
+    failed = 0
+    skipped_duplicate = 0
+
     for s in watch_result.get("signals", []):
         text = s.get("text")
         if not text:
@@ -135,9 +151,33 @@ def extract_from_global_watch(
         except Exception:
             recent = []
         if any(r.get("raw_text") == text for r in recent):
+            skipped_duplicate += 1
             continue
 
-        result = extract_signal(text, source=s["id"], api_key=api_key)
-        if result:
-            extracted.append(result)
-    return extracted
+        record, prov = extract_record(text, source=s["id"], api_key=api_key)
+        if record is None:
+            if prov["blocked"]:
+                blocked += 1
+            else:
+                failed += 1
+            continue
+        providers[prov["ai_provider"]] = providers.get(prov["ai_provider"], 0) + 1
+        extracted.append(record)
+
+    return {
+        "records": extracted,
+        "providers": providers,
+        "blocked": blocked,
+        "failed": failed,
+        "skipped_duplicate": skipped_duplicate,
+    }
+
+
+def extract_from_global_watch(
+    watch_result: dict, api_key: str | None = None,
+    dedup_window_days: int = EXTRACTION_DEDUP_WINDOW_DAYS,
+) -> list[dict]:
+    """레코드만 필요할 때 쓰는 얇은 래퍼(기존 호출부 호환)."""
+    return extract_from_global_watch_detailed(
+        watch_result, api_key=api_key, dedup_window_days=dedup_window_days
+    )["records"]

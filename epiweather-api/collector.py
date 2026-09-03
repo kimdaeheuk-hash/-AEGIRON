@@ -1185,15 +1185,31 @@ def collect_ai_sources() -> dict:
     anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
     perplexity_key = os.environ.get("PERPLEXITY_API_KEY")
     tavily_key = os.environ.get("TAVILY_API_KEY")
-    if anthropic_key:
+    # 게이트를 ANTHROPIC_API_KEY 유무로만 잡으면, NIM 키만 넣은 환경에서
+    # 추출·설명불가 감시가 통째로 건너뛰어진다(운영에서 실제로 그랬다).
+    from algorithms.aegiron_model import extraction_available
+    if extraction_available(anthropic_key):
         try:
-            from algorithms.nlp_extract import extract_from_global_watch
+            from algorithms.nlp_extract import extract_from_global_watch_detailed
             import db
             db.init_db()
-            extracted = extract_from_global_watch(watch, api_key=anthropic_key)
-            for e in extracted:
+            out = extract_from_global_watch_detailed(watch, api_key=anthropic_key)
+            for e in out["records"]:
                 db.create_extracted_signal(**e)
-            log(f"  NLP 구조화 추출: {len(extracted)}건 저장")
+            # 어느 모델이 뽑았는지 매 사이클 남긴다 — NIM을 켰는데 계속
+            # external_llm_fallback이면 NIM이 실패 중인 것이고, 그건 조용히
+            # 넘어가면 안 된다(키만 넣고 안 쓰이던 상태가 그렇게 몇 주 갔다).
+            by_provider = ", ".join(f"{k}={v}" for k, v in sorted(out["providers"].items()))
+            detail = [f"{len(out['records'])}건 저장"]
+            if by_provider:
+                detail.append(by_provider)
+            if out["skipped_duplicate"]:
+                detail.append(f"중복건너뜀 {out['skipped_duplicate']}")
+            if out["failed"]:
+                detail.append(f"추출실패 {out['failed']}")
+            if out["blocked"]:
+                detail.append(f"주권차단 {out['blocked']}")
+            log(f"  NLP 구조화 추출: {' · '.join(detail)}")
         except Exception as e:
             log_error("NLP_Extract", e)
 
@@ -1215,7 +1231,8 @@ def collect_ai_sources() -> dict:
         except Exception as e:
             log_error("Unexplained_Watch", e)
     else:
-        log("  ⏭ ANTHROPIC_API_KEY 없음 — NLP 구조화 추출·설명불가 감시 건너뜀")
+        log("  ⏭ 추출 백엔드 없음(NIM·로컬모델·ANTHROPIC_API_KEY 전부 미설정) "
+            "— NLP 구조화 추출·설명불가 감시 건너뜀")
 
     if perplexity_key or tavily_key:
         try:

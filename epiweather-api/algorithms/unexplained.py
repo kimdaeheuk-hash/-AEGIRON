@@ -14,7 +14,9 @@
         모델의 직접 판단(known_disease)으로 교체함.
 
 구현은 문서 제안 그대로: Perplexity로 "unexplained illness cluster" 능동
-검색 → Claude로 구조화 추출(known_disease 포함) → false면 즉시 🔴 critical.
+검색 → 구조화 추출(known_disease 포함) → false면 즉시 🔴 critical.
+추출 모델은 aegiron_model이 고른다(NIM → 로컬 → 외부 LLM) — 어느 경로가
+판정했는지는 레코드의 ai_provider에 남는다.
 """
 from __future__ import annotations
 import datetime as dt
@@ -22,7 +24,7 @@ import re
 
 import db
 from .global_watch import perplexity_search, tavily_search
-from .nlp_extract import extract_signal
+from .aegiron_model import extract_record, extraction_available
 
 UNEXPLAINED_QUERY = (
     "unexplained_cluster",
@@ -95,10 +97,12 @@ def run_unexplained_watch(
             source = "tavily"
         except Exception:
             pass
-    if text is None or not anthropic_key:
+    # 예전엔 anthropic_key가 없으면 여기서 끝냈다 — NIM만 켜둔 환경에서
+    # 설명불가 감시가 통째로 죽는다. 추출 백엔드가 하나라도 있으면 진행한다.
+    if text is None or not extraction_available(anthropic_key):
         return None
 
-    extracted = extract_signal(text, source=slug, api_key=anthropic_key)
+    extracted, _provenance = extract_record(text, source=slug, api_key=anthropic_key)
     if extracted is None:
         return None
 
