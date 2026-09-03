@@ -91,20 +91,45 @@ LOOKAHEAD_DAYS_AFTER_DECLARATION = 7   # 선언 직후 신호(사후 확인용)�
 # 근거를 물었을 때 내놓을 것이 사후에 만든 뉴스량 대리지표뿐이다.
 BACKFILL_SOURCES = {"gdelt_backfill"}
 
+# ★★★ 선행성의 유일하게 반박 불가능한 기준 ★★★ (2026-09-03)
+#
+# 처음엔 소스 이름으로 갈랐다(gdelt_backfill 이면 사후). 그런데 실측해보니
+# **그것으로 부족했다.** 유일하게 '실측' 으로 분류됐던 에볼라 DRC 2026 을 파보니:
+#
+#     신호일 2026-05-15  →  우리가 기록한 날 2026-06-26   (+42일)
+#     신호일 2026-05-17  →  우리가 기록한 날 2026-08-10   (+85일)
+#     공식 선언일 2026-05-15
+#
+# 소스는 msf·ebola_pheic 로 백필이 아니었지만, **선언이 끝나고 한참 뒤에 적재된
+# 것**이었다. 선언 뒤에 넣은 신호로 "선언보다 며칠 먼저" 를 재고 있었던 것이다.
+#
+# 그래서 기준을 바꾼다: **선언일 이전에 우리 DB 에 들어와 있었는가.**
+# 그 시점에 갖고 있지 않았다면, 어떤 경보도 낼 수 없었다. 소스 이름이 무엇이든.
+def _known_before(record: dict, cutoff: dt.date) -> bool:
+    """이 신호를 우리가 `cutoff` **이전에** 갖고 있었는가."""
+    stamp = (record.get("extracted_at") or "")[:10]
+    if not stamp:
+        return False                 # 언제 넣었는지 모르면 있었다고 치지 않는다
+    try:
+        return dt.date.fromisoformat(stamp) < cutoff
+    except ValueError:
+        return False
+
 
 def _evidence_class(sources: set[str]) -> str:
-    """이 사건의 근거가 실측인가, 사후 조립인가."""
+    """소스 기준 보조 분류. **선행성 판정은 _known_before 가 한다.**"""
     if not sources:
         return "none"
     backfill = sources & BACKFILL_SOURCES
     if backfill == sources:
-        return "retrospective"       # 전부 사후 조립 — 선행성 증거가 아니다
+        return "retrospective"
     if backfill:
-        return "mixed"               # 섞였다 — 증거로 쓸 수 없다
-    return "live"                    # 아이기론이 실제로 돌던 시점의 신호
+        return "mixed"
+    return "live_source"             # 소스만 라이브 — 적재 시점은 따로 본다
 
 
-def _daily_severity_series(disease_key: str, start: dt.date, end: dt.date):
+def _daily_severity_series(disease_key: str, start: dt.date, end: dt.date,
+                           known_before: dt.date | None = None):
     """날짜별 신뢰도가중 평균 심각도와 **그 신호의 출처 집합**을 함께 낸다.
 
     출처를 같이 내는 이유는 하나다 — 사후 조립 데이터로 잰 '선행일수' 를 실측인
@@ -124,6 +149,9 @@ def _daily_severity_series(disease_key: str, start: dt.date, end: dt.date):
         except ValueError:
             continue
         if not (start <= d <= end):
+            continue
+        # ★ 선언 뒤에 적재한 신호는 그 시점에 우리가 갖고 있지 않았다 ★
+        if known_before is not None and not _known_before(r, known_before):
             continue
         severity = SIGNAL_TYPE_SEVERITY.get(r["signal_type"], 40)
         by_day.setdefault(day, []).append((severity, r["source_trust"]))
@@ -171,7 +199,12 @@ def _backtest_event_core(event_id: str) -> dict:
     end = declaration_date + dt.timedelta(days=LOOKAHEAD_DAYS_AFTER_DECLARATION)
     disease_key = normalize_disease(timeline["event_name"])
 
+    # 두 벌을 만든다.
+    #   all_*   : 그 기간에 존재했던 신호 전부(나중에 적재한 것 포함) — 되짚기용
+    #   live_*  : **선언 전에 이미 우리 DB 에 있던 것만** — 선행성 실측용
     severity_by_day, signal_sources = _daily_severity_series(disease_key, start, end)
+    live_by_day, live_sources = _daily_severity_series(
+        disease_key, start, end, known_before=declaration_date)
     evidence = _evidence_class(signal_sources)
     if not severity_by_day:
         return {
@@ -182,6 +215,8 @@ def _backtest_event_core(event_id: str) -> dict:
 
     sensitivity = _threshold_sensitivity(severity_by_day, declaration_date)
     first_high_day = _first_day_crossing(severity_by_day, PRIMARY_THRESHOLD_SCORE)
+    # ★ 선언 전에 갖고 있던 신호만으로도 임계를 넘었는가 ★ 이것만이 선행성이다.
+    live_high_day = _first_day_crossing(live_by_day, PRIMARY_THRESHOLD_SCORE)
 
     if first_high_day is None:
         return {
@@ -209,14 +244,19 @@ def _backtest_event_core(event_id: str) -> dict:
         # ★ 이 선행일수가 무엇으로 잰 것인지 ★ 없으면 사후 조립 수치가 실측처럼 인용된다.
         "evidence_class": evidence,
         "signal_sources": sorted(signal_sources),
-        "is_live_measurement": evidence == "live",
-        "evidence_note": {
-            "live": "아이기론이 실제로 돌던 시점의 수집 신호로 잰 값이다.",
-            "retrospective": "사후에 조립한 GDELT 뉴스량 대리지표로 잰 값이다 — "
-                             "아이기론은 이 사건 당시 존재하지 않았다. 선행성 증거가 아니다.",
-            "mixed": "실측 신호와 사후 조립 신호가 섞였다 — 증거로 쓸 수 없다.",
-            "none": "신호 없음.",
-        }[evidence],
+        # ★★ 선행성 실측 여부 ★★ 선언 전에 이미 갖고 있던 신호로 임계를 넘었을 때만.
+        "is_live_measurement": live_high_day is not None,
+        "signals_known_before_declaration": len(live_by_day),
+        "live_first_high_severity_signal_date": live_high_day,
+        "live_lead_days": ((declaration_date - dt.date.fromisoformat(live_high_day)).days
+                           if live_high_day else None),
+        "evidence_note": (
+            "선언일 이전에 이미 수집돼 있던 신호로 임계를 넘었다 — 선행성 실측이다."
+            if live_high_day else
+            "이 선행일수는 **선언 뒤에 적재된 신호**로 계산된 것이다. 그 시점에 "
+            "우리는 이 신호를 갖고 있지 않았으므로 경보를 낼 수 없었다. "
+            "선행성 증거가 아니다."
+        ),
         "signal_days_checked": len(severity_by_day),
         # lead_days를 기준선 없이 인용하지 못하게 항상 부착(㉗)
         "detection_baseline": _detection_baseline(),
@@ -231,11 +271,12 @@ def backtest_all_known_events() -> dict:
     results = [backtest_event(eid) for eid in event_ids]
     verified = [r for r in results if r.get("verified") and r.get("would_have_alerted")]
     # ★★ 실측과 사후 조립을 한 평균에 섞지 않는다 ★★
-    live = [r for r in verified if r.get("evidence_class") == "live"]
-    retro = [r for r in verified if r.get("evidence_class") in ("retrospective", "mixed")]
+    # ★ 선언 전에 갖고 있던 신호로 임계를 넘은 것만 실측이다 ★
+    live = [r for r in verified if r.get("is_live_measurement")]
+    retro = [r for r in verified if not r.get("is_live_measurement")]
 
-    def _mean(rows):
-        vals = [r["lead_days"] for r in rows]
+    def _mean(rows, key="lead_days"):
+        vals = [r[key] for r in rows if r.get(key) is not None]
         return round(sum(vals) / len(vals), 1) if vals else None
 
     benchmarked = [r["bluedot_comparison"] for r in results if "bluedot_comparison" in r]
@@ -250,8 +291,8 @@ def backtest_all_known_events() -> dict:
             "events_with_verified_lead_time": len(verified),
             # ★ 실측 ★ 아이기론이 실제로 돌던 시점의 신호로만 잰 것.
             "live_measured_events": len(live),
-            "live_mean_lead_days": _mean(live),
-            "live_lead_days": sorted(r["lead_days"] for r in live),
+            "live_mean_lead_days": _mean(live, "live_lead_days"),
+            "live_lead_days": sorted(r["live_lead_days"] for r in live),
             # ★ 사후 되짚기 ★ GDELT 뉴스량으로 지금 조립한 것. 증거가 아니다.
             "retrospective_events": len(retro),
             "retrospective_mean_lead_days": _mean(retro),

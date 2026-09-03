@@ -77,11 +77,16 @@ def test_backtest_all_known_events_aggregates_verified_cases_only(isolated_db):
         "ebola_test", "에볼라 테스트 이벤트", "2026-05-16",
         "who_pheic", "WHO PHEIC 선언", "WHO DON", "who",
     )
-    dbmod.create_extracted_signal(
+    row = dbmod.create_extracted_signal(
         source="msf", disease="에볼라", location="DRC", signal_type="급증",
         severity=["spike"], symptom=None, transmission=None, source_trust=1.0,
         signal_date="2026-05-13", raw_text="t",
     )
+    # 선행성 판정은 **적재 시점** 기준이다 — 선언(5/16) 전에 갖고 있었다고 둔다.
+    with dbmod.get_connection() as conn:
+        conn.execute("UPDATE extracted_signals SET extracted_at = ? WHERE id = ?",
+                     ("2026-05-14T00:00:00+00:00", row["id"]))
+        conn.commit()
     # 검증 불가(선언 마일스톤 없음) — 요약 평균에 안 들어가야 함
     dbmod.upsert_timeline_event(
         "mers_test", "MERS 테스트", "2026-01-01",
@@ -185,11 +190,22 @@ def _declare(dbmod, event_id="ebola_x", date="2026-05-16"):
                                 "who_pheic", "WHO PHEIC 선언", "WHO DON", "who")
 
 
-def _signal(dbmod, source, day, trust=1.0):
-    dbmod.create_extracted_signal(
+def _signal(dbmod, source, day, trust=1.0, ingested_at=None):
+    """신호를 넣고, 필요하면 **적재 시점**을 지정한다.
+
+    적재 시점이 선행성 판정의 기준이다 — create_extracted_signal 은 항상 '지금'
+    을 찍으므로, 과거 사건을 시험하려면 그 값을 되돌려줘야 한다.
+    """
+    row = dbmod.create_extracted_signal(
         source=source, disease="에볼라", location="DRC", signal_type="급증",
         severity=["spike"], symptom=None, transmission=None, source_trust=trust,
         signal_date=day, raw_text="t")
+    if ingested_at:
+        with dbmod.get_connection() as conn:
+            conn.execute("UPDATE extracted_signals SET extracted_at = ? WHERE id = ?",
+                         (f"{ingested_at}T00:00:00+00:00", row["id"]))
+            conn.commit()
+    return row
 
 
 def test_backfill_signals_are_labelled_retrospective(isolated_db):
@@ -202,13 +218,15 @@ def test_backfill_signals_are_labelled_retrospective(isolated_db):
     """
     import db as dbmod
     _declare(dbmod)
-    _signal(dbmod, "gdelt_backfill", "2026-05-13", trust=0.5)
+    # 선언(5/16) 뒤인 8/1 에 적재했다 — 그 시점에 우리는 갖고 있지 않았다.
+    _signal(dbmod, "gdelt_backfill", "2026-05-13", trust=0.5, ingested_at="2026-08-01")
 
     (row,) = [r for r in backtest_all_known_events()["results"] if r.get("lead_days")]
 
     assert row["evidence_class"] == "retrospective"
     assert row["is_live_measurement"] is False
-    assert "존재하지 않았다" in row["evidence_note"]
+    assert row["signals_known_before_declaration"] == 0
+    assert "선언 뒤에 적재된 신호" in row["evidence_note"]
     assert "선행성 증거가 아니다" in row["evidence_note"]
 
 
@@ -220,9 +238,11 @@ def test_live_and_retrospective_are_never_averaged_together(isolated_db):
     """
     import db as dbmod
     _declare(dbmod, "ebola_live", "2026-05-16")
-    _signal(dbmod, "msf", "2026-05-13")                     # 실측 3일
+    # 선언 전(5/14)에 이미 갖고 있었다 — 실측 3일
+    _signal(dbmod, "msf", "2026-05-13", ingested_at="2026-05-14")
     _declare(dbmod, "ebola_old", "2019-07-17")
-    _signal(dbmod, "gdelt_backfill", "2019-06-10", trust=0.5)   # 사후 37일
+    # 선언보다 7년 뒤에 조립해 넣었다 — 사후 37일
+    _signal(dbmod, "gdelt_backfill", "2019-06-10", trust=0.5, ingested_at="2026-08-01")
 
     summary = backtest_all_known_events()["summary"]
 
@@ -234,31 +254,59 @@ def test_live_and_retrospective_are_never_averaged_together(isolated_db):
     assert summary["mean_lead_days_combined_is_not_evidence"] is True
 
 
-def test_mixed_sources_are_not_counted_as_evidence(isolated_db):
-    """★핵심★ 실측과 사후가 한 사건에 섞이면 증거로 쓰지 않는다."""
+def test_late_ingested_signals_do_not_create_lead_time(isolated_db):
+    """★★핵심★★ 선언 뒤에 넣은 신호는 선행일수를 만들지 못한다.
+
+    2026-09-03 실측에서 나온 결함이다. 소스 이름으로만 가르면(gdelt_backfill 이냐)
+    이걸 못 잡는다 — 에볼라 DRC 2026 은 msf·ebola_pheic 라는 정상 소스였는데
+    **선언이 끝나고 42~85일 뒤에 적재된 것**이었다. 그걸로 "선언보다 5일" 을
+    계산하고 있었다.
+
+    ★ 선언 전에 갖고 있던 신호만이 선행성이다 ★ 소스 이름이 무엇이든.
+    """
     import db as dbmod
-    _declare(dbmod)
-    _signal(dbmod, "msf", "2026-05-13")
-    _signal(dbmod, "gdelt_backfill", "2026-05-12", trust=0.5)
+    _declare(dbmod)                                        # 선언 2026-05-16
+    _signal(dbmod, "msf", "2026-05-13", ingested_at="2026-06-26")   # 정상 소스, 늦은 적재
 
     result = backtest_all_known_events()
     (row,) = [r for r in result["results"] if r.get("lead_days")]
 
-    assert row["evidence_class"] == "mixed"
-    assert row["is_live_measurement"] is False
+    assert row["evidence_class"] == "live_source", "소스는 라이브가 맞다"
+    assert row["is_live_measurement"] is False, "그런데 그때 갖고 있지 않았다"
+    assert row["signals_known_before_declaration"] == 0
+    assert row["live_lead_days"] is None
     assert result["summary"]["live_measured_events"] == 0
+
+
+def test_one_signal_in_hand_before_declaration_is_enough(isolated_db):
+    """★핵심★ 선언 전에 손에 있던 신호가 임계를 넘으면 그건 실측이다.
+
+    소스가 섞여 있어도 상관없다 — 중요한 건 그때 갖고 있었는가뿐이다.
+    """
+    import db as dbmod
+    _declare(dbmod)
+    _signal(dbmod, "msf", "2026-05-13", ingested_at="2026-05-14")
+    _signal(dbmod, "gdelt_backfill", "2026-05-12", trust=0.5, ingested_at="2026-08-01")
+
+    result = backtest_all_known_events()
+    (row,) = [r for r in result["results"] if r.get("lead_days")]
+
+    assert row["is_live_measurement"] is True
+    assert row["signals_known_before_declaration"] == 1, "늦게 넣은 것이 섞였다"
+    assert row["live_lead_days"] == 3
+    assert result["summary"]["live_measured_events"] == 1
 
 
 def test_evidence_note_names_the_reason_not_just_a_label(isolated_db):
     """★핵심★ 등급만 붙이고 끝내지 않는다 — 왜 증거가 아닌지 문장으로 남긴다."""
     import db as dbmod
     _declare(dbmod)
-    _signal(dbmod, "msf", "2026-05-13")
+    _signal(dbmod, "msf", "2026-05-13", ingested_at="2026-05-14")
 
     (row,) = [r for r in backtest_all_known_events()["results"] if r.get("lead_days")]
 
-    assert row["evidence_class"] == "live"
-    assert "실제로 돌던 시점" in row["evidence_note"]
+    assert row["is_live_measurement"] is True
+    assert "선언일 이전에 이미 수집돼 있던" in row["evidence_note"]
     assert row["signal_sources"] == ["msf"]
 
 
@@ -266,7 +314,7 @@ def test_summary_points_at_the_only_quotable_number(isolated_db):
     """★핵심★ 무엇을 인용해도 되는지 요약이 직접 말한다."""
     import db as dbmod
     _declare(dbmod)
-    _signal(dbmod, "msf", "2026-05-13")
+    _signal(dbmod, "msf", "2026-05-13", ingested_at="2026-05-14")
 
     note = backtest_all_known_events()["summary"]["evidence_note"]
 
