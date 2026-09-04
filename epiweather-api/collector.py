@@ -921,6 +921,12 @@ def collect_free_sources() -> dict:
         for key, part in stale_parts(v):
             log("  ⚠ 발할라 %s %s (%s시간 전 값 사용)"
                 % (_KO.get(key, key), part["reason"], part.get("age_hours")))
+        # 정적 축(백신 공급·국가 역량)이 묵었으면 매 주기 보이게 한다.
+        # /api/status 에만 있으면 아무도 매시간 들여다보지 않는다.
+        refs = v.get("reference_snapshots") or {}
+        for name in refs.get("stale") or []:
+            log("  ⚠ 발할라 기준 스냅샷 '%s' 묵음 (%s일 전) — 주간작업이 갱신 시도"
+                % (name, (refs.get("ages_days") or {}).get(name)))
     except Exception as e:
         result["valhalla"] = None
         log(f"  ❌ 발할라 관찰 실패: {type(e).__name__}: {e}")

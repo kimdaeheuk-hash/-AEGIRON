@@ -123,6 +123,20 @@ def _light_layers() -> dict:
     except Exception as exc:                              # noqa: BLE001
         out["vaccine_chokepoints"] = {"error": type(exc).__name__}
 
+    # ★ 정적 축의 나이 ★ 이 층의 두 축(백신 공급·국가 역량)은 파일에 얹혀 있다.
+    # 예전엔 나이를 재는 곳이 없어서, 파일이 몇 달 묵어도 조달 숫자 옆에 나란히
+    # 최신인 척 실렸다. 굳은 값을 새 값처럼 내지 않는다 — 무거운 조각에 age_hours
+    # 를 붙인 것과 같은 이유다.
+    try:
+        from .reference_snapshots import report as _snapshot_report
+        snap = _snapshot_report()
+        out["reference_snapshots"] = {
+            "stale": snap["stale_snapshots"],
+            "ages_days": {r["name"]: r["age_days"] for r in snap["snapshots"]},
+        }
+    except Exception as exc:                              # noqa: BLE001
+        out["reference_snapshots"] = {"error": type(exc).__name__}
+
     try:
         import db as _db
         from .biodefense_readiness import DEFAULT_THREATS, compute_readiness

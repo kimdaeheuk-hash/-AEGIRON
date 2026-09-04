@@ -312,6 +312,29 @@ async def _run_weekly_job() -> None:
     except Exception as e:
         collector.log_error("scheduler_weekly_world_countries", e)
 
+    # ── 기준 스냅샷 갱신 (2026-09-04) ────────────────────────────────
+    # 발할라의 두 축(백신 공급·국가 역량)은 정적 파일에 얹혀 있는데, 갱신
+    # 스크립트를 **아무도 안 불렀다.** 그래서 파일이 2026-09-02 에 멈춘 채
+    # /api/status 는 계속 available: true 로 답했다. 묵은 것만 새로 받는다 —
+    # 안 바뀐 걸 매주 긁을 이유가 없다.
+    try:
+        from algorithms.reference_snapshots import refresh_due
+        result = await asyncio.to_thread(refresh_due)
+        for item in result["refreshed"]:
+            if item["refreshed"]:
+                collector.log(f"주간 작업: 기준 스냅샷 {item['name']} 갱신 완료 "
+                              f"({item['record_count']}건, {item['snapshot_date']})")
+            else:
+                # 갱신 실패를 조용히 넘기면 파일이 계속 묵는다. 기존 파일은 살아있다.
+                collector.log(f"  ⚠ 기준 스냅샷 {item['name']} {item['reason']} "
+                              "— 기존 스냅샷 유지")
+        if result["skipped_fresh"]:
+            ages = ", ".join(f"{s['name']} {s['age_days']}일"
+                             for s in result["skipped_fresh"])
+            collector.log(f"주간 작업: 기준 스냅샷 아직 신선함({ages}) — 원본 호출 안 함")
+    except Exception as e:
+        collector.log_error("scheduler_weekly_reference_snapshots", e)
+
     _save_last_weekly_run(dt.datetime.now(dt.timezone.utc))
 
 
@@ -561,6 +584,11 @@ def status():
         # 문서 층 누출, 선행일수 18일, 정확도 0.988). unverified가 비어 있지 않으면
         # "설정은 됐는데 한 번도 안 돌아본" 능력이 있다는 뜻이다.
         "capability_health": _capability_health_safe(),
+        # 기준 스냅샷 신선도(2026-09-04) — 발할라의 백신 공급·국가 역량 축이
+        # 정적 파일에 얹혀 있다. 예전엔 나이를 재는 코드가 아예 없어서, 파일이
+        # 몇 달 묵어도 available: true 로 답했다. stale_snapshots 가 비어 있지
+        # 않으면 '조용히 굳은 기준 데이터'가 눈에 보이는 것.
+        "reference_snapshots": _reference_snapshots_safe(),
         # 선행일수 실측 — 0건이면 0건이라고 말한다. 이 값이 비어 있는 동안에는
         # 선행성 주장을 할 근거가 없다.
         "lead_time": _lead_time_safe(),
@@ -580,6 +608,15 @@ def _quality_health_safe() -> dict | None:
         return quality_report()
     except Exception as e:
         return {"error": f"{type(e).__name__}: {e}", "invariants": []}
+
+
+def _reference_snapshots_safe() -> dict | None:
+    """스냅샷 신선도가 터져도 /api/status를 죽이지 않되, 조용히 사라지지도 않는다."""
+    try:
+        from algorithms.reference_snapshots import report
+        return report()
+    except Exception as e:
+        return {"error": f"{type(e).__name__}: {e}", "snapshots": []}
 
 
 def _capability_health_safe() -> dict | None:
