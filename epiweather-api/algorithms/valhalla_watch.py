@@ -242,13 +242,29 @@ def pipeline_summary(value: dict | None) -> str | None:
     실패가 발견으로 둔갑한다."""
     if not value:
         return None
-    counts = value.get("stage_counts") or {}
+
+    # ★ 옛 모양 값도 읽는다 ★ 파이프라인은 24시간 주기라, 이 코드를 배포해도
+    # 볼륨에 남아 있는 값은 한동안 stage_counts 가 없는 옛 모양이다. 그걸 못
+    # 읽으면 **최대 하루, 갱신이 계속 실패하면 영영 로그가 조용하다** — 이 층을
+    # 보이게 하려고 만든 함수가 정확히 그 이유로 침묵하는 셈이다(2026-09-04 실측:
+    # 배포 후 두 주기 연속 아무 줄도 안 찍혔다). stages 만 있으면 거기서 센다.
+    stages = value.get("stages") or {}
+    counts = value.get("stage_counts")
+    if not counts and stages:
+        counts = {}
+        for key in stages.values():
+            counts[key] = counts.get(key, 0) + 1
+    counts = counts or {}
+
     parts = [f"{label} {counts[key]}종"
              for key, label in _STAGE_LOG_ORDER if counts.get(key)]
     if not parts:
         return None
     line = " · ".join(parts)
-    bare = value.get("no_registered_trial") or []
+
+    bare = value.get("no_registered_trial")
+    if bare is None and stages:
+        bare = sorted(n for n, s in stages.items() if s == "no_registered_trial")
     if bare:
         line += f" [등록없음: {'·'.join(bare)}]"
     return line
@@ -277,6 +293,19 @@ def stale_parts(snapshot: dict) -> list[tuple[str, dict]]:
     return out
 
 
+def _readiness_scopes(pipeline_part: dict | None) -> dict:
+    """국가 비축 · 국제 비축 · 임상 파이프라인을 나란히. 합친 점수는 내지 않는다."""
+    try:
+        import db as _db
+        from .biodefense_readiness import DEFAULT_THREATS
+        from .readiness_scopes import readiness_by_scope
+        return readiness_by_scope(
+            _db.list_countermeasures(), DEFAULT_THREATS,
+            (pipeline_part or {}).get("value"))
+    except Exception as exc:                              # noqa: BLE001
+        return {"error": type(exc).__name__}
+
+
 def valhalla_snapshot(now=None) -> dict:
     """이번 주기의 발할라 상태. 가벼운 건 매번, 무거운 건 주기대로."""
     now = now or _now()
@@ -287,6 +316,14 @@ def valhalla_snapshot(now=None) -> dict:
         "procurement", PROCUREMENT_EVERY_HOURS, _fetch_procurement, state, now)
     out["pipeline"] = _refresh_heavy(
         "pipeline", PIPELINE_EVERY_HOURS, _fetch_pipeline, state, now)
+
+    # ★ 준비태세를 범위별로 ★ 여기서 계산하는 이유: 임상 범위는 위 무거운 조각의
+    # 값이 있어야 하고, 그건 _light_layers 시점엔 아직 없다.
+    #
+    # 점검(2026-09-04)에서 나온 것: 국제 비축(ICG 5종)과 임상 파이프라인(17종)을
+    # **이미 매일 받아오면서도** 준비태세 판정에는 한 번도 안 넣고 있었다.
+    # compute_readiness 가 db.list_countermeasures()(수기 5건)만 보기 때문이다.
+    out["readiness_by_scope"] = _readiness_scopes(out.get("pipeline"))
 
     _save_state(state)
     out["collected_at"] = now.isoformat()
