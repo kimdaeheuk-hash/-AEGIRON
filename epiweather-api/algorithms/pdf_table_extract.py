@@ -143,19 +143,30 @@ def _parse_page(png: bytes, api_key: str) -> list[dict]:
     import json
 
     b64 = base64.b64encode(png).decode()
-    r = requests.post(
-        _nvidia.parse_url(),
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-        json={
-            "model": MODEL,
-            "messages": [{"role": "user", "content": [
-                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}}]}],
-            "max_tokens": MAX_TOKENS,
-        },
-        timeout=TIMEOUT,
-    )
-    r.raise_for_status()
-    calls = (r.json()["choices"][0]["message"] or {}).get("tool_calls") or []
+    url = _nvidia.parse_url()
+    try:
+        r = requests.post(
+            url,
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={
+                "model": MODEL,
+                "messages": [{"role": "user", "content": [
+                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}}]}],
+                "max_tokens": MAX_TOKENS,
+            },
+            timeout=TIMEOUT,
+        )
+        r.raise_for_status()
+        payload = r.json()
+    except Exception as e:
+        # ★ 이 층이 조용히 클라우드로 나가던 자리다 ★ PDF 페이지 이미지가 어디로
+        # 갔는지를 관측으로 남긴다 — 온프렘 설정만 믿고 full_onprem을 보고하던
+        # 사고의 재발 방지.
+        _nvidia.record_layer_call("document", url, ok=False,
+                                  error=f"{type(e).__name__}: {e}")
+        raise
+    _nvidia.record_layer_call("document", url, ok=True)
+    calls = (payload["choices"][0]["message"] or {}).get("tool_calls") or []
     if not calls:
         return []
     blocks = json.loads(calls[0]["function"]["arguments"])

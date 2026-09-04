@@ -555,6 +555,12 @@ def status():
         # 소스는 값을 돌려주는데 그 값을 만든 방식이 망가진 경우를 센다.
         # 2026-08 사고 6건이 전부 이 유형이었다(소스 헬스는 내내 정상이었다).
         "quality_health": _quality_health_safe(),
+        # 능력 장부(2026-09-04) — 소스 헬스도 품질 불변식도 못 보는 세 번째 층.
+        # 소스는 멀쩡하고 값도 옳은데, **상태 필드가 설정을 근거로 능력을 주장**하는
+        # 경우를 센다. 실측 사고 4건이 전부 이 유형이었다(NIM 배선 누락, 온프렘
+        # 문서 층 누출, 선행일수 18일, 정확도 0.988). unverified가 비어 있지 않으면
+        # "설정은 됐는데 한 번도 안 돌아본" 능력이 있다는 뜻이다.
+        "capability_health": _capability_health_safe(),
         # 선행일수 실측 — 0건이면 0건이라고 말한다. 이 값이 비어 있는 동안에는
         # 선행성 주장을 할 근거가 없다.
         "lead_time": _lead_time_safe(),
@@ -574,6 +580,30 @@ def _quality_health_safe() -> dict | None:
         return quality_report()
     except Exception as e:
         return {"error": f"{type(e).__name__}: {e}", "invariants": []}
+
+
+def _capability_health_safe() -> dict | None:
+    """능력 장부가 터져도 /api/status를 죽이지 않되, 조용히 사라지지도 않는다.
+    빈 장부는 오류가 아니다 — 아직 아무 능력도 안 불렸다는 정직한 상태다."""
+    try:
+        from algorithms.capability_ledger import report
+        from algorithms import nvidia as _nv
+        from algorithms.notifier import ALERT_CAPABILITY, telegram_configured
+
+        # ★ 아는 능력을 전부 넘긴다 ★ 장부에 기록된 것만 나열하면 '설정만 되고
+        # 한 번도 안 불린' 능력이 목록에서 통째로 빠진다 — 잡으려는 상태가 바로
+        # 그건데. 설정 여부는 각 소유 모듈이 답한다.
+        text_key = bool(_nv.text_nim_key())
+        shared_key = bool(_nv.nvidia_api_key())
+        configured = {
+            _nv.LAYER_CAPABILITIES["genome"]: shared_key,
+            _nv.LAYER_CAPABILITIES["document"]: shared_key,
+            _nv.LAYER_CAPABILITIES["text"]: text_key,
+            ALERT_CAPABILITY: telegram_configured(),
+        }
+        return report(configured)
+    except Exception as e:
+        return {"error": f"{type(e).__name__}: {e}", "capabilities": []}
 
 
 def _lead_time_safe() -> dict | None:

@@ -33,21 +33,43 @@ def telegram_configured() -> bool:
     return bool(os.environ.get("TELEGRAM_BOT_TOKEN") and os.environ.get("TELEGRAM_CHAT_ID"))
 
 
+# 경보 채널의 능력 장부 키. 조기경보 시스템에서 '알림이 조용히 안 나가는 것'은
+# 소스가 죽는 것보다 위험하다 — 소스는 /api/status에 degraded로 뜨지만, 알림
+# 실패는 알림으로 알려줄 수가 없다(알림이 고장난 거니까). 그래서 기록해 둔다.
+ALERT_CAPABILITY = "telegram_alerting"
+
+
+def _record_alert_attempt(ok: bool, detail: str | None = None) -> None:
+    try:
+        from .capability_ledger import record
+        record(ALERT_CAPABILITY, ok=ok, detail=detail,
+               endpoint="api.telegram.org")
+    except Exception:
+        pass      # 기록 실패가 알림 전송을 막지 않는다
+
+
 def send_telegram_message(text: str) -> bool:
-    """설정 안 됐으면 조용히 False. 네트워크 실패도 예외 없이 False로 흡수."""
+    """설정 안 됐으면 조용히 False. 네트워크 실패도 예외 없이 False로 흡수.
+
+    다만 '조용히'가 영원하면 안 된다 — 토큰만 꽂혀 있고 전송은 매번 실패하는
+    상태를 아무도 모르게 된다. 시도 결과를 능력 장부에 남겨 /api/status에서
+    '설정됨'과 '실제로 보내진 적 있음'이 구분되게 한다."""
     token = os.environ.get("TELEGRAM_BOT_TOKEN")
     chat_id = os.environ.get("TELEGRAM_CHAT_ID")
     if not token or not chat_id:
-        return False
+        return False      # 설정 자체가 없는 건 실패로 세지 않는다(안 켠 것뿐)
     try:
         resp = requests.post(
             TELEGRAM_API_URL.format(token=token),
             json={"chat_id": chat_id, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True},
             timeout=TIMEOUT,
         )
-        return resp.status_code == 200
-    except requests.RequestException:
+    except requests.RequestException as e:
+        _record_alert_attempt(False, f"{type(e).__name__}: {e}")
         return False
+    ok = resp.status_code == 200
+    _record_alert_attempt(ok, None if ok else f"HTTP {resp.status_code}")
+    return ok
 
 
 def format_alert_message(new_alerts: list[dict]) -> str:

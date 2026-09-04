@@ -16,8 +16,11 @@ def test_no_key_all_absent(monkeypatch):
     assert nvidia.nvidia_api_key() is None
     assert nvidia.text_nim_key() is None
     s = nvidia.nvidia_status()
-    assert s["any_nvidia_active"] is False
+    assert s["any_nvidia_key_present"] is False
     assert all(svc["key_available"] is False for svc in s["services"])
+    # 예전 이름(any_nvidia_active)은 '키가 있다'를 '활성'이라고 불렀다.
+    # 그 혼동이 NIM을 몇 주 갇히게 한 원인이라 이름을 되살리면 안 된다.
+    assert "any_nvidia_active" not in s
 
 
 def test_shared_key_powers_all_services(monkeypatch):

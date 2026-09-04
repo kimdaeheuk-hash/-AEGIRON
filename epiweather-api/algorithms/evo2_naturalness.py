@@ -107,15 +107,24 @@ def _predict_next(prefix: str, n_tokens: int, api_key: str) -> tuple[str, list[f
 
     top_k=1로 고정하는 이유: 여기서 필요한 건 '모델이 가장 자연스럽다고 보는 다음
     염기'와 실제의 일치 여부이지 다양한 후보 생성이 아니다. 생성물은 대조에만 쓴다."""
-    r = requests.post(
-        _nvidia.evo2_url(),
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-        json={"sequence": prefix, "num_tokens": n_tokens, "top_k": 1,
-              "enable_sampled_probs": True},
-        timeout=TIMEOUT,
-    )
-    r.raise_for_status()
-    data = r.json()
+    url = _nvidia.evo2_url()
+    try:
+        r = requests.post(
+            url,
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={"sequence": prefix, "num_tokens": n_tokens, "top_k": 1,
+                  "enable_sampled_probs": True},
+            timeout=TIMEOUT,
+        )
+        r.raise_for_status()
+        data = r.json()
+    except Exception as e:
+        # 어느 호스트에 붙었는지를 장부에 남긴다 — 주권 주장은 설정이 아니라
+        # 이 관측으로만 검증된다(nvidia.sovereignty_verification 참고).
+        _nvidia.record_layer_call("genome", url, ok=False,
+                                  error=f"{type(e).__name__}: {e}")
+        raise
+    _nvidia.record_layer_call("genome", url, ok=True)
     return (data.get("sequence") or "").upper(), (data.get("sampled_probs") or [])
 
 

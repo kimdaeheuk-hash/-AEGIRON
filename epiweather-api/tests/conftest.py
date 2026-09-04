@@ -93,3 +93,20 @@ def isolated_db(tmp_path, monkeypatch):
     monkeypatch.setattr(dbmod, "DB_PATH", tmp_path / "test_epiweather.db")
     dbmod.init_db()
     yield dbmod
+
+
+# ── 능력 장부는 테스트가 절대 운영 파일에 쓰지 않는다 (2026-09-04) ──────
+# capability_ledger 는 data/capability_health.json 에 "이 능력이 실제로 돌았다"를
+# 남긴다. 그런데 계측 지점이 실제 호출 경로(nim_raw·텔레그램 전송)에 붙어 있어서,
+# 그 경로를 지나는 테스트가 **운영 장부에 가짜 성공을 적었다.** 실측: 전체 스위트를
+# 한 번 돌리면 nvidia_text 가 성공 12·실패 3, 엔드포인트 nim.internal.aegiron.gov
+# 로 기록됐다 — 온프렘에 붙은 적도 없는데 주권 검증이 참으로 보일 수 있는 상태다.
+#
+# 이 장부의 존재 이유가 "설정이 아니라 관측으로 말하기" 인데 그 관측이 테스트로
+# 오염되면 모듈 전체가 무의미해진다. 그래서 전역으로, 테스트마다 임시 파일에 쓴다.
+@pytest.fixture(autouse=True)
+def _isolate_capability_ledger(tmp_path, monkeypatch):
+    from algorithms import capability_ledger
+    monkeypatch.setattr(capability_ledger, "LEDGER_FILE",
+                        tmp_path / "capability_health.json")
+    yield

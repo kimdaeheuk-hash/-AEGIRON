@@ -161,4 +161,4 @@ def test_switch_off_does_not_disable_other_nvidia_layers(monkeypatch):
     assert am._nim_config() is None                 # 텍스트 경로는 꺼짐
     status = nvidia.nvidia_status()
     assert status["shared_key_present"] is True     # 나머지 층은 살아있음
-    assert status["any_nvidia_active"] is True
+    assert status["any_nvidia_key_present"] is True

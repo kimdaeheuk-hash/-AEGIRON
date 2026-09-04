@@ -124,14 +124,22 @@ def protein_from_nucleotide(raw: str) -> dict:
 
 
 def _search(protein: str, api_key: str) -> dict:
-    r = requests.post(
-        _nvidia.msa_url(),
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-        json={"sequence": protein},
-        timeout=TIMEOUT,
-    )
-    r.raise_for_status()
-    return r.json()
+    url = _nvidia.msa_url()
+    try:
+        r = requests.post(
+            url,
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={"sequence": protein},
+            timeout=TIMEOUT,
+        )
+        r.raise_for_status()
+        payload = r.json()
+    except Exception as e:
+        _nvidia.record_layer_call("genome", url, ok=False,
+                                  error=f"{type(e).__name__}: {e}")
+        raise
+    _nvidia.record_layer_call("genome", url, ok=True)
+    return payload
 
 
 def _parse_hits(payload: dict) -> tuple[float, list[dict], dict[str, int]]:
