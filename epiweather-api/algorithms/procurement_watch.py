@@ -361,4 +361,17 @@ def procurement_summary(value: dict | None) -> str | None:
     if soon:
         titles = "·".join((b.get("title") or "?")[:24] for b in soon[:2])
         line += f" [임박: {titles}]"
+
+    # ★ EU(TED)는 국내 숫자에 합치지 않고 뒤에 따로 붙인다 (2026-09-04, C-2) ★
+    # 합치면 어느 나라 공고인지 알 수 없고, 아직 실측 안 된 층의 값이 검증된
+    # 값처럼 읽힌다. 미검증 표시를 로그에도 그대로 들고 간다.
+    ted = value.get("ted")
+    if ted:
+        if ted.get("available") is False:
+            line += f" | EU/TED 실패({(ted.get('reason') or '?')[:40]})"
+        else:
+            ted_counts = (ted.get("deadline") or {}).get("counts") or {}
+            mark = "" if ted.get("is_verified") else " ※미검증"
+            line += (f" | EU/TED 열림 {ted_counts.get('open', 0)}건 ·"
+                     f" 임박 {ted_counts.get('closing_soon', 0)}건{mark}")
     return line
