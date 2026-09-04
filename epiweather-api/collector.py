@@ -916,6 +916,14 @@ def collect_free_sources() -> dict:
         # ★ 판정은 valhalla_watch.stale_parts 가 한다 ★ 여기서 직접 짜다가
         # `part.get("reason", "")` 로 터졌다(2026-09-03) — 키가 있는데 값이 None
         # 이면 .get 의 기본값이 안 먹는다.
+        # ★ 준비태세를 범위별로 찍는다 (2026-09-04) ★ 예전엔 수기 등록 5건만
+        # 보고 "대응제 5건" 이라고 찍었다. 국제 비축과 임상 파이프라인을 이미
+        # 매일 받아오면서도 준비태세 판정에는 안 넣고 있었다.
+        from algorithms.readiness_scopes import scope_summary
+        scopes = scope_summary(v.get("readiness_by_scope"))
+        if scopes:
+            log("  발할라 준비태세: %s" % scopes)
+
         # ★ 파이프라인 결과를 찍는다 ★ 24시간마다 17개 병원체를 조회해놓고
         # 로그에 아무 값도 안 실려서, 돌고는 있는데 뭐가 나오는지 모르는
         # 층이었다(2026-09-04 점검). 굳은 값이면 나이도 같이 밝힌다.

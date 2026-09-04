@@ -277,6 +277,19 @@ def stale_parts(snapshot: dict) -> list[tuple[str, dict]]:
     return out
 
 
+def _readiness_scopes(pipeline_part: dict | None) -> dict:
+    """국가 비축 · 국제 비축 · 임상 파이프라인을 나란히. 합친 점수는 내지 않는다."""
+    try:
+        import db as _db
+        from .biodefense_readiness import DEFAULT_THREATS
+        from .readiness_scopes import readiness_by_scope
+        return readiness_by_scope(
+            _db.list_countermeasures(), DEFAULT_THREATS,
+            (pipeline_part or {}).get("value"))
+    except Exception as exc:                              # noqa: BLE001
+        return {"error": type(exc).__name__}
+
+
 def valhalla_snapshot(now=None) -> dict:
     """이번 주기의 발할라 상태. 가벼운 건 매번, 무거운 건 주기대로."""
     now = now or _now()
@@ -287,6 +300,14 @@ def valhalla_snapshot(now=None) -> dict:
         "procurement", PROCUREMENT_EVERY_HOURS, _fetch_procurement, state, now)
     out["pipeline"] = _refresh_heavy(
         "pipeline", PIPELINE_EVERY_HOURS, _fetch_pipeline, state, now)
+
+    # ★ 준비태세를 범위별로 ★ 여기서 계산하는 이유: 임상 범위는 위 무거운 조각의
+    # 값이 있어야 하고, 그건 _light_layers 시점엔 아직 없다.
+    #
+    # 점검(2026-09-04)에서 나온 것: 국제 비축(ICG 5종)과 임상 파이프라인(17종)을
+    # **이미 매일 받아오면서도** 준비태세 판정에는 한 번도 안 넣고 있었다.
+    # compute_readiness 가 db.list_countermeasures()(수기 5건)만 보기 때문이다.
+    out["readiness_by_scope"] = _readiness_scopes(out.get("pipeline"))
 
     _save_state(state)
     out["collected_at"] = now.isoformat()
