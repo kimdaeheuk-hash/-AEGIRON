@@ -923,6 +923,13 @@ def collect_free_sources() -> dict:
         scopes = scope_summary(v.get("readiness_by_scope"))
         if scopes:
             log("  발할라 준비태세: %s" % scopes)
+        # 승인은 끝났는데 비축이 없는 칸을 이름까지 찍는다 — 그게 곧 '개발이
+        # 아니라 조달부터 하면 되는' 목록이라 대비 우선순위를 바꾼다.
+        from algorithms.approved_products import approved_summary
+        appr = approved_summary(
+            ((v.get("readiness_by_scope") or {}).get("scopes") or {}).get("approved_products"))
+        if appr:
+            log("  발할라 승인제품: %s" % appr)
 
         # ★ 파이프라인 결과를 찍는다 ★ 24시간마다 17개 병원체를 조회해놓고
         # 로그에 아무 값도 안 실려서, 돌고는 있는데 뭐가 나오는지 모르는

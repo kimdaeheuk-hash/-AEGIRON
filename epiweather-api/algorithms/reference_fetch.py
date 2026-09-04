@@ -207,3 +207,101 @@ def fetch_ihr_capacity() -> dict:
         "assessment_note": "각국이 스스로 매긴 점수다. WHO가 검증한 값이 아니다.",
         "scores": by_country,
     }
+
+
+# ══════════════════════════════════════════════
+# 규제 승인 제품 (openFDA)
+# ══════════════════════════════════════════════
+# ★ 이 샌드박스에서 엔드포인트를 실제로 찔러보지 못했다 ★ 개발 환경의 외부
+# 접속이 조직 정책으로 막혀 있다(403). 그래서 응답 파싱을 방어적으로 짜고,
+# 저장 전 검증(reference_snapshots.validate)이 이상한 결과를 걸러내게 둔다.
+# 운영에서 처음 도는 날 능력 장부에 성공/실패가 남으므로, 안 되면 조용하지 않다.
+OPENFDA_LABEL_URL = "https://api.fda.gov/drug/label.json"
+OPENFDA_LIMIT = 20          # 예시 몇 개만 있으면 된다. 전수 수집이 목적이 아니다.
+OPENFDA_SLEEP = 0.4         # 키 없이 쓰는 공개 API — 예의상 간격을 둔다.
+
+
+def _openfda_products(term: str, timeout: int = 30) -> tuple[int, list[str]]:
+    """적응증에 그 낱말이 있는 승인 제품 수와 이름 몇 개. (총건수, 예시).
+
+    404 는 '결과 없음'이다 — openFDA 는 매칭이 없으면 404 를 준다. 실패가 아니다.
+    그 둘을 섞으면 조회 실패가 '승인 제품 없음'이라는 발견으로 둔갑한다."""
+    resp = requests.get(
+        OPENFDA_LABEL_URL,
+        params={"search": f'indications_and_usage:"{term}"', "limit": OPENFDA_LIMIT},
+        timeout=timeout,
+        headers={"User-Agent": "AEGIRON/1.0"},
+    )
+    if resp.status_code == 404:
+        return 0, []
+    resp.raise_for_status()
+    body = resp.json() or {}
+
+    total = ((body.get("meta") or {}).get("results") or {}).get("total")
+    if total is None:
+        raise RuntimeError("openFDA 응답에 meta.results.total 이 없음(형식 변경 의심)")
+
+    names: list[str] = []
+    for row in body.get("results") or []:
+        of = row.get("openfda") or {}
+        for key in ("brand_name", "generic_name"):
+            for value in of.get(key) or []:
+                if value and value not in names:
+                    names.append(value)
+                    break
+            if names and names[-1]:
+                break
+    return int(total), names[:5]
+
+
+def fetch_approved_products() -> dict:
+    """위협별 승인 제품 현황 payload.
+
+    ★ 조회 실패를 '없음'으로 접지 않는다 ★ 실패한 위협은 by_threat 에 아예 넣지
+    않는다. 그러면 소비자(approved_products.products_for)가 '이 스냅샷이 조회하지
+    않은 위협'으로 읽어 unknown 으로 센다 — 0 으로 세는 것과 전혀 다르다."""
+    from .approved_products import THREAT_SEARCH_TERMS
+
+    by_threat: dict[str, dict] = {}
+    failed: list[str] = []
+    for pathogen, terms in THREAT_SEARCH_TERMS.items():
+        if not terms:
+            continue                       # 정의상 검색 불가(Novel) — 조회 안 함
+        total, examples = 0, []
+        ok = False
+        for term in terms:
+            try:
+                count, names = _openfda_products(term)
+            except Exception:              # noqa: BLE001
+                continue                   # 이 낱말만 실패 — 다음 낱말로
+            ok = True
+            total = max(total, count)
+            for n in names:
+                if n not in examples:
+                    examples.append(n)
+            time.sleep(OPENFDA_SLEEP)
+        if not ok:
+            failed.append(pathogen)        # 이 위협은 한 낱말도 못 물었다
+            continue
+        by_threat[pathogen] = {"product_count": total, "examples": examples[:5],
+                               "terms": terms}
+
+    if not by_threat:
+        raise RuntimeError("모든 위협 조회 실패 — 스냅샷을 만들지 않는다")
+
+    return {
+        "source": "openFDA drug/label (미국 FDA 라벨 적응증 검색)",
+        "source_url": OPENFDA_LABEL_URL,
+        "snapshot_date": dt.date.today().isoformat(),
+        "by_threat": by_threat,
+        "threat_count": len(by_threat),
+        "lookup_failed": failed,
+        "limits": [
+            "미국 FDA 허가다. 한국에서 쓸 수 있다는 뜻이 아니다 — 국내 허가는 "
+            "식약처 자료가 필요하고 아직 못 본다.",
+            "허가가 있다는 것이지 물량이 있다는 뜻이 아니다. 생산량·재고·수출통제는 "
+            "이 자료에 없다.",
+            "적응증 낱말 검색이라, 라벨 표현이 다르면 안 걸린다. 없다고 승인 제품이 "
+            "없는 것은 아니다.",
+        ],
+    }

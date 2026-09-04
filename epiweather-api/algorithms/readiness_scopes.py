@@ -50,6 +50,15 @@ SCOPES = {
         "does_not_mean": "충분하다는 뜻이 아니다 — ICG 비축도 대형 발병에서 "
                          "모자란 적이 여러 번 있었다.",
     },
+    "approved_products": {
+        "label": "규제 승인 제품",
+        "source": "openFDA drug/label (미국 FDA 라벨 적응증)",
+        "means": "쓸 수 있게 허가가 끝난 제품이 존재한다. 비축이 없어도 "
+                 "발병 시 조달·계약부터 시작하면 된다(개발부터와는 몇 년 차이).",
+        "does_not_mean": "★ 물량이 아니다 ★ 허가가 있다는 것이지 살 수 있다는 "
+                         "뜻이 아니다. 그리고 미국 허가라 한국에서 쓸 수 있다는 "
+                         "뜻도 아니다 — 국내 허가는 아직 못 본다.",
+    },
     "clinical_pipeline": {
         "label": "임상 파이프라인",
         "source": "ClinicalTrials.gov API v2 (미국 NIH)",
@@ -176,15 +185,25 @@ def clinical_scope(threats: list[dict], pipeline_value: dict | None) -> dict:
 
 
 def readiness_by_scope(countermeasures: list[dict], threats: list[dict],
-                       pipeline_value: dict | None = None) -> dict:
-    """세 범위를 나란히. **합친 점수를 내지 않는다.**
+                       pipeline_value: dict | None = None,
+                       approved_snapshot: dict | None = None) -> dict:
+    """네 범위를 나란히. **합친 점수를 내지 않는다.**
 
     합치는 순간 서로 다른 종류의 사실이 한 숫자가 된다 — 창고에 있는 것,
-    국제 체계가 들고 있는 것, 아직 임상 중인 것은 대비 수준이 전혀 다르다."""
+    국제 체계가 들고 있는 것, 허가만 끝난 것, 아직 임상 중인 것은 대비 수준이
+    전혀 다르다.
+
+    ★ 승인 범위를 왜 따로 뒀나 (2026-09-04, A-2) ★ 셋만 있을 때는 '이미 허가가
+    끝났는데 아무도 안 비축한 것'이 어느 칸에도 안 잡혔다 — 비축 축은 "없음",
+    임상 축은 "이미 끝남" 이라 조용했다. 그 구분이 대비 우선순위를 바꾼다:
+    승인 제품이 없으면 개발부터(몇 년), 있으면 조달부터(몇 달)다."""
+    from .approved_products import approved_scope
+
     return {
         "scopes": {
             "national_stockpile": national_scope(countermeasures, threats),
             "international_stockpile": international_scope(threats),
+            "approved_products": approved_scope(threats, approved_snapshot),
             "clinical_pipeline": clinical_scope(threats, pipeline_value),
         },
         "threat_count": len(threats),
@@ -212,6 +231,11 @@ def scope_summary(by_scope: dict | None) -> str | None:
     intl = s["international_stockpile"]
     parts.append(f"국제비축 {intl['covered']}/{intl['covered'] + intl['uncovered']}종"
                  + (f"(미상 {intl['unknown']})" if intl["unknown"] else ""))
+
+    appr = s.get("approved_products") or {}
+    if appr.get("available"):
+        parts.append(f"승인제품 {appr['approved']}/{appr['approved'] + appr['none']}종"
+                     + (f"(미조회 {appr['unknown']})" if appr.get("unknown") else ""))
 
     cli = s["clinical_pipeline"]
     if cli.get("available"):
