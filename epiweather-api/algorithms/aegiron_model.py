@@ -153,9 +153,16 @@ def nim_raw(text: str, conf: dict) -> str | None:
             timeout=NIM_TIMEOUT_SEC,
         )
         resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"]
-    except Exception:
+        content = resp.json()["choices"][0]["message"]["content"]
+    except Exception as e:
+        # 실패해도 None을 돌려 폴백시키되(기존 동작), '시도했고 실패했다'는
+        # 사실은 남긴다. 이게 없으면 NIM이 매번 죽는데도 상태 필드는 계속
+        # nim_configured=true로 좋게 말한다 — 몇 주 갇혀 있던 그 상태다.
+        _nvidia.record_layer_call("text", conf["base_url"], ok=False,
+                                  error=f"{type(e).__name__}: {e}")
         return None
+    _nvidia.record_layer_call("text", conf["base_url"], ok=True)
+    return content
 
 
 def _nim_extract(text: str, source: str, conf: dict) -> dict | None:
@@ -280,6 +287,11 @@ def provider_status() -> dict:
     conf = _nim_config()
     nim_active = conf is not None
 
+    # ★ '활성'을 설정으로 정하지 않는다 ★ 아래 active_provider는 여전히 '설정상
+    # 우선 경로'다. 그게 실제로 돌았는지는 장부(capability_ledger)만 안다.
+    from .capability_ledger import status as _cap_status
+    text_layer = _cap_status(_nvidia.LAYER_CAPABILITIES["text"], configured=nim_active)
+
     if nim_active:
         active_provider = conf["provider"]
     elif local_loaded:
@@ -310,6 +322,17 @@ def provider_status() -> dict:
         # 수집기는 Claude를 부르고 있었다 — '설정됨'과 '쓰임'은 다른 말이다.
         "extraction_wired_to_collector": True,
         "nim_extract_switch": "on" if _nim_extract_enabled() else "off",
+        # ★ 관측 ★ nim_configured가 '설정'이면 이쪽이 '실제로 돌았나'다.
+        # 대외 자료·심사 답변에는 이 칸을 쓸 것.
+        "nim_verified": text_layer["verified"],
+        "nim_claim_basis": text_layer["claim_basis"],
+        "nim_last_success_at": text_layer["last_success_at"],
+        "nim_last_error": text_layer["last_error"],
+        "active_provider_basis": (
+            "설정상 우선 경로다. 실제로 이 경로가 최근에 성공했는지는 "
+            f"nim_verified={text_layer['verified']} / "
+            f"nim_claim_basis={text_layer['claim_basis']} 를 볼 것."
+        ),
         "data_sovereignty": sovereignty,
         # 유전체(Evo2/MSA)·문서·텍스트 NIM을 같은 키 규약으로 묶어 보여줌(단일 소스).
         "nvidia": _nvidia.nvidia_status(),
