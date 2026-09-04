@@ -88,7 +88,12 @@ CREATE TABLE IF NOT EXISTS extracted_signals (
     signal_date    TEXT,            -- 텍스트가 언급한 기준일 (YYYY-MM-DD), 모르면 NULL
     known_disease  INTEGER NOT NULL DEFAULT 1,  -- 모델이 "기존에 알려진 질병 패턴과 일치"로 판단했는지
     raw_text       TEXT NOT NULL,
-    country_iso3   TEXT             -- ISO 3166-1 alpha-3, 모델이 국가 하나로 특정 못하면 NULL
+    country_iso3   TEXT,            -- ISO 3166-1 alpha-3, 모델이 국가 하나로 특정 못하면 NULL
+    -- 이 라벨을 만든 모델 경로(aegiron_model.extract_signal의 ai_provider).
+    -- 없으면 NULL = 이 컬럼 도입 전 기록(전부 Claude) — training_data.py가
+    -- 학습쌍의 teacher를 여기서 읽는다. 이게 없으면 8B NIM이 뽑은 라벨과
+    -- Claude가 뽑은 라벨이 한 통에 섞여 '증류 교사'를 못 밝힌다.
+    ai_provider    TEXT
 );
 
 CREATE TABLE IF NOT EXISTS api_key_usage (
@@ -178,6 +183,7 @@ def init_db() -> None:
             "ALTER TABLE sentinel_queue ADD COLUMN ai_confidence REAL",
             "ALTER TABLE alerts ADD COLUMN evidence TEXT",
             "ALTER TABLE extracted_signals ADD COLUMN country_iso3 TEXT",
+            "ALTER TABLE extracted_signals ADD COLUMN ai_provider TEXT",
             "ALTER TABLE predictions ADD COLUMN content_hash TEXT",
             "ALTER TABLE predictions ADD COLUMN ots_proof_hex TEXT",
             "ALTER TABLE predictions ADD COLUMN ots_submitted_at TEXT",
@@ -456,6 +462,7 @@ def create_extracted_signal(
     severity: list[str], symptom: str | None, transmission: str | None,
     source_trust: float, signal_date: str | None, raw_text: str,
     known_disease: bool = True, country_iso3: str | None = None,
+    ai_provider: str | None = None,
 ) -> dict:
     extracted_at = datetime.now(timezone.utc).isoformat()
     with get_connection() as conn:
@@ -464,12 +471,13 @@ def create_extracted_signal(
             INSERT INTO extracted_signals
                 (extracted_at, source, disease, location, signal_type, severity,
                  symptom, transmission, source_trust, signal_date, known_disease, raw_text,
-                 country_iso3)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 country_iso3, ai_provider)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (extracted_at, source, disease, location, signal_type,
              json.dumps(severity, ensure_ascii=False), symptom, transmission,
-             source_trust, signal_date, int(known_disease), raw_text, country_iso3),
+             source_trust, signal_date, int(known_disease), raw_text, country_iso3,
+             ai_provider),
         )
         conn.commit()
         row = conn.execute(

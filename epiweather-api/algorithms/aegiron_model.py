@@ -5,6 +5,12 @@
 NIM(NVIDIA Inference Microservice) 추출 경로를 두어 '한 곳만 바꿔' 독자 모델로
 전환되게 한다.
 
+배선(2026-09-03): 이 모듈은 한동안 '만들어만 두고 아무도 안 부르는' 상태였다.
+운영 환경변수에 NVIDIA_API_KEY가 있는데도 수집기는 매시간 Claude를 직접 불렀고,
+provider_status는 nim_configured=true를 보고했다 — 설정은 됐지만 쓰이진 않았다.
+지금은 collector.py의 AI 갭필링과 unexplained.py가 전부 여기를 거친다. 저장
+경로는 extract_record()를 쓴다(차단·실패 응답을 DB로 흘리지 않기 위해).
+
 호출 흐름(우선순위):
   aegiron_model.extract_signal(text)
     → ① NIM 추출(자체 GPU/온프렘 = 완전 주권 / NVIDIA 호스팅 = 준주권)
@@ -97,8 +103,22 @@ def _nim_is_sovereign(base_url: str) -> bool:
     return "integrate.api.nvidia.com" not in base_url and "api.nvidia.com" not in base_url
 
 
+# 텍스트 추출만 NIM에서 빼는 스위치.
+# NVIDIA_API_KEY는 유전체(Evo2)·MSA·문서 파싱까지 4개 층이 공유하는 키다. 그래서
+# '키가 있으니 텍스트도 NIM' 이 자동으로 성립하면, 유전체 때문에 키를 넣은 사람이
+# 자기도 모르게 추출 모델까지 갈아치우게 된다. 그 되돌리기를 재배포 없이 하려고
+# 둔다 — off면 텍스트만 기존 경로로 돌아가고 나머지 층은 그대로 NIM을 쓴다.
+NIM_EXTRACT_ENV = "AEGIRON_NIM_EXTRACT"
+
+
+def _nim_extract_enabled() -> bool:
+    return os.environ.get(NIM_EXTRACT_ENV, "on").lower() not in ("off", "0", "false")
+
+
 def _nim_config() -> dict | None:
     """NIM 설정이 갖춰졌으면 dict, 아니면 None(→ NIM 경로 비활성)."""
+    if not _nim_extract_enabled():
+        return None
     key = _nim_key()
     if not key:
         return None
@@ -112,12 +132,12 @@ def _nim_config() -> dict | None:
     }
 
 
-def _nim_extract(text: str, source: str, conf: dict) -> dict | None:
-    """NIM(OpenAI 호환 chat/completions)으로 추출. 실패 시 None(→ 다음 경로).
-    프롬프트·파싱은 nlp_extract와 동일 헬퍼를 재사용해 스키마 일관성을 보장한다."""
+def nim_raw(text: str, conf: dict) -> str | None:
+    """NIM 원시 응답 문자열. 파싱 전 단계라 '모델이 스키마를 얼마나 지켰나'를
+    재는 비교 도구(extract_compare)가 여기를 쓴다. 실패 시 None."""
     import requests
 
-    from .nlp_extract import build_prompt, parse_extraction
+    from .nlp_extract import build_prompt
 
     try:
         resp = requests.post(
@@ -133,10 +153,19 @@ def _nim_extract(text: str, source: str, conf: dict) -> dict | None:
             timeout=NIM_TIMEOUT_SEC,
         )
         resp.raise_for_status()
-        content = resp.json()["choices"][0]["message"]["content"]
+        return resp.json()["choices"][0]["message"]["content"]
     except Exception:
         return None
 
+
+def _nim_extract(text: str, source: str, conf: dict) -> dict | None:
+    """NIM(OpenAI 호환 chat/completions)으로 추출. 실패 시 None(→ 다음 경로).
+    프롬프트·파싱은 nlp_extract와 동일 헬퍼를 재사용해 스키마 일관성을 보장한다."""
+    from .nlp_extract import parse_extraction
+
+    content = nim_raw(text, conf)
+    if content is None:
+        return None
     return parse_extraction(content, text, source)
 
 
@@ -192,6 +221,58 @@ def extract_signal(text: str, source: str = "aegiron_model",
     return result
 
 
+# ── 저장 경로용 진입점 ────────────────────────────────────────
+# extract_signal은 '추출 레코드' 말고도 차단·불가 응답({"blocked": True, ...})을
+# 돌려준다. 그걸 그대로 db.create_extracted_signal(**result)에 넘기면 TypeError로
+# 터지거나(운이 좋으면) 라벨 없는 껍데기가 DB에 들어간다. 저장 경로는 반드시
+# 아래 두 함수를 거치게 해서, '추출된 것'과 '못 한 이유'를 분리한다.
+
+# DB 컬럼이 아닌 부가정보 — 레코드에서 떼어내 provenance로만 남긴다.
+# (ai_provider는 실제 컬럼이라 레코드에 남긴다 — 교사 모델 추적용.)
+NON_RECORD_KEYS = ("data_sovereign", "blocked", "reason")
+
+
+def is_extraction(result: dict | None) -> bool:
+    """실제 추출 레코드인지(차단·불가 응답이 아닌지). raw_text 유무로 판정 —
+    차단/불가 응답에는 원문이 없다."""
+    return bool(result) and "raw_text" in result
+
+
+def extraction_available(api_key: str | None = None) -> bool:
+    """추출을 시도할 백엔드가 하나라도 있는지. 수집기 게이트용.
+    예전엔 ANTHROPIC_API_KEY만 봐서, NIM 키만 있으면 추출 자체를 건너뛰었다."""
+    if _nim_config() is not None:
+        return True
+    if os.environ.get(LOCAL_MODEL_PATH_ENV):
+        return True
+    return bool(api_key or os.environ.get("ANTHROPIC_API_KEY"))
+
+
+def extract_record(text: str, source: str, api_key: str | None = None,
+                   sensitive: bool = False) -> tuple[dict | None, dict]:
+    """(DB 저장 가능한 레코드 | None, 처리경로 정보).
+
+    추출에 성공하면 레코드에 ai_provider가 남아 어느 모델이 만든 라벨인지
+    DB에서 되짚을 수 있다. 실패·차단이면 레코드는 None이고 사유만 돌려준다 —
+    '못 했다'를 '했다'로 바꾸지 않는다."""
+    result = extract_signal(text, source=source, api_key=api_key, sensitive=sensitive)
+    provider = (result or {}).get("ai_provider") or "none"
+    if not is_extraction(result):
+        return None, {
+            "ai_provider": provider,
+            "blocked": bool((result or {}).get("blocked")),
+            "reason": (result or {}).get("reason"),
+        }
+    provenance = {
+        "ai_provider": provider,
+        "data_sovereign": result.get("data_sovereign"),
+        "blocked": False,
+        "reason": None,
+    }
+    record = {k: v for k, v in result.items() if k not in NON_RECORD_KEYS}
+    return record, provenance
+
+
 def provider_status() -> dict:
     """현재 어느 AI 제공자가 활성인지 + 주권 태세. 심사에서 '주권 대비 설계' 근거."""
     local_configured = bool(os.environ.get(LOCAL_MODEL_PATH_ENV))
@@ -225,10 +306,16 @@ def provider_status() -> dict:
         "local_model_configured": local_configured,
         "local_model_loaded": local_loaded,
         "require_local_for_sensitive": _require_local(),
+        # 이 경로가 실제 수집기에 물려 있는지. 예전엔 여기가 nim_configured=true여도
+        # 수집기는 Claude를 부르고 있었다 — '설정됨'과 '쓰임'은 다른 말이다.
+        "extraction_wired_to_collector": True,
+        "nim_extract_switch": "on" if _nim_extract_enabled() else "off",
         "data_sovereignty": sovereignty,
         # 유전체(Evo2/MSA)·문서·텍스트 NIM을 같은 키 규약으로 묶어 보여줌(단일 소스).
         "nvidia": _nvidia.nvidia_status(),
-        "note": "NIM(NVIDIA_API_KEY/AEGIRON_NIM_API_KEY) 설정 시 추출이 NIM으로 전환된다. "
-                "자체 호스팅 URL(AEGIRON_NIM_BASE_URL)이면 완전 주권, NVIDIA 호스팅이면 준주권. "
-                "호출부 변경 없이 환경변수만으로 독자 모델 경로가 활성화된다.",
+        "note": "NIM(NVIDIA_API_KEY/AEGIRON_NIM_API_KEY) 설정 시 수집기의 추출이 NIM으로 "
+                "전환된다(collector.py → nlp_extract → 이 모듈). 자체 호스팅 URL이면 완전 주권, "
+                "NVIDIA 호스팅이면 준주권. 각 신호가 어느 경로로 뽑혔는지는 "
+                "extracted_signals.ai_provider에 건별로 남는다. 텍스트만 되돌리려면 "
+                "AEGIRON_NIM_EXTRACT=off.",
     }

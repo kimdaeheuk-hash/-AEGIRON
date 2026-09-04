@@ -88,11 +88,24 @@ def test_null_country_iso3_for_multi_country_text_stays_none(monkeypatch):
 # ── 중복 원문 재추출 방지 ────────────────────────────────────────
 
 
+def _record(source: str, raw_text: str) -> dict:
+    """추출기가 실제로 돌려주는 모양의 레코드. 예전 테스트는 {"source","disease"}
+    같은 껍데기를 돌려줬는데, 그건 실제 추출기가 절대 내지 않는 형태다(raw_text는
+    parse_extraction이 항상 채우고, DB에서도 NOT NULL이다). 껍데기로 통과하던
+    테스트는 저장 단계에서 터지는 레코드를 '정상'이라고 인정하고 있었다."""
+    return {
+        "source": source, "disease": "에볼라", "location": "DRC",
+        "country_iso3": "COD", "signal_type": "신규발생", "severity": [],
+        "symptom": None, "transmission": None, "source_trust": 0.65,
+        "signal_date": None, "known_disease": True, "raw_text": raw_text,
+    }
+
+
 def test_new_text_from_never_seen_source_is_extracted(isolated_db):
-    """처음 보는 원문은 당연히 Claude를 호출해야 함."""
+    """처음 보는 원문은 당연히 추출기를 호출해야 함."""
     watch = {"signals": [{"id": "who_emro", "text": "새로운 기사 내용"}]}
     with patch("algorithms.nlp_extract.extract_signal") as mock_extract:
-        mock_extract.return_value = {"source": "who_emro", "disease": "에볼라"}
+        mock_extract.return_value = _record("who_emro", "새로운 기사 내용")
         result = extract_from_global_watch(watch, api_key="fake")
     mock_extract.assert_called_once()
     assert len(result) == 1
@@ -125,7 +138,7 @@ def test_updated_text_from_same_source_is_still_extracted(isolated_db):
     )
     watch = {"signals": [{"id": "who_emro", "text": "오늘 갱신된 기사 내용"}]}
     with patch("algorithms.nlp_extract.extract_signal") as mock_extract:
-        mock_extract.return_value = {"source": "who_emro", "disease": "에볼라"}
+        mock_extract.return_value = _record("who_emro", "오늘 갱신된 기사 내용")
         result = extract_from_global_watch(watch, api_key="fake")
     mock_extract.assert_called_once()
     assert len(result) == 1
@@ -142,7 +155,7 @@ def test_same_text_from_different_source_is_not_deduped(isolated_db):
     )
     watch = {"signals": [{"id": "africa_cdc", "text": "공통 문구"}]}
     with patch("algorithms.nlp_extract.extract_signal") as mock_extract:
-        mock_extract.return_value = {"source": "africa_cdc", "disease": "에볼라"}
+        mock_extract.return_value = _record("africa_cdc", "공통 문구")
         result = extract_from_global_watch(watch, api_key="fake")
     mock_extract.assert_called_once()
     assert len(result) == 1
