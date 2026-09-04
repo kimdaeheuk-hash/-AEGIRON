@@ -123,6 +123,20 @@ def _light_layers() -> dict:
     except Exception as exc:                              # noqa: BLE001
         out["vaccine_chokepoints"] = {"error": type(exc).__name__}
 
+    # ★ 정적 축의 나이 ★ 이 층의 두 축(백신 공급·국가 역량)은 파일에 얹혀 있다.
+    # 예전엔 나이를 재는 곳이 없어서, 파일이 몇 달 묵어도 조달 숫자 옆에 나란히
+    # 최신인 척 실렸다. 굳은 값을 새 값처럼 내지 않는다 — 무거운 조각에 age_hours
+    # 를 붙인 것과 같은 이유다.
+    try:
+        from .reference_snapshots import report as _snapshot_report
+        snap = _snapshot_report()
+        out["reference_snapshots"] = {
+            "stale": snap["stale_snapshots"],
+            "ages_days": {r["name"]: r["age_days"] for r in snap["snapshots"]},
+        }
+    except Exception as exc:                              # noqa: BLE001
+        out["reference_snapshots"] = {"error": type(exc).__name__}
+
     try:
         import db as _db
         from .biodefense_readiness import DEFAULT_THREATS, compute_readiness
@@ -161,20 +175,83 @@ def _fetch_procurement() -> dict:
 
 
 def _fetch_pipeline() -> dict:
+    """병원체별 대비 단계. **단계 키만 남기지 않는다.**
+
+    예전엔 `stages`(키 문자열)와 실패 수만 들고 왔다. 그래서 24시간마다 17개
+    병원체를 조회해놓고 **로그에도 요약에도 아무 값이 안 실렸다** — 돌고는 있는데
+    무엇이 나오는지 아무도 모르는 층이었다. 조회 수·한글 단계를 같이 들고 온다.
+    """
     from .countermeasure_pipeline import (
         PATHOGEN_QUERIES, fetch_pipeline, readiness_stage,
     )
     from .countermeasure_stockpile import stockpile_status
-    stages, failed = {}, 0
+
+    stages, stage_ko, study_counts = {}, {}, {}
+    failed_pathogens = []
     for name_ko, query in PATHOGEN_QUERIES.items():
         pipeline = fetch_pipeline(query)
         if not pipeline.get("available"):
-            failed += 1
+            # ★ 조회 실패를 '등록 연구 없음'과 섞지 않는다 ★ 전자는 우리가 못 본
+            # 것이고 후자는 보고 없다고 확인한 것이다. 준비태세 축에서 '판정불가를
+            # 미커버와 섞지 않는다'고 고친 것과 같은 구분이다.
+            failed_pathogens.append(name_ko)
         has = bool(stockpile_status(name_ko).get("has_global_stockpile"))
-        stages[name_ko] = readiness_stage(pipeline, has)["stage"]
-    if failed == len(PATHOGEN_QUERIES):
+        stage = readiness_stage(pipeline, has)
+        stages[name_ko] = stage["stage"]
+        stage_ko[name_ko] = stage["stage_ko"]
+        study_counts[name_ko] = pipeline.get("study_count")
+
+    if len(failed_pathogens) == len(PATHOGEN_QUERIES):
         raise RuntimeError("모든 병원체 조회 실패")
-    return {"stages": stages, "lookup_failed": failed}
+
+    counts: dict[str, int] = {}
+    for key in stages.values():
+        counts[key] = counts.get(key, 0) + 1
+    return {
+        "stages": stages,
+        "stage_ko": stage_ko,
+        "study_counts": study_counts,
+        "stage_counts": counts,
+        "lookup_failed": len(failed_pathogens),
+        "failed_pathogens": failed_pathogens,
+        # ★ 이 목록의 뜻을 오해하면 안 된다 ★ '등록 연구 없음'은 개발이 없다는
+        # 뜻이 아니라 이 등록부에 없다는 뜻이다(군사·기밀 프로그램은 미등재).
+        "no_registered_trial": sorted(
+            n for n, s in stages.items() if s == "no_registered_trial"),
+        "pathogen_count": len(PATHOGEN_QUERIES),
+    }
+
+
+# 로그에 찍을 단계 순서. 시장에서 먼 쪽이 뒤로 가서 눈에 띄게 둔다.
+_STAGE_LOG_ORDER = (
+    ("stockpiled", "비축"),
+    ("approved_path", "후기임상완료"),
+    ("late_trial", "후기임상"),
+    ("early_trial", "초기임상"),
+    ("research_only", "연구단계"),
+    ("no_registered_trial", "등록없음"),
+    ("unknown", "판정불가"),
+)
+
+
+def pipeline_summary(value: dict | None) -> str | None:
+    """파이프라인 값 → 로그 한 줄. 값이 없으면 None(없는 걸 지어내지 않는다).
+
+    ★ '등록없음'과 '판정불가'를 반드시 따로 센다 ★ 앞은 보고 없다고 확인한
+    것이고 뒤는 우리가 못 본 것이다. 합치면 "17종 중 3종 미대비"처럼 조회
+    실패가 발견으로 둔갑한다."""
+    if not value:
+        return None
+    counts = value.get("stage_counts") or {}
+    parts = [f"{label} {counts[key]}종"
+             for key, label in _STAGE_LOG_ORDER if counts.get(key)]
+    if not parts:
+        return None
+    line = " · ".join(parts)
+    bare = value.get("no_registered_trial") or []
+    if bare:
+        line += f" [등록없음: {'·'.join(bare)}]"
+    return line
 
 
 # 갱신에 실패한 조각의 사유 앞머리. 로그·경고가 이 낱말로 구분한다.
