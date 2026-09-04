@@ -963,10 +963,9 @@ def collect_free_sources() -> dict:
                 % (_KO.get(key, key), part["reason"], part.get("age_hours")))
         # 정적 축(백신 공급·국가 역량)이 묵었으면 매 주기 보이게 한다.
         # /api/status 에만 있으면 아무도 매시간 들여다보지 않는다.
-        refs = v.get("reference_snapshots") or {}
-        for name in refs.get("stale") or []:
-            log("  ⚠ 발할라 기준 스냅샷 '%s' 묵음 (%s일 전) — 주간작업이 갱신 시도"
-                % (name, (refs.get("ages_days") or {}).get(name)))
+        from algorithms.reference_snapshots import stale_lines
+        for line in stale_lines(v.get("reference_snapshots")):
+            log("  ⚠ 발할라 %s. 주간작업이 갱신 시도" % line)
     except Exception as e:
         result["valhalla"] = None
         log(f"  ❌ 발할라 관찰 실패: {type(e).__name__}: {e}")
@@ -1236,34 +1235,26 @@ def collect_ai_sources() -> dict:
     from algorithms.aegiron_model import extraction_available
     if extraction_available(anthropic_key):
         try:
-            from algorithms.nlp_extract import extract_from_global_watch_detailed
+            from algorithms.nlp_extract import (extract_from_global_watch_detailed,
+                                                extraction_summary)
             import db
             db.init_db()
             out = extract_from_global_watch_detailed(watch, api_key=anthropic_key)
             for e in out["records"]:
                 db.create_extracted_signal(**e)
-            # 어느 모델이 뽑았는지 매 사이클 남긴다 — NIM을 켰는데 계속
-            # external_llm_fallback이면 NIM이 실패 중인 것이고, 그건 조용히
-            # 넘어가면 안 된다(키만 넣고 안 쓰이던 상태가 그렇게 몇 주 갔다).
-            by_provider = ", ".join(f"{k}={v}" for k, v in sorted(out["providers"].items()))
-            detail = [f"{len(out['records'])}건 저장"]
-            if by_provider:
-                detail.append(by_provider)
-            if out["skipped_duplicate"]:
-                detail.append(f"중복건너뜀 {out['skipped_duplicate']}")
-            if out["failed"]:
-                detail.append(f"추출실패 {out['failed']}")
-            if out["blocked"]:
-                detail.append(f"주권차단 {out['blocked']}")
-            log(f"  NLP 구조화 추출: {' · '.join(detail)}")
+            # 어느 모델이 뽑았는지, 실패했으면 어느 경로에서 왜 실패했는지 매
+            # 사이클 남긴다 — NIM을 켰는데 계속 external_llm_fallback이면 NIM이
+            # 실패 중인 것이고, 그건 조용히 넘어가면 안 된다(키만 넣고 안 쓰이던
+            # 상태가 그렇게 몇 주 갔다). 문자열 조립은 시험 가능한 곳에 둔다.
+            log(f"  NLP 구조화 추출: {extraction_summary(out)}")
         except Exception as e:
             log_error("NLP_Extract", e)
 
         try:
-            from algorithms.unexplained import run_unexplained_watch
+            from algorithms.unexplained import run_unexplained_watch_detailed
             import db
             db.init_db()
-            unexplained = run_unexplained_watch(
+            unexplained, why = run_unexplained_watch_detailed(
                 perplexity_key=perplexity_key, tavily_key=tavily_key, anthropic_key=anthropic_key
             )
             if unexplained:
@@ -1272,8 +1263,10 @@ def collect_ai_sources() -> dict:
                 db.create_extracted_signal(**unexplained)
                 log(f"  설명불가 신호 감시: {'🔴 설명 불가 — 즉시경보' if flagged else '기존 질병 패턴과 일치, 정상'}")
             else:
-                log("  ⏭ 설명불가 신호 감시: 새 신호 없음(검색/추출 실패, 배경정보 노이즈, "
-                    "또는 최근 21일 내 동일 사건 재탐지 중 하나)")
+                # 예전엔 다섯 가지 사유를 "…중 하나"로 뭉쳐 찍었다. '검색이 죽었다'와
+                # '오늘은 새 사건이 없다'가 같은 문장으로 나가서, 고장이 나 있어도
+                # 정상처럼 읽혔다.
+                log(f"  ⏭ 설명불가 신호 감시: {why or '사유 미상'}")
         except Exception as e:
             log_error("Unexplained_Watch", e)
     else:

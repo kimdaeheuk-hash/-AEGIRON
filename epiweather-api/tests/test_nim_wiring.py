@@ -40,8 +40,9 @@ def test_global_watch_extraction_goes_through_nim_when_configured(isolated_db, m
     _nim_env(monkeypatch)
     watch = {"signals": [{"id": "who_emro", "text": "새 기사"}]}
 
-    with patch.object(am, "_nim_extract", return_value=_record("who_emro", "새 기사")) as nim, \
-            patch("algorithms.nlp_extract.extract_signal") as claude:
+    with patch.object(am, "_nim_extract_detailed",
+                      return_value=(_record("who_emro", "새 기사"), None)) as nim, \
+            patch("algorithms.nlp_extract.extract_signal_detailed") as claude:
         out = extract_from_global_watch_detailed(watch, api_key="anthropic-key")
 
     nim.assert_called_once()
@@ -56,9 +57,10 @@ def test_falls_back_to_external_llm_when_nim_fails(isolated_db, monkeypatch):
     _nim_env(monkeypatch)
     watch = {"signals": [{"id": "who_emro", "text": "새 기사"}]}
 
-    with patch.object(am, "_nim_extract", return_value=None), \
-            patch("algorithms.nlp_extract.extract_signal",
-                  return_value=_record("who_emro", "새 기사")):
+    with patch.object(am, "_nim_extract_detailed",
+                      return_value=(None, "HTTPError 404")), \
+            patch("algorithms.nlp_extract.extract_signal_detailed",
+                  return_value=(_record("who_emro", "새 기사"), None)):
         out = extract_from_global_watch_detailed(watch, api_key="anthropic-key")
 
     assert out["providers"] == {"external_llm_fallback": 1}
@@ -68,7 +70,7 @@ def test_falls_back_to_external_llm_when_nim_fails(isolated_db, monkeypatch):
 def test_hosted_nim_marked_as_not_sovereign(isolated_db, monkeypatch):
     """NVIDIA 호스팅은 준주권이다 — 자체 호스팅과 같은 이름으로 뭉뚱그리지 않는다."""
     _nim_env(monkeypatch)
-    with patch.object(am, "_nim_extract", return_value=_record("s", "t")):
+    with patch.object(am, "_nim_extract_detailed", return_value=(_record("s", "t"), None)):
         record, prov = am.extract_record("t", source="s")
     assert prov["ai_provider"] == "nvidia_nim_hosted"
     assert prov["data_sovereign"] is False
@@ -76,7 +78,7 @@ def test_hosted_nim_marked_as_not_sovereign(isolated_db, monkeypatch):
 
 def test_selfhosted_nim_marked_sovereign(isolated_db, monkeypatch):
     _nim_env(monkeypatch, base="https://nim.internal.aegiron.kr/v1")
-    with patch.object(am, "_nim_extract", return_value=_record("s", "t")):
+    with patch.object(am, "_nim_extract_detailed", return_value=(_record("s", "t"), None)):
         record, prov = am.extract_record("t", source="s")
     assert prov["ai_provider"] == "aegiron_nim_selfhosted"
     assert prov["data_sovereign"] is True
@@ -100,7 +102,8 @@ def test_blocked_result_never_becomes_a_record(isolated_db, monkeypatch):
 def test_record_is_storable_and_keeps_provider(isolated_db, monkeypatch):
     """추출 레코드는 그대로 DB에 들어가야 하고, 어느 모델이 뽑았는지 남아야 한다."""
     _nim_env(monkeypatch)
-    with patch.object(am, "_nim_extract", return_value=_record("who_emro", "원문")):
+    with patch.object(am, "_nim_extract_detailed",
+                      return_value=(_record("who_emro", "원문"), None)):
         record, _ = am.extract_record("원문", source="who_emro")
 
     saved = isolated_db.create_extracted_signal(**record)      # 부가키가 섞이면 TypeError
@@ -144,9 +147,9 @@ def test_nim_extract_switch_off_keeps_claude(isolated_db, monkeypatch):
     monkeypatch.setenv("AEGIRON_NIM_EXTRACT", "off")
     watch = {"signals": [{"id": "who_emro", "text": "새 기사"}]}
 
-    with patch.object(am, "_nim_extract") as nim, \
-            patch("algorithms.nlp_extract.extract_signal",
-                  return_value=_record("who_emro", "새 기사")):
+    with patch.object(am, "_nim_extract_detailed") as nim, \
+            patch("algorithms.nlp_extract.extract_signal_detailed",
+                  return_value=(_record("who_emro", "새 기사"), None)):
         out = extract_from_global_watch_detailed(watch, api_key="anthropic-key")
 
     nim.assert_not_called()

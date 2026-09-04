@@ -114,8 +114,54 @@ def parse_extraction(model_text: str, raw_text: str, source: str) -> dict | None
     return parse_extraction_detailed(model_text, raw_text, source)[0]
 
 
-def extract_signal(raw_text: str, source: str, api_key: str) -> dict | None:
-    """자유문장 1건 → 구조화 dict. 모델 호출/파싱 실패 시 None."""
+# ── 실패가 사유를 달고 나오게 한다 (2026-09-04) ────────────────────
+# 운영 로그에서 3일 연속 이렇게 찍혔다:
+#
+#     09-02  NLP 구조화 추출: 0건 저장
+#     09-03  NLP 구조화 추출: 0건 저장
+#     09-04  NLP 구조화 추출: 0건 저장 · 추출실패 5
+#
+# 마지막 줄의 '5'는 어제 붙인 계수기가 처음 드러낸 것이고, 앞의 두 줄은 실패였는지
+# 중복건너뜀이었는지조차 구분이 안 됐다. **그런데 5를 보고도 할 수 있는 게 없었다** —
+# 아래 except가 사유를 통째로 삼켰기 때문이다. 키가 죽었는지, 모델명이 틀렸는지,
+# 크레딧이 떨어졌는지, 모델이 JSON을 못 지켰는지가 전부 같은 None으로 접혔다.
+#
+# 계수기만으로는 부족하다. **몇 번 실패했나** 다음에 반드시 **왜** 가 와야 한다.
+PARSE_FAILED = "파싱실패"
+
+# 외부 LLM 폴백도 능력 장부에 남긴다. NIM 층(nvidia_text)은 이미 남기는데 폴백은
+# 안 남겨서, "NIM이 죽고 폴백도 죽었다"와 "NIM만 죽었다"를 /api/status에서 구분할
+# 수 없었다. 폴백이 마지막 방어선이므로 그게 살아 있는지가 특히 중요하다.
+EXTERNAL_LLM_CAPABILITY = "external_llm_extract"
+
+
+def brief_reason(exc: BaseException) -> str:
+    """예외 → 로그에 실을 짧은 사유. 종류와 상태코드까지만 담는다.
+
+    본문을 안 넣는 이유: 응답 본문에 요청 URL·헤더 조각이 섞여 나올 수 있고,
+    진단에 실제로 필요한 건 '어떤 종류가 몇 번'이다(HTTPError 401=키 문제,
+    404=모델명 문제, 402/429=한도, Timeout=네트워크). 전문은 능력 장부의
+    last_error에 남아 /api/status로 볼 수 있다."""
+    status = getattr(exc, "status_code", None) or getattr(
+        getattr(exc, "response", None), "status_code", None)
+    return f"{type(exc).__name__} {status}" if status else type(exc).__name__
+
+
+def _record_external(ok: bool, detail: str | None = None) -> None:
+    """장부 기록이 본 기능을 막으면 안 된다(nvidia.record_layer_call과 같은 규칙)."""
+    try:
+        from .capability_ledger import record
+        record(EXTERNAL_LLM_CAPABILITY, ok=ok, detail=detail,
+               endpoint="api.anthropic.com", sovereign=False)
+    except Exception:                                     # noqa: BLE001
+        pass
+
+
+def llm_raw(raw_text: str, api_key: str) -> tuple[str | None, str | None]:
+    """(원시 응답, 실패 사유). aegiron_model.nim_raw의 외부 LLM 짝.
+
+    성공하면 (문자열, None), 실패하면 (None, 사유). **사유가 None이 아닌 채로
+    조용히 넘어가는 경로를 두지 않는다.**"""
     import anthropic
 
     client = anthropic.Anthropic(api_key=api_key)
@@ -126,10 +172,30 @@ def extract_signal(raw_text: str, source: str, api_key: str) -> dict | None:
             messages=[{"role": "user", "content": build_prompt(raw_text)}],
         )
         raw = "".join(b.text for b in response.content if b.type == "text")
-    except Exception:
-        return None
+    except Exception as exc:                              # noqa: BLE001
+        _record_external(ok=False, detail=f"{type(exc).__name__}: {exc}")
+        return None, brief_reason(exc)
+    _record_external(ok=True)
+    return raw, None
 
-    return parse_extraction(raw, raw_text, source)
+
+def extract_signal_detailed(raw_text: str, source: str,
+                            api_key: str) -> tuple[dict | None, str | None]:
+    """(구조화 dict | None, 실패 사유 | None).
+
+    호출 실패와 파싱 실패를 가른다 — 전자는 키·엔드포인트 문제고 후자는 모델이
+    스키마를 못 지킨 것이라, 손댈 곳이 완전히 다르다."""
+    raw, reason = llm_raw(raw_text, api_key)
+    if raw is None:
+        return None, reason
+    record = parse_extraction(raw, raw_text, source)
+    return record, None if record is not None else PARSE_FAILED
+
+
+def extract_signal(raw_text: str, source: str, api_key: str) -> dict | None:
+    """자유문장 1건 → 구조화 dict. 모델 호출/파싱 실패 시 None.
+    사유까지 필요하면 extract_signal_detailed를 쓸 것."""
+    return extract_signal_detailed(raw_text, source, api_key)[0]
 
 
 EXTRACTION_DEDUP_WINDOW_DAYS = 3  # 같은 source의 원문이 이 기간 내 그대로 재수집되면 재추출 안 함
@@ -163,6 +229,11 @@ def extract_from_global_watch_detailed(
 
     extracted: list[dict] = []
     providers: dict[str, int] = {}
+    # ★ '몇 번' 다음엔 반드시 '왜' ★ 실패 수만 세면 손댈 곳을 못 찾는다.
+    # {"nvidia_nim_hosted: HTTPError 404": 5, "external_llm_fallback: 파싱실패": 5}
+    failure_reasons: dict[str, int] = {}
+    # 폴백이 구해준 횟수 — 성공했어도 NIM이 죽고 있다는 사실은 봐야 한다.
+    rescued_by_fallback = 0
     blocked = 0
     failed = 0
     skipped_duplicate = 0
@@ -180,12 +251,16 @@ def extract_from_global_watch_detailed(
             continue
 
         record, prov = extract_record(text, source=s["id"], api_key=api_key)
+        for attempt in prov.get("attempts") or []:
+            failure_reasons[attempt] = failure_reasons.get(attempt, 0) + 1
         if record is None:
             if prov["blocked"]:
                 blocked += 1
             else:
                 failed += 1
             continue
+        if prov.get("attempts"):
+            rescued_by_fallback += 1
         providers[prov["ai_provider"]] = providers.get(prov["ai_provider"], 0) + 1
         extracted.append(record)
 
@@ -195,6 +270,10 @@ def extract_from_global_watch_detailed(
         "blocked": blocked,
         "failed": failed,
         "skipped_duplicate": skipped_duplicate,
+        # 실패한 경로별 횟수. 성공분의 폴백 자취도 포함되므로 합계가 failed보다
+        # 클 수 있다 — 그건 오류가 아니라 '한 건에 두 경로가 죽었다'는 뜻이다.
+        "failure_reasons": failure_reasons,
+        "rescued_by_fallback": rescued_by_fallback,
     }
 
 
@@ -206,3 +285,34 @@ def extract_from_global_watch(
     return extract_from_global_watch_detailed(
         watch_result, api_key=api_key, dedup_window_days=dedup_window_days
     )["records"]
+
+
+def extraction_summary(out: dict) -> str:
+    """수집기 로그 한 줄. 수집기에서 즉석으로 조립하지 않고 여기서 만든다 —
+    발할라 조각 판정을 수집기에 인라인으로 짰다가 첫 성공 주기에 터뜨린 전례가
+    있어서(stale_parts), 로그 문자열도 시험 가능한 곳에 둔다.
+
+    ★ 옛 모양을 견딘다 ★ 배포 직후엔 지난 주기가 만든 값에 새 키가 없을 수
+    있다. .get 으로 읽고, 없으면 그 조각만 빠진다 — 줄이 통째로 안 나오면
+    '조용해진 층'이 하나 더 생긴다."""
+    detail = [f"{len(out.get('records') or [])}건 저장"]
+    providers = out.get("providers") or {}
+    if providers:
+        detail.append(", ".join(f"{k}={v}" for k, v in sorted(providers.items())))
+    if out.get("skipped_duplicate"):
+        detail.append(f"중복건너뜀 {out['skipped_duplicate']}")
+    if out.get("failed"):
+        detail.append(f"추출실패 {out['failed']}")
+    if out.get("blocked"):
+        detail.append(f"주권차단 {out['blocked']}")
+    # ★ '몇 번' 뒤에 반드시 '왜' ★ 09-04 운영에서 '추출실패 5'만 찍혀서, NIM이
+    # 죽은 건지 폴백이 죽은 건지 판단할 수 없었고 잘못된 처방이 나올 뻔했다.
+    why = out.get("failure_reasons") or {}
+    if why:
+        # 정렬하지 않는다 — 삽입 순서가 곧 시도 순서(NIM → 로컬 → 폴백)라,
+        # 줄을 왼쪽부터 읽으면 어디까지 갔다가 무엇 때문에 멈췄는지가 그대로 나온다.
+        detail.append("경로별: " + " · ".join(f"{k}×{v}" for k, v in why.items()))
+    # 폴백이 매번 구해주고 있으면 NIM은 사실상 꺼져 있는 것이다.
+    if out.get("rescued_by_fallback"):
+        detail.append(f"폴백이 구제 {out['rescued_by_fallback']}")
+    return " · ".join(detail)

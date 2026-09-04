@@ -166,6 +166,34 @@ def report(now=None) -> dict:
     }
 
 
+def stale_lines(refs: dict | None) -> list[str]:
+    """묵은 스냅샷마다 로그 한 줄. 발할라가 저장해 둔 조각(reference_snapshots)을
+    그대로 받는다.
+
+    ★ 왜 사유를 쓰는가 ★ 예전엔 수집기가 나이만 찍었는데, 파일이 아예 없으면
+    age_days가 None이라 운영 로그에 이렇게 나갔다:
+
+        ⚠ 발할라 기준 스냅샷 'approved_products' 묵음 (None일 전)
+
+    '한 번도 안 떠졌다'와 '오래됐다'는 다른 상태고 손댈 곳도 다른데 같은 문장이
+    됐다. 사유는 snapshot_status가 이미 만들고 있었고 버려지기만 했다.
+
+    ★ 옛 모양을 견딘다 ★ reasons 키가 없던 시절 값에도 안 터지고, 나이로라도
+    말한다 — 못 말하면 '사유 미상'이라고 하지 조용해지지 않는다."""
+    refs = refs or {}
+    reasons = refs.get("reasons") or {}
+    ages = refs.get("ages_days") or {}
+    lines = []
+    for name in refs.get("stale") or []:
+        why = reasons.get(name)
+        if not why:
+            age = ages.get(name)
+            why = (f"{age:.0f}일 묵음" if isinstance(age, (int, float))
+                   else "사유 미상(갱신 대기)")
+        lines.append(f"기준 스냅샷 '{name}' — {why}")
+    return lines
+
+
 def _write_atomic(target: Path, payload: dict) -> None:
     """같은 디렉터리에 임시로 쓴 뒤 옮긴다. 쓰다 죽어도 기존 파일이 안 깨진다."""
     target.parent.mkdir(parents=True, exist_ok=True)

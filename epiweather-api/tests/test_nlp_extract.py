@@ -104,8 +104,8 @@ def _record(source: str, raw_text: str) -> dict:
 def test_new_text_from_never_seen_source_is_extracted(isolated_db):
     """처음 보는 원문은 당연히 추출기를 호출해야 함."""
     watch = {"signals": [{"id": "who_emro", "text": "새로운 기사 내용"}]}
-    with patch("algorithms.nlp_extract.extract_signal") as mock_extract:
-        mock_extract.return_value = _record("who_emro", "새로운 기사 내용")
+    with patch("algorithms.nlp_extract.extract_signal_detailed") as mock_extract:
+        mock_extract.return_value = (_record("who_emro", "새로운 기사 내용"), None)
         result = extract_from_global_watch(watch, api_key="fake")
     mock_extract.assert_called_once()
     assert len(result) == 1
@@ -121,7 +121,7 @@ def test_identical_text_from_same_source_within_window_is_skipped(isolated_db):
         signal_date="2026-07-20", raw_text="이미 본 기사 내용",
     )
     watch = {"signals": [{"id": "who_emro", "text": "이미 본 기사 내용"}]}
-    with patch("algorithms.nlp_extract.extract_signal") as mock_extract:
+    with patch("algorithms.nlp_extract.extract_signal_detailed") as mock_extract:
         result = extract_from_global_watch(watch, api_key="fake")
     mock_extract.assert_not_called()
     assert result == []
@@ -137,8 +137,8 @@ def test_updated_text_from_same_source_is_still_extracted(isolated_db):
         signal_date="2026-07-20", raw_text="어제 기사 내용",
     )
     watch = {"signals": [{"id": "who_emro", "text": "오늘 갱신된 기사 내용"}]}
-    with patch("algorithms.nlp_extract.extract_signal") as mock_extract:
-        mock_extract.return_value = _record("who_emro", "오늘 갱신된 기사 내용")
+    with patch("algorithms.nlp_extract.extract_signal_detailed") as mock_extract:
+        mock_extract.return_value = (_record("who_emro", "오늘 갱신된 기사 내용"), None)
         result = extract_from_global_watch(watch, api_key="fake")
     mock_extract.assert_called_once()
     assert len(result) == 1
@@ -154,8 +154,8 @@ def test_same_text_from_different_source_is_not_deduped(isolated_db):
         signal_date="2026-07-20", raw_text="공통 문구",
     )
     watch = {"signals": [{"id": "africa_cdc", "text": "공통 문구"}]}
-    with patch("algorithms.nlp_extract.extract_signal") as mock_extract:
-        mock_extract.return_value = _record("africa_cdc", "공통 문구")
+    with patch("algorithms.nlp_extract.extract_signal_detailed") as mock_extract:
+        mock_extract.return_value = (_record("africa_cdc", "공통 문구"), None)
         result = extract_from_global_watch(watch, api_key="fake")
     mock_extract.assert_called_once()
     assert len(result) == 1

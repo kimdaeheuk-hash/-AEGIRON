@@ -133,6 +133,10 @@ def _light_layers() -> dict:
         out["reference_snapshots"] = {
             "stale": snap["stale_snapshots"],
             "ages_days": {r["name"]: r["age_days"] for r in snap["snapshots"]},
+            # ★ 왜 묵었는지를 같이 들고 간다 ★ 파일이 아예 없는 것과 오래된 것은
+            # 다른 상태고 손댈 곳도 다르다. 이걸 버렸더니 수집기가 나이를 대신
+            # 찍었고, 파일이 없을 때 age가 None이라 "(None일 전)"으로 나갔다.
+            "reasons": {r["name"]: r["reason"] for r in snap["snapshots"] if r["reason"]},
         }
     except Exception as exc:                              # noqa: BLE001
         out["reference_snapshots"] = {"error": type(exc).__name__}

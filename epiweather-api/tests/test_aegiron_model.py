@@ -30,7 +30,10 @@ def test_provider_status_falls_back_when_no_local(monkeypatch):
 def test_extract_uses_llm_fallback_and_tags_provider(monkeypatch):
     _reset(monkeypatch)
     monkeypatch.setenv("ANTHROPIC_API_KEY", "k")
-    with patch("algorithms.nlp_extract.extract_signal", return_value={"disease": "에볼라"}) as m:
+    # 폴백 경로는 extract_signal_detailed 를 부른다(사유까지 받아야 하므로).
+    # 얇은 래퍼(extract_signal)를 패치하면 진짜 함수가 그대로 불려 나간다.
+    with patch("algorithms.nlp_extract.extract_signal_detailed",
+               return_value=({"disease": "에볼라"}, None)) as m:
         r = am.extract_signal("DRC 에볼라 발생", source="who")
     m.assert_called_once()
     assert r["disease"] == "에볼라"
@@ -127,9 +130,13 @@ def test_nim_failure_falls_back_to_llm(monkeypatch):
     monkeypatch.setenv("NVIDIA_API_KEY", "nim-key")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "k")
     with patch("requests.post", side_effect=RuntimeError("nim down")), \
-         patch("algorithms.nlp_extract.extract_signal", return_value={"disease": "에볼라"}):
-        r = am.extract_signal("DRC 에볼라", source="who")
+         patch("algorithms.nlp_extract.extract_signal_detailed",
+               return_value=({"disease": "에볼라"}, None)):
+        r, attempts = am.extract_signal_detailed("DRC 에볼라", source="who")
     assert r["ai_provider"] == "external_llm_fallback"
+    # ★ 폴백이 살렸어도 NIM이 죽은 사실은 남는다 ★ 이게 없으면 "폴백이 매번
+    # 구해주는 중"과 "NIM이 잘 돌고 있음"이 로그에서 똑같아 보인다.
+    assert attempts == ["nvidia_nim_hosted: RuntimeError"]
 
 
 def test_provider_status_reports_nim(monkeypatch):
