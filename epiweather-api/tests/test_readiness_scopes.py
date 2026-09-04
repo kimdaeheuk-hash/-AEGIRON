@@ -31,11 +31,12 @@ PIPE = {"stages": {"에볼라": "stockpiled", "인플루엔자(조류·계절)":
 
 
 # ── 합치지 않는다 ────────────────────────────────────────────────
-def test_three_scopes_and_no_combined_score():
-    """★핵심★ 하나의 준비도 점수로 합치면 '임상 중이니까 대비됨'이 되어버린다."""
+def test_four_scopes_and_no_combined_score():
+    """★핵심★ 하나의 준비도 점수로 합치면 '임상 중이니까 대비됨'이 되어버린다.
+    범위가 늘어도(A-2 에서 승인 제품이 넷째로 붙었다) 합치지 않는 원칙은 그대로다."""
     r = rsc.readiness_by_scope(CMS, THREATS, PIPE)
     assert set(r["scopes"]) == {"national_stockpile", "international_stockpile",
-                                "clinical_pipeline"}
+                                "approved_products", "clinical_pipeline"}
     assert r["combined_score"] is None
     assert "합치면" in r["why_no_combined_score"]
 

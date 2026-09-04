@@ -299,9 +299,20 @@ def _readiness_scopes(pipeline_part: dict | None) -> dict:
         import db as _db
         from .biodefense_readiness import DEFAULT_THREATS
         from .readiness_scopes import readiness_by_scope
+
+        # 승인 제품은 기준 스냅샷(주간 갱신)에서 읽는다 — 매 주기 openFDA 를
+        # 때리지 않는다. 파일이 없으면 approved_scope 가 available=False 로
+        # 정직하게 답한다(0%로 내지 않는다).
+        approved = None
+        try:
+            from .reference_snapshots import _load
+            approved = _load("approved_products")
+        except Exception:                                 # noqa: BLE001
+            approved = None
+
         return readiness_by_scope(
             _db.list_countermeasures(), DEFAULT_THREATS,
-            (pipeline_part or {}).get("value"))
+            (pipeline_part or {}).get("value"), approved)
     except Exception as exc:                              # noqa: BLE001
         return {"error": type(exc).__name__}
 

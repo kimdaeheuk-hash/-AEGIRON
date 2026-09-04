@@ -190,18 +190,46 @@ def test_refresh_due_skips_fresh_and_refreshes_stale(snapdir):
     old = (dt.date.today() - dt.timedelta(days=400)).isoformat()
     _write(snapdir, "ihr_capacity",
            {"snapshot_date": old, "scores": {f"C{i}": {} for i in range(194)}})
+    # 승인 제품(A-2)도 등록부에 있다. 파일이 없으면 stale 이라 갱신 대상이 된다.
+    _write(snapdir, "approved_products",
+           {"snapshot_date": dt.date.today().isoformat(),
+            "by_threat": {"Anthrax": {}, "Ebola": {}, "Plague": {}}})
 
     with patch("algorithms.reference_fetch.fetch_vaccine_supply") as pq, \
+            patch("algorithms.reference_fetch.fetch_approved_products") as fda, \
             patch("algorithms.reference_fetch.fetch_ihr_capacity",
                   return_value={"snapshot_date": dt.date.today().isoformat(),
                                 "scores": {f"C{i}": {} for i in range(194)}}) as gho:
         out = rs.refresh_due()
 
     pq.assert_not_called()                       # 신선해서 안 부름
+    fda.assert_not_called()                      # 이것도 신선하다
     gho.assert_called_once()                     # 묵어서 부름
-    assert [s["name"] for s in out["skipped_fresh"]] == ["vaccine_supply"]
-    assert out["refreshed"][0]["name"] == "ihr_capacity"
+    assert sorted(s["name"] for s in out["skipped_fresh"]) == [
+        "approved_products", "vaccine_supply"]
+    assert [r["name"] for r in out["refreshed"]] == ["ihr_capacity"]
     assert out["refreshed"][0]["refreshed"] is True
+
+
+def test_missing_approved_snapshot_is_stale_and_gets_fetched(snapdir):
+    """★A-2★ 승인 제품 파일은 아직 존재하지 않는다. 없으면 stale 로 잡혀
+    주간작업이 처음 받아온다 — 사람이 스크립트를 돌려주길 기다리지 않는다."""
+    _write(snapdir, "vaccine_supply", _vaccine_payload(count=284))
+    _write(snapdir, "ihr_capacity",
+           {"snapshot_date": dt.date.today().isoformat(),
+            "scores": {f"C{i}": {} for i in range(194)}})
+
+    fresh = {"snapshot_date": dt.date.today().isoformat(),
+             "by_threat": {"Anthrax": {"product_count": 7},
+                           "Ebola": {"product_count": 3},
+                           "Plague": {"product_count": 5}}}
+    with patch("algorithms.reference_fetch.fetch_approved_products",
+               return_value=fresh) as fda:
+        out = rs.refresh_due()
+
+    fda.assert_called_once()
+    assert [r["name"] for r in out["refreshed"]] == ["approved_products"]
+    assert rs.snapshot_status("approved_products")["record_count"] == 3
 
 
 def test_atomic_write_leaves_no_debris_on_failure(snapdir):

@@ -48,6 +48,10 @@ def _ihr_count(payload: dict) -> int:
     return len(payload.get("scores") or {})
 
 
+def _approved_count(payload: dict) -> int:
+    return len(payload.get("by_threat") or {})
+
+
 # 스냅샷 등록부. max_age_days는 '원본이 얼마나 자주 바뀌는가'에 맞춘다.
 SNAPSHOTS: dict[str, dict] = {
     "vaccine_supply": {
@@ -68,6 +72,18 @@ SNAPSHOTS: dict[str, dict] = {
         "min_records": 150,
         "count": _ihr_count,
         "fetch": "fetch_ihr_capacity",
+    },
+    "approved_products": {
+        "label": "규제 승인 제품(openFDA)",
+        "filename": "approved_products.json",
+        # 신규 허가는 드물지만, 하나 나면 대비 우선순위가 바뀐다(개발 → 조달).
+        "max_age_days": 60,
+        # ★ 하한이 낮다 ★ 위협 8종 중 검색 가능한 것이 7종뿐이고(Novel 은 정의상
+        # 불가), 일부 조회가 실패해도 나머지는 쓸모가 있다. 대신 급감 관문이
+        # 파서 붕괴를 잡는다.
+        "min_records": 3,
+        "count": _approved_count,
+        "fetch": "fetch_approved_products",
     },
 }
 
