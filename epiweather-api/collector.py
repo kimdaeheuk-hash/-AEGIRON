@@ -916,6 +916,22 @@ def collect_free_sources() -> dict:
         # ★ 판정은 valhalla_watch.stale_parts 가 한다 ★ 여기서 직접 짜다가
         # `part.get("reason", "")` 로 터졌다(2026-09-03) — 키가 있는데 값이 None
         # 이면 .get 의 기본값이 안 먹는다.
+        # ★ 파이프라인 결과를 찍는다 ★ 24시간마다 17개 병원체를 조회해놓고
+        # 로그에 아무 값도 안 실려서, 돌고는 있는데 뭐가 나오는지 모르는
+        # 층이었다(2026-09-04 점검). 굳은 값이면 나이도 같이 밝힌다.
+        from algorithms.valhalla_watch import pipeline_summary
+        pipe = v.get("pipeline") or {}
+        summary = pipeline_summary(pipe.get("value"))
+        if summary:
+            age = ("갱신" if pipe.get("refreshed")
+                   else "%s시간 전 값" % pipe.get("age_hours"))
+            log("  발할라 파이프라인(%s): %s" % (age, summary))
+            failed = (pipe.get("value") or {}).get("failed_pathogens") or []
+            if failed:
+                # 일부만 실패하면 예전엔 조용히 '판정불가'로 섞였다.
+                log("    ⚠ 임상 조회 실패 %d종: %s — '등록 연구 없음'과 다른 상태다"
+                    % (len(failed), "·".join(failed)))
+
         from algorithms.valhalla_watch import stale_parts
         _KO = {"procurement": "조달", "pipeline": "파이프라인"}
         for key, part in stale_parts(v):

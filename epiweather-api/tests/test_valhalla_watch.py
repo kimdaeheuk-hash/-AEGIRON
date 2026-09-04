@@ -258,3 +258,93 @@ def test_stale_parts_survives_a_dead_layer(isolated):
     """조각이 통째로 없거나 None 이어도 판정이 터지지 않는다."""
     assert vw.stale_parts({}) == []
     assert vw.stale_parts({"procurement": None, "pipeline": "이상한 값"}) == []
+
+
+# ── 파이프라인 결과 가시화 (2026-09-04) ─────────────────────────────
+# 점검에서 나온 것: 24시간마다 17개 병원체를 조회해놓고 **로그에도 요약에도
+# 아무 값이 안 실렸다.** 돌고는 있는데 뭐가 나오는지 아무도 모르는 층이었다.
+# 게다가 일부 조회가 실패하면 조용히 '판정불가'로 섞였다.
+
+def _fake_pipeline(monkeypatch, per_pathogen: dict):
+    """병원체 이름 → fetch_pipeline 반환값을 흉내낸다."""
+    from algorithms import countermeasure_pipeline as cp
+    from algorithms import countermeasure_stockpile as cs
+
+    queries = {name: name for name in per_pathogen}
+    monkeypatch.setattr(cp, "PATHOGEN_QUERIES", queries)
+    monkeypatch.setattr(cp, "fetch_pipeline", lambda q, **kw: per_pathogen[q])
+    monkeypatch.setattr(cs, "stockpile_status",
+                        lambda name: {"has_global_stockpile": name == "콜레라"})
+
+
+def test_pipeline_keeps_more_than_stage_keys(monkeypatch):
+    """단계 키만 남기면 로그에 찍을 게 없다. 한글 단계·연구 수도 들고 온다."""
+    _fake_pipeline(monkeypatch, {
+        "콜레라": {"available": True, "study_count": 40, "furthest_phase": 5},
+        "니파": {"available": True, "study_count": 0, "furthest_phase": None},
+    })
+    out = vw._fetch_pipeline()
+    assert out["stage_ko"]["콜레라"] == "국제 비상 비축 있음"
+    assert out["study_counts"]["니파"] == 0
+    assert out["stage_counts"]["stockpiled"] == 1
+    assert out["pathogen_count"] == 2
+
+
+def test_lookup_failure_is_not_the_same_as_no_registered_trial(monkeypatch):
+    """★핵심★ '조회 실패'는 우리가 못 본 것이고 '등록 연구 없음'은 보고 없다고
+    확인한 것이다. 합치면 조회 실패가 발견으로 둔갑한다."""
+    _fake_pipeline(monkeypatch, {
+        "니파": {"available": True, "study_count": 0, "furthest_phase": None},
+        "치쿤구니야": {"available": False, "reason": "조회 실패: Timeout"},
+    })
+    out = vw._fetch_pipeline()
+    assert out["no_registered_trial"] == ["니파"]
+    assert out["failed_pathogens"] == ["치쿤구니야"]
+    assert out["lookup_failed"] == 1
+    assert out["stages"]["치쿤구니야"] == "unknown"      # 등록없음이 아니다
+
+
+def test_pipeline_raises_only_when_every_lookup_fails(monkeypatch):
+    _fake_pipeline(monkeypatch, {
+        "니파": {"available": False, "reason": "x"},
+        "치쿤구니야": {"available": False, "reason": "y"},
+    })
+    with pytest.raises(RuntimeError):
+        vw._fetch_pipeline()
+
+
+def test_partial_failure_still_produces_a_snapshot(monkeypatch):
+    """하나가 죽었다고 나머지 16종을 버리지 않는다."""
+    _fake_pipeline(monkeypatch, {
+        "콜레라": {"available": True, "study_count": 40},
+        "치쿤구니야": {"available": False, "reason": "y"},
+    })
+    out = vw._fetch_pipeline()
+    assert out["stage_counts"]["stockpiled"] == 1
+    assert out["lookup_failed"] == 1
+
+
+# ── 로그 한 줄 ───────────────────────────────────────────────────
+def test_summary_separates_bare_from_unknown():
+    line = vw.pipeline_summary({
+        "stage_counts": {"stockpiled": 5, "no_registered_trial": 2, "unknown": 1},
+        "no_registered_trial": ["니파", "한타바이러스"],
+    })
+    assert "등록없음 2종" in line and "판정불가 1종" in line
+    assert "니파·한타바이러스" in line
+
+
+def test_summary_returns_none_when_there_is_nothing(monkeypatch):
+    """값이 없으면 없는 걸 지어내지 않는다 — 빈 줄을 로그에 흘리지도 않는다."""
+    assert vw.pipeline_summary(None) is None
+    assert vw.pipeline_summary({}) is None
+    assert vw.pipeline_summary({"stage_counts": {}}) is None
+
+
+def test_summary_orders_from_stockpiled_to_bare():
+    """시장에서 먼 쪽이 뒤로 가야 눈에 띈다."""
+    line = vw.pipeline_summary({
+        "stage_counts": {"no_registered_trial": 1, "stockpiled": 1, "early_trial": 1},
+        "no_registered_trial": ["니파"],
+    })
+    assert line.index("비축") < line.index("초기임상") < line.index("등록없음")
