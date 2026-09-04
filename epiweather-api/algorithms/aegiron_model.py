@@ -132,12 +132,15 @@ def _nim_config() -> dict | None:
     }
 
 
-def nim_raw(text: str, conf: dict) -> str | None:
-    """NIM 원시 응답 문자열. 파싱 전 단계라 '모델이 스키마를 얼마나 지켰나'를
-    재는 비교 도구(extract_compare)가 여기를 쓴다. 실패 시 None."""
+def nim_raw_detailed(text: str, conf: dict) -> tuple[str | None, str | None]:
+    """(NIM 원시 응답, 실패 사유). 실패해도 '왜'를 들고 나온다.
+
+    예전엔 실패가 전부 None 하나로 접혀서, 폴백이 조용히 받아 갔고 로그에는
+    아무것도 안 남았다. 키가 죽은 것과 모델명이 틀린 것과 응답이 늦은 것을
+    구분하지 못하면 고칠 수가 없다."""
     import requests
 
-    from .nlp_extract import build_prompt
+    from .nlp_extract import brief_reason, build_prompt
 
     try:
         resp = requests.post(
@@ -160,20 +163,36 @@ def nim_raw(text: str, conf: dict) -> str | None:
         # nim_configured=true로 좋게 말한다 — 몇 주 갇혀 있던 그 상태다.
         _nvidia.record_layer_call("text", conf["base_url"], ok=False,
                                   error=f"{type(e).__name__}: {e}")
-        return None
+        return None, brief_reason(e)
     _nvidia.record_layer_call("text", conf["base_url"], ok=True)
-    return content
+    return content, None
+
+
+def nim_raw(text: str, conf: dict) -> str | None:
+    """NIM 원시 응답 문자열. 파싱 전 단계라 '모델이 스키마를 얼마나 지켰나'를
+    재는 비교 도구(extract_compare)가 여기를 쓴다. 실패 시 None."""
+    return nim_raw_detailed(text, conf)[0]
+
+
+def _nim_extract_detailed(text: str, source: str,
+                          conf: dict) -> tuple[dict | None, str | None]:
+    """NIM(OpenAI 호환 chat/completions)으로 추출. (레코드 | None, 실패 사유 | None).
+    프롬프트·파싱은 nlp_extract와 동일 헬퍼를 재사용해 스키마 일관성을 보장한다.
+
+    호출 실패와 파싱 실패를 가른다 — 8B가 스키마를 못 지키는 것(파싱실패)과
+    엔드포인트가 안 되는 것(HTTPError)은 손댈 곳이 다르다. 앞은 모델 상향,
+    뒤는 키·모델명·URL 문제다."""
+    from .nlp_extract import PARSE_FAILED, parse_extraction
+
+    content, reason = nim_raw_detailed(text, conf)
+    if content is None:
+        return None, reason
+    record = parse_extraction(content, text, source)
+    return record, None if record is not None else PARSE_FAILED
 
 
 def _nim_extract(text: str, source: str, conf: dict) -> dict | None:
-    """NIM(OpenAI 호환 chat/completions)으로 추출. 실패 시 None(→ 다음 경로).
-    프롬프트·파싱은 nlp_extract와 동일 헬퍼를 재사용해 스키마 일관성을 보장한다."""
-    from .nlp_extract import parse_extraction
-
-    content = nim_raw(text, conf)
-    if content is None:
-        return None
-    return parse_extraction(content, text, source)
+    return _nim_extract_detailed(text, source, conf)[0]
 
 
 def _blocked_sovereign(via: str) -> dict:
@@ -184,48 +203,68 @@ def _blocked_sovereign(via: str) -> dict:
     }
 
 
-def extract_signal(text: str, source: str = "aegiron_model",
-                   api_key: str | None = None, sensitive: bool = False) -> dict | None:
-    """추출 단일 진입점. NIM/로컬 우선 → 외부 LLM 폴백.
-    AEGIRON_REQUIRE_LOCAL=on이면 '주권 전용 모드' — 비주권 경로(호스팅 NIM·외부
-    LLM)는 데이터를 보내기 전에 모두 fail-closed 차단(민감 여부 무관). sensitive는
-    감사·표시용으로만 유지. 반환 dict의 ai_provider로 처리 경로를 항상 표시한다."""
+def extract_signal_detailed(
+    text: str, source: str = "aegiron_model", api_key: str | None = None,
+    sensitive: bool = False,
+) -> tuple[dict | None, list[str]]:
+    """(결과, 시도 자취). 결과는 extract_signal과 같고, 자취는 **실패한 경로마다
+    "provider: 사유"** 한 줄이다(성공한 경로는 안 담는다 — 결과가 이미 말한다).
+
+    ★ 왜 자취가 필요한가 ★ 실패 하나에 경로가 둘 이상 얽혀 있다. NIM이 죽어
+    폴백으로 넘어갔는데 폴백도 죽으면, 예전엔 그냥 None 하나였다. 그러면
+    "8B가 문제니 모델을 올려라" 같은 잘못된 처방이 나온다 — 실제로는 폴백 쪽
+    키가 죽은 것일 수도 있다. 어디까지 갔다가 무엇 때문에 멈췄는지를 남긴다."""
     require_local = _require_local()
+    attempts: list[str] = []
 
     # ① NIM 경로(자체 GPU/온프렘 = 완전 주권, NVIDIA 호스팅 = 준주권).
     conf = _nim_config()
     if conf is not None:
         # 주권 전용 모드인데 비주권(호스팅) NIM이면 '보내기 전에' 차단(국외유출 방지).
         if require_local and not conf["sovereign"]:
-            return _blocked_sovereign("NVIDIA 호스팅 NIM(외부 클라우드)")
-        result = _nim_extract(text, source, conf)
+            return _blocked_sovereign("NVIDIA 호스팅 NIM(외부 클라우드)"), attempts
+        result, reason = _nim_extract_detailed(text, source, conf)
         if result is not None:
             result["ai_provider"] = conf["provider"]
             result["data_sovereign"] = conf["sovereign"]
-            return result
+            return result, attempts
         # NIM 호출 실패 → 아래 경로로 폴백(단, 아래 게이팅 그대로 적용).
+        attempts.append(f"{conf['provider']}: {reason or '실패'}")
 
     # ② transformers 로컬 모델(완전 주권).
     local = _local_extract(text)
     if local is not None:
-        return {**local, "ai_provider": "aegiron_local", "data_sovereign": True}
+        return {**local, "ai_provider": "aegiron_local", "data_sovereign": True}, attempts
 
     # ③ 주권 경로가 하나도 안 됐음: 주권 전용 모드면 외부 폴백 차단(fail-closed).
     #    공개 뉴스라도 미국 API로 안 나가게 — "완전 주권"의 실질 보장.
     if require_local:
-        return _blocked_sovereign("외부 LLM 폴백")
+        return _blocked_sovereign("외부 LLM 폴백"), attempts
 
     key = api_key or os.environ.get("ANTHROPIC_API_KEY")
     if not key:
+        attempts.append("external_llm_fallback: 키없음")
         return {"ai_provider": "unavailable",
-                "reason": "NIM/로컬 모델 없음 + ANTHROPIC_API_KEY 없음"}
+                "reason": "NIM/로컬 모델 없음 + ANTHROPIC_API_KEY 없음"}, attempts
 
-    from .nlp_extract import extract_signal as llm_extract
-    result = llm_extract(text, source, key)
+    from .nlp_extract import extract_signal_detailed as llm_extract
+    result, reason = llm_extract(text, source, key)
     if result is not None:
         result["ai_provider"] = "external_llm_fallback"
         result["data_sovereign"] = False
-    return result
+    else:
+        attempts.append(f"external_llm_fallback: {reason or '실패'}")
+    return result, attempts
+
+
+def extract_signal(text: str, source: str = "aegiron_model",
+                   api_key: str | None = None, sensitive: bool = False) -> dict | None:
+    """추출 단일 진입점. NIM/로컬 우선 → 외부 LLM 폴백.
+    AEGIRON_REQUIRE_LOCAL=on이면 '주권 전용 모드' — 비주권 경로(호스팅 NIM·외부
+    LLM)는 데이터를 보내기 전에 모두 fail-closed 차단(민감 여부 무관). sensitive는
+    감사·표시용으로만 유지. 반환 dict의 ai_provider로 처리 경로를 항상 표시한다.
+    실패 사유까지 필요하면 extract_signal_detailed를 쓸 것."""
+    return extract_signal_detailed(text, source, api_key, sensitive)[0]
 
 
 # ── 저장 경로용 진입점 ────────────────────────────────────────
@@ -261,20 +300,27 @@ def extract_record(text: str, source: str, api_key: str | None = None,
 
     추출에 성공하면 레코드에 ai_provider가 남아 어느 모델이 만든 라벨인지
     DB에서 되짚을 수 있다. 실패·차단이면 레코드는 None이고 사유만 돌려준다 —
-    '못 했다'를 '했다'로 바꾸지 않는다."""
-    result = extract_signal(text, source=source, api_key=api_key, sensitive=sensitive)
+    '못 했다'를 '했다'로 바꾸지 않는다.
+
+    attempts에는 실패한 경로가 "provider: 사유"로 담긴다. 성공했더라도 비어 있지
+    않을 수 있다(NIM이 죽고 폴백이 살린 경우) — 그건 숨길 게 아니라 봐야 할
+    사실이다. 폴백이 매번 구해주고 있으면 NIM은 사실상 꺼져 있는 것이다."""
+    result, attempts = extract_signal_detailed(
+        text, source=source, api_key=api_key, sensitive=sensitive)
     provider = (result or {}).get("ai_provider") or "none"
     if not is_extraction(result):
         return None, {
             "ai_provider": provider,
             "blocked": bool((result or {}).get("blocked")),
             "reason": (result or {}).get("reason"),
+            "attempts": attempts,
         }
     provenance = {
         "ai_provider": provider,
         "data_sovereign": result.get("data_sovereign"),
         "blocked": False,
         "reason": None,
+        "attempts": attempts,
     }
     record = {k: v for k, v in result.items() if k not in NON_RECORD_KEYS}
     return record, provenance

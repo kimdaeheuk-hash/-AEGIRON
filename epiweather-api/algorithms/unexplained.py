@@ -75,42 +75,62 @@ def is_unexplained_signal(record: dict) -> bool:
     return not record.get("known_disease", True)
 
 
-def run_unexplained_watch(
+def run_unexplained_watch_detailed(
     perplexity_key: str | None = None,
     tavily_key: str | None = None,
     anthropic_key: str | None = None,
-) -> dict | None:
-    """원인불명 클러스터 능동 검색 1건. 텍스트도 추출도 실패하면 None."""
+) -> tuple[dict | None, str | None]:
+    """(신호 | None, 안 나온 사유 | None).
+
+    ★ 왜 사유를 나눠 내는가 ★ 이 함수는 서로 다른 다섯 가지 이유로 None을
+    돌려주는데, 수집기는 그걸 한 줄로 뭉쳐 찍고 있었다:
+
+        "새 신호 없음(검색/추출 실패, 배경정보 노이즈, 또는 최근 21일 내 동일 사건
+         재탐지 중 하나)"
+
+    '검색이 죽었다'와 '오늘은 새 사건이 없다'는 정반대 상태다. 앞은 고쳐야 할
+    고장이고 뒤는 정상 동작이다. 그런데 둘이 같은 문장으로 나가니 몇 주째 고장이
+    나 있어도 알 수 없었다 — NLP 추출이 3일간 0건이었는데도 아무도 몰랐던 것과
+    같은 모양이다."""
     slug, label, query_base = UNEXPLAINED_QUERY
     query = f"{query_base} {dt.date.today().year}"
 
     text, source = None, None
+    search_errors: list[str] = []
     if perplexity_key:
         try:
             text = perplexity_search(query, perplexity_key)
             source = "perplexity"
-        except Exception:
-            pass
+        except Exception as exc:                          # noqa: BLE001
+            search_errors.append(f"perplexity: {type(exc).__name__}")
     if text is None and tavily_key:
         try:
             text = tavily_search(query, tavily_key)
             source = "tavily"
-        except Exception:
-            pass
+        except Exception as exc:                          # noqa: BLE001
+            search_errors.append(f"tavily: {type(exc).__name__}")
+    if text is None:
+        if search_errors:
+            return None, "검색 실패(" + " · ".join(search_errors) + ")"
+        if not (perplexity_key or tavily_key):
+            return None, "검색 키 없음(PERPLEXITY/TAVILY)"
+        return None, "검색 결과 없음"
     # 예전엔 anthropic_key가 없으면 여기서 끝냈다 — NIM만 켜둔 환경에서
     # 설명불가 감시가 통째로 죽는다. 추출 백엔드가 하나라도 있으면 진행한다.
-    if text is None or not extraction_available(anthropic_key):
-        return None
+    if not extraction_available(anthropic_key):
+        return None, "추출 백엔드 없음"
 
-    extracted, _provenance = extract_record(text, source=slug, api_key=anthropic_key)
+    extracted, provenance = extract_record(text, source=slug, api_key=anthropic_key)
     if extracted is None:
-        return None
+        trail = " · ".join(provenance.get("attempts") or []) or (
+            provenance.get("reason") or "사유 미상")
+        return None, f"추출 실패({trail})"
 
     # 노이즈 필터: 질병명도 증상도 전혀 못 뽑았으면 실제 클러스터 서술이 아니라
     # 여론조사·정책발표 같은 배경정보일 가능성이 높음(실측: 이런 항목이 섞여
     # unexplained_cluster로 잘못 저장된 사례 3건 발견) — 저장하지 않는다.
     if not extracted.get("disease") and not extracted.get("symptom"):
-        return None
+        return None, "배경정보(질병·증상 못 뽑음) — 저장 안 함"
 
     # 재탐지 필터: 같은 사건을 검색할 때마다 숫자가 조금씩 다르게 뽑히는 걸
     # 확인함(실측: 크루즈선 한타바이러스 건이 5회 걸쳐 환자수 7~147명으로 요동).
@@ -120,11 +140,21 @@ def run_unexplained_watch(
     except Exception:
         recent = []
     if _is_duplicate_event(extracted, recent):
-        return None
+        return None, f"최근 {DEDUP_WINDOW_DAYS}일 내 동일 사건 재탐지 — 정상"
 
     extracted["search_source"] = source
     extracted["is_unexplained"] = is_unexplained_signal(extracted)
-    return extracted
+    return extracted, None
+
+
+def run_unexplained_watch(
+    perplexity_key: str | None = None,
+    tavily_key: str | None = None,
+    anthropic_key: str | None = None,
+) -> dict | None:
+    """원인불명 클러스터 능동 검색 1건. 텍스트도 추출도 실패하면 None.
+    사유까지 필요하면 run_unexplained_watch_detailed를 쓸 것."""
+    return run_unexplained_watch_detailed(perplexity_key, tavily_key, anthropic_key)[0]
 
 
 def scan_unexplained(limit: int = 500) -> dict:
