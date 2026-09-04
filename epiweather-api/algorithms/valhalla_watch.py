@@ -176,15 +176,44 @@ def _fetch_procurement() -> dict:
     bids = watch_bids(days=PROCUREMENT_WINDOW_DAYS)
     if not bids.get("available"):
         raise RuntimeError(bids.get("reason") or "조달 조회 불가")
-    return {"bid_count": bids["bid_count"],
-            "excluded_count": bids["excluded_count"],
-            "categories": sorted({b["category"] for b in bids["bids"]}),
-            "notice_nos": [b["notice_no"] for b in bids["bids"]],
-            "deadline": summarize_bids(bids["bids"]),
-            "source": bids.get("source"),
-            # 국제 확장(C-2) 전까지는 국내 한 곳뿐이라는 사실을 값에 담는다 —
-            # "국가 조달 감시" 라는 이름이 범위를 넘어 읽히지 않게.
-            "coverage": ["KOR/나라장터"]}
+
+    value = {"bid_count": bids["bid_count"],
+             "excluded_count": bids["excluded_count"],
+             "categories": sorted({b["category"] for b in bids["bids"]}),
+             "notice_nos": [b["notice_no"] for b in bids["bids"]],
+             "deadline": summarize_bids(bids["bids"]),
+             "source": bids.get("source"),
+             # 범위를 값에 담는다 — "국가 조달 감시" 라는 이름이 실제 범위를
+             # 넘어 읽히지 않게. 소스가 붙으면 여기가 늘어난다.
+             "coverage": ["KOR/나라장터"]}
+
+    # ── EU(TED) 추가 (2026-09-04, C-2) ────────────────────────────
+    # ★ 소스별로 따로 담는다 ★ 합쳐서 한 숫자로 내면 '31건' 이 어느 나라 것인지
+    # 알 수 없고, 한쪽이 죽어도 총계가 줄기만 해서 안 보인다. 그리고 TED 는
+    # 아직 실측되지 않은 층이라, 국내 숫자와 섞이면 검증 안 된 값이 검증된
+    # 값처럼 읽힌다.
+    try:
+        from .procurement_ted import watch_ted
+        ted = watch_ted(days=PROCUREMENT_WINDOW_DAYS)
+        if ted.get("available"):
+            value["ted"] = {
+                "bid_count": ted["bid_count"],
+                "deadline": summarize_bids(ted["bids"]),
+                "dropped_unconfirmed": ted["dropped_unconfirmed"],
+                "lookup_failures": len(ted["lookup_failures"]),
+                "is_verified": ted["is_verified"],
+                "unverified_note": ted["unverified_note"],
+            }
+            value["coverage"].append("EU/TED(미검증)")
+        else:
+            # 실패를 '0건'으로 접지 않는다. 사유를 그대로 남긴다.
+            value["ted"] = {"available": False, "reason": ted.get("reason"),
+                            "is_verified": ted.get("is_verified", False)}
+    except Exception as exc:                              # noqa: BLE001
+        value["ted"] = {"available": False,
+                        "reason": f"{type(exc).__name__}: {exc}",
+                        "is_verified": False}
+    return value
 
 
 def _fetch_pipeline() -> dict:
