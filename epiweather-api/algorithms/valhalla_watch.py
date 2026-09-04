@@ -242,13 +242,29 @@ def pipeline_summary(value: dict | None) -> str | None:
     실패가 발견으로 둔갑한다."""
     if not value:
         return None
-    counts = value.get("stage_counts") or {}
+
+    # ★ 옛 모양 값도 읽는다 ★ 파이프라인은 24시간 주기라, 이 코드를 배포해도
+    # 볼륨에 남아 있는 값은 한동안 stage_counts 가 없는 옛 모양이다. 그걸 못
+    # 읽으면 **최대 하루, 갱신이 계속 실패하면 영영 로그가 조용하다** — 이 층을
+    # 보이게 하려고 만든 함수가 정확히 그 이유로 침묵하는 셈이다(2026-09-04 실측:
+    # 배포 후 두 주기 연속 아무 줄도 안 찍혔다). stages 만 있으면 거기서 센다.
+    stages = value.get("stages") or {}
+    counts = value.get("stage_counts")
+    if not counts and stages:
+        counts = {}
+        for key in stages.values():
+            counts[key] = counts.get(key, 0) + 1
+    counts = counts or {}
+
     parts = [f"{label} {counts[key]}종"
              for key, label in _STAGE_LOG_ORDER if counts.get(key)]
     if not parts:
         return None
     line = " · ".join(parts)
-    bare = value.get("no_registered_trial") or []
+
+    bare = value.get("no_registered_trial")
+    if bare is None and stages:
+        bare = sorted(n for n, s in stages.items() if s == "no_registered_trial")
     if bare:
         line += f" [등록없음: {'·'.join(bare)}]"
     return line

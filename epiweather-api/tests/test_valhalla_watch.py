@@ -348,3 +348,28 @@ def test_summary_orders_from_stockpiled_to_bare():
         "no_registered_trial": ["니파"],
     })
     assert line.index("비축") < line.index("초기임상") < line.index("등록없음")
+
+
+def test_summary_reads_the_legacy_shape(monkeypatch):
+    """★실측 회귀★ 파이프라인은 24시간 주기라, 새 코드를 배포해도 볼륨의 값은
+    한동안 stage_counts 가 없는 옛 모양이다. 그걸 못 읽으면 최대 하루 —
+    갱신이 계속 실패하면 영영 — 로그가 조용하다. 이 층을 보이게 하려고 만든
+    함수가 바로 그 이유로 침묵한 것이 운영에서 실제로 확인됐다(2026-09-04,
+    배포 후 두 주기 연속 무출력)."""
+    legacy = {"stages": {"에볼라": "stockpiled", "니파": "no_registered_trial",
+                         "MERS": "early_trial"},
+              "lookup_failed": 0}
+    line = vw.pipeline_summary(legacy)
+    assert line is not None
+    assert "비축 1종" in line and "초기임상 1종" in line and "등록없음 1종" in line
+    assert "[등록없음: 니파]" in line
+
+
+def test_new_shape_still_wins_over_derived_counts():
+    """새 모양이 있으면 그걸 쓴다 — 파생 계산이 덮어쓰지 않는다."""
+    line = vw.pipeline_summary({
+        "stages": {"에볼라": "stockpiled"},
+        "stage_counts": {"stockpiled": 7},
+        "no_registered_trial": [],
+    })
+    assert "비축 7종" in line
