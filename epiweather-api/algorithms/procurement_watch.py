@@ -254,3 +254,111 @@ def watch_bids(days: int = 7, today: dt.datetime | None = None) -> dict:
             "순위를 매기지 않는다. 어느 공고가 중요한지는 사람이 정한다.",
         ],
     }
+
+
+# ── 마감 인식 (2026-09-04, C안) ────────────────────────────────────────────
+# ★ 점검에서 나온 것 ★ closes_at 은 정렬에만 쓰이고 그 뒤 아무도 안 읽었다.
+# 그래서 **이미 마감된 공고가 "조달 31건" 에 그대로 섞여 있었다.** 7일 창으로
+# 조회하니 그 사이 닫힌 것도 같이 들어온다.
+#
+# 이 층의 존재 이유가 "공고는 보통 2~3주 뒤에 닫힌다. 늦게 알면 그걸로 끝이다"
+# 인데, 정작 마감을 안 보고 있었다. 열린 것과 닫힌 것을 같은 숫자로 세면
+# 그 숫자는 기회의 크기를 말하지 못한다.
+CLOSING_SOON_DAYS = 3          # 이 안에 닫히면 '임박' — 사람이 지금 봐야 한다
+
+
+def _parse_close(value: str | None) -> dt.datetime | None:
+    """나라장터 마감일시("YYYY-MM-DD HH:MM:SS") 파싱. 못 읽으면 None."""
+    text = (value or "").strip()
+    if not text:
+        return None
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y%m%d%H%M"):
+        try:
+            return dt.datetime.strptime(text, fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def deadline_status(bid: dict, now: dt.datetime | None = None) -> str:
+    """open | closing_soon | closed | unknown.
+
+    ★ 못 읽은 마감일을 '열림'으로 치지 않는다 ★ 모르는 것을 기회로 세면
+    숫자가 부풀고, 그 숫자를 보고 준비하다 이미 닫힌 걸 알게 된다."""
+    closes = _parse_close(bid.get("closes_at"))
+    if closes is None:
+        return "unknown"
+    now = now or dt.datetime.now()
+    if closes <= now:
+        return "closed"
+    if (closes - now).total_seconds() <= CLOSING_SOON_DAYS * 86400:
+        return "closing_soon"
+    return "open"
+
+
+def summarize_bids(bids: list[dict], now: dt.datetime | None = None,
+                   keep: int = 5) -> dict:
+    """공고 목록 → 마감 기준 요약. **제목을 버리지 않는다.**
+
+    예전엔 발할라가 건수와 공고번호만 보관해서, "정부가 지금 무엇을 사려는지"
+    라는 이 층의 목적이 로그·스냅샷 어디에도 안 남았다(파이프라인 층과 같은
+    '결과를 버린다' 문제)."""
+    now = now or dt.datetime.now()
+    buckets: dict[str, list[dict]] = {
+        "open": [], "closing_soon": [], "closed": [], "unknown": []}
+    for bid in bids:
+        buckets[deadline_status(bid, now)].append(bid)
+
+    def _trim(rows: list[dict]) -> list[dict]:
+        # 마감이 가까운 순. 상태 파일이 커지지 않게 몇 건만 들고 간다.
+        rows = sorted(rows, key=lambda b: (b.get("closes_at") or "~", b.get("title") or ""))
+        return [{"title": b.get("title"), "agency": b.get("agency"),
+                 "closes_at": b.get("closes_at"), "category": b.get("category"),
+                 "assigned_budget_krw": b.get("assigned_budget_krw"),
+                 "notice_no": b.get("notice_no")} for b in rows[:keep]]
+
+    return {
+        "counts": {k: len(v) for k, v in buckets.items()},
+        # ★ 지금 행동할 수 있는 것만 따로 ★ 마감된 건 기회가 아니다.
+        "actionable_count": len(buckets["open"]) + len(buckets["closing_soon"]),
+        "closing_soon": _trim(buckets["closing_soon"]),
+        "open_sample": _trim(buckets["open"]),
+        "closing_soon_days": CLOSING_SOON_DAYS,
+        "note": ("closed 는 이미 닫힌 공고다 — 조회 창(7일) 안에 마감된 것들이라 "
+                 "목록에는 남지만 기회로 세지 않는다. unknown 은 마감일을 못 읽은 "
+                 "것이며, 열림으로 치지 않는다."),
+    }
+
+
+def procurement_summary(value: dict | None) -> str | None:
+    """조달 값 → 로그 한 줄. 값이 없으면 None(빈 줄을 흘리지 않는다).
+
+    ★ 마감 임박 공고의 제목을 찍는다 ★ 건수만으로는 사람이 아무것도 못 한다.
+    이 층의 목적이 "정부가 지금 무엇을 사려는지 본다" 인데, 공고번호만 남기던
+    탓에 로그에 그 답이 한 줄도 없었다."""
+    if not value:
+        return None
+    deadline = value.get("deadline") or {}
+    counts = deadline.get("counts") or {}
+    if not counts:
+        # 옛 모양(마감 요약이 없는 값)이면 건수만이라도 정직하게 낸다 —
+        # 파이프라인 층에서 옛 모양을 못 읽어 이틀 침묵한 전례가 있다.
+        total = value.get("bid_count")
+        return f"{total}건(마감 정보 없음 — 갱신 대기)" if total is not None else None
+
+    parts = [f"열림 {counts.get('open', 0)}건",
+             f"임박 {counts.get('closing_soon', 0)}건",
+             f"마감 {counts.get('closed', 0)}건"]
+    if counts.get("unknown"):
+        parts.append(f"마감일미상 {counts['unknown']}건")
+    line = " · ".join(parts)
+
+    coverage = value.get("coverage") or []
+    if coverage:
+        line += f" (범위 {'·'.join(coverage)})"
+
+    soon = deadline.get("closing_soon") or []
+    if soon:
+        titles = "·".join((b.get("title") or "?")[:24] for b in soon[:2])
+        line += f" [임박: {titles}]"
+    return line

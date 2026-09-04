@@ -246,3 +246,104 @@ def test_keywords_are_not_too_generic():
     for banned in ("검사", "조사", "관리", "구매", "용역", "시스템"):
         assert banned not in words, f"'{banned}' 는 너무 흔하다"
     assert all(len(w) >= 2 for w in words), "한 글자 낱말은 아무 데나 걸린다"
+
+
+# ══════════════════════════════════════════════════════════════════════
+# 마감 인식 · 결과 보존 (2026-09-04, C안)
+# ══════════════════════════════════════════════════════════════════════
+# 점검에서 나온 것 둘:
+#   ① closes_at 은 정렬에만 쓰이고 아무도 안 읽었다 → 이미 마감된 공고가
+#      "조달 31건" 에 그대로 섞여 있었다.
+#   ② 발할라가 건수·공고번호만 보관했다 → "정부가 지금 무엇을 사려는지 본다"
+#      는 이 층의 목적이 로그·스냅샷 어디에도 안 남았다.
+import datetime as _dt
+
+from algorithms.procurement_watch import (           # noqa: E402
+    deadline_status, procurement_summary, summarize_bids,
+)
+
+_NOW = _dt.datetime(2026, 9, 4, 10, 0, 0)
+
+
+def _bid(title, closes_at, **over):
+    row = {"title": title, "agency": "질병관리청", "closes_at": closes_at,
+           "category": "감염병 감시·대응", "assigned_budget_krw": None,
+           "notice_no": title[:4]}
+    row.update(over)
+    return row
+
+
+def test_deadline_status_four_ways():
+    assert deadline_status(_bid("a", "2026-09-20 10:00:00"), _NOW) == "open"
+    assert deadline_status(_bid("b", "2026-09-06 10:00:00"), _NOW) == "closing_soon"
+    assert deadline_status(_bid("c", "2026-09-01 10:00:00"), _NOW) == "closed"
+    assert deadline_status(_bid("d", None), _NOW) == "unknown"
+
+
+def test_unreadable_deadline_is_not_counted_as_open():
+    """★핵심★ 모르는 것을 기회로 세면 숫자가 부풀고, 그 숫자를 보고 준비하다
+    이미 닫힌 걸 알게 된다."""
+    assert deadline_status(_bid("x", "언젠가"), _NOW) == "unknown"
+
+
+def test_closed_bids_are_not_actionable():
+    """★회귀★ 7일 창으로 조회하니 그 사이 닫힌 공고도 들어온다. 열린 것과
+    같은 숫자로 세면 '31건'이 기회의 크기를 말하지 못한다."""
+    bids = [_bid("열림", "2026-09-20 10:00:00"),
+            _bid("임박", "2026-09-06 10:00:00"),
+            _bid("마감", "2026-09-01 10:00:00"),
+            _bid("미상", None)]
+    s = summarize_bids(bids, _NOW)
+    assert s["counts"] == {"open": 1, "closing_soon": 1, "closed": 1, "unknown": 1}
+    assert s["actionable_count"] == 2          # 마감·미상은 기회가 아니다
+
+
+def test_summary_keeps_titles_not_just_notice_numbers():
+    """공고번호만 남기면 사람이 아무것도 판단할 수 없다."""
+    s = summarize_bids([_bid("감염병 대응 방역용역", "2026-09-06 10:00:00")], _NOW)
+    assert s["closing_soon"][0]["title"] == "감염병 대응 방역용역"
+    assert s["closing_soon"][0]["agency"] == "질병관리청"
+
+
+def test_summary_is_bounded_so_the_state_file_stays_small():
+    bids = [_bid(f"공고{i}", "2026-09-06 10:00:00") for i in range(30)]
+    s = summarize_bids(bids, _NOW, keep=5)
+    assert len(s["closing_soon"]) == 5
+    assert s["counts"]["closing_soon"] == 30      # 센 것은 전부다
+
+
+# ── 로그 한 줄 ────────────────────────────────────────────────────
+def test_log_line_separates_open_from_closed_and_names_urgent_bids():
+    line = procurement_summary({
+        "bid_count": 31, "coverage": ["KOR/나라장터"],
+        "deadline": {"counts": {"open": 12, "closing_soon": 3, "closed": 15,
+                                "unknown": 1},
+                     "closing_soon": [{"title": "국가예방접종 백신 구매"}]}})
+    assert "열림 12건" in line and "마감 15건" in line
+    assert "국가예방접종" in line
+    assert "KOR/나라장터" in line          # 범위가 국내뿐임을 값에 담는다
+
+
+def test_log_line_handles_the_legacy_shape(monkeypatch):
+    """★파이프라인 전례★ 조달은 6시간 주기라, 배포해도 볼륨의 값은 한동안
+    마감 요약이 없는 옛 모양이다. 그걸 못 읽으면 또 조용해진다."""
+    line = procurement_summary({"bid_count": 31})
+    assert line is not None and "31건" in line and "갱신 대기" in line
+
+
+def test_log_line_none_when_no_value():
+    assert procurement_summary(None) is None
+    assert procurement_summary({}) is None
+
+
+def test_valhalla_keeps_deadline_and_coverage(monkeypatch):
+    """배선 회귀 — 계산해놓고 스냅샷에 안 실으면 아무도 못 본다."""
+    from algorithms import valhalla_watch as vw
+    monkeypatch.setattr(
+        "algorithms.procurement_watch.watch_bids",
+        lambda days=7: {"available": True, "bid_count": 1, "excluded_count": 0,
+                        "source": "나라장터",
+                        "bids": [_bid("백신 구매", "2026-12-01 10:00:00")]})
+    value = vw._fetch_procurement()
+    assert "deadline" in value and value["coverage"] == ["KOR/나라장터"]
+    assert value["deadline"]["counts"]["open"] == 1

@@ -164,14 +164,27 @@ def _light_layers() -> dict:
 
 
 def _fetch_procurement() -> dict:
-    from .procurement_watch import watch_bids
+    """조달 공고 현황. **제목과 마감일을 버리지 않는다.**
+
+    예전엔 건수·공고번호·분류만 들고 왔다. 그래서 "정부가 지금 무엇을 사려는지
+    본다" 는 이 층의 목적이 로그·스냅샷 어디에도 안 남았고, 공고번호만 봐서는
+    사람이 아무것도 판단할 수 없었다(파이프라인 층과 같은 '결과를 버린다' 문제).
+
+    마감도 같이 본다 — 이미 닫힌 공고를 열린 것과 같은 숫자로 세면 그 숫자는
+    기회의 크기를 말하지 못한다."""
+    from .procurement_watch import summarize_bids, watch_bids
     bids = watch_bids(days=PROCUREMENT_WINDOW_DAYS)
     if not bids.get("available"):
         raise RuntimeError(bids.get("reason") or "조달 조회 불가")
     return {"bid_count": bids["bid_count"],
             "excluded_count": bids["excluded_count"],
             "categories": sorted({b["category"] for b in bids["bids"]}),
-            "notice_nos": [b["notice_no"] for b in bids["bids"]]}
+            "notice_nos": [b["notice_no"] for b in bids["bids"]],
+            "deadline": summarize_bids(bids["bids"]),
+            "source": bids.get("source"),
+            # 국제 확장(C-2) 전까지는 국내 한 곳뿐이라는 사실을 값에 담는다 —
+            # "국가 조달 감시" 라는 이름이 범위를 넘어 읽히지 않게.
+            "coverage": ["KOR/나라장터"]}
 
 
 def _fetch_pipeline() -> dict:
