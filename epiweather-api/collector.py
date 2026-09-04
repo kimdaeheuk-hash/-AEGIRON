@@ -912,6 +912,15 @@ def collect_free_sources() -> dict:
                (v.get("vaccine_chokepoints") or {}).get("single_source_count", "?"),
                ready.get("countermeasure_count", "?"),
                " · 판정불가 %s" % ready["unrated"] if ready.get("unrated") else ""))
+
+        # ★ 조달을 마감 기준으로 다시 찍는다 (2026-09-04) ★ 위 '31건'에는 이미
+        # 닫힌 공고가 섞여 있다(7일 창 안에 마감된 것들). 닫힌 걸 열린 것과 같이
+        # 세면 그 숫자는 기회의 크기를 말하지 못한다. 그리고 공고번호만 남기던
+        # 탓에 "정부가 무엇을 사려는지"가 로그에 한 줄도 안 나왔다.
+        from algorithms.procurement_watch import procurement_summary
+        proc_line = procurement_summary(proc.get("value"))
+        if proc_line:
+            log("  발할라 조달: %s" % proc_line)
         # 무거운 조각이 오래 굳어 있으면 조용히 지나가지 않는다.
         # ★ 판정은 valhalla_watch.stale_parts 가 한다 ★ 여기서 직접 짜다가
         # `part.get("reason", "")` 로 터졌다(2026-09-03) — 키가 있는데 값이 None
