@@ -229,3 +229,88 @@ def test_log_line_says_so_when_the_reason_itself_is_missing():
         "bid_count": 29, "deadline": {"counts": {"open": 23}},
         "ted": {"available": False, "is_verified": False}})
     assert "사유 미상" in line
+
+
+# ── 400 을 보고 고친 것 (2026-09-05) ─────────────────────────────
+# 첫 실호출: `EU/TED 실패(모든 낱말 조회 실패(20건) — HTTPError 400×20)`.
+# 404 도 401 도 아니었으니 경로는 맞고 인증도 필요 없었다 — 요청 본문이 틀렸다.
+# 상태코드를 살려둔 덕에 여기까지 좁혀졌다(#28 이 없었으면 "HTTPErro" 였다).
+def _sent_body(keyword="vaccine"):
+    """실제로 보내는 본문을 잡아낸다."""
+    seen = {}
+
+    class _R:
+        def raise_for_status(self): pass
+        def json(self): return {"notices": []}
+
+    def _capture(url, **kw):
+        seen["url"] = url
+        seen["json"] = kw.get("json")
+        return _R()
+
+    with patch("requests.post", side_effect=_capture):
+        ted._search(keyword, "20260901", "20260905")
+    return seen
+
+
+def test_query_uses_PD_not_the_field_identifier():
+    """★400 의 주범★ 날짜는 질의 안에서 `PD` 로 쓴다. `publication-date` 는
+    fields 쪽 식별자이지 질의 연산자가 아니다."""
+    body = _sent_body()["json"]
+    assert "PD>=20260901" in body["query"]
+    assert "PD<=20260905" in body["query"]
+    assert "publication-date>=" not in body["query"]
+
+
+def test_query_still_full_text_searches_the_keyword():
+    body = _sent_body("antiviral")["json"]
+    assert 'FT~"antiviral"' in body["query"]
+
+
+def test_fields_are_only_the_confirmed_identifiers():
+    """★한 번에 한 변수만★ 확인 안 된 식별자를 하나라도 넣으면 또 400 이고,
+    조달은 6시간 주기라 다음 시도가 6시간 뒤다."""
+    body = _sent_body()["json"]
+    assert body["fields"] == ted.TED_FIELDS
+    for risky in ("deadline-receipt-request", "estimated-value", "links", "description"):
+        assert risky not in body["fields"]
+
+
+def test_scope_includes_closed_notices():
+    """마감 판정은 우리가 한다 — ACTIVE 로 걸러 받으면 그 판정을 못 한다.
+    국내 층에서 '닫힌 공고 3건'이 헤드라인에 섞여 있던 걸 드러낸 것과 같은 이유."""
+    assert _sent_body()["json"]["scope"] == "ALL"
+
+
+def test_flatten_reads_the_new_field_names():
+    row = ted._flatten({
+        "publication-number": "2026/S 1",
+        "notice-title": {"eng": ["Vaccine procurement"]},
+        "buyer-name": ["HERA"],
+        "deadline": "2026-09-20",
+        "total-value": 1000000,
+    })
+    assert row["title"] == "Vaccine procurement"
+    assert row["deadline"] == "2026-09-20"
+    assert row["estimated_value"] == 1000000
+
+
+def test_unrequested_fields_come_back_empty_not_invented():
+    """★안 받는 것을 받은 척하지 않는다★ description·발행일·링크는 지금 요청에
+    없다. 서버가 보내줘도 우리가 안 물었으므로 None 이다."""
+    row = ted._flatten({
+        "notice-title": {"eng": ["X"]},
+        "description": {"eng": ["섞여 들어온 설명"]},
+        "publication-date": "2026-09-01",
+        "links": {"html": "https://ted.europa.eu/x"},
+    })
+    assert row["description"] is None
+    assert row["publication_date"] is None
+    assert row["links"] is None
+
+
+def test_title_only_confirmation_still_drops_unmatched():
+    """설명을 못 받으므로 확인이 제목에서만 된다 — 더 엄격해진 것이지
+    느슨해진 게 아니다."""
+    assert ted._confirm({"title": "Vaccine tender", "description": None}, "vaccine") == "title"
+    assert ted._confirm({"title": "Office chairs", "description": None}, "vaccine") is None
