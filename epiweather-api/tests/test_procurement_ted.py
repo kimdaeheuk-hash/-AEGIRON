@@ -172,3 +172,60 @@ def test_log_line_shows_ted_failure_rather_than_hiding_it():
         "deadline": {"counts": {"open": 12}},
         "ted": {"available": False, "reason": "모든 낱말 조회 실패", "is_verified": False}})
     assert "EU/TED 실패" in line
+
+
+# ── 첫 실호출이 실패했는데 왜인지 말하지 못했다 (2026-09-05) ──────
+# 운영 로그 실측. TED 층이 처음으로 실제 호출된 사이클:
+#
+#     발할라 조달: 열림 23건 … | EU/TED 실패(모든 낱말 조회 실패(20건) — 예: epidemic: HTTPErro)
+#
+# 미검증 표시는 제 몫을 했다 — 실패가 0건으로 둔갑하지 않았고, 국내 숫자도 안 죽었다.
+# 그런데 **고칠 수가 없었다.** 두 군데서 사유를 깎아먹었기 때문이다:
+#   (1) _search 가 예외 이름만 돌려주고 상태코드를 버렸다
+#   (2) 요약 줄이 [:40] 으로 잘라 "HTTPErro" 로 만들었다
+# 401(키)·404(경로)·400(쿼리 형식)은 처방이 전부 다르다. 진단하라고 만든 값을
+# 진단 못 하게 깎으면 없느니만 못하다.
+class _Resp:
+    def __init__(self, status): self.status_code = status
+
+
+class _HTTPish(Exception):
+    def __init__(self, status):
+        super().__init__(f"{status} Client Error for url https://api.ted.europa.eu/v3/notices/search")
+        self.response = _Resp(status)
+
+
+def test_lookup_failure_keeps_the_status_code():
+    """★핵심★ 이름만으로는 못 고친다. 숫자가 처방을 가른다."""
+    with patch("requests.post", side_effect=_HTTPish(404)):
+        result = ted._search("vaccine", "20260901", "20260905")
+    assert result == "_HTTPish 404"
+
+
+def test_total_failure_tallies_reasons_instead_of_showing_only_the_first():
+    """전부 같은 이유인지 제각각인지가 원인 추정을 완전히 바꾼다.
+    예전엔 첫 건만 '예:' 로 보여줘서 알 수 없었다."""
+    with patch.object(ted, "_search", return_value="HTTPError 404"):
+        out = ted.watch_ted(days=7)
+    assert out["available"] is False
+    assert "HTTPError 404×20" in out["reason"]
+    assert "예:" not in out["reason"]
+    assert out["lookup_failures"]          # 낱말별 원본도 같이 남긴다
+
+
+def test_log_line_does_not_truncate_the_diagnosis():
+    """★실측 결함★ [:40] 이 상태코드를 먹어서 'HTTPErro' 로 나갔다."""
+    line = procurement_summary({
+        "bid_count": 29,
+        "deadline": {"counts": {"open": 23}},
+        "ted": {"available": False, "is_verified": False,
+                "reason": "모든 낱말 조회 실패(20건) — HTTPError 404×20"}})
+    assert "HTTPError 404×20" in line
+    assert "HTTPErro)" not in line
+
+
+def test_log_line_says_so_when_the_reason_itself_is_missing():
+    line = procurement_summary({
+        "bid_count": 29, "deadline": {"counts": {"open": 23}},
+        "ted": {"available": False, "is_verified": False}})
+    assert "사유 미상" in line

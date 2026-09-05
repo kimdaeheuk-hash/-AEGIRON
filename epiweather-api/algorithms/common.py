@@ -184,3 +184,31 @@ def safe_float(raw, default=None):
         return float(text)
     except ValueError:
         return default
+
+
+# ── 예외를 로그에 실을 짧은 사유로 (2026-09-05) ────────────────────
+# 여기 둔 이유: 이걸 nlp_extract 에만 뒀더니, 몇 시간 뒤 조달(TED) 층이 첫 실호출에
+# 전부 실패했는데 로그가 "HTTPErro" 라고만 말했다 — 잘린 데다 상태코드가 없어서
+# 401(키)·404(경로)·400(쿼리 형식) 중 무엇인지 알 수 없었고, 고칠 수가 없었다.
+# 실패 사유를 만드는 자리는 한 곳이어야 한다.
+def brief_reason(exc: BaseException) -> str:
+    """예외 → 짧은 사유. 종류와 상태코드까지만 담는다.
+
+    본문을 안 넣는 이유: 응답 본문에 요청 URL·헤더 조각이 섞여 나올 수 있고,
+    진단에 실제로 필요한 건 '어떤 종류가 몇 번'이다(401=키, 404=경로·모델명,
+    400=요청 형식, 402/429=한도, Timeout=네트워크). 전문이 필요하면 능력 장부의
+    last_error 처럼 서버 안에 남기고, 요약 줄에는 이 값만 싣는다."""
+    status = getattr(exc, "status_code", None) or getattr(
+        getattr(exc, "response", None), "status_code", None)
+    return f"{type(exc).__name__} {status}" if status else type(exc).__name__
+
+
+def tally(reasons) -> str:
+    """사유 목록 → "HTTPError 404×20 · Timeout×2". 삽입 순서를 지킨다(시도 순서).
+
+    실패를 셀 때 '몇 번' 다음에 '왜' 를 붙이는 자리가 여러 층에 생겨서 한 곳에
+    모은다. 첫 사례가 추출층('추출실패 5' 만 찍히던 것)이었고, 두 번째가 TED 였다."""
+    counts: dict[str, int] = {}
+    for r in reasons:
+        counts[r] = counts.get(r, 0) + 1
+    return " · ".join(f"{k}×{v}" for k, v in counts.items())

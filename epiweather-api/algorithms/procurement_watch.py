@@ -368,7 +368,10 @@ def procurement_summary(value: dict | None) -> str | None:
     ted = value.get("ted")
     if ted:
         if ted.get("available") is False:
-            line += f" | EU/TED 실패({(ted.get('reason') or '?')[:40]})"
+            # ★ 사유를 잘라내지 않는다 (2026-09-05) ★ [:40] 이 상태코드를 먹어서
+            # 운영 로그에 "epidemic: HTTPErro" 로 나갔다. 진단에 쓰라고 만든 값을
+            # 진단 못 하게 자르면 없느니만 못하다. 사유는 이미 집계된 짧은 형태다.
+            line += f" | EU/TED 실패({ted.get('reason') or '사유 미상'})"
         else:
             ted_counts = (ted.get("deadline") or {}).get("counts") or {}
             mark = "" if ted.get("is_verified") else " ※미검증"
