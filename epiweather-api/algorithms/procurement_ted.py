@@ -39,6 +39,8 @@ import datetime as dt
 
 import requests
 
+from .common import brief_reason, tally
+
 # TED Search API v3. 키가 필요 없는 공개 검색 엔드포인트다(문서 기준).
 TED_SEARCH_URL = "https://api.ted.europa.eu/v3/notices/search"
 TIMEOUT = 45
@@ -124,7 +126,10 @@ def _search(keyword: str, begin: str, end: str) -> list[dict] | str:
         resp.raise_for_status()
         body = resp.json() or {}
     except Exception as exc:                        # noqa: BLE001
-        return f"{type(exc).__name__}"
+        # ★ 상태코드를 버리지 않는다 (2026-09-05) ★ 첫 실호출에서 20개 낱말이
+        # 전부 죽었는데 로그가 "HTTPError" 라고만 말해서, 401(키)·404(경로)·
+        # 400(쿼리 형식) 중 무엇인지 알 수 없었다. 사유가 처방을 가른다.
+        return brief_reason(exc)
 
     notices = body.get("notices")
     if notices is None:
@@ -194,9 +199,12 @@ def watch_ted(days: int = 7, today: dt.datetime | None = None) -> dict:
     # 실패가 '공고 없음'이라는 발견으로 둔갑한다(A-2 에서 고친 것과 같은 구분).
     total_words = sum(len(w) for w in TED_KEYWORDS.values())
     if len(failures) == total_words:
+        # 첫 건만 예시로 보여주면 "전부 같은 이유인가, 제각각인가" 를 알 수 없다.
+        # 사유별로 세서 낸다 — 추출층에서 배운 것과 같은 모양이다.
         return {"available": False,
                 "reason": f"모든 낱말 조회 실패({len(failures)}건) — "
-                          f"예: {failures[0] if failures else '?'}",
+                          f"{tally(f.split(': ', 1)[-1] for f in failures)}",
+                "lookup_failures": failures,
                 "is_verified": IS_VERIFIED, "unverified_note": UNVERIFIED_NOTE}
 
     bids = sorted(found.values(), key=lambda b: (b["closes_at"] or "~", b["title"] or ""))

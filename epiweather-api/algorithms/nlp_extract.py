@@ -12,6 +12,10 @@ import json
 import re
 import datetime as dt
 
+# 사유 문자열을 만드는 자리는 한 곳이다(common.py). 여기에만 뒀더니 조달(TED)
+# 층이 같은 실수를 되풀이했다 — 이름만 찍고 상태코드를 버렸다.
+# 이름을 그대로 재노출해 기존 호출부(nx.brief_reason)를 깨지 않는다.
+from .common import brief_reason, tally      # noqa: F401  (재노출)
 from .trust import trust_for
 
 _ISO3_RE = re.compile(r"^[A-Z]{3}$")
@@ -133,18 +137,6 @@ PARSE_FAILED = "파싱실패"
 # 안 남겨서, "NIM이 죽고 폴백도 죽었다"와 "NIM만 죽었다"를 /api/status에서 구분할
 # 수 없었다. 폴백이 마지막 방어선이므로 그게 살아 있는지가 특히 중요하다.
 EXTERNAL_LLM_CAPABILITY = "external_llm_extract"
-
-
-def brief_reason(exc: BaseException) -> str:
-    """예외 → 로그에 실을 짧은 사유. 종류와 상태코드까지만 담는다.
-
-    본문을 안 넣는 이유: 응답 본문에 요청 URL·헤더 조각이 섞여 나올 수 있고,
-    진단에 실제로 필요한 건 '어떤 종류가 몇 번'이다(HTTPError 401=키 문제,
-    404=모델명 문제, 402/429=한도, Timeout=네트워크). 전문은 능력 장부의
-    last_error에 남아 /api/status로 볼 수 있다."""
-    status = getattr(exc, "status_code", None) or getattr(
-        getattr(exc, "response", None), "status_code", None)
-    return f"{type(exc).__name__} {status}" if status else type(exc).__name__
 
 
 def _record_external(ok: bool, detail: str | None = None) -> None:

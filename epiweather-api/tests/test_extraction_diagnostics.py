@@ -361,3 +361,23 @@ def test_stale_lines_survive_a_broken_layer():
     from algorithms.reference_snapshots import stale_lines
     assert stale_lines(None) == []
     assert stale_lines({"error": "TypeError"}) == []
+
+
+# ── 사유 문자열을 만드는 자리는 한 곳이다 (2026-09-05) ───────────
+# brief_reason 을 nlp_extract 에만 뒀더니, 몇 시간 뒤 조달(TED) 층이 똑같은
+# 실수를 되풀이했다 — 예외 이름만 찍고 상태코드를 버렸다. 공용 자리로 옮긴다.
+def test_brief_reason_lives_in_one_place():
+    from algorithms.common import brief_reason as canonical
+    assert nx.brief_reason is canonical
+
+
+def test_ted_layer_uses_the_same_reason_builder():
+    from algorithms import procurement_ted as ted
+    from algorithms.common import brief_reason as canonical
+    assert ted.brief_reason is canonical
+
+
+def test_tally_keeps_attempt_order_and_counts():
+    from algorithms.common import tally
+    assert tally(["HTTPError 404"] * 3 + ["Timeout"]) == "HTTPError 404×3 · Timeout×1"
+    assert tally([]) == ""
