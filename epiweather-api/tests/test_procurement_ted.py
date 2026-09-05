@@ -314,3 +314,41 @@ def test_title_only_confirmation_still_drops_unmatched():
     느슨해진 게 아니다."""
     assert ted._confirm({"title": "Vaccine tender", "description": None}, "vaccine") == "title"
     assert ted._confirm({"title": "Office chairs", "description": None}, "vaccine") is None
+
+
+# ── '0건'이 감추는 두 상태 (2026-09-05) ──────────────────────────
+# 첫 실호출(#29 배포 후)에서 실제로 이 결과가 나왔다:
+#   EU/TED 열림 0건 · 임박 0건 ※미검증
+# 이게 "이번 주 EU에 정말 없었다"인지 "공고는 왔는데 제목만으로 확인하다
+# 다 버렸다"인지 로그만 보고는 구분이 안 됐다.
+def test_zero_open_shows_how_many_were_dropped():
+    """★핵심★ 0건 뒤에 버려진 개수가 붙어야 '진짜 없음'과 '다 버림'을 가른다."""
+    line = procurement_summary({
+        "bid_count": 20, "deadline": {"counts": {"open": 20}},
+        "ted": {"available": True, "is_verified": False,
+                "deadline": {"counts": {"open": 0, "closing_soon": 0}},
+                "dropped_unconfirmed": 37, "lookup_failures": 0}})
+    assert "열림 0건" in line
+    assert "제목 불일치로 버림 37건" in line
+
+
+def test_genuinely_empty_week_says_nothing_extra():
+    """버린 것도 실패한 낱말도 없으면 군더더기를 안 붙인다."""
+    line = procurement_summary({
+        "bid_count": 20, "deadline": {"counts": {"open": 20}},
+        "ted": {"available": True, "is_verified": False,
+                "deadline": {"counts": {"open": 0, "closing_soon": 0}},
+                "dropped_unconfirmed": 0, "lookup_failures": 0}})
+    assert "제목 불일치" not in line
+    assert "부분 실패" not in line
+
+
+def test_partial_lookup_failures_visible_even_on_success():
+    """전부 실패가 아니라 일부만 실패해도(watch_ted가 available=True로 넘어온
+    경우) 그 사실이 요약 줄에서 사라지면 안 된다."""
+    line = procurement_summary({
+        "bid_count": 20, "deadline": {"counts": {"open": 20}},
+        "ted": {"available": True, "is_verified": False,
+                "deadline": {"counts": {"open": 3, "closing_soon": 1}},
+                "dropped_unconfirmed": 0, "lookup_failures": 4}})
+    assert "부분 실패 4개 낱말" in line

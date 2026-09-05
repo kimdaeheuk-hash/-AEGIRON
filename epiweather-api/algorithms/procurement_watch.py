@@ -377,4 +377,14 @@ def procurement_summary(value: dict | None) -> str | None:
             mark = "" if ted.get("is_verified") else " ※미검증"
             line += (f" | EU/TED 열림 {ted_counts.get('open', 0)}건 ·"
                      f" 임박 {ted_counts.get('closing_soon', 0)}건{mark}")
+            # ★ '0건'이 두 가지를 감춘다 (2026-09-05) ★ 첫 실호출에서 실제로
+            # 열림 0건이 나왔는데, 이게 "이번 주 EU에 정말 없었다"인지
+            # "공고는 왔는데 제목만으로 확인하다 다 버렸다"인지 로그만 보고는
+            # 구분이 안 됐다. 지금은 description을 안 받아서 제목에만 낱말이
+            # 없으면 버리는데(더 엄격한 확인), 그 버림 수를 안 보여주면
+            # '조회 실패'와 같은 자리에 또 하나의 안 보이는 상태가 생긴다.
+            if ted.get("dropped_unconfirmed"):
+                line += f" (제목 불일치로 버림 {ted['dropped_unconfirmed']}건)"
+            if ted.get("lookup_failures"):
+                line += f" (부분 실패 {ted['lookup_failures']}개 낱말)"
     return line
