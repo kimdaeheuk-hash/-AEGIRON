@@ -107,18 +107,35 @@ def _shape(notice: dict, keyword: str, category: str, matched_in: str) -> dict:
     }
 
 
+# ★ 400 을 보고 고친 것 (2026-09-05) ★ 첫 실호출에서 20개 낱말이 전부
+# HTTPError 400 이었다. 404(경로)도 401(키)도 아니었으니 엔드포인트는 맞고
+# 인증도 필요 없었다 — **요청 본문이 틀린 것**이었다. 공개 문서와 대조한 결과:
+#
+#   (1) 날짜는 질의 안에서 `PD` 로 쓴다. `publication-date` 는 fields 쪽
+#       식별자이지 질의 연산자가 아니다. 이게 400 의 주범으로 보인다.
+#   (2) fields 는 문서 예시가 확인해 준 식별자만 쓴다. 예전엔
+#       `deadline-receipt-request`·`estimated-value`·`links` 를 넣었는데
+#       어느 것도 문서에서 확인되지 않았다 — 하나만 틀려도 또 400 이고,
+#       그러면 6시간을 더 기다린다. **한 번에 한 변수만 바꾼다.**
+QUERY_DATE_FIELD = "PD"                 # 질의 안에서 쓰는 발행일 필드(YYYYMMDD)
+TED_FIELDS = ["publication-number", "notice-title", "buyer-name",
+              "buyer-country", "total-value", "deadline"]
+
+
 def _search(keyword: str, begin: str, end: str) -> list[dict] | str:
     """한 낱말 조회. 실패하면 **사유 문자열**을 돌려준다(빈 목록과 구분)."""
     try:
         resp = requests.post(
             TED_SEARCH_URL,
             json={
-                "query": f'FT~"{keyword}" AND publication-date>={begin} '
-                         f'AND publication-date<={end}',
-                "fields": ["publication-number", "notice-title", "buyer-name",
-                           "buyer-country", "publication-date", "deadline-receipt-request",
-                           "estimated-value", "links"],
+                "query": f'FT~"{keyword}" AND {QUERY_DATE_FIELD}>={begin} '
+                         f'AND {QUERY_DATE_FIELD}<={end}',
+                "fields": TED_FIELDS,
                 "limit": PAGE_SIZE,
+                # 마감된 공고도 본다 — 국내 층에서 '닫힌 공고 3건'이 헤드라인
+                # 숫자에 섞여 있던 걸 드러낸 것과 같은 이유로, 우리가 직접
+                # 마감을 판정한다(ACTIVE 로 걸러 받으면 그 판정을 못 한다).
+                "scope": "ALL",
             },
             timeout=TIMEOUT,
             headers={"User-Agent": "AEGIRON/1.0", "Content-Type": "application/json"},
@@ -158,14 +175,20 @@ def _flatten(notice: dict) -> dict:
     return {
         "publication_number": _text(notice.get("publication-number")),
         "title": _text(notice.get("notice-title")),
-        "description": _text(notice.get("description")),
+        # ★ 지금은 안 받는다 ★ description·publication-date·links 는 문서에서
+        # 식별자를 확인하지 못했다. 안 받으니 None 이고, 그러면:
+        #  - 낱말 확인이 제목에서만 이뤄진다(더 엄격 — 못 짚으면 버린다).
+        #  - 발행일이 비고, 링크가 없다.
+        # 못 받는 것을 받은 척하지 않는다. 첫 성공 뒤 식별자를 하나씩 확인해
+        # 되돌린다 — 한꺼번에 넣었다가 400 을 또 맞으면 6시간을 더 기다린다.
+        "description": None,
         "buyer_name": _text(notice.get("buyer-name")),
         "buyer_country": _text(notice.get("buyer-country")),
-        "publication_date": _text(notice.get("publication-date")),
-        "deadline": _text(notice.get("deadline-receipt-request")),
-        "estimated_value": notice.get("estimated-value"),
-        "currency": _text(notice.get("currency")),
-        "links": notice.get("links"),
+        "publication_date": None,
+        "deadline": _text(notice.get("deadline")),
+        "estimated_value": notice.get("total-value"),
+        "currency": None,
+        "links": None,
     }
 
 
