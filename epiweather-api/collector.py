@@ -1166,6 +1166,10 @@ def collect_free_sources() -> dict:
             span = f"{d['consecutive_violations']}주기째"
             if d.get("violated_hours") is not None:
                 span += f"/{d['violated_hours']:.0f}시간"
+            # 주기 수는 '연속 위반이 시작된 시점'부터다. 하루 1회 도는 층에서는
+            # 그게 경과가 아니라서, 그 층만 아는 진짜 숫자를 같이 찍는다.
+            if d.get("detail"):
+                span += f" ({d['detail']})"
             log(f"  ⚠️ 품질 저하: {d['label']} {span} — {d['why']}")
         for label in pending["recovered"]:
             log(f"  ✅ 품질 회복: {label}")
@@ -1215,6 +1219,24 @@ def get_latest_polymarket_signals() -> dict | None:
 # ══════════════════════════════════════════════
 # AI 갭필링 수집 (하루 2~4회 권장 — 비용 발생)
 # ══════════════════════════════════════════════
+def _record_extraction_quality(out: dict | None, available: bool = True) -> None:
+    """추출 결과를 품질 불변식에 남긴다 (2026-09-06).
+
+    ★ 왜 수집기에서 부르는가 ★ 품질 불변식은 무료 주기 끝에서 평가되는데, 추출은
+    AI 갭필링 슬롯에서 하루 한 번만 돈다. 그 결과가 무료 주기의 result dict 에는
+    안 들어오므로, 슬롯이 여기서 직접 남겨야 다음 무료 주기가 그걸 볼 수 있다.
+
+    기록 실패가 수집을 막으면 안 된다 — capability_ledger 와 같은 규칙이다.
+    다만 조용히 넘어가지도 않는다. 이 함수가 죽으면 불변식이 영영 판정불가에
+    머물러서, 감시하려고 만든 장치가 감시를 멈춘 채 조용해진다.
+    """
+    try:
+        from algorithms.quality_health import record_extraction_outcome
+        record_extraction_outcome(out, available=available)
+    except Exception as e:                                # noqa: BLE001
+        log_error("ExtractionQuality", e)
+
+
 def collect_ai_sources() -> dict:
     log("=== AI 갭필링 수집 시작 ===")
     from algorithms.global_watch import run_global_watch
@@ -1247,8 +1269,16 @@ def collect_ai_sources() -> dict:
             # 실패 중인 것이고, 그건 조용히 넘어가면 안 된다(키만 넣고 안 쓰이던
             # 상태가 그렇게 몇 주 갔다). 문자열 조립은 시험 가능한 곳에 둔다.
             log(f"  NLP 구조화 추출: {extraction_summary(out)}")
+            _record_extraction_quality(out)
         except Exception as e:
             log_error("NLP_Extract", e)
+            # 층 전체가 터진 것도 '시도했는데 실패' 다. 여기서 안 남기면 품질
+            # 불변식이 '슬롯이 안 돌았다'로 읽어 판정불가에 머문다 — 가장 크게
+            # 고장 난 경우가 제일 조용해진다.
+            _record_extraction_quality(
+                {"records": [], "failed": 1,
+                 "failure_reasons": {f"수집기 예외: {type(e).__name__}": 1}}
+            )
 
         try:
             from algorithms.unexplained import run_unexplained_watch_detailed
@@ -1272,6 +1302,10 @@ def collect_ai_sources() -> dict:
     else:
         log("  ⏭ 추출 백엔드 없음(NIM·로컬모델·ANTHROPIC_API_KEY 전부 미설정) "
             "— NLP 구조화 추출·설명불가 감시 건너뜀")
+        # 안 돌린 것과 돌렸는데 실패한 것은 다른 상태다. 품질 불변식이 이걸
+        # 위반으로 세면 키를 안 넣은 환경에서 영영 울리고, 정상으로 세면 층이
+        # 통째로 빠진 걸 정상으로 읽는다 — 판정불가로 남긴다.
+        _record_extraction_quality(None, available=False)
 
     if perplexity_key or tavily_key:
         try:
