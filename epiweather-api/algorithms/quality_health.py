@@ -13,8 +13,14 @@
 | 08-28 | Mobility 245시간(10.2일) 무응답 | `정상 20/21` |
 | 08-28 | 현지어 뉴스 LLM 재분류 29시간+ 꺼짐 | `정상 20/20 · 문제 없음` |
 | 08-30 | LLM 재분류 24주기 중 14주기 실패 | `정상 20/21` |
+| 09-05 | NLP 구조화 추출 나흘 내리 0건 | `정상 23/23` · **품질도 `5/5`** |
 
-마지막 두 개가 이 모듈의 존재 이유다. `local_news` 는 **정상적으로 값을 돌려준다** —
+마지막 줄은 이 모듈이 만들어진 뒤에 난 사고다. 다섯 불변식이 전부
+`local_news`·`disaster_watch` 만 보고 있어서 **추출층은 이 그물에도 없었다** —
+새 그물을 쳐도 그물이 안 닿는 자리는 남는다는 뜻이라, 불변식을 늘릴 때 "이 층은
+누가 보나"를 먼저 묻는다(2026-09-06 에 여섯 번째로 추가).
+
+08-28·08-30 두 개가 이 모듈의 존재 이유다. `local_news` 는 **정상적으로 값을 돌려준다** —
 다만 그 값이 LLM 재분류를 거친 게 아니라 오탐 많은 키워드 매칭 결과일 뿐이다.
 소스 헬스가 볼 수 있는 게 아니다. 구조적으로 못 본다.
 
@@ -57,12 +63,20 @@ class Invariant:
     """매 주기 참이어야 하는 명제 하나."""
 
     def __init__(self, key: str, label: str, why: str,
-                 check: Callable[[dict], bool | None], alarm_after: int = 3):
+                 check: Callable[[dict], bool | None], alarm_after: int = 3,
+                 detail: Callable[[], str | None] | None = None):
         self.key = key
         self.label = label
         self.why = why
         self.check = check
         self.alarm_after = alarm_after
+        # ★ 왜 이게 필요한가 ★ 경보 줄의 'N주기째/M시간'은 **연속 위반이 시작된
+        # 시점**부터 잰다. 매 주기 도는 층에서는 그게 곧 경과지만, 하루 1회 도는
+        # 층에서는 아니다 — 나흘째 죽은 추출층이 문턱을 넘은 직후엔 '3주기째/0시간'
+        # 으로 찍힌다. 32배를 축소해서 말하는 셈이라, 이 리포가 반복해서 데인
+        # 모양(값 하나가 사고를 작아 보이게 하는 것)이 경보 자리에서 되풀이된다.
+        # detail 은 그 불변식만 아는 진짜 숫자를 경보에 실어 보내는 통로다.
+        self.detail = detail
 
 
 # ── 개별 검사 ────────────────────────────────────────────────────────
@@ -133,6 +147,160 @@ def _check_local_feed_coverage(result: dict) -> bool | None:
     return active / total >= 0.90
 
 
+# ── 추출층 — 하루 한 번 도는 층을 매 주기 그물로 재는 법 ──────────────
+#
+# ★ 2026-09-06 점검에서 드러난 빈칸 ★
+# NLP 구조화 추출이 09-02~09-05 **나흘 내리 0건 저장**이었는데, 그동안 소스
+# 건강은 `정상 23/23`, 품질 불변식은 `정상 5/5` 였다. **두 그물을 다 통과했다** —
+# 위 다섯 불변식이 전부 `local_news`·`disaster_watch` 만 보고 있어서 추출층은
+# 애초에 아무도 안 보는 자리였다. 09-05 21:01 운영 로그가 이유까지 말해줬다:
+#
+#     NLP 구조화 추출: 0건 저장 · 추출실패 5 · 경로별:
+#       nvidia_nim_hosted: HTTPError 410×5 · external_llm_fallback: BadRequestError 400×5
+#
+# 추출이 멎으면 `설명불가 신호 감시` 도 같이 멎는다 — 같은 게이트를 쓴다.
+# 이 모듈을 만든 이유(8/28·8/30)와 정확히 같은 모양이 한 층 옆에서 반복됐다.
+#
+# ★ 왜 재는 방식이 다른가 ★
+# 나머지 다섯은 매 주기 도는 층이라 그 주기의 result dict 만 보면 판정이 끝난다.
+# 추출층은 **AI 갭필링 슬롯(UTC 21시)에서 하루 한 번**만 돌아 무료 주기의
+# result 에는 아예 안 들어온다. 그대로 끼우면 둘 중 하나가 된다:
+#
+#   - 매 주기 판정불가 → 24주기 중 23주기가 판정불가라 그 표시가 무의미해진다
+#   - 매 주기 위반    → 하루치 실패가 '24주기째'로 부풀려진다
+#
+# 그래서 슬롯이 결과를 남기고(record_extraction_outcome), 불변식은 그 값의
+# **신선도**를 본다. source_health 의 staleness 와 같은 사고방식이다.
+EXTRACTION_STATE_KEY = "_extraction_layer"
+
+# 마지막 성공이 이 시간을 넘으면 위반. 슬롯이 하루 1회라 48시간은 '이틀 연속
+# 빈손'을 뜻한다. 하루치 실패로는 울리지 않는다 — 단발은 흔하고, 이 시스템을
+# 다치게 한 건 언제나 지속이었다.
+EXTRACTION_STALE_HOURS = 48.0
+
+
+def record_extraction_outcome(out: dict | None, available: bool = True) -> dict:
+    """AI 갭필링 슬롯의 추출 결과를 남긴다. 수집기가 하루 한 번 부른다.
+
+    ★ 세 상태를 뭉개지 않는다 ★
+
+        저장 1건 이상        → 성공.  last_success_at 갱신
+        시도했는데 전부 실패  → 실패.  last_attempt_at 만 갱신
+        시도할 게 없었다      → 둘 다 안 건드린다(중복 건너뜀만 있던 날)
+
+    마지막 경우를 실패로 세면 '오늘은 새 기사가 없었다' 가 고장으로 둔갑하고,
+    성공으로 세면 죽은 층이 살아있는 걸로 둔갑한다. #30 의 'TED 열림 0건' 이
+    정확히 이 모양이었다 — 값 하나가 서로 다른 두 상태를 감췄다.
+
+    `available=False` 는 추출 백엔드가 아예 설정되지 않은 갈래다(수집기의
+    '⏭ 추출 백엔드 없음'). 실패가 아니라 **안 돌린 것**이라 판정불가로 남긴다 —
+    capability_ledger 가 not_configured 와 observed_failure 를 가르는 것과 같은
+    이유다. 숨는 건 아니다: 판정불가는 summary_line 에 숫자로 찍힌다.
+
+    ★ blocked(주권차단)는 시도로 세지 않는다 ★ 운영자가 고른 정책이지 고장이
+    아니다. 다만 상태에는 남겨서 '왜 아무것도 안 나왔나' 를 짚을 수 있게 한다.
+    """
+    data = _load_raw()
+    state = data.get(EXTRACTION_STATE_KEY)
+    if not isinstance(state, dict):
+        state = {}
+    now_iso = _now().isoformat()
+
+    state["last_checked_at"] = now_iso
+    state["backend_available"] = bool(available)
+
+    if not available:
+        state["last_outcome"] = "no_backend"
+        data[EXTRACTION_STATE_KEY] = state
+        _save_raw(data)
+        return state
+
+    out = out or {}
+    saved = len(out.get("records") or [])
+    failed = int(out.get("failed") or 0)
+    state["last_saved"] = saved
+    state["last_failed"] = failed
+    state["last_blocked"] = int(out.get("blocked") or 0)
+    # 실패 사유를 그대로 들고 간다 — 경보를 받은 사람이 로그를 뒤지지 않아도
+    # 어느 경로가 왜 죽었는지 /api/status 에서 바로 읽힌다. #27 이 애써 살려낸
+    # 계측을 여기서 다시 버리면 '몇 번'만 남고 '왜'가 또 사라진다.
+    state["last_failure_reasons"] = dict(out.get("failure_reasons") or {})
+
+    if saved + failed == 0:
+        state["last_outcome"] = "no_attempt"
+    elif saved > 0:
+        state["last_outcome"] = "ok"
+        state["last_success_at"] = now_iso
+        state["last_attempt_at"] = now_iso
+        state.setdefault("first_attempt_at", now_iso)
+    else:
+        state["last_outcome"] = "failed"
+        state["last_attempt_at"] = now_iso
+        state.setdefault("first_attempt_at", now_iso)
+
+    data[EXTRACTION_STATE_KEY] = state
+    _save_raw(data)
+    return state
+
+
+def _check_extraction_layer(result: dict) -> bool | None:
+    """추출층이 최근에 실제로 결과를 냈는가.
+
+    `result` 를 안 쓴다 — 이 층은 무료 주기에 돌지 않기 때문이다. 슬롯이 남긴
+    상태의 신선도를 본다(위 EXTRACTION_STATE_KEY 주석).
+
+    ★ 두 가지 고장을 같은 그물로 잡는다 ★
+      (a) 슬롯은 도는데 전부 실패한다      ← 2026-09-05 의 모양
+      (b) 슬롯 자체가 안 돈다              ← 2026-08-22 사고 ②의 모양
+    (b)를 판정불가로 빼면 '안 도는 층' 이 영영 안 울린다. Mobility 190시간과
+    GroqWatch 간헐이 정확히 그 함정이었다 — 값이 안 오는 게 경보를 막아줬다.
+    """
+    state = _load_raw().get(EXTRACTION_STATE_KEY)
+    if not isinstance(state, dict):
+        return None                       # 한 번도 안 돌았다(첫 배포·빈 볼륨)
+    if not state.get("backend_available", True):
+        return None                       # 설정이 없어 안 돌린 것 — 고장이 아니다
+
+    now = _now()
+    last_success = _parse_iso(state.get("last_success_at"))
+    if last_success is not None:
+        return (now - last_success).total_seconds() / 3600 < EXTRACTION_STALE_HOURS
+
+    # 여기부터는 '성공한 적이 한 번도 없다'.
+    first_attempt = _parse_iso(state.get("first_attempt_at"))
+    if first_attempt is None:
+        return None                       # 시도 자체가 아직 없었다
+    if (now - first_attempt).total_seconds() / 3600 < EXTRACTION_STALE_HOURS:
+        # ★ 여기서 True 를 돌려주면 안 된다 ★ 아직 판정할 만큼 지켜보지 않은
+        # 것이지 온전한 게 아니다. 배포 직후 한 번 실패했다고 울리는 거짓 경보와,
+        # 한 번도 성공 못 한 층을 정상으로 세는 것 사이에서 판정을 미룬다.
+        return None
+    return False
+
+
+def _extraction_detail_line() -> str | None:
+    """추출층 경보에 붙는 진짜 숫자 — '3주기째/0시간' 뒤에 오는 말.
+
+    (INVARIANTS 가 이 이름을 module 레벨에서 참조하므로 레지스트리보다 위에 둔다.)
+    """
+    detail = _extraction_detail(_load_raw())
+    if not detail:
+        return None
+    if detail["success_age_hours"] is not None:
+        head = f"마지막 성공 {detail['success_age_hours']:.0f}시간 전"
+    elif detail["attempt_age_hours"] is not None:
+        head = "성공 기록 없음"
+    else:
+        return None
+    reasons = detail.get("last_failure_reasons") or {}
+    if reasons:
+        # 사유가 여럿이면 앞의 둘만. 경로가 갈렸다는 사실이 중요하지 전부 나열할
+        # 필요는 없다 — 전체는 /api/status 에 있다.
+        top = ", ".join(f"{k}×{v}" for k, v in list(reasons.items())[:2])
+        return f"{head} · {top}"
+    return head
+
+
 def _check_llm_provider_present(result: dict) -> bool | None:
     """LLM 재분류를 실제로 답해준 제공자가 있었는가.
 
@@ -175,6 +343,14 @@ INVARIANTS: list[Invariant] = [
         "llm_provider", "LLM 제공자",
         "재분류에 답해준 제공자가 없다. Cerebras 402 이후 Groq 단일 의존 상태다.",
         _check_llm_provider_present, alarm_after=3,
+    ),
+    Invariant(
+        "extraction", "구조화 추출",
+        "AI 슬롯의 NLP 구조화 추출이 48시간 넘게 한 건도 저장하지 못했다 — "
+        "extracted_signals 가 비고 '설명불가 신호 감시'도 같은 게이트라 함께 멎는다. "
+        "연속 주기 수는 무료 주기 기준이라 실제 경과가 아니다. 마지막 성공 시각과 "
+        "실패 경로별 사유는 /api/status 의 quality_health.extraction 에 있다.",
+        _check_extraction_layer, alarm_after=3, detail=_extraction_detail_line,
     ),
 ]
 
@@ -249,6 +425,15 @@ def record_cycle(result: dict) -> dict:
     return data
 
 
+def _safe_detail(inv: Invariant) -> str | None:
+    if inv.detail is None:
+        return None
+    try:
+        return inv.detail()
+    except Exception:                                     # noqa: BLE001
+        return None
+
+
 def _degraded_keys(data: dict) -> list[str]:
     out = []
     for inv in INVARIANTS:
@@ -256,6 +441,40 @@ def _degraded_keys(data: dict) -> list[str]:
         if int(entry.get("consecutive_violations") or 0) >= inv.alarm_after:
             out.append(inv.key)
     return out
+
+
+def _extraction_detail(data: dict) -> dict | None:
+    """추출층 원자료 — 경보의 '며칠째'가 여기서 나온다.
+
+    ★ 왜 따로 싣는가 ★ 불변식의 `consecutive_violations` 는 **무료 주기** 수다.
+    하루 1회 도는 이 층에서는 그 숫자가 '몇 시간째 빈손인가' 를 말해주지 못한다 —
+    나흘째 죽은 층이 문턱을 넘은 직후엔 '3주기째/3시간' 으로 보인다. 그 숫자만
+    떼어 읽으면 사고가 작아 보이므로 진짜 시각을 나란히 둔다.
+    """
+    state = data.get(EXTRACTION_STATE_KEY)
+    if not isinstance(state, dict):
+        return None
+
+    now = _now()
+
+    def _age(key: str) -> float | None:
+        parsed = _parse_iso(state.get(key))
+        return round((now - parsed).total_seconds() / 3600, 1) if parsed else None
+
+    return {
+        "last_outcome": state.get("last_outcome"),
+        "backend_available": state.get("backend_available", True),
+        "last_saved": state.get("last_saved"),
+        "last_failed": state.get("last_failed"),
+        "last_blocked": state.get("last_blocked"),
+        # 어느 경로가 왜 죽었는지. 비어 있으면 실패가 없었다는 뜻이다.
+        "last_failure_reasons": state.get("last_failure_reasons") or {},
+        "last_success_at": state.get("last_success_at"),
+        "success_age_hours": _age("last_success_at"),
+        "last_attempt_at": state.get("last_attempt_at"),
+        "attempt_age_hours": _age("last_attempt_at"),
+        "stale_after_hours": EXTRACTION_STALE_HOURS,
+    }
 
 
 def quality_report() -> dict:
@@ -282,6 +501,9 @@ def quality_report() -> dict:
                 round((_now() - first).total_seconds() / 3600, 1) if first else None
             ),
             "why": inv.why,
+            # detail 이 터져도 보고 전체가 죽으면 안 된다 — 부가 정보 하나 때문에
+            # 상태 응답을 잃는 건 남는 장사가 아니다.
+            "detail": _safe_detail(inv),
         })
     degraded = [i for i in invariants if i["alarming"]]
     return {
@@ -292,6 +514,8 @@ def quality_report() -> dict:
         "total_invariants": len(invariants),
         # 판정 불가를 정상으로 세지 않는다 — '모른다'와 '괜찮다'는 다르다.
         "unknown_count": sum(1 for i in invariants if i["last_result"] == "unknown"),
+        # 추출층은 하루 1회라 주기 수로는 경과를 못 읽는다(_extraction_detail 참고).
+        "extraction": _extraction_detail(data),
     }
 
 
@@ -307,7 +531,11 @@ def summary_line() -> str:
             span = f"{item['consecutive_violations']}주기째"
             if hours is not None:
                 span += f"/{hours:.0f}시간"
-            parts.append(f"{item['label']} {span}")
+            piece = f"{item['label']} {span}"
+            # 그 층만 아는 진짜 숫자가 있으면 같이 싣는다(Invariant.detail 주석).
+            if item.get("detail"):
+                piece += f"({item['detail']})"
+            parts.append(piece)
         return "⚠️ 품질 저하: " + " · ".join(parts)
     unknown = report["unknown_count"]
     tail = f" · 판정불가 {unknown}" if unknown else ""
@@ -338,6 +566,7 @@ def pending_notifications() -> dict:
                     "key": inv.key,
                     "label": inv.label,
                     "why": inv.why,
+                    "detail": _safe_detail(inv),
                     "consecutive_violations": streak,
                     "violated_hours": (
                         round((now - first).total_seconds() / 3600, 1) if first else None
