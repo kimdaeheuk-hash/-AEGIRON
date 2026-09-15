@@ -15,12 +15,35 @@ import datetime as dt
 # 사유 문자열을 만드는 자리는 한 곳이다(common.py). 여기에만 뒀더니 조달(TED)
 # 층이 같은 실수를 되풀이했다 — 이름만 찍고 상태코드를 버렸다.
 # 이름을 그대로 재노출해 기존 호출부(nx.brief_reason)를 깨지 않는다.
-from .common import brief_reason, tally      # noqa: F401  (재노출)
+from .common import (brief_reason, provider_detail,      # noqa: F401  (재노출)
+                     reason_with_detail, tally)
 from .trust import trust_for
 
 _ISO3_RE = re.compile(r"^[A-Z]{3}$")
 
-MODEL = "claude-haiku-4-5-20251001"
+# ★ 2026-09-15: 날짜 접미사를 뗐다 ★
+# 09-02~09-15 **14일 내리** 이 경로가 BadRequestError 400 이었다(매 슬롯 5/5).
+# 400 은 계정·키 문제가 아니다 — 그건 401 이다. 그리고 계정이 멀쩡하다는 증거가
+# 같은 로그 안에 있었다: **일일 브리핑이 같은 ANTHROPIC_API_KEY 로 매일 3개 언어를
+# 생성한다**(실패하면 main._log_error 가 stdout 에 찍는데 나흘째 0건). 즉 키·크레딧은
+# 살아 있고, 400 은 이 요청에 특정된 문제다.
+#
+# 그럼 두 호출의 차이는 무엇인가:
+#
+#     daily_brief.py   claude-sonnet-4-5              → 매일 성공
+#     여기             claude-haiku-4-5-20251001      → 매번 400
+#
+# 성공하는 쪽엔 날짜 접미사가 없고 실패하는 쪽엔 있다. 현행 모델 ID 표기는 접미사
+# 없는 형태다(`claude-haiku-4-5`). 날짜가 박힌 스냅샷 ID 는 내려가면 그대로 400 이
+# 된다 — 요청 형식은 멀쩡한데 가리키는 대상이 없기 때문이고, 그게 이 증상의 모양과
+# 정확히 맞는다.
+#
+# ⚠️ **이건 아직 추론이다** — 이 샌드박스엔 API 키가 없어 400 을 직접 재현하지
+# 못했고, 전문이 적힌 /api/status 는 프록시 정책에 막혀 못 읽었다. 그래서 고치는
+# 김에 **사유가 로그까지 나오게** 했다(reason_with_detail). 다음 AI 슬롯 로그가
+# 둘 중 하나를 말해준다: 저장 건수가 올라가면 맞은 것이고, 여전히 400 이면 이번엔
+# 공급자가 이유를 직접 말해준다. 어느 쪽이든 **다음 점검 한 번으로 갈린다.**
+MODEL = "claude-haiku-4-5"
 
 VALID_SIGNAL_TYPES = {"급증", "감소", "신규발생", "진행중", "종료", "불명"}
 
@@ -166,7 +189,10 @@ def llm_raw(raw_text: str, api_key: str) -> tuple[str | None, str | None]:
         raw = "".join(b.text for b in response.content if b.type == "text")
     except Exception as exc:                              # noqa: BLE001
         _record_external(ok=False, detail=f"{type(exc).__name__}: {exc}")
-        return None, brief_reason(exc)
+        # 장부(전문)와 요약 줄(메시지 한 줄)에 **둘 다** 남긴다. 예전엔 전문만
+        # 장부로 갔는데, 장부는 /api/status 뒤에 있어 점검 루틴이 못 읽었다 —
+        # 그래서 400 하나를 14일 끌었다(common.reason_with_detail 주석 참고).
+        return None, reason_with_detail(exc)
     _record_external(ok=True)
     return raw, None
 

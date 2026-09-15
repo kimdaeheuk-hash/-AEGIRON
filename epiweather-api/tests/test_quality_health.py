@@ -366,3 +366,52 @@ def test_recovery_clears_the_extraction_alarm():
     qh.record_cycle(_result())
     assert _streak("extraction") == 0
     assert "구조화 추출" in qh.pending_notifications()["recovered"]
+
+
+# ── 저하 중에도 나머지 층의 상태를 말한다 (2026-09-15) ────────────
+#
+# ★ 이 층을 만든 이유가 저하 중에는 작동하지 않았다 ★
+#
+# 요약 줄은 두 갈래였고 배타적이었다: 위반이 하나라도 있으면 `정상 n/6` 줄이
+# **아예 안 찍혔다.** 그래서 09-13·09-15 아침 점검이 이렇게 끝났다:
+#
+#   "구조화 추출 하나가 위반인 건 알겠는데, 나머지 다섯 중 판정불가가 있는지는
+#    로그로는 알 수 없다."
+#
+# 이 층의 제1원칙이 "판정 불가를 정상으로 세지 않는다"인데, 정작 위반이 있을 때
+# — 즉 다른 층이 조용히 사라졌는지가 가장 중요할 때 — 그 숫자가 보이지 않았다.
+
+
+def test_degraded_line_still_reports_the_other_invariants():
+    """★핵심★ 위반 줄만 찍고 나머지를 안 말하면, 그 사이 다른 층이 사라져도
+    모른다. 저하 중이야말로 그게 중요하다."""
+    qh.record_extraction_outcome(_extraction(saved=0, failed=5))
+    _age_state(first_attempt_at=_hours_ago(96))
+    for _ in range(3):
+        qh.record_cycle(_result())
+
+    line = qh.summary_line()
+    assert line.startswith("⚠️ 품질 저하:")
+    report = qh.quality_report()
+    assert f"정상 {report['healthy_count']}/{report['total_invariants']}" in line
+
+
+def test_unknown_count_is_visible_while_degraded_too():
+    """'모른다'와 '괜찮다'의 구분은 저하 중에도 살아 있어야 한다."""
+    qh.record_extraction_outcome(_extraction(saved=0, failed=5))
+    _age_state(first_attempt_at=_hours_ago(96))
+    for _ in range(3):
+        qh.record_cycle({})            # 나머지 층은 이 주기에 안 돌았다
+
+    report = qh.quality_report()
+    assert report["unknown_count"] > 0, "전제: 판정불가가 있는 상황"
+    line = qh.summary_line()
+    assert line.startswith("⚠️ 품질 저하:")
+    assert f"판정불가 {report['unknown_count']}" in line
+
+
+def test_both_branches_use_the_same_arithmetic():
+    """두 갈래가 각자 세면 언젠가 어긋난다 — 한 곳에서 만든다."""
+    qh.record_cycle(_result())
+    report = qh.quality_report()
+    assert qh._healthy_tail(report) in qh.summary_line()

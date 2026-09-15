@@ -61,7 +61,7 @@ def test_partial_failure_still_returns_what_was_found():
     """하나가 죽었다고 나머지를 버리지 않는다."""
     calls = {"n": 0}
 
-    def flaky(keyword, begin, end):
+    def flaky(keyword, begin, end, fields=None):
         calls["n"] += 1
         if calls["n"] % 2:
             return "Timeout"
@@ -267,13 +267,23 @@ def test_query_still_full_text_searches_the_keyword():
     assert 'FT~"antiviral"' in body["query"]
 
 
-def test_fields_are_only_the_confirmed_identifiers():
+def test_fields_are_the_confirmed_identifiers_plus_nothing_else():
     """★한 번에 한 변수만★ 확인 안 된 식별자를 하나라도 넣으면 또 400 이고,
-    조달은 6시간 주기라 다음 시도가 6시간 뒤다."""
+    조달은 6시간 주기라 다음 시도가 6시간 뒤다.
+
+    09-15 에 설명 식별자 **하나만** 되돌렸다(_search 를 직접 부르면 기존 목록이
+    기본값이다 — 후보를 붙이는 건 watch_ted 다). 나머지 셋은 여전히 안 쓴다."""
     body = _sent_body()["json"]
     assert body["fields"] == ted.TED_FIELDS
-    for risky in ("deadline-receipt-request", "estimated-value", "links", "description"):
+    for risky in ("deadline-receipt-request", "estimated-value", "links",
+                  "publication-date"):
         assert risky not in body["fields"]
+
+
+def test_only_one_unconfirmed_identifier_is_in_play():
+    """되돌린 식별자가 늘어나면 이 테스트가 먼저 걸린다 — 400 한 번이 6시간이다."""
+    extra = set(ted._fields_with_description()) - set(ted.TED_FIELDS)
+    assert extra == {ted.TED_DESCRIPTION_FIELD}
 
 
 def test_scope_includes_closed_notices():
@@ -296,17 +306,53 @@ def test_flatten_reads_the_new_field_names():
 
 
 def test_unrequested_fields_come_back_empty_not_invented():
-    """★안 받는 것을 받은 척하지 않는다★ description·발행일·링크는 지금 요청에
-    없다. 서버가 보내줘도 우리가 안 물었으므로 None 이다."""
+    """★안 받는 것을 받은 척하지 않는다★ 발행일·링크는 아직 요청에 없다.
+    서버가 보내줘도 우리가 안 물었으므로 None 이다.
+
+    09-15: description 만 되돌렸다 — 다만 **우리가 요청한 식별자**로 온 것만
+    읽는다. 아래처럼 예전 이름(`description`)으로 와도 안 읽는다."""
     row = ted._flatten({
         "notice-title": {"eng": ["X"]},
-        "description": {"eng": ["섞여 들어온 설명"]},
+        "description": {"eng": ["우리가 안 물어본 이름으로 온 설명"]},
         "publication-date": "2026-09-01",
         "links": {"html": "https://ted.europa.eu/x"},
     })
     assert row["description"] is None
     assert row["publication_date"] is None
     assert row["links"] is None
+
+
+def test_description_is_read_when_the_server_sends_it():
+    """★09-13~15 실측: 매 갱신 74~77건이 제목 불일치로 버려졌다★
+    설명이 오면 읽는다 — 그게 버려지던 공고를 살리는 유일한 길이다."""
+    row = ted._flatten({
+        "notice-title": {"eng": ["Framework agreement"]},
+        ted.TED_DESCRIPTION_FIELD: {"eng": ["Supply of antiviral stockpile"]},
+    })
+    assert row["description"] == "Supply of antiviral stockpile"
+
+
+def test_description_match_rescues_a_notice_the_title_would_drop():
+    """제목엔 낱말이 없고 설명에만 있는 공고 — 09-05~15 내내 버려지던 모양이다."""
+    notice = {"publication_number": "2026/S 9",
+              "title": "Framework agreement",
+              "description": "Supply of antiviral stockpile",
+              "buyer_name": "HERA", "buyer_country": "BEL",
+              "deadline": None, "estimated_value": None,
+              "currency": None, "links": None, "publication_date": None}
+    assert ted._confirm(notice, "antiviral") == "description"
+
+    # 'antiviral' 낱말에만 걸리게 한다 — 모든 낱말에 같은 공고를 물리면
+    # 나머지 낱말에서 버려져 버림 수가 의미를 잃는다.
+    def only_antiviral(keyword, begin, end, fields=None):
+        return [notice] if keyword == "antiviral" else []
+
+    with patch.object(ted, "_search", side_effect=only_antiviral):
+        out = ted.watch_ted(days=7)
+    assert out["bid_count"] == 1                 # 제목만 봤으면 0 이었다
+    assert out["dropped_unconfirmed"] == 0
+    assert out["description_checked"] is True
+    assert out["bids"][0]["matched_in"] == "description"
 
 
 def test_title_only_confirmation_still_drops_unmatched():
@@ -352,3 +398,110 @@ def test_partial_lookup_failures_visible_even_on_success():
                 "deadline": {"counts": {"open": 3, "closing_soon": 1}},
                 "dropped_unconfirmed": 0, "lookup_failures": 4}})
     assert "부분 실패 4개 낱말" in line
+
+
+# ── 설명 식별자: 넣되, 거부당하면 스스로 물러선다 (2026-09-15) ──────
+#
+# ★ 왜 이 장치가 필요한가 ★ `description-lot` 은 문서로만 맞춘 것이고 실호출로
+# 확인되지 않았다(샌드박스가 api.ted.europa.eu 로 못 나간다). 그냥 넣었다가
+# 틀리면 20개 낱말이 전부 400 이 되고, 조달은 6시간 주기라 EU 감시가 통째로
+# 6시간 더 죽는다. 되돌리기 전(제목만 확인)보다 **나빠진다.**
+#
+# 그래서 400 이면 한 번만 물러서고 나머지는 기존 목록으로 돈다. 맞으면 76건이
+# 살아나고, 틀리면 요청 한 번 더 쓰고 오늘과 똑같이 동작한다.
+
+
+def _run_with(responses):
+    """_search 를 가로채 (fields 목록, 반환값) 자취를 남긴다."""
+    seen = []
+
+    def fake(keyword, begin, end, fields=None):
+        seen.append(list(fields or ted.TED_FIELDS))
+        return responses(keyword, len(seen))
+
+    with patch.object(ted, "_search", side_effect=fake):
+        out = ted.watch_ted(days=7)
+    return out, seen
+
+
+def test_first_attempt_asks_for_the_description():
+    """되돌린 식별자가 실제로 요청에 실리는지 — 안 실리면 76건은 그대로 버려진다."""
+    out, seen = _run_with(lambda word, n: [])
+    assert ted.TED_DESCRIPTION_FIELD in seen[0]
+    assert out["description_checked"] is True
+
+
+def test_a_400_retreats_once_and_keeps_the_layer_alive():
+    """★핵심★ 식별자가 틀려도 층이 죽지 않는다. 같은 낱말을 즉시 다시 물어보고,
+    그 뒤로는 기존 목록으로 돈다."""
+    def responses(word, n):
+        if n == 1:
+            return "HTTPError 400: unknown field description-lot"
+        return [_notice(f"Vaccine {word}", publication_number=f"P{n}")]
+
+    out, seen = _run_with(responses)
+    assert ted.TED_DESCRIPTION_FIELD in seen[0]          # 1회차: 붙여서 시도
+    assert ted.TED_DESCRIPTION_FIELD not in seen[1]      # 2회차: 같은 낱말 재시도
+    assert out["available"] is True
+    assert out["bid_count"] > 0                          # 층이 살아 있다
+    assert out["description_checked"] is False           # 물러섰음을 값에 담는다
+
+
+def test_the_retreat_happens_only_once_not_per_keyword():
+    """낱말마다 다시 시험하면 20개가 전부 두 번씩 나간다 — 판정은 한 번이면 족하다."""
+    def responses(word, n):
+        return "HTTPError 400: unknown field" if n == 1 else []
+
+    _out, seen = _run_with(responses)
+    asked = [f for f in seen if ted.TED_DESCRIPTION_FIELD in f]
+    assert len(asked) == 1
+
+
+def test_a_timeout_does_not_trigger_the_retreat():
+    """★사유가 처방을 가른다★ 400 은 '요청이 틀렸다'이고 타임아웃은 '네트워크'다.
+    네트워크 때문에 식별자를 버리면, 멀쩡한 식별자를 영영 못 쓰게 된다."""
+    _out, seen = _run_with(lambda word, n: "Timeout")
+    assert all(ted.TED_DESCRIPTION_FIELD in f for f in seen)
+
+
+def test_retreat_is_visible_in_the_log_line():
+    """물러선 사실이 로그에 안 나오면, 버림 수가 줄었을 때 설명을 읽어서인지
+    공고가 없어서인지 또 구분이 안 된다 — #30 이 고친 것과 같은 모양의 함정."""
+    base = {"bid_count": 20, "deadline": {"counts": {"open": 20}}}
+    retreated = procurement_summary({**base, "ted": {
+        "available": True, "is_verified": False,
+        "deadline": {"counts": {"open": 0, "closing_soon": 0}},
+        "dropped_unconfirmed": 76, "lookup_failures": 0,
+        "description_checked": False}})
+    assert "설명 식별자 거부됨" in retreated
+    assert "제목 불일치로 버림 76건" in retreated
+
+    checked = procurement_summary({**base, "ted": {
+        "available": True, "is_verified": False,
+        "deadline": {"counts": {"open": 0, "closing_soon": 0}},
+        "dropped_unconfirmed": 3, "lookup_failures": 0,
+        "description_checked": True}})
+    assert "제목·설명 불일치로 버림 3건" in checked
+    assert "거부됨" not in checked
+
+
+def test_description_checked_survives_the_valhalla_wiring(monkeypatch):
+    """★배선이 키를 손으로 고른다★ watch_ted 가 아무리 잘 담아도 valhalla_watch
+    가 안 옮기면 요약 줄까지 안 온다 — 09-15 에 실제로 그럴 뻔했고, 요약 함수를
+    직접 부르는 테스트만 있어서 안 잡혔다. 끝에서 끝까지 한 번은 지나가야 한다."""
+    from algorithms import valhalla_watch as vw
+
+    monkeypatch.setattr(
+        "algorithms.procurement_watch.watch_bids",
+        lambda days=7: {"available": True, "bid_count": 0, "excluded_count": 0,
+                        "source": "나라장터", "bids": []})
+    monkeypatch.setattr(
+        "algorithms.procurement_ted.watch_ted",
+        lambda days=7: {"available": True, "bid_count": 0, "bids": [],
+                        "dropped_unconfirmed": 76, "lookup_failures": [],
+                        "is_verified": False, "unverified_note": "n",
+                        "description_checked": False})
+
+    value = vw._fetch_procurement()
+    assert value["ted"]["description_checked"] is False
+    assert "설명 식별자 거부됨" in procurement_summary(value)

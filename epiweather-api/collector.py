@@ -1247,6 +1247,18 @@ def collect_ai_sources() -> dict:
     for s in watch["signals"]:
         log(f"  {s['label']}: {(s['text'] or s['error'] or '결과 없음')[:80]}")
 
+    # ★ 종합분석이 죽어도 로그엔 아무것도 안 남았다 (2026-09-15) ★
+    # 위 루프는 신호 **원문**(Perplexity/Tavily)만 찍는다. 그 뒤에 도는 Claude
+    # 종합분석은 성공하든 실패하든 한 줄도 안 남겼다 — run_global_watch 는
+    # synthesis_error 를 반환값에 담는데 아무도 안 읽었다.
+    # 그래서 09-15 점검이 "이 층이 지금 도는지"를 판정할 수가 없었다. 추출층
+    # 400 을 14일 끌게 한 것과 **같은 모양의 사각지대**다: 사유는 계산돼 있는데
+    # 볼 수 있는 곳에 없다.
+    if watch.get("synthesis_error"):
+        log_error("GlobalWatch종합", RuntimeError(watch["synthesis_error"]))
+    elif watch.get("synthesis"):
+        log(f"  종합분석: {len(watch['synthesis'])}자")
+
     append_signal(result)
 
     anthropic_key = os.environ.get("ANTHROPIC_API_KEY")

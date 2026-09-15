@@ -381,3 +381,126 @@ def test_tally_keeps_attempt_order_and_counts():
     from algorithms.common import tally
     assert tally(["HTTPError 404"] * 3 + ["Timeout"]) == "HTTPError 404×3 · Timeout×1"
     assert tally([]) == ""
+
+
+# ── 사유가 로그까지 닿는가 (2026-09-15) ──────────────────────────
+#
+# ★ 09-04 의 수정만으로는 부족했다는 것이 14일에 걸쳐 드러났다 ★
+#
+# 위 테스트들은 "사유가 붙는가"를 지킨다. 실제로 붙었다 — 09-02 부터 매일:
+#
+#     external_llm_fallback: BadRequestError 400×5
+#
+# 그런데 **400 은 종류와 상태코드만으로는 못 고치는 유일한 계열**이다.
+# 401 은 키, 404 는 경로·모델명, 429 는 한도라고 코드 자체가 말해준다.
+# 400 은 "요청이 틀렸다"까지만 말하고 **무엇이** 틀렸는지는 본문에만 있다.
+#
+# 전문은 능력 장부에 남고 있었다. 그런데 장부는 /api/status 뒤에 있고, 매일 아침
+# 점검 루틴은 거기에 닿지 못한다(외부 접속이 허용목록이라 railway.app 이 막힌다).
+# 09-06 점검이 "전문을 읽는 게 다음 한 수"라고 적어뒀지만 그 세션도 못 읽었고,
+# 09-13·09-15 도 같은 벽에 막혔다. **이유가 서버 안에 멀쩡히 적혀 있는데 14일
+# 동안 아무도 못 봤다.**
+#
+# 그래서 본문 전체가 아니라 **공급자가 채운 message 필드 하나만** 요약 줄에 싣는다.
+# 아래가 그 두 가지를 동시에 지킨다: 진단은 나오고, 자격증명·URL 은 안 나온다.
+
+
+class _ApiError(Exception):
+    """anthropic SDK 처럼 body 에 구조화된 오류를 들고 다니는 예외."""
+
+    def __init__(self, status, message):
+        super().__init__(f"Error code: {status}")
+        self.status_code = status
+        self.body = {"type": "error",
+                     "error": {"type": "invalid_request_error", "message": message}}
+
+
+def test_a_400_now_says_what_was_wrong():
+    """★이 커밋의 핵심★ 400 은 본문에만 이유가 있다. 그게 요약 줄까지 와야
+    다음 점검 한 번으로 갈린다 — 14일이 아니라."""
+    reason = nx.reason_with_detail(
+        _ApiError(400, "model: claude-haiku-4-5-20251001 not found"))
+    assert reason.startswith("_ApiError 400")
+    assert "not found" in reason
+
+
+def test_the_detail_never_carries_credentials_or_urls():
+    """★유출 방지는 그대로다★ 본문을 통째로 싣는 게 아니라 message 만 꺼낸다.
+    URL·헤더·요청 본문은 애초에 손대지 않는다."""
+    exc = _HTTPish(401)          # 메시지가 URL 뿐인 예외
+    reason = nx.reason_with_detail(exc)
+    assert "chat/completions" not in reason
+    assert reason == "_HTTPish 401"       # 꺼낼 message 가 없으면 예전과 같다
+
+
+def test_html_error_pages_are_not_mistaken_for_a_reason():
+    """오류 페이지 HTML 을 싣면 로그만 덮고 진단엔 보탬이 안 된다."""
+    class _HtmlErr(Exception):
+        status_code = 502
+        body = "<html><body>Bad Gateway</body></html>"
+
+    assert nx.provider_detail(_HtmlErr()) is None
+    assert nx.reason_with_detail(_HtmlErr()) == "_HtmlErr 502"
+
+
+def test_openai_compatible_shape_is_read_too():
+    """NIM 은 OpenAI 호환이라 모양이 다르다 — 410 의 이유도 같이 나와야 한다."""
+    class _NimErr(Exception):
+        status_code = 410
+        body = {"detail": "Model meta/llama-3.1-8b-instruct has been retired"}
+
+    assert "retired" in nx.reason_with_detail(_NimErr())
+
+
+def test_same_failure_still_tallies_as_one_line():
+    """사유는 tally() 로 묶인다. 같은 고장이 같은 문자열이어야 '×5'로 접힌다 —
+    안 그러면 요약 줄이 실패마다 한 줄씩 늘어난다."""
+    reasons = [nx.reason_with_detail(_ApiError(400, "same cause")) for _ in range(5)]
+    assert nx.tally(reasons).endswith("×5")
+
+
+def test_nim_failure_carries_the_detail_into_the_reason(monkeypatch):
+    """경로별 줄(`nvidia_nim_hosted: ...`)에 실제로 실리는지."""
+    _nim_env(monkeypatch)
+
+    class _Gone(Exception):
+        status_code = 410
+        body = {"detail": "model has been retired"}
+
+    with patch("requests.post", side_effect=_Gone()):
+        content, reason = am.nim_raw_detailed("원문", am._nim_config())
+    assert content is None
+    assert "retired" in reason
+
+
+def test_a_url_bearing_body_is_not_used_as_the_reason():
+    """★#28 이 막으려던 것은 그대로 막는다★ JSON 이 아닌 본문을 집어 오면
+    "Forbidden for url: https://…?key=…" 처럼 요청 URL 이 통째로 섞여 온다.
+    진단엔 보탬이 없으면서 자격증명이 실릴 길만 연다."""
+    class _RawTextErr(Exception):
+        status_code = 403
+        body = "Forbidden for url: https://api.example/v1/x?api_key=SECRET"
+
+    assert nx.provider_detail(_RawTextErr()) is None
+    reason = nx.reason_with_detail(_RawTextErr())
+    assert "SECRET" not in reason and "api.example" not in reason
+    assert reason == "_RawTextErr 403"
+
+
+def test_a_clean_plain_text_message_still_gets_through():
+    """URL 도 마크업도 없는 짧은 문장은 그대로 진단이다."""
+    class _PlainErr(Exception):
+        status_code = 400
+        body = "max_tokens must be greater than 0"
+
+    assert "max_tokens" in nx.reason_with_detail(_PlainErr())
+
+
+def test_a_very_long_message_is_capped():
+    """요약 줄에 실릴 값이다 — 로그를 덮으면 안 된다."""
+    class _LongErr(Exception):
+        status_code = 400
+        body = {"error": {"message": "x" * 500}}
+
+    detail = nx.provider_detail(_LongErr())
+    assert len(detail) <= 161 and detail.endswith("…")

@@ -81,7 +81,7 @@ def extract_counts(text: str, api_key: str) -> dict:
     client = anthropic.Anthropic(api_key=api_key)
     try:
         response = client.messages.create(
-            model="claude-haiku-4-5-20251001",
+            model="claude-haiku-4-5",   # 접미사 제거 — nlp_extract.MODEL 주석(2026-09-15)
             max_tokens=150,
             messages=[{
                 "role": "user",
@@ -180,7 +180,7 @@ def claude_synthesize(signals_text: str, anchor_summary: str, polymarket_context
 
     client = anthropic.Anthropic(api_key=api_key)
     response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
+        model="claude-haiku-4-5",       # 접미사 제거 — nlp_extract.MODEL 주석(2026-09-15)
         max_tokens=500,
         messages=[{
             "role": "user",

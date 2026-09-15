@@ -28,7 +28,9 @@ import db
 from .country_risk import COUNTRIES, SIGNAL_TYPE_SEVERITY, _record_matches_country
 from .gai import _tier
 
-CLUSTER_MODEL = "claude-haiku-4-5-20251001"
+# 날짜 접미사를 뗀 이유는 nlp_extract.MODEL 주석 참고(2026-09-15). 같은 ID 를 쓰는
+# 층이 넷이었고, 추출층만 실패가 보였을 뿐 나머지 셋은 실패해도 로그에 안 나온다.
+CLUSTER_MODEL = "claude-haiku-4-5"
 
 DISEASE_ALIASES = {
     "에볼라": ["에볼라", "ebola", "붕디부고", "bundibugyo"],

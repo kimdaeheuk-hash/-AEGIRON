@@ -39,7 +39,7 @@ import datetime as dt
 
 import requests
 
-from .common import brief_reason, tally
+from .common import brief_reason, reason_with_detail, tally
 
 # TED Search API v3. 키가 필요 없는 공개 검색 엔드포인트다(문서 기준).
 TED_SEARCH_URL = "https://api.ted.europa.eu/v3/notices/search"
@@ -121,8 +121,37 @@ QUERY_DATE_FIELD = "PD"                 # 질의 안에서 쓰는 발행일 필�
 TED_FIELDS = ["publication-number", "notice-title", "buyer-name",
               "buyer-country", "total-value", "deadline"]
 
+# ★ 예고한 신호가 왔다 — 이제 설명을 받는다 (2026-09-15) ★
+# #30 이 이렇게 적어뒀다: *"다음 조달 갱신에서 '제목 불일치로 버림 N건'이 찍히면
+# description 식별자를 추가해 재시도할 근거가 되고, 계속 0이면 정말 없었다는 뜻"*.
+#
+# 운영 실측: 09-13 부터 09-15 까지 매 갱신마다 `제목 불일치로 버림 74~77건`.
+# 서버는 공고를 계속 주고 있는데 **낱말 확인을 제목에서만 하느라 전부 버리고 있다.**
+# EU/TED 는 09-05 첫 성공 이후 열흘째 `열림 0건`인데, 그게 "EU 가 안 산다"가 아니라
+# "우리가 안 본다"였다.
+#
+# ⚠️ 이 식별자는 여전히 문서로만 맞춘 것이고 실호출로 확인되지 않았다(샌드박스가
+# api.ted.europa.eu 로 못 나간다). 원래 주석의 경고가 그대로 유효하다 — 틀린
+# 식별자를 넣으면 **전부 400 이 되고 6시간을 더 기다린다.**
+#
+# 그래서 넣되, **거부당하면 스스로 물러서게** 했다(_search 의 400 재시도).
+# 맞으면 76건이 살아나고, 틀리면 요청 한 번 더 쓰고 오늘과 똑같이 동작한다.
+# 어느 쪽인지는 다음 갱신 로그가 말한다 — 추측으로 남겨두지 않는다.
+TED_DESCRIPTION_FIELD = "description-lot"
 
-def _search(keyword: str, begin: str, end: str) -> list[dict] | str:
+
+def _fields_with_description() -> list[str]:
+    return TED_FIELDS + [TED_DESCRIPTION_FIELD]
+
+
+def _is_field_rejection(reason: str) -> bool:
+    """400 = 요청 본문 거부. 우리가 바꾼 건 fields 목록 하나뿐이니, 400 이면
+    후보 식별자가 원인이라고 보고 한 번 물러선다(401·404·타임아웃은 해당 없음)."""
+    return reason.startswith("HTTPError 400")
+
+
+def _search(keyword: str, begin: str, end: str,
+            fields: list[str] | None = None) -> list[dict] | str:
     """한 낱말 조회. 실패하면 **사유 문자열**을 돌려준다(빈 목록과 구분)."""
     try:
         resp = requests.post(
@@ -130,7 +159,7 @@ def _search(keyword: str, begin: str, end: str) -> list[dict] | str:
             json={
                 "query": f'FT~"{keyword}" AND {QUERY_DATE_FIELD}>={begin} '
                          f'AND {QUERY_DATE_FIELD}<={end}',
-                "fields": TED_FIELDS,
+                "fields": list(fields) if fields else TED_FIELDS,
                 "limit": PAGE_SIZE,
                 # 마감된 공고도 본다 — 국내 층에서 '닫힌 공고 3건'이 헤드라인
                 # 숫자에 섞여 있던 걸 드러낸 것과 같은 이유로, 우리가 직접
@@ -146,7 +175,9 @@ def _search(keyword: str, begin: str, end: str) -> list[dict] | str:
         # ★ 상태코드를 버리지 않는다 (2026-09-05) ★ 첫 실호출에서 20개 낱말이
         # 전부 죽었는데 로그가 "HTTPError" 라고만 말해서, 401(키)·404(경로)·
         # 400(쿼리 형식) 중 무엇인지 알 수 없었다. 사유가 처방을 가른다.
-        return brief_reason(exc)
+        # 400 은 상태코드만으로는 못 고친다 — 어느 식별자가 거부됐는지는 서버가
+        # 본문에 적어 보낸다. 그 한 줄을 사유에 같이 싣는다(2026-09-15).
+        return reason_with_detail(exc)
 
     notices = body.get("notices")
     if notices is None:
@@ -175,13 +206,11 @@ def _flatten(notice: dict) -> dict:
     return {
         "publication_number": _text(notice.get("publication-number")),
         "title": _text(notice.get("notice-title")),
-        # ★ 지금은 안 받는다 ★ description·publication-date·links 는 문서에서
-        # 식별자를 확인하지 못했다. 안 받으니 None 이고, 그러면:
-        #  - 낱말 확인이 제목에서만 이뤄진다(더 엄격 — 못 짚으면 버린다).
-        #  - 발행일이 비고, 링크가 없다.
-        # 못 받는 것을 받은 척하지 않는다. 첫 성공 뒤 식별자를 하나씩 확인해
-        # 되돌린다 — 한꺼번에 넣었다가 400 을 또 맞으면 6시간을 더 기다린다.
-        "description": None,
+        # ★ 되돌린 첫 식별자 (2026-09-15) ★ 예고대로 하나씩 되돌린다.
+        # 응답에 없으면(서버가 안 줬거나 거부해서 물러섰으면) 그대로 None 이다 —
+        # 못 받은 것을 받은 척하지 않는 규칙은 그대로다. publication-date·links 는
+        # 아직 안 받는다(한 번에 한 식별자).
+        "description": _text(notice.get(TED_DESCRIPTION_FIELD)),
         "buyer_name": _text(notice.get("buyer-name")),
         "buyer_country": _text(notice.get("buyer-country")),
         "publication_date": None,
@@ -201,9 +230,21 @@ def watch_ted(days: int = 7, today: dt.datetime | None = None) -> dict:
     found: dict[str, dict] = {}
     dropped, failures = 0, []
 
+    # 설명 식별자를 붙여서 시작하고, 서버가 400 으로 거부하면 **그 즉시 한 번만**
+    # 물러서서 나머지 낱말은 기존 목록으로 돈다. 거부 여부를 낱말마다 다시
+    # 시험하면 20개 낱말이 전부 두 번씩 나가므로, 판정은 한 번이면 족하다.
+    fields = _fields_with_description()
+    description_rejected = False
+
     for category, words in TED_KEYWORDS.items():
         for word in words:
-            result = _search(word, begin, end)
+            result = _search(word, begin, end, fields)
+            if (isinstance(result, str) and not description_rejected
+                    and _is_field_rejection(result)):
+                # 우리가 바꾼 건 fields 하나뿐이다 — 물러서서 같은 낱말을 다시.
+                description_rejected = True
+                fields = list(TED_FIELDS)
+                result = _search(word, begin, end, fields)
             if isinstance(result, str):
                 failures.append(f"{word}: {result}")
                 continue
@@ -239,6 +280,10 @@ def watch_ted(days: int = 7, today: dt.datetime | None = None) -> dict:
         "dropped_unconfirmed": dropped,
         "lookup_failures": failures,
         "keyword_count": total_words,
+        # 낱말 확인이 제목만 봤는지 설명까지 봤는지. 이게 없으면 '버림 76건'이
+        # 줄었을 때 **설명을 읽어서 줄어든 건지 공고가 없어서 줄어든 건지**
+        # 구분이 안 된다 — 값 하나가 두 상태를 뭉개는 걸 또 만들지 않는다.
+        "description_checked": not description_rejected,
         "source": "TED (EU Tenders Electronic Daily)",
         # ★ 지우지 마라 ★ 첫 실측 성공 전까지 이 층은 검증되지 않았다.
         "is_verified": IS_VERIFIED,
