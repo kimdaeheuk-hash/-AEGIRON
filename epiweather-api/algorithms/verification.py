@@ -80,7 +80,7 @@ JSON만 출력해(다른 텍스트 절대 금지): {{"confirmed": true 또는 fa
     try:
         client = anthropic.Anthropic(api_key=api_key)
         response = client.messages.create(
-            model="claude-haiku-4-5-20251001",
+            model="claude-haiku-4-5",   # 접미사 제거 — nlp_extract.MODEL 주석(2026-09-15)
             max_tokens=150,
             messages=[{"role": "user", "content": prompt}],
         )

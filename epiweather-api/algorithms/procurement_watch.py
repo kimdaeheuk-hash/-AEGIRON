@@ -380,11 +380,17 @@ def procurement_summary(value: dict | None) -> str | None:
             # ★ '0건'이 두 가지를 감춘다 (2026-09-05) ★ 첫 실호출에서 실제로
             # 열림 0건이 나왔는데, 이게 "이번 주 EU에 정말 없었다"인지
             # "공고는 왔는데 제목만으로 확인하다 다 버렸다"인지 로그만 보고는
-            # 구분이 안 됐다. 지금은 description을 안 받아서 제목에만 낱말이
-            # 없으면 버리는데(더 엄격한 확인), 그 버림 수를 안 보여주면
-            # '조회 실패'와 같은 자리에 또 하나의 안 보이는 상태가 생긴다.
+            # 구분이 안 됐다. 그 버림 수를 안 보여주면 '조회 실패'와 같은 자리에
+            # 또 하나의 안 보이는 상태가 생긴다.
+            #
+            # 09-15: 그 버림 수가 열흘 내리 74~77건이라 설명 식별자를 되돌렸다.
+            # 어느 범위로 확인했는지를 같이 적는다 — 안 적으면 버림 수가 줄었을 때
+            # '설명을 읽어서'인지 '공고가 없어서'인지 구분이 또 사라진다.
             if ted.get("dropped_unconfirmed"):
-                line += f" (제목 불일치로 버림 {ted['dropped_unconfirmed']}건)"
+                scope = "제목·설명" if ted.get("description_checked") else "제목"
+                line += f" ({scope} 불일치로 버림 {ted['dropped_unconfirmed']}건)"
+            if ted.get("description_checked") is False:
+                line += " (설명 식별자 거부됨 — 제목만 확인)"
             if ted.get("lookup_failures"):
                 line += f" (부분 실패 {ted['lookup_failures']}개 낱말)"
     return line

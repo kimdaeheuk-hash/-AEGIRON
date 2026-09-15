@@ -203,6 +203,88 @@ def brief_reason(exc: BaseException) -> str:
     return f"{type(exc).__name__} {status}" if status else type(exc).__name__
 
 
+# ── 공급자가 스스로 말한 이유를 로그까지 가져온다 (2026-09-15) ──────
+# ★ 왜 brief_reason 만으로는 부족했나 ★
+# 위 docstring 의 판단("전문이 필요하면 능력 장부에 남기고 요약 줄에는 종류·상태
+# 코드만")은 옳다 — 응답 본문에는 요청 URL·헤더 조각이 섞여 나올 수 있다. 그런데
+# 그 결론에 딸린 전제가 틀렸다: **능력 장부는 /api/status 뒤에 있고, 매일 아침
+# 점검 루틴은 거기에 닿지 못한다**(외부 접속이 허용목록이라 railway.app 이 막힌다).
+#
+# 그래서 실제로 이런 일이 벌어졌다. 추출층이 2026-09-02 부터 매일 같은 줄을 찍었다:
+#
+#     external_llm_fallback: BadRequestError 400×5
+#
+# 400 은 **본문에만 이유가 있는** 상태코드다(401=키, 404=경로처럼 코드 자체가
+# 말해주지 않는다). 09-06 점검이 "전문을 읽는 게 다음 한 수"라고 적어뒀지만 그
+# 세션도 curl 이 막혀 못 읽었고, 09-13·09-15 점검도 같은 벽에 막혔다.
+# **14일 동안 이유가 서버 안에 멀쩡히 적혀 있는데 아무도 못 봤다.**
+#
+# 고치는 방향은 "본문을 다 싣자"가 아니다(그건 원래 판단을 뒤집는 것이다).
+# **공급자가 채운 message 필드 하나만** 꺼낸다 — 그게 진단이고, URL·헤더·요청
+# 본문은 애초에 손대지 않는다.
+_DETAIL_KEYS = ("message", "detail", "title", "error_description")
+
+
+def _message_from_body(body) -> str | None:
+    """구조화된 오류 본문 → 사람이 읽는 메시지 한 줄. 못 찾으면 None.
+
+    본문 전체를 문자열로 만들지 않는다 — 알려진 메시지 키만 본다. 그래야
+    자격증명이나 요청 조각이 실려 나갈 길이 없다."""
+    if isinstance(body, str):
+        return body
+    if not isinstance(body, dict):
+        return None
+    for key in _DETAIL_KEYS:
+        value = body.get(key)
+        if isinstance(value, str) and value.strip():
+            return value
+    # Anthropic·OpenAI 호환 API 는 {"error": {"message": ...}} 로 한 겹 감싼다.
+    nested = body.get("error")
+    if isinstance(nested, (dict, str)):
+        return _message_from_body(nested)
+    return None
+
+
+def provider_detail(exc: BaseException, limit: int = 160) -> str | None:
+    """예외 → 공급자가 스스로 말한 오류 메시지(없으면 None).
+
+    마크업이 섞인 응답(오류 페이지 HTML)은 통째로 버린다 — 로그를 덮을 뿐
+    진단에 보탬이 안 된다. 길이도 자른다: 요약 줄에 실릴 값이다."""
+    body = getattr(exc, "body", None)
+    if body is None:
+        response = getattr(exc, "response", None)
+        if response is not None:
+            try:
+                body = response.json()
+            except Exception:                                 # noqa: BLE001
+                body = getattr(response, "text", None)
+    text = _message_from_body(body)
+    if not text:
+        return None
+    text = " ".join(text.split())
+    if "<" in text and ">" in text:      # HTML 오류 페이지 — 사유가 아니다
+        return None
+    # ★ #28 이 막으려던 것은 그대로 막는다 ★ 구조화된 message 필드는 보통
+    # 깨끗하지만, JSON 이 아니어서 본문 문자열을 그대로 집어 온 경우에는
+    # "Forbidden for url: https://…?key=…" 처럼 **요청 URL 이 통째로 섞여** 온다.
+    # 그런 줄은 진단에 보탬이 안 되면서 자격증명이 실릴 길만 연다 — 버린다.
+    # (전문은 지금도 능력 장부에 남는다. 요약 줄에 안 실을 뿐이다.)
+    if "://" in text:
+        return None
+    return text[:limit] + "…" if len(text) > limit else text
+
+
+def reason_with_detail(exc: BaseException) -> str:
+    """brief_reason + 공급자 메시지. 본문에만 이유가 있는 실패(400 계열)를 쓰는
+    자리에서 이걸 쓴다. 메시지가 없으면 brief_reason 과 똑같은 값이다.
+
+    tally() 로 묶이는 값이므로, 같은 원인이면 같은 문자열이어야 한다 — 공급자
+    메시지는 같은 고장이면 같은 문장이라 그대로 묶인다."""
+    reason = brief_reason(exc)
+    detail = provider_detail(exc)
+    return f"{reason}: {detail}" if detail else reason
+
+
 def tally(reasons) -> str:
     """사유 목록 → "HTTPError 404×20 · Timeout×2". 삽입 순서를 지킨다(시도 순서).
 

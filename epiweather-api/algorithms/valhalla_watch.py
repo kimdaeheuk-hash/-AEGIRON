@@ -207,6 +207,10 @@ def _fetch_procurement() -> dict:
                 "lookup_failures": len(ted["lookup_failures"]),
                 "is_verified": ted["is_verified"],
                 "unverified_note": ted["unverified_note"],
+                # 이 배선은 키를 손으로 골라 옮긴다 — 여기 안 적으면 watch_ted 가
+                # 아무리 잘 담아도 요약 줄까지 **영영 안 온다**(2026-09-15 에
+                # 실제로 그럴 뻔했다). 버림 수와 확인 범위는 같이 다녀야 한다.
+                "description_checked": ted.get("description_checked", True),
             }
             value["coverage"].append("EU/TED(미검증)")
         else:

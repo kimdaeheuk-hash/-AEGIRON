@@ -536,10 +536,22 @@ def summary_line() -> str:
             if item.get("detail"):
                 piece += f"({item['detail']})"
             parts.append(piece)
-        return "⚠️ 품질 저하: " + " · ".join(parts)
-    unknown = report["unknown_count"]
-    tail = f" · 판정불가 {unknown}" if unknown else ""
-    return f"🔎 품질 불변식: 정상 {report['healthy_count']}/{report['total_invariants']}{tail}"
+        # ★ 저하 중에도 나머지 층의 상태를 말한다 (2026-09-15) ★
+        # 예전엔 두 갈래가 배타적이라, 위반이 하나라도 있으면 `정상 n/6` 줄이
+        # **아예 안 찍혔다.** 그래서 09-13·09-15 점검이 "구조화 추출 하나가
+        # 위반인 건 알겠는데, 나머지 다섯 중 판정불가가 있는지는 알 수 없다"로
+        # 끝났다 — 이 층을 만든 이유가 "판정 불가를 정상으로 세지 않는다"인데,
+        # 정작 저하 중에는 그 숫자가 보이지 않았다.
+        # 위반이 있을 때야말로 다른 층이 조용히 사라졌는지가 중요하다.
+        return (f"⚠️ 품질 저하: {' · '.join(parts)}"
+                f" · 나머지 {_healthy_tail(report)}")
+    return f"🔎 품질 불변식: 정상 {_healthy_tail(report)}"
+
+
+def _healthy_tail(report: dict) -> str:
+    """"정상 5/6 · 판정불가 1" — 두 갈래가 같은 셈법을 쓰게 한 곳에 둔다."""
+    tail = f" · 판정불가 {report['unknown_count']}" if report["unknown_count"] else ""
+    return f"정상 {report['healthy_count']}/{report['total_invariants']}{tail}"
 
 
 def pending_notifications() -> dict:

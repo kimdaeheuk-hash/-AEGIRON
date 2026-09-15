@@ -140,7 +140,7 @@ def nim_raw_detailed(text: str, conf: dict) -> tuple[str | None, str | None]:
     구분하지 못하면 고칠 수가 없다."""
     import requests
 
-    from .nlp_extract import brief_reason, build_prompt
+    from .nlp_extract import build_prompt, reason_with_detail
 
     try:
         resp = requests.post(
@@ -163,7 +163,12 @@ def nim_raw_detailed(text: str, conf: dict) -> tuple[str | None, str | None]:
         # nim_configured=true로 좋게 말한다 — 몇 주 갇혀 있던 그 상태다.
         _nvidia.record_layer_call("text", conf["base_url"], ok=False,
                                   error=f"{type(e).__name__}: {e}")
-        return None, brief_reason(e)
+        # ★ 410 이 무엇인지 서버가 대답하게 한다 (2026-09-15) ★
+        # 09-02 부터 이 경로는 매 슬롯 `HTTPError 410×5` 였다. 410 은 "여기 있던
+        # 게 없어졌다"는 **대답**이라 카탈로그 철수가 유력하지만, 그건 추정이었고
+        # 확정할 방법이 로그에 없었다 — 본문이 장부로만 갔기 때문이다.
+        # 이제 NVIDIA 가 본문에 적어 보내는 사유가 요약 줄에 같이 실린다.
+        return None, reason_with_detail(e)
     _nvidia.record_layer_call("text", conf["base_url"], ok=True)
     return content, None
 
