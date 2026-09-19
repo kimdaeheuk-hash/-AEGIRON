@@ -132,6 +132,42 @@ def _groq_pulse_score(rec: dict) -> float | None:
     return _GROQ_URGENCY_SCORE.get(g.get("urgency"), 1)
 
 
+def _local_news_kw_hits(rec: dict) -> float | None:
+    """★ '한 곳도 못 읽음'과 '히트 0건'은 다른 사실이다 ★ (2026-09-19)
+
+    실측 사고. 11:03 에 critical 경보가 캡틴 폰으로 나갔다. 같은 사이클 로그:
+
+        [11:01:49] 현지어 뉴스: 0/179개 피드(고유 0묶음), 키워드 히트 0건
+        [11:03:14] 📊 소스 건강: 정상 22/23 · 값없음 LocalNews
+
+    179개 피드가 전멸했는데도 fetch_all_local_news 는 **정상 모양의 dict**를
+    돌려준다 — total_kw_hits 가 0 으로. collector.py:798 은 이미 그걸 알고
+    active_feeds 가 0 이면 mark_no_data 를 찍는다(그래서 소스 건강에 '값없음'이
+    떴다). 그런데 **지표 추출기가 그 구분을 안 봤다.** 0 을 그대로 읽었다.
+
+    그 0 이 negative_space 로 간다. 과거 평균 1,600건대 대비 latest=0 →
+    drop_ratio 0.0 → severity (1-0)*100 = 100점 → critical. 부정적 공간 감시가
+    "보고 체계가 무너졌다"고 판정한 것이다 — 무너진 건 우리 수집기인데.
+
+    2014년 기니 에볼라를 잡으라고 만든 층이 **우리 스크레이퍼 장애**에 울렸다.
+    그리고 그건 이 리포가 반복해서 고쳐온 바로 그 모양이다:
+
+        naver_trends: "그룹 부재 ≠ 검색량 0 … '네이버가 죽었다'가
+                       '아무도 안 찾는다'로 둔갑한다"
+        mark_no_data: "실패로 세면 상시 degraded, 성공으로 세면 죽은 소스가
+                       살아있다고 보고된다. 둘 다 거짓이다"
+
+    한 곳도 못 읽었으면 판정하지 않는다(None). 0 은 '아무도 그 말을 안 했다'는
+    관측일 때만 쓴다.
+    """
+    news = rec.get("local_news")
+    if not news:
+        return None
+    if not news.get("active_feeds"):
+        return None
+    return news.get("total_kw_hits")
+
+
 def _local_news_llm_relevant(rec: dict) -> float | None:
     """Cerebras 재분류가 켜져있을 때만 값이 나옴(꺼져있으면 None — 0과 구분)."""
     feeds = (rec.get("local_news") or {}).get("feeds") or []
@@ -179,7 +215,7 @@ LAYERS = {
             ("cidrap_cholera", "free_sources", _cidrap_field("cholera"), "academic"),
             ("africa_cdc_confirmed", "ai_sources", _ai_anchor_field("confirmed_cases"), "ai_extracted"),
             ("africa_cdc_deaths", "ai_sources", _ai_anchor_field("deaths"), "ai_extracted"),
-            ("local_news_kw_hits", "free_sources", lambda r: (r.get("local_news") or {}).get("total_kw_hits"), "behavioral_api"),
+            ("local_news_kw_hits", "free_sources", _local_news_kw_hits, "behavioral_api"),
             ("local_news_llm_relevant", "free_sources", _local_news_llm_relevant, "ai_extracted"),
             ("genomic_new_clades_covid", "free_sources", _genomic_field("ncov_open_global_6m", "new_clade_count"), "academic"),
             ("genomic_new_clades_mpox", "free_sources", _genomic_field("mpox", "new_clade_count"), "academic"),
