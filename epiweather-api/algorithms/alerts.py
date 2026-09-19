@@ -19,7 +19,7 @@ import db
 from .gai import compute_gai
 from .negative_space import scan_negative_space
 from .unexplained import scan_unexplained
-from .notifier import notify_new_alerts
+from .notifier import notify_new_alerts, telegram_configured
 
 CRITICAL = 90
 HIGH = 80
@@ -28,6 +28,56 @@ MEDIUM = 70
 DAILY_CAPS = {"critical": 3, "high": 5}  # medium·low는 캡 없음
 CANDIDATE_FLOOR = 50  # 이보다 낮은 점수는 후보로도 안 올림 (잡음 방지)
 DASHBOARD_TOP_N = 5
+
+# 알림 결과 — ★ 세 상태를 하나로 뭉개지 않는다 ★
+# notify_new_alerts()는 '채널 미설정'과 '전송 실패'에 똑같이 False를 돌려준다.
+# 조기경보에서 그 둘은 전혀 다른 사건이다: 앞은 캡틴이 아직 안 켠 것이고,
+# 뒤는 켜놨는데 경보가 사람에게 안 닿은 것이다. 뒤쪽은 그 자체로 사고다.
+NOTIFY_NONE = "보낼 신규 경보 없음"
+NOTIFY_UNCONFIGURED = "채널 미설정"
+NOTIFY_SENT = "전송됨"
+NOTIFY_FAILED = "전송 실패"
+
+
+def _notify(new_critical_high: list[dict]) -> dict:
+    """신규 critical/high를 내보내고, 결과를 '무엇이 일어났는지'로 돌려준다.
+
+    목록이 비어도 notify_new_alerts를 그대로 부른다 — 발송 여부 판단은 원래
+    그 함수 안에 있고(빈 목록이면 False), 여기서 앞질러 막으면 호출 자리가
+    조건부가 되어 "신규 0건이면 아무한테도 안 간다"는 기존 계약을 시험하던
+    자리가 사라진다. 이 함수가 새로 하는 일은 **보고**뿐이다.
+    """
+    count = len(new_critical_high)
+    sent = notify_new_alerts(new_critical_high)
+    if not count:
+        status = NOTIFY_NONE
+    elif not telegram_configured():
+        status = NOTIFY_UNCONFIGURED
+    else:
+        status = NOTIFY_SENT if sent else NOTIFY_FAILED
+    return {"status": status, "new_critical_high": count}
+
+
+def summary_line(result: dict) -> str:
+    """스케줄러 로그 한 줄. 수집기 로그처럼 **시험 가능한 자리**에 둔다
+    (naver_trends.summary·extraction_summary와 같은 이유).
+
+    ★ 이 한 줄이 없으면 경보가 나갔는지 로그로 확인할 방법이 없었다 ★
+    경보 경로는 지금껏 로그를 한 줄도 남기지 않았다. 소스가 죽으면 로그가
+    나지만, 경보가 조용한 것은 '평온해서'와 '경로가 끊겨서'가 똑같이 보인다.
+    """
+    ts = result.get("tier_summary") or {}
+    parts = []
+    for tier in ("critical", "high", "medium", "low"):
+        info = ts.get(tier) or {}
+        total = info.get("total") or 0
+        if not total:
+            continue
+        suppressed = info.get("suppressed") or 0
+        parts.append(f"{tier} {total}건" + (f"(억제 {suppressed})" if suppressed else ""))
+    body = " · ".join(parts) if parts else "후보 0건"
+    n = result.get("notification") or {}
+    return f"{body} · 알림: {n.get('status', '판정 안 함')}"
 
 
 def classify_tier(score: float) -> str:
@@ -185,7 +235,7 @@ def refresh_alerts(today: str | None = None) -> dict:
     # (봉인은 대량 알림에서 생략 — 단건 조회 엔드포인트에서 OpenTimestamps 수행)
     from .alert_intervention import enrich_alerts_with_briefs
     new_critical_high = enrich_alerts_with_briefs(new_critical_high, seal=False)
-    notify_new_alerts(new_critical_high)
+    notification = _notify(new_critical_high)
 
     dashboard_top = visible_rows[:DASHBOARD_TOP_N]
     hidden_count = len(visible_rows) - len(dashboard_top)
@@ -203,4 +253,5 @@ def refresh_alerts(today: str | None = None) -> dict:
             "hidden_count": hidden_count,
         },
         "tier_summary": tier_summary,
+        "notification": notification,
     }

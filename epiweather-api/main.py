@@ -187,6 +187,34 @@ async def _run_collector(mode: str) -> None:
         collector.log_error(f"scheduler_{mode}", e)
 
 
+async def _run_alert_cycle() -> None:
+    """수집 직후 경보를 계산하고, 신규 critical/high를 사람에게 내보낸다.
+
+    ★ 왜 이 함수가 2026-09-19에야 생겼나 ★
+    캡틴: "왜 질병이 퍼지고 있는데 아이기론은 보고를 안해!?"
+
+    경보 엔진(alerts.refresh_alerts)은 처음부터 있었고, 텔레그램 발송도
+    그 안에 붙어 있었다. 없던 건 **그걸 부르는 사람**이다. 스케줄러가 매시간
+    부르는 건 수집기뿐이었고, refresh_alerts는 누가 /api/alerts·/api/dashboard를
+    열 때와 하루 1회 일일 브리핑 안에서만 돌았다. 그나마 브리핑 쪽은
+    `try/except: alerts = []`로 감싸여 있어 실패해도 조용하다.
+
+    즉 **수집기가 급증을 잡아도 아무도 대시보드를 안 열면 경보가 사람에게
+    안 갔다.** 이 리포에서 반복된 실패 유형 그대로다 — 층은 다 만들어놨는데
+    아무도 안 부른다(예측 자동 채점도 같은 이유로 성적표가 0건이었다).
+
+    비용: refresh_alerts가 부르는 층은 전부 로컬 파일·DB 계산이고, 유일하게
+    바깥에 나가는 무역 스캔(UN 18회)은 6시간 캐시가 있어 하루 4회로 묶인다.
+    """
+    import collector
+    try:
+        from algorithms.alerts import refresh_alerts, summary_line
+        result = await asyncio.to_thread(refresh_alerts)
+        collector.log(f"🚨 경보 주기: {summary_line(result)}")
+    except Exception as e:
+        collector.log_error("scheduler_alerts", e)
+
+
 def _load_last_weekly_run() -> dt.datetime | None:
     if not _WEEKLY_STATE_FILE.exists():
         return None
@@ -457,6 +485,7 @@ async def _scheduler_loop() -> None:
     # 재배포로 초기화되지 않게 디스크에서 읽어온다(주간작업과 같은 패턴).
     last_ai_run_date: dt.date | None = _load_last_ai_run()
     await _run_collector("free")
+    await _run_alert_cycle()
     await _maybe_run_daily_brief()
 
     last_weekly = _load_last_weekly_run()
@@ -474,6 +503,9 @@ async def _scheduler_loop() -> None:
         next_hour = (now + dt.timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
         await asyncio.sleep(max(60.0, (next_hour - now).total_seconds()))
         await _run_collector("free")
+        # 수집 바로 뒤에 붙인다 — 방금 들어온 값으로 판정해야 "빨리 알린다"가
+        # 실제로 지켜진다. 같은 source 재통보는 refresh_alerts가 막는다.
+        await _run_alert_cycle()
 
         now = dt.datetime.utcnow()
         # ★ '정확히 21시'가 아니라 '21시 이후'로 판정한다 ★
