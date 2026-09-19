@@ -22,6 +22,14 @@ from .signal_metrics import LAYERS, MIN_HISTORY, load_records
 MIN_RELIABLE_SAMPLES = 14  # free_sources 누적이 이 미만이면 caveat 표시
 
 
+def _latest_value(series: list[float | None]) -> float | None:
+    """점수의 입력이 된 '최신 관측값'. _anomaly_score 와 **같은 규칙**(마지막
+    non-None)을 써야 한다 — 두 값이 어긋나면 경보 문턱이 점수와 다른 숫자를
+    보고 판단하게 된다(tests/test_alert_minimum.py 가 이걸 고정한다)."""
+    cleaned = [v for v in series if v is not None]
+    return cleaned[-1] if cleaned else None
+
+
 def _anomaly_score(series: list[float | None]) -> float | None:
     """최신값의 과거 대비 이상도. z-score를 [0,3]에 클램프해 0~100으로 환산.
 
@@ -68,6 +76,11 @@ def compute_gai() -> dict:
             trust = trust_for(trust_category)
             metric_scores.append({
                 "metric": metric_id,
+                # 점수를 만든 관측값 자체. 경보 최소값 판정(signal_metrics.
+                # meets_alert_minimum)이 이걸 보고, 사람도 "몇 점"이 아니라
+                # "몇 건인데 몇 점"을 볼 수 있다 — 근거가 숫자에서 떨어져
+                # 나가지 않게 하는 것과 같은 이유다.
+                "latest": _latest_value(series),
                 "raw_score": raw_score,
                 "trust": trust,
                 "trusted_score": round(raw_score * trust, 1),
