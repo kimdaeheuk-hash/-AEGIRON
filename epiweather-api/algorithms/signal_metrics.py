@@ -142,6 +142,11 @@ LAYERS = {
         "metrics": [
             ("naver_flu_ratio", "free_sources", lambda r: r.get("naver_flu_ratio"), "behavioral_api"),
             ("naver_ebola_ratio", "free_sources", lambda r: r.get("naver_ebola_ratio"), "behavioral_api"),
+            # 2026-09-19 신설. 국내 코로나 축이 통째로 없어서 "국내 유행 중인가"에
+            # 답할 소스가 하나도 없었다(KDCA 전수감시 API 는 표본감시 질병을 안 준다).
+            # ★ 다른 네이버 축과 값을 비교하지 마라 ★ 별도 요청이라 척도가 다르다.
+            # z-score 는 자기 과거와만 비교하므로 문제되지 않는다.
+            ("naver_covid_ratio", "free_sources", lambda r: r.get("naver_covid_ratio"), "behavioral_api"),
             ("social_ebola", "free_sources", _social_count("ebola"), "behavioral_api"),
             ("social_mpox", "free_sources", _social_count("mpox"), "behavioral_api"),
             ("social_birdflu", "free_sources", _social_count("birdflu"), "behavioral_api"),

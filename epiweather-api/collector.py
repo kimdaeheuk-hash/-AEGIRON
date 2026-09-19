@@ -437,35 +437,45 @@ def collect_free_sources() -> dict:
     naver_id = os.environ.get("NAVER_CLIENT_ID")
     naver_secret = os.environ.get("NAVER_CLIENT_SECRET")
     if naver_id and naver_secret:
-        try:
-            r = requests.post(
-                "https://openapi.naver.com/v1/datalab/search",
-                json={
-                    "startDate": (dt.date.today() - dt.timedelta(days=90)).strftime("%Y-%m-%d"),
-                    "endDate": dt.date.today().strftime("%Y-%m-%d"),
-                    "timeUnit": "week",
-                    "keywordGroups": [
-                        {"groupName": "독감", "keywords": ["독감", "인플루엔자", "해열제"]},
-                        {"groupName": "에볼라", "keywords": ["에볼라", "바이러스감염"]},
-                    ],
-                },
-                headers={
-                    "X-Naver-Client-Id": naver_id,
-                    "X-Naver-Client-Secret": naver_secret,
-                    "Content-Type": "application/json",
-                },
-                timeout=15,
-            )
-            r.raise_for_status()
-            groups = r.json().get("results", [])
-            result["naver_flu_ratio"] = groups[0]["data"][-1]["ratio"] if groups else None
-            result["naver_ebola_ratio"] = groups[1]["data"][-1]["ratio"] if len(groups) > 1 else None
-            log(f"  네이버: 독감비율={result.get('naver_flu_ratio')} 에볼라비율={result.get('naver_ebola_ratio')}")
-        except Exception as e:
-            result["naver_flu_ratio"] = None
-            log_error("Naver", e)
+        from algorithms import naver_trends as nt
+        from algorithms.common import brief_reason
+
+        # ★ 배치마다 따로 부른다 ★ 네이버는 한 요청 안의 그룹끼리만 같은 척도로
+        # 정규화한다. 코로나를 기존 요청에 넣으면 독감·에볼라가 재척도돼 3개월치
+        # 기준선이 조용히 의미를 잃는다(naver_trends 모듈 주석 참고).
+        ratios: dict[str, float | None] = {}
+        failures: dict[str, str] = {}
+        for batch_name, groups in nt.NAVER_BATCHES:
+            try:
+                r = requests.post(
+                    nt.DATALAB_URL,
+                    json=nt.request_body(groups),
+                    headers={
+                        "X-Naver-Client-Id": naver_id,
+                        "X-Naver-Client-Secret": naver_secret,
+                        "Content-Type": "application/json",
+                    },
+                    timeout=nt.TIMEOUT,
+                )
+                r.raise_for_status()
+                ratios.update(nt.latest_ratios(r.json()))
+            except Exception as e:                       # noqa: BLE001
+                # 한 배치가 죽어도 나머지는 살린다 — 코로나가 안 된다고 독감까지
+                # 버릴 이유가 없다. 다만 죽은 사실은 로그에 남긴다.
+                failures[batch_name] = brief_reason(e)
+                log_error("Naver", e)
+        # 못 받은 축은 None 으로 명시한다. 키가 아예 없는 것과 None 인 것을
+        # 구분 못 하면 '한 번도 안 불렸다'와 '불렀는데 못 받았다'가 같아진다.
+        for field in nt.GROUP_FIELDS.values():
+            result.setdefault(field, None)
+        for name, value in ratios.items():
+            if name in nt.GROUP_FIELDS:
+                result[nt.GROUP_FIELDS[name]] = value
+        log(f"  네이버: {nt.summary(ratios, failures)}")
     else:
-        result["naver_flu_ratio"] = None
+        from algorithms import naver_trends as nt
+        for field in nt.GROUP_FIELDS.values():
+            result[field] = None
         log("  ⏭ NAVER_CLIENT_ID/SECRET 없음 — 건너뜀")
 
     try:

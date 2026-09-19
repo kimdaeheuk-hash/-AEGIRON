@@ -289,6 +289,8 @@ _METRIC_LABEL = {
     "kdca_weekly": {"ko": "국내 법정감염병 주간", "en": "KDCA weekly", "fr": "KDCA hebdo"},
     "naver_ebola_ratio": {"ko": "네이버 에볼라 검색", "en": "Naver ebola searches",
                           "fr": "Recherches ebola Naver"},
+    "naver_covid_ratio": {"ko": "네이버 코로나 검색", "en": "Naver COVID searches",
+                          "fr": "Recherches COVID Naver"},
     "social_mpox": {"ko": "SNS 엠폭스 언급", "en": "Social mpox mentions",
                     "fr": "Mentions mpox"},
     "social_birdflu": {"ko": "SNS 조류독감 언급", "en": "Social bird flu mentions",
