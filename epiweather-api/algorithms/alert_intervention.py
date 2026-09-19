@@ -167,8 +167,35 @@ def intervention_brief(disease: str | None, country: str | None,
 
 
 def summary_line(brief: dict) -> str:
-    """텔레그램/UI용 한 줄 요약."""
-    return f"🧭 개입 브리핑: {brief['headline']}"
+    """텔레그램용 요약. ★ headline 만 보내면 안 된다 ★ (2026-09-19)
+
+    실측 사고다. 09-19 05:47, 아이기론이 처음으로 사람에게 보낸 경보에 이 줄이
+    붙어서 나갔다:
+
+        무대응 시 사망 69,092명 … 질병별 실측 캘리브레이션.
+
+    브리핑 dict 에는 disclaimer 가 제대로 들어 있었다 — "절대값이 아닌 방향성
+    참고", "구할 생명은 모델 추정이며 실측·보장이 아니다". 그런데 사람이 실제로
+    읽는 한 줄에는 그게 **하나도 안 실렸다.** 게다가 headline 이 "질병별 실측
+    캘리브레이션"으로 끝나서, 경고가 빠진 자리에 오히려 **더 믿음직한 말**이
+    들어갔다. 모듈은 정직했는데 출구가 그걸 흘렸다.
+
+    숫자 자체도 단서가 필요하다. 저 69,092명은 covid19 실측 파라미터로 나오는데
+    그 출처 문자열이 "COVID-19 조상주 추정 … 초기 CFR ~1.5%(IFR 더 낮음)"이다.
+    지금 도는 계통에 2020년 초기 치명률을 적용한 값이라는 뜻이고, 그 사실은
+    파라미터 출처에 적혀 있으므로 같이 보낸다.
+
+    사람간 전파가 제한적인 병원체(R0<1)·환경전파형이면 spread_note 도 같이
+    간다 — 그게 빠지면 SEIR 숫자만 남아 대유행처럼 읽힌다.
+    """
+    line = f"🧭 개입 브리핑: {brief['headline']}"
+    if brief.get("spread_note"):
+        line += f"\n   ↳ {brief['spread_note']}"
+    source = (brief.get("epidemic_params") or {}).get("source")
+    tail = "⚠️ 예보가 아니라 모델 시나리오다"
+    if source:
+        tail += f" · 파라미터: {source}"
+    return f"{line}\n   {tail}"
 
 
 def sealed_brief(disease: str | None, country: str | None,

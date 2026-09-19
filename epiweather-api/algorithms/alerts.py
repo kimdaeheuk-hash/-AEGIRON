@@ -19,6 +19,7 @@ import db
 from .gai import compute_gai
 from .negative_space import scan_negative_space
 from .unexplained import scan_unexplained
+from .signal_metrics import ALERT_MIN_COUNT, meets_alert_minimum
 from .notifier import notify_new_alerts, telegram_configured
 
 CRITICAL = 90
@@ -126,17 +127,29 @@ def collect_candidate_alerts(today: str) -> list[dict]:
         })
     for layer_key, layer in gai_result["layers"].items():
         for m in layer["metrics"]:
-            if m["trusted_score"] >= CANDIDATE_FLOOR:
-                candidates.append({
-                    "source": f"gai:{layer_key}.{m['metric']}",
-                    "label": f"{layer['label']} · {m['metric']}",
-                    "score": m["trusted_score"],
-                    "evidence": [
-                        f"원시 이상도(과거 대비 z-score 환산) {m['raw_score']}점",
-                        f"출처신뢰도 {m['trust']} 반영 후 최종 {m['trusted_score']}점",
-                        f"{layer['label']} 계층 가중치 {layer['weight']}",
-                    ],
-                })
+            if m["trusted_score"] < CANDIDATE_FLOOR:
+                continue
+            # ★ 최소 절대값 문턱 ★ 평소 0 인 카운트 지표는 1 만 나와도 z-score
+            # 상한(=최대 이상도)이 찍힌다. 이상도는 그대로 두고(지수는 측정값이다)
+            # **사람을 깨우는 자리에서만** 관측값 하한을 건다. 막았다는 사실은
+            # 로그에 남긴다 — 조용히 거르면 이번엔 반대로 진짜를 놓쳐도 모른다.
+            if not meets_alert_minimum(m["metric"], m.get("latest")):
+                print(f"  ⏸ [alerts] {m['metric']} — 이상도 {m['trusted_score']}점이지만 "
+                      f"관측값 {m.get('latest')} 이 경보 최소값 "
+                      f"{ALERT_MIN_COUNT.get(m['metric'])} 미만이라 경보로 안 올림"
+                      f"(지수에는 그대로 반영됨)", flush=True)
+                continue
+            candidates.append({
+                "source": f"gai:{layer_key}.{m['metric']}",
+                "label": f"{layer['label']} · {m['metric']}",
+                "score": m["trusted_score"],
+                "evidence": [
+                    f"관측값 {m.get('latest')}",
+                    f"원시 이상도(과거 대비 z-score 환산) {m['raw_score']}점",
+                    f"출처신뢰도 {m['trust']} 반영 후 최종 {m['trusted_score']}점",
+                    f"{layer['label']} 계층 가중치 {layer['weight']}",
+                ],
+            })
 
     for a in scan_negative_space()["alerts"]:
         severity = round((1 - a["drop_ratio"]) * 100, 1) if a.get("drop_ratio") is not None else 70.0

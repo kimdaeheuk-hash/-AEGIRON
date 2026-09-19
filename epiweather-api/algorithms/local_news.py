@@ -295,6 +295,27 @@ def _count_keyword_hits(text: str, keywords: list[str]) -> int:
     return sum(1 for kw in keywords if kw.lower() in text_lower)
 
 
+def failure_summary(feeds: list[dict]) -> str | None:
+    """실패한 피드 사유를 한 줄로. 실패가 없으면 None (없는 것을 지어내지 않는다).
+
+    ★ 왜 이게 필요했나 ★ 2026-09-19 11:00, 179개 피드가 한꺼번에 죽었다.
+    로그에 찍힌 건 이것뿐이었다:
+
+        현지어 뉴스: 0/179개 피드(고유 0묶음), 키워드 히트 0건, 고경보 0개
+
+    사유는 **이미 있었다** — fetch_local_feed 가 피드마다 error 를 담아 돌려주고
+    그게 수집 결과에 그대로 실려 있었다. 아무도 읽지 않았을 뿐이다. 같은 주기의
+    NewsWatch 는 같은 원인(Google News RSS 503)을 로그에 찍었는데, 이쪽은
+    조용했다. 그래서 '우리 수집기 장애'가 '세상이 조용하다'로 읽혔다.
+
+    (이 리포에서 세 번째다 — 추출 실패 사유, TED 400, 그리고 이것.)
+    """
+    from .common import tally
+    reasons = [f.get("reason") or f.get("error") or "Unknown"
+               for f in feeds if f.get("status") == "error"]
+    return tally(reasons) if reasons else None
+
+
 def fetch_local_feed(slug: str, lang: str, region: str, url: str, keywords: list[str]) -> dict:
     """단일 RSS 피드에서 항목 수 + 키워드 히트 수 반환. _all_titles는 내부용
     (Cerebras 배치 분류에 씀 — fetch_all_local_news가 최종 응답에서 제거함)."""
@@ -319,12 +340,17 @@ def fetch_local_feed(slug: str, lang: str, region: str, url: str, keywords: list
             "_all_titles":   all_titles,
         }
     except Exception as e:
+        from .common import brief_reason
         return {
             "slug":   slug,
             "lang":   lang,
             "region": region,
             "status": "error",
             "error":  str(e)[:100],
+            # ★ 짧은 사유를 따로 남긴다 ★ 179개 피드가 한꺼번에 죽으면 긴 문장
+            # 179줄은 로그에서 못 읽는다. brief_reason 은 상태코드를 붙여주므로
+            # (HTTPError 503) 집계했을 때 한 줄로 원인이 드러난다.
+            "reason": brief_reason(e),
         }
 
 
@@ -551,6 +577,9 @@ def fetch_all_local_news(cerebras_key: str | None = None,
     return {
         "total_feeds":     len(LOCAL_FEEDS),
         "active_feeds":    len(active_feeds),
+        # ↓ 왜 죽었는지. 피드마다 reason 은 이미 있었지만 아무도 안 읽었다 —
+        #   2026-09-19 에 179개가 전멸했을 때 로그엔 "0/179" 만 찍혔다.
+        "failure_summary": failure_summary(results),
         "total_kw_hits":   total_hits,
         "high_alert_feeds": len(high_alert),
         "high_alert":      high_alert,

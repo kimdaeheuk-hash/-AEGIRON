@@ -14,6 +14,56 @@ LOG_FILE = DATA_DIR / "signals_log.jsonl"
 
 MIN_HISTORY = 3  # 통계 계산에 필요한 최소 과거 관측치 수
 
+# ── 경보로 올리기 전에 요구하는 최소 절대값 ────────────────────────
+#
+# ★ 실측 사고 (2026-09-19 05:47) ★
+# 아이기론이 처음으로 사람에게 보낸 경보가 이것이었다:
+#
+#     🟠 비공식신호 · genomic_new_clades_covid — 85.0점
+#
+# 그 85점을 만든 관측값은 **신규 계통 1건**이었다(로그: 우세계통 25C (XFG)
+# (50%, n=559) 🆕신규계통1건). 85.0 ÷ 0.85(academic 신뢰도) = raw 100 =
+# z-score 상한이다. 평소 0 인 카운트 지표는 **1 만 나와도 최대 이상도**가 나온다.
+# 과거가 거의 다 0 이면 표준편차가 작아서, 0→1 이 곧 3σ 다.
+#
+# 산술은 맞다. 통계적으로 1 은 정말로 이상값이다. 틀린 건 그 다음 문장이다 —
+# "그러므로 사람을 깨울 일이다". 전 세계 공개 시퀀스 빌드에서 새 계통 하나가
+# 보이는 건 SARS-CoV-2 에서 늘 있는 일이고, 그걸 매번 high 경보로 올리면
+# 경보 피로가 쌓여 **진짜를 놓치는 경로**가 된다(alerts.py 모듈 docstring 참고).
+#
+# ★ 그래서 지수(GAI)는 안 건드린다 ★
+# 이상도는 측정값이다. 1 이 이상값인 건 사실이고, 그 사실을 0 으로 고쳐 쓰면
+# 그게 바로 이 리포가 금지하는 "상태 필드가 관측보다 적게/많게 주장하는" 짓이다.
+# 문턱은 **경보 승격 자리에만** 둔다 — 측정은 그대로, 판단만 명시적으로.
+# 선례: kdca_anomaly.SPIKE_MIN_COUNT = 5 (비율만 보면 2건→4건도 2배다).
+#
+# ★ 여기 지표를 늘릴 땐 근거가 있어야 한다 ★
+# 아래 셋은 같은 함수(genomic_variants.analyze_build)가 같은 모양으로 만드는
+# 0 근처 카운트라 함께 넣었다. 다른 지표를 추가하려면 "그 지표가 평소 0 이고
+# 1 에 최대 이상도가 났다"는 관측을 먼저 확인해라 — 짐작으로 문턱을 씌우면
+# 진짜 신호를 조용히 죽이게 된다. 그건 지금 고치는 것보다 나쁜 고장이다.
+ALERT_MIN_COUNT: dict[str, float] = {
+    "genomic_new_clades_covid": 2,
+    "genomic_new_clades_mpox": 2,
+    "genomic_new_clades_rsv": 2,
+}
+
+
+def meets_alert_minimum(metric_id: str, latest: float | None) -> bool:
+    """이 지표를 경보 후보로 올려도 되는 관측값인가.
+
+    문턱이 없는 지표는 언제나 True — 이 표는 '막는 목록'이지 '허용 목록'이 아니다.
+    새 지표가 추가될 때 여기 없다고 조용히 막히면 안 된다.
+
+    latest 가 None 이면 False 다. 값을 못 본 상태에서 '문턱을 넘었다'고 할 수는
+    없다 — 모르는 것을 통과로 세지 않는다(이 리포의 세 갈래 원칙과 같은 방향).
+    """
+    minimum = ALERT_MIN_COUNT.get(metric_id)
+    if minimum is None:
+        return True
+    return latest is not None and latest >= minimum
+
+
 
 def _kdca_latest_total(rec: dict) -> float | None:
     # 이제 kdca_weekly엔 전 법정감염병이 들어온다. 총합에 상재성 질병(수두·결핵 등)을
@@ -82,6 +132,42 @@ def _groq_pulse_score(rec: dict) -> float | None:
     return _GROQ_URGENCY_SCORE.get(g.get("urgency"), 1)
 
 
+def _local_news_kw_hits(rec: dict) -> float | None:
+    """★ '한 곳도 못 읽음'과 '히트 0건'은 다른 사실이다 ★ (2026-09-19)
+
+    실측 사고. 11:03 에 critical 경보가 캡틴 폰으로 나갔다. 같은 사이클 로그:
+
+        [11:01:49] 현지어 뉴스: 0/179개 피드(고유 0묶음), 키워드 히트 0건
+        [11:03:14] 📊 소스 건강: 정상 22/23 · 값없음 LocalNews
+
+    179개 피드가 전멸했는데도 fetch_all_local_news 는 **정상 모양의 dict**를
+    돌려준다 — total_kw_hits 가 0 으로. collector.py:798 은 이미 그걸 알고
+    active_feeds 가 0 이면 mark_no_data 를 찍는다(그래서 소스 건강에 '값없음'이
+    떴다). 그런데 **지표 추출기가 그 구분을 안 봤다.** 0 을 그대로 읽었다.
+
+    그 0 이 negative_space 로 간다. 과거 평균 1,600건대 대비 latest=0 →
+    drop_ratio 0.0 → severity (1-0)*100 = 100점 → critical. 부정적 공간 감시가
+    "보고 체계가 무너졌다"고 판정한 것이다 — 무너진 건 우리 수집기인데.
+
+    2014년 기니 에볼라를 잡으라고 만든 층이 **우리 스크레이퍼 장애**에 울렸다.
+    그리고 그건 이 리포가 반복해서 고쳐온 바로 그 모양이다:
+
+        naver_trends: "그룹 부재 ≠ 검색량 0 … '네이버가 죽었다'가
+                       '아무도 안 찾는다'로 둔갑한다"
+        mark_no_data: "실패로 세면 상시 degraded, 성공으로 세면 죽은 소스가
+                       살아있다고 보고된다. 둘 다 거짓이다"
+
+    한 곳도 못 읽었으면 판정하지 않는다(None). 0 은 '아무도 그 말을 안 했다'는
+    관측일 때만 쓴다.
+    """
+    news = rec.get("local_news")
+    if not news:
+        return None
+    if not news.get("active_feeds"):
+        return None
+    return news.get("total_kw_hits")
+
+
 def _local_news_llm_relevant(rec: dict) -> float | None:
     """Cerebras 재분류가 켜져있을 때만 값이 나옴(꺼져있으면 None — 0과 구분)."""
     feeds = (rec.get("local_news") or {}).get("feeds") or []
@@ -129,7 +215,7 @@ LAYERS = {
             ("cidrap_cholera", "free_sources", _cidrap_field("cholera"), "academic"),
             ("africa_cdc_confirmed", "ai_sources", _ai_anchor_field("confirmed_cases"), "ai_extracted"),
             ("africa_cdc_deaths", "ai_sources", _ai_anchor_field("deaths"), "ai_extracted"),
-            ("local_news_kw_hits", "free_sources", lambda r: (r.get("local_news") or {}).get("total_kw_hits"), "behavioral_api"),
+            ("local_news_kw_hits", "free_sources", _local_news_kw_hits, "behavioral_api"),
             ("local_news_llm_relevant", "free_sources", _local_news_llm_relevant, "ai_extracted"),
             ("genomic_new_clades_covid", "free_sources", _genomic_field("ncov_open_global_6m", "new_clade_count"), "academic"),
             ("genomic_new_clades_mpox", "free_sources", _genomic_field("mpox", "new_clade_count"), "academic"),
