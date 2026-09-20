@@ -29,6 +29,8 @@ import datetime as dt
 import json
 import os
 
+from .common import reason_with_detail
+
 MODEL = "claude-sonnet-4-5"
 _MAX_SEGMENTS = 5
 
@@ -333,10 +335,17 @@ def _gather() -> dict:
     # 등급이 매겨진(합류점수 있는) 위협만, 점수 높은 순으로.
     threats = [e for e in events if e.get("merged_score") is not None][:_MAX_SEGMENTS]
 
+    # ★ 경보 조회가 죽으면 사유를 남긴다 (2026-09-20) ★ 예전엔 `except Exception:
+    # alerts = []` 라, 경보 엔진이 통째로 터져도 **경보가 없는 조용한 날과 똑같이**
+    # 보였다. 브리핑은 "절대 멈추지 않는다"가 설계 원칙이라 빈 목록으로 계속 가는
+    # 건 맞다 — 틀린 건 그 사실이 아무 데도 안 남는 것이었다.
+    # (GroqWatch 8/25 · Mobility 8/28 · nlp_extract 9/04 에서 세 번 고친 그 패턴이다.)
+    alerts_error = None
     try:
         alerts = refresh_alerts().get("dashboard", {}).get("top", [])
-    except Exception:
+    except Exception as e:                                    # noqa: BLE001
         alerts = []
+        alerts_error = reason_with_detail(e)
 
     ranked = rank_countries().get("countries", [])
     name_lookup = {c["country"]: c.get("name", c["country"]) for c in ranked}
@@ -345,6 +354,7 @@ def _gather() -> dict:
     return {
         "threats": threats,
         "alerts": alerts,
+        "alerts_error": alerts_error,
         "top_countries": top_countries,
         "name_lookup": name_lookup,
     }
@@ -830,6 +840,9 @@ def _polish_with_llm(brief: dict, lang: str, fmt: dict, api_key: str) -> dict | 
         text = resp.content[0].text.strip()
         start, end = text.find("["), text.rfind("]")
         if start == -1 or end == -1:
+            # 호출은 성공했는데 형식이 안 맞는 갈래. 예외가 아니라 조용한 실패라
+            # 아래 except 에도 안 걸린다 — 그래서 여기서 따로 남긴다.
+            brief["polish_error"] = "응답에 JSON 배열이 없음"
             return None
         edits = json.loads(text[start:end + 1])
         by_id = {e["segment_id"]: e["anchor_script"] for e in edits if e.get("anchor_script")}
@@ -837,7 +850,23 @@ def _polish_with_llm(brief: dict, lang: str, fmt: dict, api_key: str) -> dict | 
             if s["segment_id"] in by_id:
                 s["anchor_script"] = by_id[s["segment_id"]]
         return brief
-    except Exception:
+    except Exception as e:                                    # noqa: BLE001
+        # ★ 이 한 줄이 09-15 를 엉뚱한 곳으로 보냈다 (2026-09-20 수정) ★
+        # 예전엔 `except Exception: return None` 이라, LLM 이 죽어도 조용히
+        # template_fallback 으로 떨어진 채 **정상 반환**했다. 예외가 main.py 의
+        # _log_error 에 닿지 않으니 로그에도 /api/status 에도 아무것도 안 남고,
+        # 아카이브에는 3개 언어가 그대로 쌓였다.
+        #
+        # 그래서 09-15 점검이 "브리핑은 매일 3개 언어 성공한다 → 키·크레딧은
+        # 살아 있다 → 400 의 원인은 모델 ID 다" 라고 추론했고, **틀렸다.**
+        # 실제 원인은 크레딧 소진이었다(09-18 확인). "매일 성공"은 관측이 아니라
+        # **실패가 보이지 않는다**였고, 침묵을 근거로 세운 추론이 모델 ID 를
+        # 고치는 데 하루를 썼다.
+        #
+        # brief 는 호출부와 같은 dict 객체다 — 여기 남긴 사유는 폴리시가 실패해도
+        # 최종 브리핑에 실려 나간다(반환값 None 은 그대로 둔다: 폴백 판단은
+        # 호출부의 일이다).
+        brief["polish_error"] = reason_with_detail(e)
         return None
 
 
@@ -922,6 +951,8 @@ def generate_daily_brief(lang: str = "ko", api_key: str | None = None,
     fmt_spec = _select_format(today, fmt)
 
     data = _gather()
+    # _localized 가 무엇을 들고 가는지에 이 값이 매달리지 않게 먼저 떼어둔다.
+    alerts_error = data.get("alerts_error")
     data = _localized(data, lang)   # 국가명을 요청 언어 표기로
     segments = _build_segments(data, lang, fmt_spec)
     # quiet_day는 '실제 위협' 기준 — 홍보 세그먼트를 붙이기 전에 판정한다.
@@ -965,6 +996,17 @@ def generate_daily_brief(lang: str = "ko", api_key: str | None = None,
         "generation_method": "template_fallback",
     }
 
+    # 상류(경보 엔진)가 죽은 사실은 브리핑에 실려 나간다. 여기 없으면 '조용한
+    # 날'과 구분되지 않는다 — 품질 불변식이 보는 값이기도 하다.
+    if alerts_error:
+        brief["alerts_error"] = alerts_error
+
+    # ★ LLM 을 부를 수 있었는지와 불렀다가 실패했는지를 가른다 ★
+    # 키가 없으면 template_fallback 은 설계대로 동작한 것이고(고장이 아니다),
+    # 키가 있는데 template_fallback 이면 그건 사고다. 이 구분이 없으면 품질
+    # 불변식이 '안 돌린 것'을 '실패'로 세거나 그 반대를 한다
+    # (capability_ledger·record_extraction_outcome 과 같은 갈림).
+    brief["llm_available"] = bool(api_key)
     if api_key:
         polished = _polish_with_llm(brief, lang, fmt_spec, api_key)
         if polished is not None:

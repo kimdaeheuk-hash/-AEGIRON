@@ -151,3 +151,97 @@ def test_refresh_alerts_reports_the_notification_outcome(isolated_db):
 
     assert result["notification"]["status"] == alerts.NOTIFY_SENT
     assert result["notification"]["new_critical_high"] == 1
+
+
+# ── ★2026-09-20★ 등급 수만으로는 무엇이 울렸는지 알 수 없었다 ──────────
+#
+# 09-19 점검이 `critical 1건` 이 13주기 연속 찍히는 것을 보고도 그게 무슨 경보인지
+# 로그로 알 수 없었다. 그 사이 11:03·01:02 두 번 캡틴 폰으로 알림이 나갔다.
+#
+# 더 나쁜 것은 critical 이 주기마다 켜졌다 꺼졌다 한 것이다
+# (23:01 있음 → 00:01 없음 → 01:02 있음 → 03:01 없음). 깜빡이는 신호는 이 리포가
+# GroqWatch·Mobility 에서 두 번 데인 모양이다 — 가끔 사라지는 것이 추적을 막는다.
+#
+# 억제된 경보는 이미 이름을 남기고 있었다:
+#   ⏸ [alerts] genomic_new_clades_covid — 이상도 85.0점이지만 관측값 1 이 …
+# **막은 것은 이름을 남기고 나간 것은 안 남기는** 상태였다.
+
+def test_summary_line_names_the_critical_and_high_alerts():
+    """★이 변경의 이유★ 무엇이 critical 인지 로그 한 줄에서 갈려야 한다."""
+    line = alerts.summary_line({
+        "tier_summary": {
+            "critical": {"total": 1, "suppressed": 0, "sources": ["negative_space:local_news"]},
+            "high": {"total": 2, "suppressed": 0, "sources": ["gai:overall", "kdca:flu"]},
+        },
+        "notification": {"status": alerts.NOTIFY_SENT, "new_critical_high": 1,
+                         "sources": ["negative_space:local_news"]},
+    })
+    assert "critical 1건[negative_space:local_news]" in line
+    assert "high 2건[gai:overall·kdca:flu]" in line
+    # 알림도 '무엇이 나갔는지'까지. 상태만 남기면 대상이 사라진다.
+    assert f"알림: {alerts.NOTIFY_SENT}[negative_space:local_news]" in line
+
+
+def test_summary_line_does_not_name_medium_and_low():
+    """medium·low 는 캡이 없어 수십 개가 된다. 다 나열하면 정작 critical 이름이 묻힌다."""
+    line = alerts.summary_line({
+        "tier_summary": {
+            "critical": {"total": 1, "suppressed": 0, "sources": ["a"]},
+            "medium": {"total": 2, "suppressed": 0, "sources": ["m1", "m2"]},
+            "low": {"total": 3, "suppressed": 0, "sources": ["l1", "l2", "l3"]},
+        },
+        "notification": {"status": alerts.NOTIFY_NONE, "new_critical_high": 0, "sources": []},
+    })
+    assert "critical 1건[a]" in line
+    assert "medium 2건" in line and "m1" not in line
+    assert "low 3건" in line and "l1" not in line
+
+
+def test_long_name_lists_say_how_many_were_cut():
+    """잘린 줄이 '이게 전부'로 읽히면 안 된다 — 넘친 사실을 남긴다."""
+    line = alerts.summary_line({
+        "tier_summary": {"high": {"total": 8, "suppressed": 3,
+                                  "sources": [f"s{i}" for i in range(8)]}},
+        "notification": {"status": alerts.NOTIFY_NONE, "new_critical_high": 0},
+    })
+    assert "high 8건(억제 3)[s0·s1·s2·s3·s4·+3]" in line
+
+
+def test_summary_line_still_works_without_source_names():
+    """예전 모양의 결과 dict(이름 없음)로도 죽지 않아야 한다 — 이 줄은 사고
+    조사용이고, 조사 도구가 입력 모양 때문에 터지면 조사가 멈춘다."""
+    line = alerts.summary_line({
+        "tier_summary": {"critical": {"total": 1, "suppressed": 0}},
+        "notification": {"status": alerts.NOTIFY_SENT},
+    })
+    assert "critical 1건" in line
+    assert "[" not in line
+
+
+def test_tier_sources_count_the_same_set_as_total(isolated_db):
+    """숫자와 이름이 같은 집합을 세야 한다 — 억제분을 빼면 "3건인데 이름 2개"가 된다."""
+    candidates = [
+        {"source": f"gai:x{i}", "label": f"후보{i}", "score": 95.0 - i * 0.1, "evidence": []}
+        for i in range(4)                      # critical 캡은 3 → 1건이 억제된다
+    ]
+    with patch("algorithms.alerts.collect_candidate_alerts", return_value=candidates), \
+         patch("algorithms.alerts.notify_new_alerts", return_value=True), \
+         patch("algorithms.alerts.telegram_configured", return_value=True):
+        result = alerts.refresh_alerts("2026-09-20")
+
+    crit = result["tier_summary"]["critical"]
+    assert crit["total"] == 4 and crit["suppressed"] == 1
+    assert len(crit["sources"]) == crit["total"]
+
+
+def test_notification_names_what_actually_went_out(isolated_db):
+    """전송된 대상이 결과에 실려야, 폰이 울린 이유를 나중에 되짚을 수 있다."""
+    candidates = [{"source": "negative_space:local_news", "label": "보고 붕괴",
+                   "score": 100.0, "evidence": []}]
+    with patch("algorithms.alerts.collect_candidate_alerts", return_value=candidates), \
+         patch("algorithms.alerts.notify_new_alerts", return_value=True), \
+         patch("algorithms.alerts.telegram_configured", return_value=True):
+        result = alerts.refresh_alerts("2026-09-20")
+
+    assert result["notification"]["sources"] == ["negative_space:local_news"]
+    assert "negative_space:local_news" in alerts.summary_line(result)
