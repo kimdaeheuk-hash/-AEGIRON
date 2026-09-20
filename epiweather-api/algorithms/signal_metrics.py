@@ -104,6 +104,36 @@ def meets_alert_minimum(metric_id: str, latest: float | None) -> bool:
 
 
 
+def sum_if_complete(values) -> float | None:
+    """조각을 다 받았을 때만 합계를 낸다. 하나라도 못 받았으면 None.
+
+    ★ 조각이 빠진 합계는 낮은 값이 아니라 **다른 값**이다 ★
+
+    여러 곳에서 가져와 더하는 지표들이 전부 이렇게 돼 있었다 —
+
+        vals = [v for v in totals.values() if v is not None]
+        return sum(vals) if vals else None
+
+    전부 실패해야 None 이고, **일부만 실패하면 조용히 낮은 숫자**가 된다.
+    그 낮은 숫자는 negative_space 로 가서 "보고 체계 붕괴 가능성"이 된다.
+    2026-09-19 에 LocalNews 가 정확히 그 경로로 critical 경보를 냈다 — 무너진
+    건 세상의 보고가 아니라 우리 수집기였다.
+
+    일본 IDWR 이 제일 위험했다. 11개 질병을 합치는데 독감 하나가 12,299건으로
+    전체의 90% 가 넘는다. 그 한 줄만 파싱에 실패해도 합계가 700 대로 내려앉고
+    severity 94.6 → critical 이 된다. 그리고 fetch_japan_idwr 의 docstring 이
+    이미 적어뒀듯 **유행이 커질수록 파싱이 깨지는 방향**이라, 진짜 유행이 오는
+    순간 "보고가 끊겼다"는 거짓 경보가 나간다.
+
+    수집은 그대로 둔다("한 도시 실패해도 나머지는 계속 수집"은 의도된 설계다).
+    바꾸는 건 **판정**뿐이다 — 못 본 조각이 있으면 판정하지 않는다.
+    """
+    vals = list(values)
+    if not vals or any(v is None for v in vals):
+        return None
+    return sum(vals)
+
+
 def _kdca_latest_total(rec: dict) -> float | None:
     # 이제 kdca_weekly엔 전 법정감염병이 들어온다. 총합에 상재성 질병(수두·결핵 등)을
     # 다 넣으면 신종 신호가 파묻히므로, 집계는 '위험군만' 합산한다(kdca_anomaly).
@@ -119,22 +149,28 @@ def _kdca_max_disease_spike(rec: dict) -> float | None:
 
 
 def _japan_idwr_total(rec: dict) -> float | None:
+    # 11개 질병 중 독감 하나가 전체의 90% 가 넘는다 — 그 한 줄이 빠진 합계는
+    # '줄어든 값'이 아니라 '다른 값'이다. sum_if_complete docstring 참고.
     j = rec.get("japan_idwr")
     totals = (j or {}).get("national_totals") or {}
-    vals = [v for v in totals.values() if v is not None]
-    return sum(vals) if vals else None
+    return sum_if_complete(totals.values())
 
 
 def _hk_chp_total(rec: dict) -> float | None:
+    # 피드 2개짜리라 하나만 죽어도 합계가 절반이 된다 — 그건 홍콩이 보고를
+    # 줄인 게 아니라 우리가 절반을 못 읽은 것이다.
     hk = rec.get("hk_chp")
-    vals = [v for v in (hk or {}).values() if v is not None]
-    return sum(vals) if vals else None
+    return sum_if_complete((hk or {}).values())
 
 
 def _infodengue_total(rec: dict) -> float | None:
+    # 도시 하나가 실패하면 그 항목이 None 으로 온다(fetch_infodengue). 예전엔
+    # falsy 라 그냥 건너뛰어서, 09-20 01:00 '상파울루=실패' 같은 날 합계가 조용히
+    # 내려앉았다. 지금은 계절성 제외 목록에 있어 경보로는 안 갔지만, 그 보호가
+    # 사라지면 바로 같은 사고가 난다 — 지표 쪽에서 막는다.
     inf = rec.get("infodengue")
-    vals = [city["casos"] for city in (inf or {}).values() if city]
-    return sum(vals) if vals else None
+    return sum_if_complete(
+        (city.get("casos") if city else None) for city in (inf or {}).values())
 
 
 def _cidrap_field(slug: str):
