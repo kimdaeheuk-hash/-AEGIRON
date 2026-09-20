@@ -72,15 +72,50 @@ def send_telegram_message(text: str) -> bool:
     return ok
 
 
+# 텔레그램에 싣는 근거 줄 수. 경보 dict 의 evidence 는 4~5줄인데 다 실으면
+# 여러 건이 왔을 때 화면을 덮는다. 앞 2줄이 관측값과 원시 이상도다(alerts.py
+# 가 그 순서로 쌓는다) — 뒤쪽은 가중치·계층 설명이라 폰에서는 생략한다.
+EVIDENCE_LINES = 2
+
+
+def _esc(value) -> str:
+    """텔레그램은 parse_mode=HTML 로 보낸다. 데이터에 < 나 & 가 섞이면 400 이
+    나고 **경보가 통째로 안 간다.**
+
+    남의 문장이 그대로 들어오는 자리가 실제로 있다 — 설명불가 경보의 label 은
+    LLM 이 뽑은 지역·질병명이고, 근거에는 '원문 발췌'가 들어간다. 우리 태그
+    (<b>·<i>)는 템플릿에서만 쓰고, **값은 전부 이 함수를 거친다.**
+    """
+    import html
+    return html.escape(str(value), quote=False)
+
+
+def _evidence_lines(alert: dict) -> list[str]:
+    """★ 근거는 숫자와 같이 간다 ★ (2026-09-20 출구 감사)
+
+    경보 dict 는 처음부터 evidence 를 들고 있었다. alerts._gai_overall_evidence
+    의 docstring 이 그 이유를 이렇게 적어뒀다 — *"근거 없는 숫자는 기관이 사용
+    못 함 … 결재 올릴 수 있는 형태를 목표로 함"*.
+
+    그런데 **사람에게 실제로 닿는 유일한 채널이 그걸 안 보냈다.** 폰에 뜬 건
+    "🟠 비공식신호 · genomic_new_clades_covid — 85.0점" 한 줄뿐이었고, 그게
+    '신규 계통 1건'이라는 걸 알아내려고 Railway 로그를 뒤져야 했다(09-19).
+    웹 대시보드는 evidence 를 그리는데 폰은 안 그렸다 — 먼저, 묻지도 않았는데
+    도착하는 쪽이 폰이다.
+    """
+    return [f"   · {_esc(e)}" for e in (alert.get("evidence") or [])[:EVIDENCE_LINES]]
+
+
 def format_alert_message(new_alerts: list[dict]) -> str:
     lines = [f"🚨 <b>아이기론 신규 경보 {len(new_alerts)}건</b>"]
     for a in new_alerts:
         icon = TIER_ICON.get(a["tier"], "🟡")
-        lines.append(f"{icon} {a['label']} — {a['score']}점")
+        lines.append(f"{icon} {_esc(a['label'])} — {_esc(a['score'])}점")
+        lines += _evidence_lines(a)
         # 경보에 NPI 반사실 브리핑이 붙어 있으면(자동연결) 한 줄로 노출 —
         # "그래서 뭘 하라고?"에 답하는 의사결정 라인.
         if a.get("npi_summary"):
-            lines.append(f"   {a['npi_summary']}")
+            lines.append(f"   {_esc(a['npi_summary'])}")
     return "\n".join(lines)
 
 
@@ -145,6 +180,15 @@ def _special_lines(brief: dict) -> list[str]:
                 where = r.get("location") or r.get("source") or "?"
                 when = r.get("signal_date")
                 body.append(f"· {when} {where}" if when else f"· {where}")
+
+        # ★ 정직성 고지도 같이 간다 ★ (2026-09-20 출구 감사)
+        # brief_sections 는 섹션마다 honesty 를 붙여둔다. 예보 섹션 것은 이렇다 —
+        # "측정된 발병 수가 아니라 **신호 시계열의 외삽**이며, 아직 적중률
+        # 트랙레코드가 쌓이는 중입니다." 그런데 텔레그램은 icon·title·lead·rows
+        # 만 읽고 honesty 를 안 읽었다. 그래서 폰에는 "· 지표: 4,885명 → 14일 후
+        # 6,200명" 이 **사람 수처럼** 떴다. 웹은 이 필드를 그리는데 폰은 아니었다.
+        if body and sec.get("honesty"):
+            body.append(f"<i>{sec['honesty']}</i>")
 
         if body:
             out.append(head)
