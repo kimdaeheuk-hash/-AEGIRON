@@ -7,14 +7,17 @@ import pytest
 from algorithms import gai as gai_mod
 
 
+# 과거가 '서로 다른 값 3개 이상'이어야 판정한다(2026-09-20). 아래 픽스처들이
+# [10, 20, 10, 20](서로 다른 값 2개)에서 [10, 20, 30, 20]으로 바뀐 이유다 —
+# 검증 대상(클램프·감소 무시·가중합산)은 그대로고, 입력만 판정 가능한 계열로 고쳤다.
 def test_anomaly_score_clamps_extreme_spike_to_100():
-    history = [10, 20, 10, 20]  # 분산이 있어야 z-score가 의미 있음
+    history = [10, 20, 30, 20]  # 분산이 있어야 z-score가 의미 있음
     assert gai_mod._anomaly_score(history + [1000]) == 100.0
 
 
 def test_anomaly_score_ignores_decreases_per_negative_space_design():
     """음수 방향(평소보다 낮음)은 0점 — 감소는 negative_space.py가 전담."""
-    history = [10, 20, 10, 20]
+    history = [10, 20, 30, 20]
     assert gai_mod._anomaly_score(history + [0]) == 0.0
 
 
@@ -22,9 +25,17 @@ def test_anomaly_score_none_when_history_too_short():
     assert gai_mod._anomaly_score([1, 2]) is None  # MIN_HISTORY=3 미만
 
 
-def test_anomaly_score_zero_variance_history_returns_zero():
-    """과거값이 전부 동일(분산 0)이면 stdev=0이라 무조건 0점 — 코드의 실제 동작."""
-    assert gai_mod._anomaly_score([5, 5, 5, 999]) == 0.0
+def test_anomaly_score_withholds_when_history_never_varied():
+    """★계약이 바뀌었다 (2026-09-20)★ 예전엔 0점이었다("분산 0이면 0점").
+
+    0점은 '이상 없음'이라는 **판정**이다. 과거가 한 번도 변한 적 없으면 우리가
+    아는 건 '판정할 수 없다'뿐이다. 그 둘을 같은 숫자로 쓰면, 표본이 쌓이는
+    순간(서로 다른 값이 2개가 되는 순간) 0점이 갑자기 100점으로 튄다 —
+    09-20 01:02 에 naver_covid_ratio 가 실제로 그렇게 critical 을 냈다.
+
+    이제 None 이다. gai 는 None 인 지표를 지수에서 건너뛴다.
+    """
+    assert gai_mod._anomaly_score([5, 5, 5, 999]) is None
 
 
 @pytest.mark.parametrize("score,expected", [
@@ -61,9 +72,9 @@ def test_compute_gai_weighted_average_uses_documented_layer_weights(monkeypatch)
     records = [
         {"type": "free_sources", "official_metric": 10, "behavioral_metric": 10},
         {"type": "free_sources", "official_metric": 20, "behavioral_metric": 20},
-        {"type": "free_sources", "official_metric": 10, "behavioral_metric": 10},
+        {"type": "free_sources", "official_metric": 30, "behavioral_metric": 30},
         {"type": "free_sources", "official_metric": 20, "behavioral_metric": 20},
-        {"type": "free_sources", "official_metric": 100, "behavioral_metric": 20},  # 최신값
+        {"type": "free_sources", "official_metric": 100, "behavioral_metric": 30},  # 최신값
     ]
     monkeypatch.setattr(gai_mod, "LAYERS", fake_layers)
     monkeypatch.setattr(gai_mod, "load_records", lambda: records)
@@ -72,8 +83,8 @@ def test_compute_gai_weighted_average_uses_documented_layer_weights(monkeypatch)
 
     # official: z가 크게 튐 -> 100점, trust(who)=1.0 -> layer_score 100.0
     assert result["layers"]["official"]["score"] == 100.0
-    # behavioral: latest가 과거 최대치와 같음(z=1.0) -> raw 33.3, trust(behavioral_api)=0.9
-    assert result["layers"]["behavioral"]["score"] == pytest.approx(30.0, abs=0.1)
+    # behavioral: latest가 과거 최대치와 같음 -> raw 47.1, trust(behavioral_api)=0.9
+    assert result["layers"]["behavioral"]["score"] == pytest.approx(42.4, abs=0.1)
 
     weight_sum = fake_layers["official"]["weight"] + fake_layers["behavioral"]["weight"]
     expected_gai = round(

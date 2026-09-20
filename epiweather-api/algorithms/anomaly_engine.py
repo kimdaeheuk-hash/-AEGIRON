@@ -24,7 +24,8 @@ from __future__ import annotations
 import statistics
 from datetime import date, timedelta
 
-from .signal_metrics import iter_metric_series, load_records, MIN_HISTORY
+from .signal_metrics import (MIN_HISTORY, has_enough_distinct_history,
+                             iter_metric_series, load_records)
 from . import ears
 
 BASELINE_WINDOW      = 30     # 기준선 계산에 쓸 과거 관측치 수
@@ -66,16 +67,22 @@ def _zscore_anomaly(series: list[float | None], window: int = BASELINE_WINDOW) -
     baseline = clean[-(window + 1):-1]
     if not baseline:
         return None
+    # ★ gai._anomaly_score 와 같은 이유로 같은 문턱 ★ 두 엔진이 같은 지표를 두고
+    # 다른 말을 하면(한쪽은 판정 안 함, 한쪽은 100점) 그 자체가 고장이다.
+    # 여기 창은 30개라 주 단위 지표는 창 전체가 같은 값인 경우가 흔하다.
+    if not has_enough_distinct_history(baseline):
+        return None
     mean = statistics.mean(baseline)
     stdev = statistics.pstdev(baseline) if len(baseline) > 1 else 0.0
     ratio = (latest - mean) / mean if mean else None  # 표시용 상대변화
 
     if stdev == 0:
-        # 분산 0(항상 같은 값)인 기준선에선 z가 정의되지 않음 — gai.py와 동일하게
-        # 통계적 이상도를 0으로 둬 과대탐지를 막되, 원시값은 그대로 노출.
-        z = 0.0
-    else:
-        z = (latest - mean) / stdev
+        # ★ 위 문턱을 통과하면 여기 못 온다 ★ 서로 다른 값이 3개면 분산은 0 이
+        # 아니다. 0 나누기 방어로만 남긴다. 예전 주석은 "gai.py와 동일하게
+        # 이상도를 0으로 둔다"였는데, 2026-09-20 부터 양쪽 다 0 이 아니라
+        # **판정 안 함(None)** 이다 — 0점은 '이상 없음'이라는 판정이라서.
+        return None
+    z = (latest - mean) / stdev
     score = round(max(0.0, min(z, 3.0)) / 3.0 * 100, 1)
     return {
         "latest":        round(latest, 4),
