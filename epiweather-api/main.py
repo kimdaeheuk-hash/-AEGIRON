@@ -412,6 +412,20 @@ async def _run_daily_brief_job(today: str) -> None:
         except Exception as e:
             _log_error(f"daily_brief_job failed({lang}): {type(e).__name__}: {e}")
 
+    # ★ 품질 불변식에 결과를 남긴다 (2026-09-20) ★ 브리핑은 여섯 그물 어디에도
+    # 없었다 — 소스 헬스 23개에도, 품질 불변식 여섯에도. 상류가 상하면 증상이
+    # 여기서 나는데 모든 단계가 실패를 흡수하도록 만들어져 있어서, 값은 매일
+    # 나오고 고장은 안 보였다(09-18 크레딧 소진이 열흘).
+    # `not briefs` 보다 **위에서** 부른다: 한 언어도 못 만든 날이야말로
+    # 남겨야 하는 날이고, 아래 return 에 걸리면 그날이 통째로 빠진다.
+    from algorithms.quality_health import record_brief_outcome
+    try:
+        record_brief_outcome(briefs, available=bool(api_key))
+    except Exception as e:                                    # noqa: BLE001
+        # 기록 실패가 브리핑 발송을 막으면 안 된다 — 감시 장치가 본체를 죽이는
+        # 구조는 이 리포가 피해온 것이다.
+        _log_error(f"daily_brief 품질 기록 실패: {type(e).__name__}: {e}")
+
     if not briefs:
         _log_error(f"daily_brief_job: {today} 브리핑을 한 언어도 생성하지 못함")
         return

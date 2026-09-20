@@ -47,6 +47,25 @@ def _result(basis="llm", answered=60, sent=60, fetched=5,
     }
 
 
+def _brief(method="llm_polished", sections=None, polish=None, alerts=None):
+    """generate_daily_brief() 가 돌려주는 모양 중 이 층이 보는 칸만."""
+    out = {"generation_method": method, "llm_available": True}
+    if sections:
+        out["special_section_errors"] = [{"section": s, "error": "X"} for s in sections]
+    if polish:
+        out["polish_error"] = polish
+    if alerts:
+        out["alerts_error"] = alerts
+    return out
+
+
+def _briefs(method="llm_polished", **kw):
+    """세 언어 한 벌 — SUPPORTED_LANGS 를 따라간다(하드코딩하면 언어가 늘 때
+    이 테스트가 조용히 한 언어를 안 보게 된다. 08-23 의 fr 사고가 그 모양이었다)."""
+    from algorithms.daily_brief import SUPPORTED_LANGS
+    return {lang: _brief(method, **kw) for lang in SUPPORTED_LANGS}
+
+
 def _streak(key: str) -> int:
     entry = next(i for i in qh.quality_report()["invariants"] if i["key"] == key)
     return entry["consecutive_violations"]
@@ -168,13 +187,29 @@ def test_a_crashing_check_is_unknown_not_a_violation(monkeypatch):
 
 
 def test_healthy_cycle_reports_clean_summary():
-    # 추출층은 하루 1회 슬롯이 남긴 상태를 보므로, '온전한 주기'를 만들려면 그
-    # 성공도 같이 있어야 한다 — 이게 없으면 판정불가 1이 뜨는 게 정상이다.
+    # 추출층·브리핑은 하루 1회 슬롯이 남긴 상태를 보므로, '온전한 주기'를 만들려면
+    # 그 성공도 같이 있어야 한다 — 이게 없으면 판정불가가 뜨는 게 정상이다.
     qh.record_extraction_outcome(_extraction(saved=3))
+    qh.record_brief_outcome(_briefs())
     qh.record_cycle(_result())
     line = qh.summary_line()
     assert line.startswith("🔎 품질 불변식: 정상")
     assert "판정불가" not in line
+
+
+def test_summary_line_does_not_double_the_word_normal():
+    """`🔎 품질 불변식: 정상 정상 6/6` 이 09-19 점검까지 그대로 찍혔다.
+
+    09-15 에 두 갈래가 같은 셈법(_healthy_tail)을 쓰게 묶으면서 접두어가 겹쳤고,
+    기존 테스트가 `startswith(... "정상")` 이라 중복을 통과시켰다. 사고는 아니지만
+    로그를 읽는 사람이 '정상'을 두 번 읽는다 — 값을 말하는 줄은 한 번만 말해야 한다.
+    """
+    qh.record_extraction_outcome(_extraction(saved=3))
+    qh.record_brief_outcome(_briefs())
+    qh.record_cycle(_result())
+    line = qh.summary_line()
+    assert "정상 정상" not in line
+    assert line == f"🔎 품질 불변식: 정상 {len(qh.INVARIANTS)}/{len(qh.INVARIANTS)}"
 
 
 # ── ★2026-09-06★ 추출층 — 나흘을 두 그물이 다 놓쳤던 자리 ─────────────
@@ -415,3 +450,139 @@ def test_both_branches_use_the_same_arithmetic():
     qh.record_cycle(_result())
     report = qh.quality_report()
     assert qh._healthy_tail(report) in qh.summary_line()
+
+
+# ── ★2026-09-20★ 일곱 번째 불변식: 일일 브리핑 ────────────────────────
+#
+# 브리핑은 여섯 그물 어디에도 없었다 — 소스 헬스 23개에도, 품질 불변식 여섯에도.
+# `llm_provider` 불변식은 local_news 재분류 제공자(Groq)만 보고, Anthropic 층은
+# 아무도 안 봤다.
+#
+# 그 결과가 09-18 이다: 크레딧이 말라 대본이 LLM 을 못 거치는데도 아카이브에는
+# 3개 언어가 그대로 쌓였고, 로그·/api/status 에 한 줄도 안 남았다. 09-15 점검은
+# 그 침묵을 "매일 3개 언어 성공한다"로 읽고 **모델 ID 를 고쳤다** — 틀린 곳이었다.
+#
+# 이 절이 고정하는 것은 "값이 나왔다"와 "그 값을 만든 방식이 온전하다"의 구분이
+# 브리핑에도 적용된다는 것이다.
+
+
+def _age_brief_state(**fields):
+    data = qh._load_raw()
+    data[qh.BRIEF_STATE_KEY] = {**(data.get(qh.BRIEF_STATE_KEY) or {}), **fields}
+    qh._save_raw(data)
+
+
+def test_template_fallback_brief_is_not_counted_as_success():
+    """★이 불변식이 존재하는 이유★ 09-18 의 모양을 실제로 잡는가.
+
+    3개 언어가 다 생성되고 아카이브에 쌓이는데 대본은 LLM 을 못 거친 상태.
+    값은 나오므로 예전 그물 여섯은 전부 통과한다.
+    """
+    qh.record_brief_outcome(_briefs(method="template_fallback",
+                                    polish="BadRequestError 400: credit balance is too low"))
+    _age_brief_state(first_attempt_at=_hours_ago(96), last_attempt_at=_hours_ago(1))
+    for _ in range(3):
+        qh.record_cycle(_result())
+
+    assert _alarming("daily_brief")
+    line = qh.summary_line()
+    assert "일일 브리핑" in line
+    # ★ 사유가 경보에 실려야 그날 조치가 된다 ★ 크레딧은 코드로 못 고친다 —
+    # 캡틴만 고칠 수 있고, 그러려면 경보가 이유를 말해야 한다.
+    assert "credit balance is too low" in line
+    assert "템플릿 방송" in line
+
+
+def test_intact_brief_clears_the_invariant():
+    qh.record_brief_outcome(_briefs())
+    for _ in range(3):
+        qh.record_cycle(_result())
+    assert not _alarming("daily_brief")
+    assert _streak("daily_brief") == 0
+
+
+def test_missing_api_key_is_unknown_not_a_violation():
+    """키가 없으면 template_fallback 은 설계대로 동작한 것이다.
+
+    이걸 실패로 세면 캡틴이 키를 안 넣은 운영 선택이 매일 고장으로 울린다 —
+    capability_ledger 의 not_configured / observed_failure 와 같은 갈림이다.
+    """
+    qh.record_brief_outcome({}, available=False)
+    _age_brief_state(first_attempt_at=_hours_ago(96))
+    for _ in range(5):
+        qh.record_cycle(_result())
+
+    assert not _alarming("daily_brief")
+    entry = next(i for i in qh.quality_report()["invariants"] if i["key"] == "daily_brief")
+    assert entry["last_result"] == "unknown"
+
+
+def test_one_language_falling_back_is_enough_to_alarm():
+    """08-23 의 fr 사고가 '한 언어만 조용히 비는' 모양이었다. 한 벌 전체가
+    온전해야 온전한 것으로 센다 — ko 가 멀쩡하다고 넘어가면 같은 일이 반복된다."""
+    briefs = _briefs()
+    briefs["fr"] = _brief(method="template_fallback")
+    qh.record_brief_outcome(briefs)
+    _age_brief_state(first_attempt_at=_hours_ago(96), last_attempt_at=_hours_ago(1))
+    for _ in range(3):
+        qh.record_cycle(_result())
+
+    assert _alarming("daily_brief")
+    assert "fr" in qh.summary_line()
+
+
+def test_special_section_errors_alarm_even_when_llm_polished():
+    """대본이 LLM 을 거쳤어도 특수 섹션이 비면 08-26(7일 연속 같은 헤드라인)의
+    모양으로 되돌아간다. 두 조건은 AND 다."""
+    qh.record_brief_outcome(_briefs(sections=["polar_signals"]))
+    _age_brief_state(first_attempt_at=_hours_ago(96), last_attempt_at=_hours_ago(1))
+    for _ in range(3):
+        qh.record_cycle(_result())
+
+    assert _alarming("daily_brief")
+    assert "polar_signals" in qh.summary_line()
+
+
+def test_alerts_engine_failure_reaches_the_invariant():
+    """경보 조회가 죽어 alerts=[] 로 나간 브리핑은 '조용한 날'과 같아 보였다."""
+    qh.record_brief_outcome(_briefs(alerts="RuntimeError: db locked"))
+    _age_brief_state(first_attempt_at=_hours_ago(96), last_attempt_at=_hours_ago(1))
+    for _ in range(3):
+        qh.record_cycle(_result())
+
+    assert _alarming("daily_brief")
+    assert "경보 조회 실패" in qh.summary_line()
+
+
+def test_brief_slot_not_running_at_all_alarms():
+    """★ 08-22 사고 ②의 모양 ★ 슬롯 자체가 안 도는 것을 판정불가로 빼면
+    '안 도는 층'이 영영 안 울린다. 마지막 성공을 늙히면 위반이 돼야 한다."""
+    qh.record_brief_outcome(_briefs())
+    _age_brief_state(last_success_at=_hours_ago(96))
+    for _ in range(3):
+        qh.record_cycle(_result())
+
+    assert _alarming("daily_brief")
+
+
+def test_first_failure_right_after_deploy_defers_judgment():
+    """빈 볼륨에 첫 실패 하나로 울리면 거짓 경보가 된다 — 판정을 미룬다."""
+    qh.record_brief_outcome(_briefs(method="template_fallback"))
+    for _ in range(5):
+        qh.record_cycle(_result())
+
+    assert not _alarming("daily_brief")
+    entry = next(i for i in qh.quality_report()["invariants"] if i["key"] == "daily_brief")
+    assert entry["last_result"] == "unknown"
+
+
+def test_status_carries_brief_methods_per_language():
+    """/api/status 에서 언어별 generation_method 가 바로 읽혀야 한다 — 09-18 에
+    "브라우저로 /api/daily-brief 를 열어 확인하라"고 적어둬야 했던 값이다."""
+    briefs = _briefs()
+    briefs["en"] = _brief(method="template_fallback")
+    qh.record_brief_outcome(briefs)
+    brief = qh.quality_report()["brief"]
+    assert brief["last_methods"]["ko"] == "llm_polished"
+    assert brief["last_methods"]["en"] == "template_fallback"
+    assert brief["success_age_hours"] is None      # 온전한 적이 없다

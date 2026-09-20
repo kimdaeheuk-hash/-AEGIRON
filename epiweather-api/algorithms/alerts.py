@@ -56,7 +56,34 @@ def _notify(new_critical_high: list[dict]) -> dict:
         status = NOTIFY_UNCONFIGURED
     else:
         status = NOTIFY_SENT if sent else NOTIFY_FAILED
-    return {"status": status, "new_critical_high": count}
+    return {
+        "status": status,
+        "new_critical_high": count,
+        # ★ 누가 폰을 울렸는지 ★ 건수만 남기면 "알림: 전송됨" 을 보고도 무엇이
+        # 나갔는지 알 수 없다. source 는 경보의 중복제거 키이자 억제 로그
+        # (`⏸ [alerts] genomic_new_clades_covid …`)가 쓰는 것과 같은 이름이라,
+        # 막힌 경보와 나간 경보를 같은 낱말로 대조할 수 있다.
+        "sources": [a.get("source") for a in new_critical_high if a.get("source")],
+    }
+
+
+# 이름을 찍는 등급 — 사람을 깨우는 두 등급만. medium·low 는 건수로 충분하다
+# (캡이 없어 수십 개가 되고, 그걸 다 나열하면 정작 critical 이름이 묻힌다).
+_NAMED_TIERS = ("critical", "high")
+# 한 등급에 이름을 몇 개까지 찍는가. 넘치면 `+N` 으로 넘친 사실을 남긴다 —
+# 잘린 줄이 '이게 전부'로 읽히면 안 된다.
+_MAX_NAMES = 5
+
+
+def _names(sources: list) -> str:
+    """"[a·b·+3]" — 등급 뒤에 붙는 이름표. 없으면 빈 문자열."""
+    names = [s for s in sources if s]
+    if not names:
+        return ""
+    shown = names[:_MAX_NAMES]
+    if len(names) > _MAX_NAMES:
+        shown = shown + [f"+{len(names) - _MAX_NAMES}"]
+    return f"[{'·'.join(shown)}]"
 
 
 def summary_line(result: dict) -> str:
@@ -66,6 +93,17 @@ def summary_line(result: dict) -> str:
     ★ 이 한 줄이 없으면 경보가 나갔는지 로그로 확인할 방법이 없었다 ★
     경보 경로는 지금껏 로그를 한 줄도 남기지 않았다. 소스가 죽으면 로그가
     나지만, 경보가 조용한 것은 '평온해서'와 '경로가 끊겨서'가 똑같이 보인다.
+
+    ★ 건수만으로는 부족했다 (2026-09-20) ★ 09-19 점검이 `critical 1건` 이
+    13주기 연속 찍히는 것을 보고도 **그게 무슨 경보인지 로그로 알 수 없었다.**
+    그 사이 11:03·01:02 두 번 캡틴 폰으로 알림이 나갔는데, 무엇 때문에 울렸는지
+    갈리지 않았다. 더 나쁜 것은 critical 이 주기마다 켜졌다 꺼졌다 하는 것이었다
+    (23:01 있음 → 00:01 없음 → 01:02 있음 → 03:01 없음). 깜빡이는 경보는
+    이 리포가 GroqWatch·Mobility 에서 두 번 데인 모양이다 — 가끔 사라지는 것이
+    오히려 추적을 막는다.
+
+    억제된 경보는 이미 이름을 남기고 있었다(`⏸ [alerts] genomic_new_clades_covid
+    — …`). **막은 것은 이름을 남기고 나간 것은 안 남기는** 상태였다.
     """
     ts = result.get("tier_summary") or {}
     parts = []
@@ -75,10 +113,15 @@ def summary_line(result: dict) -> str:
         if not total:
             continue
         suppressed = info.get("suppressed") or 0
-        parts.append(f"{tier} {total}건" + (f"(억제 {suppressed})" if suppressed else ""))
+        piece = f"{tier} {total}건" + (f"(억제 {suppressed})" if suppressed else "")
+        if tier in _NAMED_TIERS:
+            piece += _names(info.get("sources") or [])
+        parts.append(piece)
     body = " · ".join(parts) if parts else "후보 0건"
     n = result.get("notification") or {}
-    return f"{body} · 알림: {n.get('status', '판정 안 함')}"
+    # 알림은 '무엇이 나갔는지'까지. 상태만 남기면 전송됨·실패 어느 쪽이든
+    # 대상이 사라져, 알림이 닿았는지 되짚을 수가 없다.
+    return f"{body} · 알림: {n.get('status', '판정 안 함')}{_names(n.get('sources') or [])}"
 
 
 def classify_tier(score: float) -> str:
@@ -232,7 +275,11 @@ def refresh_alerts(today: str | None = None) -> dict:
         hidden = [] if cap is None else items[cap:]
         visible_ids += [i["id"] for i in shown]
         suppressed_ids += [i["id"] for i in hidden]
-        tier_summary[tier] = {"cap": cap, "total": len(items), "suppressed": len(hidden)}
+        # sources 는 **억제분까지 포함한 전체**를 점수 내림차순으로 담는다 —
+        # total 이 세는 것과 같은 집합이어야 한다. 보이는 것만 담으면 숫자와
+        # 이름이 어긋나 "3건인데 이름은 2개" 가 된다.
+        tier_summary[tier] = {"cap": cap, "total": len(items), "suppressed": len(hidden),
+                              "sources": [i["source"] for i in items]}
 
     db.set_suppressed(visible_ids, False)
     db.set_suppressed(suppressed_ids, True)
