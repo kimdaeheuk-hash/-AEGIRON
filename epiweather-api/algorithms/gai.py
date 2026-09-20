@@ -17,7 +17,8 @@ from __future__ import annotations
 import statistics
 
 from .trust import trust_for
-from .signal_metrics import LAYERS, MIN_HISTORY, load_records
+from .signal_metrics import (LAYERS, MIN_HISTORY, has_enough_distinct_history,
+                             load_records)
 
 MIN_RELIABLE_SAMPLES = 14  # free_sources 누적이 이 미만이면 caveat 표시
 
@@ -40,10 +41,20 @@ def _anomaly_score(series: list[float | None]) -> float | None:
     if len(cleaned) < MIN_HISTORY + 1:
         return None
     *history, latest = cleaned
+    # ★ 과거가 '변해온 적이 있어야' z 를 낸다 ★ 표본은 많은데 전부 같은 값이면
+    # 표준편차가 '값이 얼마나 변하는가'가 아니라 '값이 언제 바뀌었나'를 재게 되고,
+    # 첫 변화에서 z 가 상한까지 튄다(2026-09-20 naver_covid_ratio 실측).
+    # 판정하지 않는다 — 없는 것을 0 으로도, 100 으로도 만들지 않는다.
+    if not has_enough_distinct_history(history):
+        return None
     mean = statistics.mean(history)
     stdev = statistics.pstdev(history)
     if stdev == 0:
-        return 0.0
+        # ★ 위 문턱을 통과하면 여기 못 온다 ★ 서로 다른 값이 3개면 분산은 0 이
+        # 아니다. 0 나누기 방어로만 남긴다 — **"과거가 평평하면 0점"으로 읽지
+        # 마라.** 그 오해가 09-20 사고의 뿌리였다: 0점은 '이상 없음'이라는
+        # 판정이고, 그때 우리가 아는 건 '판정할 수 없다'뿐이었다.
+        return None
     z = (latest - mean) / stdev
     return round(max(0.0, min(z, 3.0)) / 3.0 * 100, 1)
 

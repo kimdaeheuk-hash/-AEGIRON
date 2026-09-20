@@ -99,7 +99,9 @@ def test_latest_uses_the_same_rule_as_the_score():
     """★핵심★ _latest_value 와 _anomaly_score 가 서로 다른 원소를 '최신값'으로
     잡으면, 문턱이 점수와 **다른 숫자**를 보고 판단하게 된다. 둘 다 마지막
     non-None 을 쓴다는 걸 고정한다."""
-    series = [0.0, None, 0.0, 0.0, None, 3.0]
+    # 서로 다른 값 3개 이상이어야 점수가 난다(2026-09-20) — 이 테스트의 대상은
+    # '어느 원소를 최신값으로 잡는가'라서, 입력만 판정 가능한 계열로 고쳤다.
+    series = [1.0, None, 2.0, 0.0, None, 3.0]
     assert gai._latest_value(series) == 3.0
     assert gai._anomaly_score(series) is not None      # 같은 계열에서 점수도 난다
     assert gai._latest_value([None, None]) is None

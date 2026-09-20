@@ -31,27 +31,33 @@ def test_zscore_accounts_for_metric_variability():
 def test_zscore_score_scale_matches_gai_mapping():
     """z를 [0,3]에 클램프해 0~100으로 매핑 — 3σ 이상이면 100점.
     (신호 카운트는 음수 불가라 기준선은 양수로 구성 — mean 10, pstdev 2)."""
-    baseline = [8.0, 12.0, 8.0, 12.0, 8.0, 12.0, 8.0, 12.0, 8.0, 12.0]  # mean=10, pstdev=2
-    series = baseline + [16.0]  # z = (16-10)/2 = 3
+    # 서로 다른 값 3개 이상이어야 판정한다(2026-09-20) — 3σ 지점은 손으로 적지
+    # 않고 기준선에서 직접 계산한다. 픽스처를 고쳐도 검증 대상은 그대로다.
+    import statistics
+    baseline = [8.0, 12.0, 10.0] * 4
+    mean, std = statistics.mean(baseline), statistics.pstdev(baseline)
+    series = baseline + [mean + 3 * std]  # 정확히 z = 3
     r = _zscore_anomaly(series)
-    assert r["z_score"] >= 2.9
+    assert abs(r["z_score"] - 3.0) < 0.01
     assert r["anomaly_score"] == 100.0
 
 
-def test_flat_baseline_returns_zero_anomaly_not_crash():
-    """분산 0 기준선(항상 같은 값)에서 값이 튀어도 z 정의 불가 → 0점(과대탐지 방지),
-    크래시하지 않아야 함."""
+def test_flat_baseline_is_withheld_not_scored_zero():
+    """★계약이 바뀌었다 (2026-09-20)★ 예전엔 0점짜리 결과를 돌려줬다.
+
+    한 번도 변한 적 없는 기준선에서 0점은 '이상 없음'이라는 판정이 된다. 우리가
+    아는 건 '판정할 수 없다'뿐이다. 이제 None 이고, compute_anomalies 가 그
+    지표를 건너뛴다(metrics_checked 에서도 빠진다 — 세지 않은 걸 셌다고 하지 않는다).
+
+    크래시하지 않아야 한다는 원래 요구는 그대로 지킨다."""
     series = [50.0] * 10 + [80.0]
-    r = _zscore_anomaly(series)
-    assert r is not None
-    assert r["z_score"] == 0.0
-    assert r["anomaly_score"] == 0.0
-    assert r["baseline_std"] == 0.0
+    assert _zscore_anomaly(series) is None
 
 
 def test_ratio_still_returned_for_human_display():
     """z-score로 바꿔도 사람이 읽는 퍼센트변화(ratio)는 참고용으로 남겨둠."""
-    series = [100.0] * 10 + [150.0]
+    # 기준선 평균 100 은 유지하되 서로 다른 값 3개를 준다(2026-09-20 문턱).
+    series = [90.0, 100.0, 110.0] * 3 + [150.0]
     r = _zscore_anomaly(series)
     assert r["ratio"] == 0.5  # +50%
 
