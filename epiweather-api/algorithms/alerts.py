@@ -59,6 +59,47 @@ def _notify(new_critical_high: list[dict]) -> dict:
     return {"status": status, "new_critical_high": count}
 
 
+# 로그 한 줄에 이름을 적을 경보 수. 등급 캡이 critical 3 · high 5 라 최대 8건까지
+# 날 수 있는데 다 적으면 줄이 화면을 덮는다. 점수 높은 순 3건이면 무엇이 울렸는지는
+# 드러나고, 나머지는 수로만 알린다.
+NAMED_IN_LOG = 3
+
+
+def named_alerts(result: dict) -> str | None:
+    """로그에 적을 '무엇이 울렸나'. 경보가 없으면 None.
+
+    ★ 왜 이게 필요했나 ★ (2026-09-21 캡틴 지시)
+
+    09-21 00:03 에 critical 1건이 캡틴 폰으로 나갔다. 로그에 남은 건 이것뿐이다:
+
+        🚨 경보 주기: critical 1건 · medium 2건 · low 7건 · 알림: 전송됨
+
+    **어느 지표인지 알 수가 없다.** 같은 사이클에서 움직인 값이 넷이었고
+    (코로나비율·에볼라비율·공급망·조달), 로그만으로는 좁힐 수 없었다.
+
+    09-19 에 같은 문제를 적어두고 고치지 않았다 — 그때는 "다음에"라고 했다.
+    그런데 런칭 전 소킹의 1번 판정 기준이 **'거짓 경보 0건'** 이다. 무엇이
+    울렸는지 모르면 그게 거짓인지 판정할 수가 없다. 관측이 안 되는 기준은
+    기준이 아니다.
+
+    근거 첫 줄을 같이 적는다. GAI 지표는 "관측값 N", 부정적 공간 감시는
+    "최신값 X (과거 평균 Y의 Z배)" 라서, 그 한 줄이면 '몇 점'이 아니라
+    **'무엇이 몇인데 몇 점'** 이 된다. 잘라내지 않는다 — 예전에 [:40] 절단이
+    진단을 통째로 먹은 적이 있다(2026-09 추출 사고).
+    """
+    top = (result.get("dashboard") or {}).get("top") or []
+    if not top:
+        return None
+    named = []
+    for a in top[:NAMED_IN_LOG]:
+        head = f"{a.get('label')} {a.get('score')}점"
+        evidence = a.get("evidence") or []
+        named.append(f"{head}({evidence[0]})" if evidence else head)
+    line = " · ".join(named)
+    rest = len(top) - len(named)
+    return f"{line} 외 {rest}건" if rest > 0 else line
+
+
 def summary_line(result: dict) -> str:
     """스케줄러 로그 한 줄. 수집기 로그처럼 **시험 가능한 자리**에 둔다
     (naver_trends.summary·extraction_summary와 같은 이유).
@@ -78,7 +119,9 @@ def summary_line(result: dict) -> str:
         parts.append(f"{tier} {total}건" + (f"(억제 {suppressed})" if suppressed else ""))
     body = " · ".join(parts) if parts else "후보 0건"
     n = result.get("notification") or {}
-    return f"{body} · 알림: {n.get('status', '판정 안 함')}"
+    line = f"{body} · 알림: {n.get('status', '판정 안 함')}"
+    names = named_alerts(result)
+    return f"{line} | {names}" if names else line
 
 
 def classify_tier(score: float) -> str:
