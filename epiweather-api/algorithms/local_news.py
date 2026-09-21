@@ -27,6 +27,8 @@
 from __future__ import annotations
 import re
 import urllib.parse
+import random
+import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
@@ -35,6 +37,42 @@ import requests
 USER_AGENT = {"User-Agent": "EpiWeather-LocalNews/1.0 (epiweather.kr)"}
 TIMEOUT = 15
 MAX_WORKERS = 20  # 전세계 ~180개 피드를 병렬 수집(순차면 국가 수 × 15초라 불가능)
+
+# ── 한 번만 다시 묻는다 (2026-09-21) ────────────────────────────────
+#
+# ★ 근거: 나흘치 실측이 시각별로 몰렸다 ★
+# LocalNews 가 `0/179개 피드` 로 전멸한 시각(UTC)을 세어보면 —
+#
+#     09-17  08, 09, 11, 12      09-19  11, 12
+#     09-18  11                  09-20  10, 11, 12
+#
+# **10건 전부가 08~12시 안에 있고 나머지 19시간에는 0건이다.** 11시는 나흘 내리
+# 걸렸다. 무작위 외부 장애라면 24시간에 고르게 흩어져야 한다. 사유는 전부
+# `HTTPError 503×179` 이고, 같은 원천(news.google.com/rss/search)을 쓰는
+# NewsWatch 도 같은 주기에 같은 503 으로 죽는다.
+#
+# 우리 쪽 모양도 이 해석과 맞는다: 179개 피드를 한 호스트에 20개씩 동시에,
+# 매시간 던진다. 503 은 서버가 **대답은 한** 것이라 방화벽 drop 이 아니다.
+#
+# ⚠️ 그래도 "구글이 레이트리밋을 건다"는 아직 추정이다 — 503 만으로는 과부하와
+# 의도적 스로틀이 안 갈린다. 그래서 아키텍처는 안 바꾼다(#38 의 판단 그대로).
+# 바꾸는 건 **한 번 더 묻는 것**뿐이고, 그 결과가 다음 판정을 만든다:
+# 재시도로 살아나면 순간 스로틀, 그래도 503 이면 그 시간대에 우리를 아예
+# 안 받는 것이다. failure_summary 가 `재시도 구제 N건` 으로 그 숫자를 남긴다.
+#
+# ★ 타임아웃은 재시도하지 않는다 ★ 503 은 즉시 돌아오니 다시 묻는 값이 싸지만,
+# ReadTimeout 은 이미 15초를 쓴 뒤다. 거기서 한 번 더 하면 최악의 경우 주기가
+# 두 배로 늘어 뒤에 오는 소스가 전부 밀린다 — Mobility 가 매 주기 20초를
+# 버리던 그 모양(2026-08-28)을 179배로 재현하는 셈이다.
+#
+# 비용: 179개 ÷ 20워커 ≈ 9웨이브. 전멸 주기에만 웨이브마다 백오프(1.5~3초)가
+# 붙으니 최악 ~25초다. 그 주기는 어차피 값이 0 이라 잃을 게 없고, 평시(503 이
+# 없는 21시간)에는 한 번도 안 잔다.
+RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
+RETRY_BACKOFF_SEC = 1.5
+# 179개가 동시에 실패하므로 재시도도 동시에 몰린다. 지터가 없으면 방금 막은
+# 서버에 같은 모양의 버스트를 한 번 더 던지는 꼴이다.
+RETRY_JITTER_SEC = 1.5
 
 # 전세계 공통 질병명 — 현지어 기사에도 Latin 표기로 자주 등장하는 앵커.
 # _count_keyword_hits가 소문자 비교라 어떤 문자체계의 기사든 이 이름이 있으면 잡힘.
@@ -313,14 +351,50 @@ def failure_summary(feeds: list[dict]) -> str | None:
     from .common import tally
     reasons = [f.get("reason") or f.get("error") or "Unknown"
                for f in feeds if f.get("status") == "error"]
-    return tally(reasons) if reasons else None
+    if not reasons:
+        return None
+    line = tally(reasons)
+    # ★ 재시도가 값을 했는지 같은 줄에 둔다 (2026-09-21) ★ 따로 두면 실패 수만
+    # 읽고 넘어가게 된다 — `감시창 승격` 을 고경보 수와 한 줄에 붙인 것과 같은
+    # 이유다. 0 이면 '재시도해도 소용없었다'는 관측이고 그것도 알 가치가 있다.
+    rescued = sum(1 for f in feeds if f.get("status") == "ok" and f.get("retried"))
+    if rescued:
+        line += f" · 재시도 구제 {rescued}건"
+    # 다시 묻고도 죽은 건수. 이게 실패 수와 같으면 그 시간대엔 재시도가 무의미하다.
+    still = sum(1 for f in feeds if f.get("status") == "error" and f.get("retried"))
+    if still:
+        line += f" · 재시도했는데도 실패 {still}건"
+    return line
+
+
+def _get_with_one_retry(url: str, state: dict) -> Any:
+    """재시도 가능한 상태코드면 한 번만 다시 묻는다. `state["retried"]`에 표시한다.
+
+    ★ 왜 반환값이 아니라 state 인가 ★ 첫 요청이 **예외**로 죽으면(타임아웃 등)
+    반환이 아예 없어서 호출부의 except 는 '재시도했는지'를 알 길이 없다. 그러면
+    `503 두 번` 과 `503 한 번` 이 로그에서 똑같이 보이는데, 그 둘을 가르는 게
+    이 변경의 목적 자체다(순간 스로틀인가, 그 시간대에 아예 안 받아주는가).
+
+    예외는 그대로 올린다 — 호출부의 except 가 사유를 남기는 자리이고, 여기서
+    삼키면 이 리포가 네 번 고친 그 모양이 된다.
+    """
+    resp = requests.get(url, headers=USER_AGENT, timeout=TIMEOUT)
+    if resp.status_code not in RETRY_STATUSES:
+        return resp
+    time.sleep(RETRY_BACKOFF_SEC + random.uniform(0, RETRY_JITTER_SEC))
+    state["retried"] = True
+    return requests.get(url, headers=USER_AGENT, timeout=TIMEOUT)
 
 
 def fetch_local_feed(slug: str, lang: str, region: str, url: str, keywords: list[str]) -> dict:
     """단일 RSS 피드에서 항목 수 + 키워드 히트 수 반환. _all_titles는 내부용
-    (Cerebras 배치 분류에 씀 — fetch_all_local_news가 최종 응답에서 제거함)."""
+    (Cerebras 배치 분류에 씀 — fetch_all_local_news가 최종 응답에서 제거함).
+
+    재시도 가능한 상태코드(RETRY_STATUSES)면 짧은 백오프 뒤 **한 번만** 다시
+    묻는다. 근거와 한계는 위 상수 주석 참고."""
+    attempt = {"retried": False}
     try:
-        resp = requests.get(url, headers=USER_AGENT, timeout=TIMEOUT)
+        resp = _get_with_one_retry(url, attempt)
         resp.raise_for_status()
         text = resp.text
         item_count = text.count("<item>")
@@ -337,6 +411,9 @@ def fetch_local_feed(slug: str, lang: str, region: str, url: str, keywords: list
             "hit_ratio":     round(keyword_hits / max(item_count, 1), 3),
             "sample_titles": all_titles[:5],
             "status":        "ok",
+            # 재시도가 실제로 구해준 건인가. 이 숫자가 다음 판정을 만든다 —
+            # 0 이면 재시도는 값을 못 했고, 크면 그 시간대는 순간 스로틀이었다.
+            "retried":       attempt["retried"],
             "_all_titles":   all_titles,
         }
     except Exception as e:
@@ -347,6 +424,9 @@ def fetch_local_feed(slug: str, lang: str, region: str, url: str, keywords: list
             "region": region,
             "status": "error",
             "error":  str(e)[:100],
+            # 다시 묻고도 죽었는가. `503 두 번` 과 `503 한 번` 은 다른 사실이다 —
+            # 앞은 그 시간대에 우리를 아예 안 받는 것이고 뒤는 순간 스로틀이다.
+            "retried": attempt["retried"],
             # ★ 짧은 사유를 따로 남긴다 ★ 179개 피드가 한꺼번에 죽으면 긴 문장
             # 179줄은 로그에서 못 읽는다. brief_reason 은 상태코드를 붙여주므로
             # (HTTPError 503) 집계했을 때 한 줄로 원인이 드러난다.
@@ -580,6 +660,12 @@ def fetch_all_local_news(cerebras_key: str | None = None,
         # ↓ 왜 죽었는지. 피드마다 reason 은 이미 있었지만 아무도 안 읽었다 —
         #   2026-09-19 에 179개가 전멸했을 때 로그엔 "0/179" 만 찍혔다.
         "failure_summary": failure_summary(results),
+        # ↓ 재시도가 살려낸 피드 수. **실패가 0 이어도 남긴다** — 179개가 전부
+        #   503 을 맞고 전부 재시도로 살아난 주기는 겉보기에 완벽히 깨끗한데,
+        #   그게 바로 '구글이 그 시간대에 우리를 스로틀한다'의 가장 강한 증거다.
+        #   failure_summary 에만 실으면 그 주기는 통째로 조용해진다.
+        "retried_feeds":   sum(1 for r in results
+                               if r.get("status") == "ok" and r.get("retried")),
         "total_kw_hits":   total_hits,
         "high_alert_feeds": len(high_alert),
         "high_alert":      high_alert,

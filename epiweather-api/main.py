@@ -399,8 +399,11 @@ async def _run_daily_brief_job(today: str) -> None:
     실패하면 그 뒤가 통째로 사라졌다. 한 언어의 실패가 나머지 언어를 죽이면
     안 된다(KDCA 사고와 같은 구조).
     """
+    import collector
+
     from algorithms.daily_brief import SUPPORTED_LANGS, generate_daily_brief
     from algorithms.notifier import notify_daily_brief
+    from algorithms.quality_health import record_brief_outcome
 
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     briefs: dict[str, dict] = {}
@@ -411,6 +414,27 @@ async def _run_daily_brief_job(today: str) -> None:
             briefs[lang] = brief
         except Exception as e:
             _log_error(f"daily_brief_job failed({lang}): {type(e).__name__}: {e}")
+
+    # ★ 슬롯이 결과를 남긴다 — 이게 없으면 일곱 번째 불변식이 볼 게 없다 ★
+    # 브리핑은 하루 1회라 무료 주기의 result dict 에 안 들어온다. 추출층
+    # (record_extraction_outcome)과 같은 배선이다. **성공해도 남긴다** — 이 층의
+    # 고장은 언제나 '값은 나오는데 방식이 상한' 모양이라, 실패만 기록하면
+    # 09-18 의 침묵이 그대로 되돌아온다.
+    #
+    # 예외가 여기서 새면 브리핑 발송이 막힌다. 계측이 방송을 멈추게 할 수는 없다.
+    try:
+        outcome = await asyncio.to_thread(
+            record_brief_outcome, briefs, list(SUPPORTED_LANGS), bool(api_key))
+        # 저하는 그날 아침 로그에 바로 보이게 한다. 불변식 경보는 3주기 뒤에나
+        # 울리는데, 브리핑은 하루 1회라 그게 사흘이다.
+        if outcome.get("last_outcome") in ("failed", "degraded"):
+            why = ", ".join(list((outcome.get("last_failure_reasons") or {}).keys())[:3])
+            collector.log(f"  ⚠️ 일일 브리핑 저하({outcome['last_outcome']}): "
+                          f"LLM 다듬기 {outcome.get('last_polished_count')}/"
+                          f"{len(SUPPORTED_LANGS)}개 언어"
+                          + (f" · {why}" if why else ""))
+    except Exception as e:
+        _log_error(f"daily_brief_job record_outcome: {type(e).__name__}: {e}")
 
     if not briefs:
         _log_error(f"daily_brief_job: {today} 브리핑을 한 언어도 생성하지 못함")

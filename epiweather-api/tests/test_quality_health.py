@@ -18,6 +18,12 @@
 6. ★2026-09-06 추가★ 하루 1회 도는 추출층도 이 그물에 걸린다 — 09-02~09-05
    나흘 내리 0건이었는데 소스 건강 `23/23`·품질 `5/5` 를 둘 다 통과했다.
    주기 수가 경과를 대신 말하지 않게, 진짜 시각과 실패 경로를 같이 싣는다.
+7. ★2026-09-21 추가★ 일일 브리핑도 걸린다 — LLM 이 죽어도 템플릿으로 조용히
+   방송되던 층이다. 09-15 점검이 그 침묵을 '매일 성공'으로 읽고 엉뚱한 곳을
+   고쳤다.
+8. ★2026-09-21★ 문턱에 못 미친 위반도 **이름을 말한다.** 정상도 판정불가도
+   아니라 어느 칸에도 안 잡히던 층들이 줄에서 통째로 사라지고 있었다.
+   이제 정상+판정불가+무너지는 중+저하 = 총계 가 언제나 성립한다.
 """
 from __future__ import annotations
 
@@ -168,13 +174,18 @@ def test_a_crashing_check_is_unknown_not_a_violation(monkeypatch):
 
 
 def test_healthy_cycle_reports_clean_summary():
-    # 추출층은 하루 1회 슬롯이 남긴 상태를 보므로, '온전한 주기'를 만들려면 그
-    # 성공도 같이 있어야 한다 — 이게 없으면 판정불가 1이 뜨는 게 정상이다.
+    # 추출층·브리핑층은 하루 1회 슬롯이 남긴 상태를 보므로, '온전한 주기'를
+    # 만들려면 그 성공도 같이 있어야 한다 — 없으면 판정불가가 뜨는 게 정상이다.
     qh.record_extraction_outcome(_extraction(saved=3))
+    qh.record_brief_outcome(_briefs(), ["ko", "en", "fr"])
     qh.record_cycle(_result())
     line = qh.summary_line()
     assert line.startswith("🔎 품질 불변식: 정상")
     assert "판정불가" not in line
+    # ★ '정상'이 두 번 찍히지 않는다 (2026-09-21) ★ 09-15 에 꼬리를 함수로 빼면서
+    # 호출부 리터럴을 안 지워 `정상 정상 6/6` 이 운영 로그에 찍히고 있었다.
+    assert "정상 정상" not in line
+    assert line == "🔎 품질 불변식: 정상 7/7"
 
 
 # ── ★2026-09-06★ 추출층 — 나흘을 두 그물이 다 놓쳤던 자리 ─────────────
@@ -415,3 +426,176 @@ def test_both_branches_use_the_same_arithmetic():
     qh.record_cycle(_result())
     report = qh.quality_report()
     assert qh._healthy_tail(report) in qh.summary_line()
+
+
+# ── ★2026-09-21★ 일곱 번째 불변식 — 브리핑, 여섯 그물 어디에도 없던 층 ──
+#
+# 09-15 점검이 추출층 400 의 원인을 "모델 ID" 로 추론했고 그 근거가 "브리핑은
+# 매일 3개 언어 성공한다" 였다. 그런데 브리핑은 실패할 수가 없는 구조였다 —
+# _polish_with_llm 의 맨 except 가 LLM 실패를 삼키고 template_fallback 으로
+# 조용히 정상 반환했다. **"매일 성공"은 관측이 아니라 "실패가 보이지 않는다"**
+# 였고, 크레딧이 말라 있는 동안에도 똑같이 참으로 보였다.
+
+
+def _briefs(method="llm_polished", langs=("ko", "en", "fr"),
+            section_errors=None, gather_errors=None, error=None):
+    """generate_daily_brief() 반환 모양 × 언어."""
+    out = {}
+    for lang in langs:
+        brief = {"lang": lang, "generation_method": method}
+        if error:
+            brief["generation_error"] = error
+        if section_errors:
+            brief["special_section_errors"] = list(section_errors)
+        if gather_errors:
+            brief["gather_errors"] = list(gather_errors)
+        out[lang] = brief
+    return out
+
+
+def _age_brief(**fields):
+    data = qh._load_raw()
+    data[qh.BRIEF_STATE_KEY] = {**(data.get(qh.BRIEF_STATE_KEY) or {}), **fields}
+    qh._save_raw(data)
+
+
+def test_llm_polished_three_languages_is_the_healthy_shape():
+    state = qh.record_brief_outcome(_briefs(), ["ko", "en", "fr"])
+    assert state["last_outcome"] == "ok"
+    assert state["last_polished_count"] == 3
+    assert state["last_failure_reasons"] == {}
+    assert qh._check_brief_layer({}) is True
+
+
+def test_template_fallback_for_two_days_alarms():
+    """★이 불변식이 존재하는 이유★ 09-18 의 모양을 실제로 잡는가.
+
+    크레딧이 마르면 _polish_with_llm 이 죽고 브리핑은 template_fallback 으로
+    나간다. 값은 나오고 아카이브에는 3개 언어가 그대로 쌓이므로 소스 헬스도
+    아카이브도 정상으로 보인다. 이 층만이 그걸 본다.
+    """
+    qh.record_brief_outcome(
+        _briefs(method="template_fallback",
+                error="BadRequestError 400: Your credit balance is too low"),
+        ["ko", "en", "fr"])
+    _age_brief(first_attempt_at=_hours_ago(96), last_attempt_at=_hours_ago(1))
+
+    for _ in range(2):
+        qh.record_cycle(_result())
+    assert not _alarming("daily_brief"), "단발·2회는 아직 안 울린다"
+
+    qh.record_cycle(_result())
+    assert _alarming("daily_brief"), "이어지면 울려야 한다"
+
+
+def test_the_alarm_carries_the_providers_own_words():
+    """'왜 템플릿인가'가 경보에 실려야 한다 — 그게 없어서 14일을 잃었다."""
+    qh.record_brief_outcome(
+        _briefs(method="template_fallback",
+                error="BadRequestError 400: Your credit balance is too low"),
+        ["ko", "en", "fr"])
+    _age_brief(first_attempt_at=_hours_ago(96), last_attempt_at=_hours_ago(1))
+    for _ in range(3):
+        qh.record_cycle(_result())
+
+    line = qh.summary_line()
+    assert "일일 브리핑" in line
+    assert "credit balance is too low" in line
+
+
+def test_a_polished_brief_with_broken_sections_is_not_healthy():
+    """08-26 의 모양 — 대본은 다듬어졌는데 섹션이 비어 7일 연속 같은 방송."""
+    state = qh.record_brief_outcome(
+        _briefs(section_errors=[{"section": "polar", "error": "KeyError: 'x'"}]),
+        ["ko", "en", "fr"])
+    assert state["last_outcome"] == "degraded"
+    assert any("polar" in k for k in state["last_failure_reasons"])
+
+
+def test_a_dead_upstream_in_gather_is_recorded():
+    """_gather 의 alerts except 가 사유를 증발시키던 자리."""
+    state = qh.record_brief_outcome(
+        _briefs(gather_errors=[{"stage": "alerts", "error": "RuntimeError"}]),
+        ["ko", "en", "fr"])
+    assert state["last_outcome"] == "degraded"
+    assert any("alerts" in k for k in state["last_failure_reasons"])
+
+
+def test_one_missing_language_is_a_violation_not_a_rounding_error():
+    """08-23 의 모양 — fr 아카이브만 계속 0건이었는데 아무도 몰랐다."""
+    state = qh.record_brief_outcome(_briefs(langs=("ko", "en")), ["ko", "en", "fr"])
+    assert state["last_outcome"] == "degraded"
+    assert any(k.startswith("fr:") for k in state["last_failure_reasons"])
+
+
+def test_no_api_key_is_unknown_not_a_violation():
+    """키를 안 넣은 배포는 고장이 아니다 — '안 돌린 것'과 '돌렸는데 실패'는 다르다."""
+    state = qh.record_brief_outcome({}, ["ko", "en", "fr"], available=False)
+    assert state["last_outcome"] == "no_backend"
+    assert qh._check_brief_layer({}) is None, "판정불가여야 한다"
+
+
+def test_not_a_single_language_generated_is_a_failure():
+    state = qh.record_brief_outcome({}, ["ko", "en", "fr"])
+    assert state["last_outcome"] == "failed"
+
+
+def test_a_brand_new_brief_layer_is_not_counted_healthy():
+    """한 번도 성공 못 한 층을 정상으로 세면 죽은 채 배포된 걸 놓친다."""
+    qh.record_brief_outcome(_briefs(method="template_fallback"), ["ko", "en", "fr"])
+    _age_brief(first_attempt_at=_hours_ago(1))
+    assert qh._check_brief_layer({}) is None, "아직 지켜보는 중 — 정상이 아니다"
+
+
+# ── ★2026-09-21★ 문턱에 못 미친 위반도 이름을 말한다 ───────────────────
+
+
+def test_layers_falling_below_the_alarm_threshold_are_named():
+    """★실측 (2026-09-20 10:15·11:03) ★
+
+        🔎 품질 불변식: 정상 2/6 · 판정불가 1
+
+    같은 시각 세 층이 이미 무너지는 중이었는데 alarm_after 에 못 미쳐 위반
+    목록에 안 들어갔고, 정상도 판정불가도 아니라 **어느 칸에도 안 잡혔다.**
+    "뭔가 2/6 이다"만 보이고 무엇이 무너지는 중인지는 두 주기 동안 없었다.
+    """
+    qh.record_extraction_outcome(_extraction(saved=3))
+    qh.record_brief_outcome(_briefs(), ["ko", "en", "fr"])
+    qh.record_cycle(_result(basis="keyword", provider=None))   # 1주기째 — 문턱 미달
+
+    line = qh.summary_line()
+    assert line.startswith("🔎 품질 불변식:"), "전제: 아직 저하 경보는 아니다"
+    assert "무너지는 중" in line
+    assert "LLM 재분류(1주기째)" in line
+    assert "LLM 제공자(1주기째)" in line
+
+
+def test_every_layer_is_accounted_for_in_the_summary_line():
+    """★ 이 줄의 제1원칙 ★ 네 칸의 합이 언제나 총계와 같아야 한다.
+
+    09-15 가 '저하 중에 나머지 층이 사라지던 것'을 고쳤는데도 09-18 점검이
+    "6층 중 3층의 상태가 그 줄에 없다"를 적어야 했다. 덜 닫혀 있었던 것이다.
+    """
+    # 저하 1(추출) · 판정불가 다수 · 무너지는 중 1 이 한 번에 나오는 상황.
+    qh.record_extraction_outcome(_extraction(saved=0, failed=5))
+    _age_brief(first_attempt_at=_hours_ago(96), last_attempt_at=_hours_ago(1))
+    _age_state(first_attempt_at=_hours_ago(96), last_attempt_at=_hours_ago(1))
+    qh.record_brief_outcome(_briefs(method="template_fallback"), ["ko", "en", "fr"])
+    _age_brief(first_attempt_at=_hours_ago(96), last_attempt_at=_hours_ago(1))
+    for _ in range(3):
+        qh.record_cycle(_result(basis="keyword"))
+    qh.record_cycle({"local_news": {"high_alert_basis": "keyword"}})
+
+    report = qh.quality_report()
+    total = (report["healthy_count"] + report["unknown_count"]
+             + report["falling_count"] + report["degraded_count"])
+    assert total == report["total_invariants"], (
+        f"어느 칸에도 안 잡힌 층이 있다: {report}")
+
+
+def test_the_healthy_branch_does_not_say_normal_twice():
+    """운영 로그에 `🔎 품질 불변식: 정상 정상 6/6` 이 찍히고 있었다(09-20)."""
+    qh.record_extraction_outcome(_extraction(saved=3))
+    qh.record_brief_outcome(_briefs(), ["ko", "en", "fr"])
+    qh.record_cycle(_result())
+    assert "정상 정상" not in qh.summary_line()

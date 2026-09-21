@@ -14,11 +14,17 @@
 | 08-28 | 현지어 뉴스 LLM 재분류 29시간+ 꺼짐 | `정상 20/20 · 문제 없음` |
 | 08-30 | LLM 재분류 24주기 중 14주기 실패 | `정상 20/21` |
 | 09-05 | NLP 구조화 추출 나흘 내리 0건 | `정상 23/23` · **품질도 `5/5`** |
+| 09-18 | 브리핑이 LLM 없이 템플릿으로 방송 | `정상 23/23` · **품질도 `6/6`** |
 
-마지막 줄은 이 모듈이 만들어진 뒤에 난 사고다. 다섯 불변식이 전부
-`local_news`·`disaster_watch` 만 보고 있어서 **추출층은 이 그물에도 없었다** —
-새 그물을 쳐도 그물이 안 닿는 자리는 남는다는 뜻이라, 불변식을 늘릴 때 "이 층은
-누가 보나"를 먼저 묻는다(2026-09-06 에 여섯 번째로 추가).
+마지막 두 줄은 이 모듈이 만들어진 뒤에 난 사고다. 같은 교훈이 두 번 나왔다 —
+**새 그물을 쳐도 그물이 안 닿는 자리는 남는다.** 09-06 에는 다섯 불변식이 전부
+`local_news`·`disaster_watch` 만 봐서 추출층이 빠져 있었고(여섯 번째로 추가),
+09-18 에는 여섯 불변식 어디에도 **브리핑**이 없었다(일곱 번째로 추가).
+
+브리핑 건이 특히 비쌌다: 09-15 점검이 "브리핑은 매일 3개 언어 성공한다"를
+근거로 추출층 400 의 원인을 **잘못** 추론했는데, 그 '성공'이 관측이 아니라
+침묵이었다. 그래서 불변식을 늘릴 때 묻는 질문이 둘로 늘었다 —
+"이 층은 누가 보나" 그리고 **"이 층이 실패하면 그 사실이 어디에 남나"**.
 
 08-28·08-30 두 개가 이 모듈의 존재 이유다. `local_news` 는 **정상적으로 값을 돌려준다** —
 다만 그 값이 LLM 재분류를 거친 게 아니라 오탐 많은 키워드 매칭 결과일 뿐이다.
@@ -301,6 +307,197 @@ def _extraction_detail_line() -> str | None:
     return head
 
 
+# ── 일일 브리핑 — 파이프라인 맨 끝, 그리고 여섯 그물 어디에도 없던 층 ──
+#
+# ★ 2026-09-18 에 드러난 빈칸 ★
+# 09-15 점검이 추출층 400 의 원인을 "모델 ID" 로 추론했는데, 그 근거가 이것이었다:
+#
+#     daily_brief.py   claude-sonnet-4-5  → 매일 3개 언어 성공
+#     nlp_extract.py   claude-haiku-...   → 매번 400
+#     → "키·크레딧은 살아 있다. 차이는 모델 ID 하나뿐이다"
+#
+# **그런데 브리핑은 실패할 수가 없는 구조였다.** `_polish_with_llm` 의 맨 except 가
+# LLM 실패를 통째로 삼키고 `template_fallback` 으로 조용히 떨어진 채 정상 반환한다.
+# 예외가 main._log_error 에 닿지 않으니 로그에도 /api/status 에도 아무것도 안 남고,
+# 아카이브에는 3개 언어가 그대로 쌓인다. 즉 "매일 성공"은 관측이 아니라
+# **"실패가 보이지 않는다"** 였고, 크레딧이 말라 있는 동안에도 그 문장은 참으로
+# 보였다. 그 침묵을 근거로 세운 추론이 엉뚱한 곳(모델 ID)을 고치게 만들었다.
+#
+# 과거 사례가 전부 같은 모양이다 — 셋 다 **터지지 않는 고장**이다:
+#
+#     08-23  fr 아카이브만 계속 0건(["ko","en"] 하드코딩)   에러 0건
+#     08-26  7일 연속 헤드라인 유사도 88~89%                값은 나왔다
+#     09-18  LLM 없이 template_fallback 로 방송             값은 나온다
+#
+# 브리핑이 반복해서 이 자리에 오는 건 우연이 아니다: 파이프라인의 **맨 끝**이라
+# 상류 어디가 상해도 증상이 여기서 나오고, "절대 멈추지 않는다"가 설계 원칙이라
+# 모든 단계가 실패를 흡수한다(매일 방송이 나가야 하니 의도한 것이다). 대가가
+# **고장이 안 보인다**는 것이고, 그 대가를 이 불변식이 치른다.
+#
+# ★ 재는 방식은 추출층과 같다 ★ 브리핑도 UTC 22시 슬롯에서 하루 한 번만 돌아
+# 무료 주기의 result 에 없다. 그래서 슬롯이 결과를 남기고(record_brief_outcome)
+# 불변식은 그 값의 **신선도**를 본다.
+BRIEF_STATE_KEY = "_daily_brief"
+
+# 브리핑은 하루 1회라 48시간은 '이틀 연속 템플릿 방송'을 뜻한다. 하루치로는
+# 울리지 않는다 — 단발 LLM 장애는 흔하고, 이 시스템을 다치게 한 건 지속이었다.
+BRIEF_STALE_HOURS = 48.0
+
+
+def record_brief_outcome(briefs: dict[str, dict], expected_langs,
+                         available: bool = True) -> dict:
+    """일일 브리핑 슬롯 결과를 남긴다. main._run_daily_brief_job 이 하루 한 번 부른다.
+
+    ★ 온전한 브리핑의 조건은 둘이다 (캡틴 승인 2026-09-18) ★
+
+        generation_method == "llm_polished"   앵커 대본이 실제로 LLM 을 거쳤는가
+        special_section_errors 가 비었는가     상류 섹션이 조용히 빠지지 않았는가
+
+    둘째가 왜 같이 붙는가: 08-26 사고가 "값은 나왔는데 7일 연속 같은 헤드라인"
+    이었다. 대본만 다듬어져도 섹션이 비면 매일 같은 방송이 나간다.
+
+    ★ 세 상태를 뭉개지 않는다 ★ (record_extraction_outcome 과 같은 원칙)
+
+        전 언어 llm_polished + 섹션 에러 없음  → 성공
+        만들어졌는데 템플릿이거나 섹션이 깨짐   → 실패
+        api_key 가 아예 없다                   → 판정 안 함 (available=False)
+
+    마지막을 실패로 세면 '키를 안 넣은 배포'가 매일 고장으로 울리고, 성공으로
+    세면 LLM 없이 도는 방송이 온전한 걸로 둔갑한다. capability_ledger 가
+    not_configured 와 observed_failure 를 가르는 것과 같은 이유다.
+    """
+    data = _load_raw()
+    state = data.get(BRIEF_STATE_KEY)
+    if not isinstance(state, dict):
+        state = {}
+    now_iso = _now().isoformat()
+
+    state["last_checked_at"] = now_iso
+    state["backend_available"] = bool(available)
+
+    if not available:
+        state["last_outcome"] = "no_backend"
+        data[BRIEF_STATE_KEY] = state
+        _save_raw(data)
+        return state
+
+    expected = list(expected_langs)
+    briefs = briefs or {}
+    methods = {lang: (briefs.get(lang) or {}).get("generation_method")
+               for lang in expected}
+    # 왜 실패했는지 — 언어별로 다를 수 있다(한 언어만 400 나는 경우가 실제로 있다).
+    reasons: dict[str, int] = {}
+    for lang in expected:
+        brief = briefs.get(lang)
+        if brief is None:
+            reasons[f"{lang}: 생성 실패"] = reasons.get(f"{lang}: 생성 실패", 0) + 1
+            continue
+        if brief.get("generation_method") != "llm_polished":
+            why = brief.get("generation_error") or "사유 없음"
+            key = f"{lang}: 템플릿 폴백 — {why}"
+            reasons[key] = reasons.get(key, 0) + 1
+        for err in brief.get("special_section_errors") or []:
+            key = f"{lang}/{err.get('section')}: {err.get('error')}"
+            reasons[key] = reasons.get(key, 0) + 1
+        for err in brief.get("gather_errors") or []:
+            key = f"{lang}/_gather:{err.get('stage')}: {err.get('error')}"
+            reasons[key] = reasons.get(key, 0) + 1
+
+    state["last_langs"] = expected
+    state["last_methods"] = methods
+    state["last_failure_reasons"] = reasons
+    state["last_polished_count"] = sum(1 for m in methods.values() if m == "llm_polished")
+
+    if not briefs:
+        # 한 언어도 못 만들었다. 실패다 — '시도할 게 없었다'가 아니다.
+        state["last_outcome"] = "failed"
+        state["last_attempt_at"] = now_iso
+        state.setdefault("first_attempt_at", now_iso)
+    elif not reasons:
+        state["last_outcome"] = "ok"
+        state["last_success_at"] = now_iso
+        state["last_attempt_at"] = now_iso
+        state.setdefault("first_attempt_at", now_iso)
+    else:
+        state["last_outcome"] = "degraded"
+        state["last_attempt_at"] = now_iso
+        state.setdefault("first_attempt_at", now_iso)
+
+    data[BRIEF_STATE_KEY] = state
+    _save_raw(data)
+    return state
+
+
+def _check_brief_layer(result: dict) -> bool | None:
+    """브리핑이 최근에 실제로 **LLM 으로 다듬어져** 나갔는가.
+
+    `result` 를 안 쓴다 — 추출층과 같은 이유다(무료 주기에 돌지 않는다).
+    """
+    state = _load_raw().get(BRIEF_STATE_KEY)
+    if not isinstance(state, dict):
+        return None                       # 한 번도 안 돌았다(첫 배포·빈 볼륨)
+    if not state.get("backend_available", True):
+        return None                       # 키가 없어 안 돌린 것 — 고장이 아니다
+
+    now = _now()
+    last_success = _parse_iso(state.get("last_success_at"))
+    if last_success is not None:
+        return (now - last_success).total_seconds() / 3600 < BRIEF_STALE_HOURS
+
+    first_attempt = _parse_iso(state.get("first_attempt_at"))
+    if first_attempt is None:
+        return None
+    if (now - first_attempt).total_seconds() / 3600 < BRIEF_STALE_HOURS:
+        # 추출층과 같다 — 아직 판정할 만큼 지켜보지 않은 것이지 온전한 게 아니다.
+        return None
+    return False
+
+
+def _brief_detail(data: dict) -> dict | None:
+    """브리핑층 원자료 — 경보의 '며칠째'가 여기서 나온다(_extraction_detail 과 짝)."""
+    state = data.get(BRIEF_STATE_KEY)
+    if not isinstance(state, dict):
+        return None
+
+    now = _now()
+
+    def _age(key: str) -> float | None:
+        parsed = _parse_iso(state.get(key))
+        return round((now - parsed).total_seconds() / 3600, 1) if parsed else None
+
+    return {
+        "last_outcome": state.get("last_outcome"),
+        "backend_available": state.get("backend_available", True),
+        "last_langs": state.get("last_langs") or [],
+        "last_methods": state.get("last_methods") or {},
+        "last_polished_count": state.get("last_polished_count"),
+        "last_failure_reasons": state.get("last_failure_reasons") or {},
+        "last_success_at": state.get("last_success_at"),
+        "success_age_hours": _age("last_success_at"),
+        "last_attempt_at": state.get("last_attempt_at"),
+        "attempt_age_hours": _age("last_attempt_at"),
+        "stale_after_hours": BRIEF_STALE_HOURS,
+    }
+
+
+def _brief_detail_line() -> str | None:
+    """브리핑 경보에 붙는 진짜 숫자 — '3주기째/0시간' 뒤에 오는 말."""
+    detail = _brief_detail(_load_raw())
+    if not detail:
+        return None
+    if detail["success_age_hours"] is not None:
+        head = f"마지막 온전한 브리핑 {detail['success_age_hours']:.0f}시간 전"
+    elif detail["attempt_age_hours"] is not None:
+        head = "온전한 브리핑 기록 없음"
+    else:
+        return None
+    reasons = detail.get("last_failure_reasons") or {}
+    if reasons:
+        top = ", ".join(list(reasons.keys())[:2])
+        return f"{head} · {top}"
+    return head
+
+
 def _check_llm_provider_present(result: dict) -> bool | None:
     """LLM 재분류를 실제로 답해준 제공자가 있었는가.
 
@@ -351,6 +548,15 @@ INVARIANTS: list[Invariant] = [
         "연속 주기 수는 무료 주기 기준이라 실제 경과가 아니다. 마지막 성공 시각과 "
         "실패 경로별 사유는 /api/status 의 quality_health.extraction 에 있다.",
         _check_extraction_layer, alarm_after=3, detail=_extraction_detail_line,
+    ),
+    Invariant(
+        "daily_brief", "일일 브리핑",
+        "브리핑이 48시간 넘게 LLM 없이(template_fallback) 나갔거나 특수 섹션이 "
+        "깨진 채 방송됐다 — 값은 나오므로 소스 헬스도 아카이브도 정상으로 보인다. "
+        "09-15 점검이 바로 이 침묵을 '매일 성공'으로 읽고 엉뚱한 곳을 고쳤다. "
+        "연속 주기 수는 무료 주기 기준이라 실제 경과가 아니다. 언어별 판정과 "
+        "사유는 /api/status 의 quality_health.daily_brief 에 있다.",
+        _check_brief_layer, alarm_after=3, detail=_brief_detail_line,
     ),
 ]
 
@@ -514,8 +720,14 @@ def quality_report() -> dict:
         "total_invariants": len(invariants),
         # 판정 불가를 정상으로 세지 않는다 — '모른다'와 '괜찮다'는 다르다.
         "unknown_count": sum(1 for i in invariants if i["last_result"] == "unknown"),
+        # 위반인데 아직 문턱(alarm_after)에 못 미친 층. 정상도 판정불가도 아니라
+        # 예전엔 어느 칸에도 안 잡혀 **줄에서 통째로 사라졌다**(_healthy_tail 주석).
+        "falling_count": sum(
+            1 for i in invariants if i["last_result"] == "violated" and not i["alarming"]),
         # 추출층은 하루 1회라 주기 수로는 경과를 못 읽는다(_extraction_detail 참고).
         "extraction": _extraction_detail(data),
+        # 브리핑도 하루 1회라 같은 사정이다(_brief_detail 참고).
+        "daily_brief": _brief_detail(data),
     }
 
 
@@ -545,13 +757,43 @@ def summary_line() -> str:
         # 위반이 있을 때야말로 다른 층이 조용히 사라졌는지가 중요하다.
         return (f"⚠️ 품질 저하: {' · '.join(parts)}"
                 f" · 나머지 {_healthy_tail(report)}")
-    return f"🔎 품질 불변식: 정상 {_healthy_tail(report)}"
+    # ★ '정상'을 두 번 찍지 않는다 (2026-09-21) ★ _healthy_tail 이 이미 "정상 n/m"
+    # 으로 시작한다. 09-15 에 꼬리를 함수로 빼면서 이쪽 리터럴을 안 지워서
+    # `🔎 품질 불변식: 정상 정상 6/6` 이 찍히고 있었다(09-20 실측).
+    return f"🔎 품질 불변식: {_healthy_tail(report)}"
 
 
 def _healthy_tail(report: dict) -> str:
-    """"정상 5/6 · 판정불가 1" — 두 갈래가 같은 셈법을 쓰게 한 곳에 둔다."""
-    tail = f" · 판정불가 {report['unknown_count']}" if report["unknown_count"] else ""
-    return f"정상 {report['healthy_count']}/{report['total_invariants']}{tail}"
+    """"정상 4/7 · 판정불가 1 · 무너지는 중 LLM 재분류(2주기째)" — 두 갈래가 같은
+    셈법을 쓰게 한 곳에 둔다.
+
+    ★ 왜 '무너지는 중'까지 세는가 (2026-09-21) ★
+    09-15 에 저하 줄이 나머지 층을 말하게 고쳤는데도 **합이 안 맞았다.**
+    09-18 점검이 그걸 적어뒀고("6층 중 3층의 상태가 그 줄에 없다"), 09-20 에
+    원인이 드러났다 — 그날 10:15·11:03 두 주기에 이 줄이 이렇게 찍혔다:
+
+        🔎 품질 불변식: 정상 2/6 · 판정불가 1
+
+    같은 시각 세 층(LLM 재분류·현지어 피드 커버리지·LLM 제공자)이 이미 무너지는
+    중이었는데 **alarm_after(3주기)에 못 미쳐 위반 목록에 안 들어갔고**, 정상도
+    판정불가도 아니라 어느 칸에도 안 잡혔다. 그래서 "뭔가 2/6 이다"만 보이고
+    무엇이 무너지는 중인지는 두 주기 동안 아무 데도 없었다.
+
+    문턱은 그대로 둔다 — 단발에 울리지 않는 건 의도다. 다만 **울리기 전에도
+    이름은 말한다.** 이제 네 칸의 합이 언제나 총계와 같다:
+    정상 + 판정불가 + 무너지는 중 + 저하 = total_invariants.
+    """
+    parts = [f"정상 {report['healthy_count']}/{report['total_invariants']}"]
+    if report["unknown_count"]:
+        parts.append(f"판정불가 {report['unknown_count']}")
+    falling = [
+        f"{i['label']}({i['consecutive_violations']}주기째)"
+        for i in report["invariants"]
+        if i["last_result"] == "violated" and not i["alarming"]
+    ]
+    if falling:
+        parts.append("무너지는 중 " + "·".join(falling))
+    return " · ".join(parts)
 
 
 def pending_notifications() -> dict:
