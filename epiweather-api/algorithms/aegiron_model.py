@@ -132,6 +132,58 @@ def _nim_config() -> dict | None:
     }
 
 
+def _nim_content(body) -> tuple[str | None, str]:
+    """NIM 응답 본문 → (쓸 수 있는 content, 없으면 그 이유).
+
+    ★ 이 함수가 따로 있는 이유 ★ 예전엔 `body["choices"][0]["message"]["content"]`
+    를 바로 인덱싱했다. 키가 없으면 KeyError 가 나 except 로 갔고(그건 사유가
+    남는다), **문제는 키가 멀쩡히 있는데 값이 빈 문자열이거나 None 인 경우**다.
+    그때는 예외도 안 나고 content 만 None 이 되어, 실패가 사유 없는 `실패` 로
+    접혔다.
+
+    OpenAI 호환 엔드포인트에서 이 갈래가 나오는 경로는 여럿이다 — 추론형 모델이
+    답을 `reasoning_content` 로 보내고 `content` 를 비우는 경우, max_tokens 가
+    추론 도중에 끊기는 경우(finish_reason="length"), 안전 필터가 내용을 지우는
+    경우. **조치가 전부 다르다**(프롬프트·토큰 상향·모델 교체). 그래서 뭉개지
+    않고 서버가 준 단서를 그대로 들고 나온다.
+
+    ⚠️ 위 목록은 이 갈래에서 **관측될 수 있는** 것들이지, 지금 운영에서 무엇이
+    일어나는지에 대한 판정이 아니다. 판정은 다음 AI 슬롯 로그가 한다 —
+    `빈 응답: finish_reason=length …` 처럼 서버가 스스로 말하게 해뒀다.
+    """
+    if not isinstance(body, dict):
+        return None, f"choices 없음(본문 {type(body).__name__})"
+    choices = body.get("choices")
+    if not isinstance(choices, list) or not choices:
+        return None, "choices 비어 있음"
+    first = choices[0] if isinstance(choices[0], dict) else {}
+    message = first.get("message") if isinstance(first.get("message"), dict) else {}
+    content = message.get("content")
+    if isinstance(content, str) and content.strip():
+        return content, ""
+
+    # 왜 비었는지 서버가 흘린 단서를 모은다. 값이 아니라 **사실의 유무**만 싣는다 —
+    # reasoning_content 본문에는 원문 조각이 섞일 수 있다(#28 이 막으려던 것).
+    clues = []
+    finish = first.get("finish_reason")
+    if finish:
+        clues.append(f"finish_reason={finish}")
+    if isinstance(message.get("reasoning_content"), str) and message["reasoning_content"].strip():
+        clues.append("reasoning_content 있음")
+    if message.get("tool_calls"):
+        clues.append("tool_calls 있음")
+    if content is None:
+        clues.append("content=null")
+    elif isinstance(content, str):
+        clues.append("content 빈 문자열")
+    else:
+        clues.append(f"content={type(content).__name__}")
+    usage = body.get("usage")
+    if isinstance(usage, dict) and usage.get("completion_tokens") is not None:
+        clues.append(f"completion_tokens={usage['completion_tokens']}")
+    return None, " · ".join(clues)
+
+
 def nim_raw_detailed(text: str, conf: dict) -> tuple[str | None, str | None]:
     """(NIM 원시 응답, 실패 사유). 실패해도 '왜'를 들고 나온다.
 
@@ -156,7 +208,21 @@ def nim_raw_detailed(text: str, conf: dict) -> tuple[str | None, str | None]:
             timeout=NIM_TIMEOUT_SEC,
         )
         resp.raise_for_status()
-        content = resp.json()["choices"][0]["message"]["content"]
+        body = resp.json()
+        content, empty_why = _nim_content(body)
+        if content is None:
+            # ★ 200 인데 쓸 내용이 없는 갈래 (2026-09-21) ★
+            # 예전엔 이 경우 (None, None) 이 나갔고, 호출부가 `reason or '실패'`
+            # 로 받아 **`nvidia_nim_hosted: 실패`** 한 줄만 남겼다. 상태코드조차
+            # 없는 줄이라 09-20 점검이 "410 은 사라졌는데 왜 실패하는지는 알 수
+            # 없다"로 끝났다 — 사유를 살려낸 #32 가 정작 이 갈래는 못 덮었다.
+            #
+            # 여기가 왜 중요한가: 에러가 아니라 **성공 응답**이라 장부에도
+            # ok=True 로 찍히고 있었다. 즉 NIM 이 한 건도 못 뽑는 동안
+            # /api/status 는 그 층을 정상이라고 말했다.
+            _nvidia.record_layer_call("text", conf["base_url"], ok=False,
+                                      error=f"빈 응답: {empty_why}")
+            return None, f"빈 응답: {empty_why}"
     except Exception as e:
         # 실패해도 None을 돌려 폴백시키되(기존 동작), '시도했고 실패했다'는
         # 사실은 남긴다. 이게 없으면 NIM이 매번 죽는데도 상태 필드는 계속
@@ -234,7 +300,12 @@ def extract_signal_detailed(
             result["data_sovereign"] = conf["sovereign"]
             return result, attempts
         # NIM 호출 실패 → 아래 경로로 폴백(단, 아래 게이팅 그대로 적용).
-        attempts.append(f"{conf['provider']}: {reason or '실패'}")
+        # `사유 없음(계측 누락)` 은 이제 **도달하면 안 되는 자리**다. 빈 응답까지
+        # 사유를 달고 나오게 한 뒤로(_nim_content) 사유 없는 실패는 없다. 그래도
+        # 남겨두되, 예전처럼 '실패' 라고 쓰지 않는다 — 그 단어는 외부 고장처럼
+        # 읽히지만 실제로는 **우리 계측의 구멍**이고, 09-20 점검이 그 한 단어
+        # 때문에 하루를 잃었다. 이 줄이 로그에 뜨면 고칠 곳은 NVIDIA 가 아니다.
+        attempts.append(f"{conf['provider']}: {reason or '사유 없음(계측 누락)'}")
 
     # ② transformers 로컬 모델(완전 주권).
     local = _local_extract(text)
@@ -258,7 +329,7 @@ def extract_signal_detailed(
         result["ai_provider"] = "external_llm_fallback"
         result["data_sovereign"] = False
     else:
-        attempts.append(f"external_llm_fallback: {reason or '실패'}")
+        attempts.append(f"external_llm_fallback: {reason or '사유 없음(계측 누락)'}")
     return result, attempts
 
 

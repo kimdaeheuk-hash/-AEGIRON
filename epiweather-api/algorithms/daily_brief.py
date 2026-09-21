@@ -325,6 +325,7 @@ def _country_names(codes: list[str], name_lookup: dict[str, str], lang: str) -> 
 
 def _gather() -> dict:
     """이미 계산된 결과를 모은다 — 여기서 점수를 새로 만들지 않는다."""
+    from .common import reason_with_detail
     from .event_dedup import dedupe_events
     from .alerts import refresh_alerts
     from .country_risk import rank_countries
@@ -333,10 +334,18 @@ def _gather() -> dict:
     # 등급이 매겨진(합류점수 있는) 위협만, 점수 높은 순으로.
     threats = [e for e in events if e.get("merged_score") is not None][:_MAX_SEGMENTS]
 
+    # 상류가 죽으면 경보 칸이 빈 채로 방송이 나간다. 빈 것 자체는 의도다(브리핑은
+    # 멈추지 않는다) — 사라지면 안 되는 건 **왜 비었는가** 다. 예전엔 이 except 가
+    # 사유를 증발시켜서, '오늘 경보가 없었다'와 'refresh_alerts 가 터졌다'가
+    # 아카이브에서 똑같이 보였다. brief_sections.py:580 이 on_error 로 이미 하고
+    # 있던 것을 같은 파일군의 나머지 하나에도 적용한다(GroqWatch 8/25 · Mobility
+    # 8/28 · nlp_extract 9/04 에서 세 번 고친 그 패턴의 네 번째다).
+    gather_errors: list[dict] = []
     try:
         alerts = refresh_alerts().get("dashboard", {}).get("top", [])
-    except Exception:
+    except Exception as e:                                    # noqa: BLE001
         alerts = []
+        gather_errors.append({"stage": "alerts", "error": reason_with_detail(e)})
 
     ranked = rank_countries().get("countries", [])
     name_lookup = {c["country"]: c.get("name", c["country"]) for c in ranked}
@@ -347,6 +356,9 @@ def _gather() -> dict:
         "alerts": alerts,
         "top_countries": top_countries,
         "name_lookup": name_lookup,
+        # 비어 있으면 상류가 멀쩡했다는 뜻이다. 브리핑 dict 까지 그대로 올라가
+        # 품질 불변식이 읽는다(_localized 가 이 키를 지우지 않게 주의).
+        "gather_errors": gather_errors,
     }
 
 
@@ -800,9 +812,31 @@ def _headline(data: dict, lang: str, quiet: bool, fmt: dict) -> tuple[str, str]:
 _LANG_WORD = {"ko": "한국어", "en": "English", "fr": "français"}
 
 
-def _polish_with_llm(brief: dict, lang: str, fmt: dict, api_key: str) -> dict | None:
+def _polish_with_llm(brief: dict, lang: str, fmt: dict,
+                     api_key: str) -> tuple[dict | None, str | None]:
     """앵커 대본을 Claude로 포맷 톤에 맞게 자연스럽게 다듬는다(내용·숫자·출처는 불변).
-    실패하면 None을 돌려 템플릿 그대로 쓰게 한다."""
+    실패하면 (None, 사유)를 돌려 템플릿 그대로 쓰게 한다.
+
+    ★ 왜 사유를 들고 나오는가 (2026-09-18 판정, 캡틴 승인) ★
+    예전엔 맨 `except Exception: return None` 이었다. 그래서 LLM 이 죽어도 브리핑은
+    조용히 template_fallback 으로 **정상 반환**했고, 예외가 main._log_error 에 닿지
+    않아 로그에도 /api/status 에도 한 줄이 안 남았다. 아카이브에는 3개 언어가
+    그대로 쌓이니 겉으로는 매일 성공이었다.
+
+    그 침묵이 실제로 사고를 키웠다 — 09-15 점검이 "브리핑은 매일 성공하니 키·
+    크레딧은 살아 있다"를 근거로 삼아 400 의 원인을 모델 ID 로 **잘못** 추론했다.
+    진짜 원인은 Anthropic 크레딧 소진이었고, 크레딧이 말라 있는 동안 브리핑은
+    똑같이 '성공'으로 보였다. 관측이 아니라 침묵을 근거로 쓴 것이다.
+
+    → 어떤 층이 "매일 성공한다"를 근거로 쓰기 전에, **그 층이 실패하면 그 사실이
+      어디에 남는지**를 먼저 확인해라. 남는 곳이 없으면 그건 관측이 아니다.
+
+    본문을 통째로 싣지 않는다 — common.reason_with_detail 이 공급자가 스스로 채운
+    message 필드 하나만 꺼낸다(#32 와 같은 원칙). 실패 동작 자체는 그대로다:
+    방송은 멈추지 않고 템플릿으로 나간다. 달라지는 건 **그 사실이 보인다**는 것뿐.
+    """
+    from .common import reason_with_detail
+
     try:
         import anthropic
         client = anthropic.Anthropic(api_key=api_key)
@@ -830,15 +864,19 @@ def _polish_with_llm(brief: dict, lang: str, fmt: dict, api_key: str) -> dict | 
         text = resp.content[0].text.strip()
         start, end = text.find("["), text.rfind("]")
         if start == -1 or end == -1:
-            return None
+            # 호출은 됐는데 모델이 JSON 배열을 안 줬다. 키·크레딧 문제와는
+            # 손댈 곳이 다르므로(앞은 계정, 뒤는 프롬프트) 따로 말한다.
+            return None, "응답 파싱 실패: JSON 배열 없음"
         edits = json.loads(text[start:end + 1])
         by_id = {e["segment_id"]: e["anchor_script"] for e in edits if e.get("anchor_script")}
+        if not by_id:
+            return None, "응답 파싱 실패: anchor_script 없음"
         for s in brief["segments"]:
             if s["segment_id"] in by_id:
                 s["anchor_script"] = by_id[s["segment_id"]]
-        return brief
-    except Exception:
-        return None
+        return brief, None
+    except Exception as e:                                    # noqa: BLE001
+        return None, reason_with_detail(e)
 
 
 _CLOSING = {
@@ -965,11 +1003,18 @@ def generate_daily_brief(lang: str = "ko", api_key: str | None = None,
         "generation_method": "template_fallback",
     }
 
+    # ★ 왜 '왜 템플릿인가'를 같이 싣는가 ★ generation_method 만으로는 '키를 안 넣은
+    # 배포'와 'LLM 이 죽은 날'이 똑같이 template_fallback 으로 보인다. 앞은 설정이고
+    # 뒤는 사고다 — 품질 불변식이 둘을 갈라 판정하려면 사유가 있어야 한다.
     if api_key:
-        polished = _polish_with_llm(brief, lang, fmt_spec, api_key)
+        polished, polish_error = _polish_with_llm(brief, lang, fmt_spec, api_key)
         if polished is not None:
             brief = polished
             brief["generation_method"] = "llm_polished"
+        else:
+            brief["generation_error"] = polish_error or "사유 없음"
+    else:
+        brief["generation_error"] = "ANTHROPIC_API_KEY 없음"
 
     # ── 특수 섹션 ────────────────────────────────────────────────────────
     # 84개 모듈 중 이 파일이 쓰던 건 4개뿐이었다. 극지·조용해진 곳·7일 예보·
@@ -982,6 +1027,11 @@ def generate_daily_brief(lang: str = "ko", api_key: str | None = None,
     brief["special_sections"] = build_special_sections(
         lang, on_error=lambda name, e: brief.setdefault("special_section_errors", []).append(
             {"section": name, "error": f"{type(e).__name__}: {e}"}))
+
+    # _gather() 에서 죽은 상류. special_section_errors 와 같은 모양으로 둔다 —
+    # 비어 있으면 키 자체가 없다(깨끗한 날은 조용하게).
+    if data.get("gather_errors"):
+        brief["gather_errors"] = data["gather_errors"]
 
     # 팟캐스트 에피소드(오디오용)는 폴리시가 끝난 최종 대본 기준으로 조립한다.
     brief["podcast"] = _podcast_block(

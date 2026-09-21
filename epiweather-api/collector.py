@@ -781,6 +781,12 @@ def collect_free_sources() -> dict:
             quality_tag += f", 겹친 피드 {dup}개(경보 제외)"
         if few:
             quality_tag += f", 표본부족 {few}개(판정 안 함)"
+        # ★ 재시도로 살아난 피드는 실패가 0 이어도 말한다 (2026-09-21) ★
+        # 503 이 UTC 08~12시에만 몰린다는 나흘치 관측에 한 번 재시도를 붙였다.
+        # 전부 재시도로 살아난 주기는 겉보기에 완벽히 깨끗한데, 그 주기야말로
+        # '그 시간대에 스로틀된다'의 증거다 — 조용히 넘어가면 판정을 못 한다.
+        if n.get("retried_feeds"):
+            quality_tag += f", 재시도 구제 {n['retried_feeds']}개"
         log(f"  현지어 뉴스: {n['active_feeds']}/{n['total_feeds']}개 피드"
             f"(고유 {n.get('distinct_feed_sets', '?')}묶음), "
             f"키워드 히트 {n['total_kw_hits']}건, 고경보 {n['high_alert_feeds']}개"
