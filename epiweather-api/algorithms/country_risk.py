@@ -25,6 +25,7 @@ Tier-1(COUNTRIES, 14개국)은 사람이 손으로 취약성 지수를 다듬고
 """
 from __future__ import annotations
 import datetime as dt
+import math
 import statistics
 
 import db
@@ -229,24 +230,91 @@ def _recency_weight(age_days: float) -> float:
     return 0.5 ** (age_days / NLP_SIGNAL_HALFLIFE_DAYS)
 
 
-def _nlp_raw_score(country_id: str) -> tuple[float | None, int]:
-    """extracted_signals 중 이 국가에 매칭되는 기록들의 '최근성·신뢰도 가중' 심각도.
-    가중치 = 신뢰도(source_trust) × 반감기 감쇠(_recency_weight). 오래된 신호일수록
-    현재 위험 기여가 줄어든다. country_id가 COUNTRIES(Tier-1)에 없으면(Tier-2)
-    aliases가 비어있어 country_iso3 정확매칭만 동작 — 별칭사전 없이도 집계됨."""
+# 지목한 질병이 점수의 이만큼은 책임져야 한다. 못 넘으면 이름을 안 붙인다 —
+# 여러 질병이 고르게 섞인 위험도에 하나를 골라 붙이면 없는 정밀도를 지어내는 것이고,
+# 그 이름으로 채점까지 하면 틀린 근거로 틀린 성적표가 나온다.
+DOMINANT_DISEASE_MIN_SHARE = 0.5
+
+
+def _matched_signals(country_id: str) -> list[dict]:
+    """이 국가에 매칭되는 extracted_signals. country_id가 COUNTRIES(Tier-1)에
+    없으면(Tier-2) aliases가 비어있어 country_iso3 정확매칭만 동작한다."""
     aliases = COUNTRIES.get(country_id, {}).get("aliases", [])
-    matched = [
+    return [
         r for r in db.list_extracted_signals(limit=500)
         if _record_matches_country(r, country_id, aliases)
     ]
+
+
+def _signal_weight(record: dict) -> float:
+    """★ 점수와 질병 지목이 같은 저울을 쓴다 ★
+
+    가중치 식을 두 벌 두면 '점수를 만든 질병'과 '이름 붙인 질병'이 갈라진다.
+    이 리포가 반복해서 잡아온 고장이 정확히 그 모양이다(같은 개념의 정의가 둘).
+    """
+    return (_recency_weight(_signal_age_days(record))
+            * SIGNAL_TYPE_SEVERITY.get(record.get("signal_type"), 40)
+            * (record.get("source_trust") or 0))
+
+
+def dominant_disease(country_id: str, matched: list[dict] | None = None) -> tuple[str | None, float]:
+    """이 나라 위험도를 실제로 끌어올린 질병과 그 비중. 없으면 (None, 0.0).
+
+    ★ 왜 이게 필요한가 ★ (2026-09-21, 캡틴 지시 B)
+
+    예측이 `disease="종합 위험도(GAI 기반)"` 로 기록되고 있었다. 채점기는 예측의
+    질병이 발병 사건 이름에 들어있는지를 보는데, 그 글자는 어떤 사건 이름에도
+    안 나온다 — **적중이 영원히 불가능**했고 90일 뒤 전부 incorrect 로 떨어졌다.
+
+    고치는 방법은 번역표를 만드는 게 아니라 **같은 어휘를 쓰는 것**이다. 여기서
+    돌려주는 질병명은 extracted_signals.disease 이고, 정답 테이블에 올라가는
+    이름도 같은 필드에서 온다(declaration_ingest.event_name_for). 둘이 같은
+    출처를 쓰므로 표기가 어긋날 자리가 없다 — 제일 싼 온톨로지는 사전이 아니라
+    하나의 어휘다.
+    """
+    matched = _matched_signals(country_id) if matched is None else matched
+    by_disease: dict[str, float] = {}
+    total = 0.0
+    for r in matched:
+        w = _signal_weight(r)
+        if w <= 0:
+            continue
+        total += w
+        name = (r.get("disease") or "").strip()
+        if name:
+            by_disease[name] = by_disease.get(name, 0.0) + w
+    if not by_disease or total <= 0:
+        return None, 0.0
+    ranked = sorted(by_disease.items(), key=lambda kv: kv[1], reverse=True)
+    name, weight = ranked[0]
+    share = round(weight / total, 3)
+
+    # 동점이면 지목하지 않는다. 반반이면 산술적으로는 문턱(50%)을 넘지만,
+    # 그 '1등'은 dict 순서가 정한 것이지 신호가 정한 게 아니다 — 들어온 순서가
+    # 바뀌면 예측의 질병이 바뀐다. 그건 측정이 아니라 우연이다.
+    if len(ranked) > 1 and math.isclose(ranked[0][1], ranked[1][1]):
+        return None, share
+
+    return (name, share) if share >= DOMINANT_DISEASE_MIN_SHARE else (None, share)
+
+
+def _nlp_raw_score(country_id: str, matched: list[dict] | None = None) -> tuple[float | None, int]:
+    """extracted_signals 중 이 국가에 매칭되는 기록들의 '최근성·신뢰도 가중' 심각도.
+    가중치 = 신뢰도(source_trust) × 반감기 감쇠(_recency_weight). 오래된 신호일수록
+    현재 위험 기여가 줄어든다."""
+    matched = _matched_signals(country_id) if matched is None else matched
     if not matched:
         return None, 0
     # 기존 값(심각도×신뢰도)의 '최근성 가중 평균' — 같은 시점 신호끼리면 단순평균과 동일.
+    #
+    # 분자 항은 _signal_weight() 를 **그대로** 쓴다. 여기에 같은 식을 한 벌 더 적어두면
+    # 점수 쪽만 고치고 질병 지목 쪽은 안 고치는 날이 오고, 그러면 '점수를 만든 질병'과
+    # '이름 붙인 질병'이 말없이 갈라진다.
     num = 0.0
     den = 0.0
     for r in matched:
         decay = _recency_weight(_signal_age_days(r))
-        num += decay * SIGNAL_TYPE_SEVERITY.get(r["signal_type"], 40) * r["source_trust"]
+        num += _signal_weight(r)
         den += decay
     if den == 0:
         return None, len(matched)
@@ -299,7 +367,9 @@ def compute_country_risk(country_id: str) -> dict:
         series = [extractor(r) for r in records if r.get("type") == "free_sources"]
         direct_score = _anomaly_score(series)
 
-    nlp_score, nlp_count = _nlp_raw_score(country_id)
+    matched = _matched_signals(country_id)
+    nlp_score, nlp_count = _nlp_raw_score(country_id, matched)
+    top_disease, disease_share = dominant_disease(country_id, matched)
 
     # Tier-1(COUNTRIES)이 아니면 실제 신호(country_iso3 매칭)가 있을 때만 유효한
     # Tier-2 국가로 인정 — 근거 없는 임의 ISO3 코드로 위험도가 만들어지지 않게 함.
@@ -325,6 +395,10 @@ def compute_country_risk(country_id: str) -> dict:
         "lat": lat,
         "lng": lng,
         "raw_score": raw_score,
+        # 위험도를 끌어올린 질병과 그 비중. 못 고르면 None — 지어내지 않는다.
+        # 예측이 이 이름으로 기록되고, 채점기가 이 이름으로 정답과 대조한다.
+        "dominant_disease": top_disease,
+        "dominant_disease_share": disease_share,
         "raw_score_components": {
             "direct_signal": direct_score,
             "nlp_signal": nlp_score,
@@ -456,13 +530,46 @@ def _record_prediction(c: dict, raw: float, routine: bool) -> dict | None:
     # 기록은 전부 채점 불가였다. 기준을 나중에 쓰면 결과를 보고 맞추게 되므로
     # 사후 보완도 하지 않는다.
     resolves_by = (dt.date.today() + dt.timedelta(days=PREDICTION_HORIZON_DAYS)).isoformat()
-    criteria = (
-        f"{resolves_by}까지 {c['name']}에서 WHO 발병공고·상황보고서 또는 해당국 "
-        f"보건당국의 공식 발병 선언이 확인되면 correct. 확인되지 않으면 incorrect. "
-        f"발병은 확인됐으나 이 신호와 다른 질병이면 ambiguous."
-    )
+
+    # ★ 질병을 지목할 수 있으면 지목한다 ★ (2026-09-21, 캡틴 지시 B)
+    #
+    # 예전엔 무조건 "종합 위험도(GAI 기반)" 으로 적었다. 채점기는 예측의 질병이
+    # 발병 사건 이름에 들어있는지를 보는데 그 글자는 어떤 사건 이름에도 안 나온다
+    # — **적중이 영원히 불가능**했고, 90일 뒤 전부 incorrect 로 떨어져
+    # '측정된 것처럼 보이는 적중률 0%' 가 만들어지는 중이었다.
+    #
+    # 이름은 dominant_disease() 가 준다. 점수를 만든 것과 **같은 저울**로 고른
+    # 질병이고, extracted_signals.disease 를 그대로 쓴다 — 정답 테이블에 올라가는
+    # 이름도 같은 필드에서 오므로(declaration_ingest) 표기가 어긋날 자리가 없다.
+    #
+    # 못 고르면 예전 이름을 그대로 쓴다. 지어내지 않는다 — 그 경우는 채점기가
+    # ambiguous 로 판정한다(국가는 맞고 질병은 확인 불가). 거짓 오답보다 낫다.
+    top_disease = c.get("dominant_disease")
+    share = c.get("dominant_disease_share") or 0.0
+    disease = top_disease or "종합 위험도(GAI 기반)"
+
+    if top_disease:
+        basis.append(
+            f"이 위험도를 끌어올린 신호의 {round(share * 100)}%가 '{top_disease}' — "
+            f"채점은 이 질병 기준으로 한다(같은 가중치로 고름)")
+        criteria = (
+            f"{resolves_by}까지 {c['name']}에서 {top_disease} 관련 WHO 발병공고·"
+            f"상황보고서 또는 해당국 보건당국의 공식 발병 선언이 확인되면 correct. "
+            f"확인되지 않으면 incorrect. 발병은 확인됐으나 다른 질병이면 ambiguous."
+        )
+    else:
+        basis.append(
+            "신호가 여러 질병에 흩어져 있어 하나를 지목하지 않는다"
+            f"(최대 비중 {round(share * 100)}% < {round(DOMINANT_DISEASE_MIN_SHARE * 100)}%) — "
+            "발병이 확인돼도 질병 대조가 안 되므로 ambiguous 로 판정된다")
+        criteria = (
+            f"{resolves_by}까지 {c['name']}에서 WHO 발병공고·상황보고서 또는 해당국 "
+            f"보건당국의 공식 발병 선언이 확인되면 correct. 확인되지 않으면 incorrect. "
+            f"발병은 확인됐으나 이 신호와 다른 질병이면 ambiguous."
+        )
+
     return db.create_prediction(
-        country=c["name"], disease="종합 위험도(GAI 기반)",
+        country=c["name"], disease=disease,
         risk_score=c["risk_score"], basis=basis,
         confidence=_confidence_for(raw),
         resolution_criteria=criteria,

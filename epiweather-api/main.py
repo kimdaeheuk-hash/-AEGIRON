@@ -458,6 +458,21 @@ async def _run_prediction_resolution() -> None:
     import collector
 
     try:
+        # ★ 채점 전에 정답부터 갱신한다 ★ (2026-09-21)
+        # 정답 테이블(outbreak_timeline)을 채우던 건 손으로 적은 16건뿐이었고
+        # 가장 최근 선언이 2024-09-27 이었다. 채점 조건이 '선언일 > 예측일' 이라
+        # 2026년 예측은 그 선언을 영원히 못 만난다 — 적중이 구조적으로 불가능했고,
+        # 빗나간 예측만 90일 뒤 incorrect 로 쌓여 '측정된 것처럼 보이는 적중률 0%'
+        # 가 만들어지는 중이었다. 순서가 중요하다: 적재가 먼저, 채점이 나중이다.
+        from algorithms.declaration_ingest import ingest_declarations, summary as decl_summary
+        try:
+            ingested = await asyncio.to_thread(ingest_declarations)
+            collector.log(f"📌 {decl_summary(ingested)}")
+        except Exception as e:
+            # 정답 적재가 실패해도 채점은 돈다(기한 지난 예측을 방치하지 않는다).
+            # 다만 조용히 넘어가지 않는다 — 정답이 안 늘면 적중은 영원히 0이다.
+            _log_error(f"declaration_ingest: {type(e).__name__}: {e}")
+
         from algorithms.prediction_resolver import resolve_due_predictions
         outcome = await asyncio.to_thread(resolve_due_predictions)
         resolved = outcome["resolved"]

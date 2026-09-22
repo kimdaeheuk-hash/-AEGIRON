@@ -86,6 +86,48 @@ def _parse_date(value) -> dt.date | None:
         return None
 
 
+# 대조 결과 세 갈래. 예측이 기록될 때 같이 적히는 판정기준(country_risk.
+# _record_prediction 의 criteria)이 이미 셋을 정의해 뒀다 —
+#
+#   "공식 발병 선언이 확인되면 correct. 확인되지 않으면 incorrect.
+#    발병은 확인됐으나 이 신호와 다른 질병이면 ambiguous."
+#
+# db 도 prediction_scoring 도 ambiguous 를 받는데 **채점기만 안 내놨다.**
+# 예측 시점에 미리 등록한 계약을 채점기가 안 지키고 있었던 것이다(2026-09-21).
+#
+# 이게 왜 중요하냐면: 지금 종합 예측은 disease 가 "종합 위험도(GAI 기반)" 라는
+# 글자다. 발병 사건 이름에 그 토막이 들어갈 리 없으니 **질병 일치는 영원히
+# 불가능**하고, 그대로 두면 90일 뒤 전부 incorrect 로 떨어진다 —
+# 측정된 것처럼 보이는 적중률 0% 가 만들어진다. 모르는 것은 모른다고 해야 한다.
+MATCH_NONE = "none"
+MATCH_COUNTRY = "country"   # 국가만 맞음 → 계약상 ambiguous
+MATCH_FULL = "full"         # 국가·질병 둘 다 → correct
+
+
+def _overlaps(value: str, hay: str) -> bool:
+    value = (value or "").strip().lower()
+    if not value:
+        return False
+    return value in hay or any(
+        tok and tok in hay for tok in value.split() if len(tok) >= 3)
+
+
+def match_kind(prediction: dict, event: dict) -> str:
+    """예측과 타임라인 이벤트가 얼마나 같은 사건을 가리키는가.
+
+    국가가 안 맞으면 볼 것도 없다(MATCH_NONE). 국가가 맞고 질병까지 맞으면
+    MATCH_FULL, 국가만 맞으면 MATCH_COUNTRY 다.
+
+    ★ 국가만 맞는 것을 correct 로 올리지 않는다 ★ 그러면 그 나라에 아무 발병이나
+    나면 맞은 게 된다. 반대로 incorrect 로 떨어뜨리지도 않는다 — 발병은 실제로
+    있었으니 '틀렸다'도 사실이 아니다. 계약이 정한 세 번째 칸이 이 자리다.
+    """
+    hay = " ".join(str(event.get(k) or "") for k in ("event_id", "event_name")).lower()
+    if not _overlaps(prediction.get("country"), hay):
+        return MATCH_NONE
+    return MATCH_FULL if _overlaps(prediction.get("disease"), hay) else MATCH_COUNTRY
+
+
 def _matches(prediction: dict, event: dict) -> bool:
     """예측과 타임라인 이벤트가 같은 사건을 가리키는가.
 
@@ -94,18 +136,7 @@ def _matches(prediction: dict, event: dict) -> bool:
     변형이 주된 문제이고 무관한 사건이 섞일 여지는 작다. 그래도 질병은 반드시
     겹쳐야 한다 — 국가만 같다고 맞다고 하면 아무 발병이나 정답이 된다.
     """
-    disease = (prediction.get("disease") or "").strip().lower()
-    country = (prediction.get("country") or "").strip().lower()
-    hay = " ".join(str(event.get(k) or "") for k in ("event_id", "event_name")).lower()
-    if not disease or not country:
-        return False
-    disease_hit = disease in hay or any(
-        tok and tok in hay for tok in disease.split() if len(tok) >= 3
-    )
-    country_hit = country in hay or any(
-        tok and tok in hay for tok in country.split() if len(tok) >= 3
-    )
-    return disease_hit and country_hit
+    return match_kind(prediction, event) == MATCH_FULL
 
 
 def _declarations() -> list[dict]:
@@ -158,9 +189,11 @@ def resolve_due_predictions(today: dt.date | None = None) -> dict:
         deadline = predicted + dt.timedelta(days=horizon)
 
         # ① 기한 내 공식 선언이 있었는가
-        hit = None
+        hit = None        # 국가·질병 둘 다 맞음
+        partial = None    # 국가만 맞음 — 기한까지 기다렸다가 ambiguous
         for event in declarations:
-            if not _matches(pred, event):
+            kind = match_kind(pred, event)
+            if kind == MATCH_NONE:
                 continue
             lead = (event["_date"] - predicted).days
             # ★ 예측이 선언보다 뒤면 '먼저 안 것'이 아니다 ★
@@ -168,8 +201,11 @@ def resolve_due_predictions(today: dt.date | None = None) -> dict:
                 continue
             if event["_date"] > deadline:
                 continue
-            if hit is None or event["_date"] < hit["_date"]:
-                hit = event
+            if kind == MATCH_FULL:
+                if hit is None or event["_date"] < hit["_date"]:
+                    hit = event
+            elif partial is None or event["_date"] < partial["_date"]:
+                partial = event
 
         if hit is not None:
             lead_days = (hit["_date"] - predicted).days
@@ -194,7 +230,34 @@ def resolve_due_predictions(today: dt.date | None = None) -> dict:
             })
             continue
 
-        # ② 기한이 지났는데 선언이 없었다 — 조용했다. 그것도 채점한다.
+        # ② 기한이 지났고 그 나라에 발병 선언은 있었는데 질병이 달랐다.
+        # ★ 기한까지 기다렸다가 판정한다 ★ 국가만 맞는 선언을 보자마자 ambiguous 로
+        # 닫으면, 그 뒤에 올 수도 있던 완전일치(correct)를 미리 막아버린다.
+        if today > deadline and partial is not None:
+            db.verify_prediction(
+                pred["id"],
+                actual_result=(
+                    f"기한 내 발병 선언은 있었으나 질병이 다름: "
+                    f"{partial.get('event_name') or partial.get('event_id')} "
+                    f"({partial['_date'].isoformat()})"
+                ),
+                correct=None,
+                lead_days=None,
+                outcome="ambiguous",
+                resolution_sources=[
+                    f"auto:outbreak_timeline:{partial.get('event_id')}"
+                    f":{partial.get('milestone')}@{partial['_date'].isoformat()}"
+                    f":country_only"
+                ],
+            )
+            resolved.append({
+                "prediction_id": pred["id"], "country": pred.get("country"),
+                "disease": pred.get("disease"), "correct": None,
+                "lead_days": None, "event_id": partial.get("event_id"),
+            })
+            continue
+
+        # ③ 기한이 지났는데 선언이 없었다 — 조용했다. 그것도 채점한다.
         if today > deadline:
             db.verify_prediction(
                 pred["id"],
