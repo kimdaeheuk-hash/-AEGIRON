@@ -41,6 +41,31 @@ UNRELIABLE_METRICS = {"mobility_total_flights"}
 # 반영한 판정으로 바꾸기 전까지는 부정적 공간 스캔에서 제외한다.
 SEASONAL_METRICS = {"infodengue_casos_total"}
 
+# ★ 네이버 검색 비율은 '보고량'이 아니다 ★ (2026-09-22, 거짓 경보 ②)
+#
+# 09-22 00:01, 세 축이 **동시에** 무너져 critical + high 가 캡틴 폰으로 나갔다:
+#
+#     09-21 내내   독감=100       에볼라=5.23115  코로나=56.3341  ← 소수점 5자리까지 고정
+#     09-22 00:00  독감=16.40322  에볼라=0.46997  코로나=7.7593   ← 셋이 한꺼번에
+#
+# 세 축은 **각각 다른 요청**이다(#34 에서 정규화 오염 때문에 일부러 나눴다). 다른
+# 요청 셋이 같은 시각에 같은 배율로 무너지는 건 검색이 준 게 아니라 **새 날짜가
+# 창에 들어오며 재척도된 것**이다. 네이버는 요청 창 안의 최댓값을 100 으로 놓으므로
+# 값의 절대 크기에 의미가 없고, 우리가 시간당 샘플링하는 동안 원천은 하루 한 번만
+# 갱신된다 — 그 경계에서 값이 기계적으로 갈아엎힌다.
+#
+# 이 모듈의 전제는 *"평소 활발하던 보고 채널이 조용해지면 보고 체계가 무너진 것"*
+# 이다. 검색 관심도에는 그 전제가 성립하지 않는다 — 사람들이 덜 검색한 것은
+# 기관이 보고를 멈춘 것이 아니다. **문턱을 조이는 문제가 아니라 대상이 아닌 것이다.**
+#
+# 증가 쪽은 그대로 둔다. 검색 급증은 신고보다 앞서는 실제 조기신호이고(이 축을
+# 넣은 이유 자체가 그것이다), #37 의 '서로 다른 값 3개' 문턱이 거기서 재척도를 막는다.
+RESCALED_METRICS = {"naver_flu_ratio", "naver_ebola_ratio", "naver_covid_ratio"}
+
+# 부정적 공간 스캔에서 빼는 지표 전체. 이유가 서로 달라 집합을 따로 두고, 스캔은
+# 이 하나만 본다 — 새 제외 사유가 생겨도 스캔 쪽 조건을 안 고치게 한다.
+EXCLUDED_METRICS = UNRELIABLE_METRICS | SEASONAL_METRICS | RESCALED_METRICS
+
 
 def check_negative_space(latest: float | None, history_avg: float | None) -> dict:
     """단건 판정 — 인수인계서 원문 함수와 동일한 기준."""
@@ -61,7 +86,7 @@ def scan_negative_space() -> dict:
 
     for layer_key, cfg in LAYERS.items():
         for metric_id, rtype, extractor, _trust_category in cfg["metrics"]:
-            if metric_id in UNRELIABLE_METRICS or metric_id in SEASONAL_METRICS:
+            if metric_id in EXCLUDED_METRICS:
                 continue
             series = [extractor(r) for r in records if r.get("type") == rtype]
             cleaned = [v for v in series if v is not None]

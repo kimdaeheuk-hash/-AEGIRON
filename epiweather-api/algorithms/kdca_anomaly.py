@@ -85,9 +85,40 @@ def disease_spikes(kdca_weekly: dict | None, notable: set | None = None,
     return out[:limit]
 
 
+def week_is_reported(kdca_weekly: dict | None, week) -> bool:
+    """그 주에 실제로 보고된 값이 하나라도 있는가(질병 50종 전체에서).
+
+    ★ 왜 필요한가 ★ (2026-09-22, 거짓 경보 ①)
+
+    09-21(월) 00:03, `kdca_weekly_total` 이 `최신값 0.0 vs 과거 평균 101.86` 으로
+    100점 critical 이 되어 **캡틴 폰으로 나갔다.** 새 역학주간이 시작됐고 그 주의
+    집계가 아직 안 올라온 0 이었다. 같은 시각 수집기는 매시간 정상이었고, 20:01 에
+    수치가 들어오자 경보가 스스로 사라졌다.
+
+    즉 그 0 은 *"이번 주에 아무 일도 없었다"* 가 아니라 *"이번 주는 아직 안 나왔다"*
+    였다. 이 리포가 반복해서 고쳐온 그 구분이다 — `0/179 히트 0` 과
+    `179/179 히트 0` 은 다른 사실이다(#36), 조각이 빠진 합계는 합계가 아니다(#39).
+
+    ★ 위험군 합산만 보고 판단하지 않는 이유 ★
+
+    위험군이 전부 0 인 주는 **진짜로 가능하다**. 그걸 '안 나온 주'로 치면 이번엔
+    반대로 진짜 보고 붕괴를 죽인다. 그래서 **전 질병**에서 본다 — 상재성 질병
+    (수두·결핵 등)이 섞여 있어, 주가 실제로 발행됐으면 0 이 아닌 값이 반드시 있다.
+
+    ⚠️ 한계를 적어둔다: '주가 아직 발행 안 됐다' 와 '주가 발행됐는데 전 질병이 0'
+    은 이 데이터만으로 못 가른다. 둘이 겹치는 자리에서는 판정을 보류한다 — 후자가
+    진짜로 일어나면 값이 늙는 쪽으로 드러난다(소스 건강의 `값없음`·`늙는중`).
+    """
+    return any((wm.get(week) or 0) > 0 for wm in (kdca_weekly or {}).values())
+
+
 def notable_latest_total(kdca_weekly: dict | None, notable: set | None = None) -> float | None:
     """집계 총합 — 위험군(KDCA_NOTABLE)만 최근 주 합산. 상재성 질병이 총합을
-    오염시키지 않게 한다(기존 kdca_weekly_total 기준선을 지킴)."""
+    오염시키지 않게 한다(기존 kdca_weekly_total 기준선을 지킴).
+
+    최신 주가 아직 발행되지 않았으면 **None**(판정 안 함)이다 — 0 을 돌려주면
+    '보고 급감' 으로 읽힌다(week_is_reported 참조).
+    """
     if not kdca_weekly:
         return None
     notable = notable if notable is not None else set(KDCA_NOTABLE)
@@ -95,6 +126,8 @@ def notable_latest_total(kdca_weekly: dict | None, notable: set | None = None) -
     if not weeks:
         return None
     latest = max(weeks)
+    if not week_is_reported(kdca_weekly, latest):
+        return None
     return float(sum(wm.get(latest, 0) for d, wm in kdca_weekly.items() if d in notable))
 
 
