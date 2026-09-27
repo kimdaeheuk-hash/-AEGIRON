@@ -208,9 +208,12 @@ async def _run_alert_cycle() -> None:
     """
     import collector
     try:
-        from algorithms.alerts import refresh_alerts, summary_line
+        from algorithms.alerts import negative_space_line, refresh_alerts, summary_line
         result = await asyncio.to_thread(refresh_alerts)
         collector.log(f"🚨 경보 주기: {summary_line(result)}")
+        ns_line = negative_space_line(result)
+        if ns_line:
+            collector.log(ns_line)
     except Exception as e:
         collector.log_error("scheduler_alerts", e)
 

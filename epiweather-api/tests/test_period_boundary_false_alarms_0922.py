@@ -132,13 +132,22 @@ def test_naver_axes_are_still_scored_on_the_increase_side():
 
 
 def test_scan_skips_every_excluded_metric():
-    """스캔이 제외 목록을 실제로 읽는지 — 집합만 만들어두고 아무도 안 보면
-    이 리포의 단골 실패다('만들어만 두고 아무도 안 부르는 층')."""
+    """스캔이 제외 사유를 실제로 읽는지 — 집합만 만들어두고 아무도 안 보면
+    이 리포의 단골 실패다('만들어만 두고 아무도 안 부르는 층').
+
+    2026-09-27 에 경로가 한 단계 늘었다: 스캔이 `EXCLUDED_METRICS` 를 직접 보는
+    대신 `eligibility()` 를 부르고, 그 함수가 세 집합을 본다(소킹 판정 뒤
+    허용목록 도입). 그래서 **양쪽을 다 고정한다** — 원래 계약보다 강하다.
+    """
     import ast
     import inspect
 
     from algorithms import negative_space
 
-    src = inspect.getsource(negative_space.scan_negative_space)
-    names = {n.id for n in ast.walk(ast.parse(src.strip())) if isinstance(n, ast.Name)}
-    assert "EXCLUDED_METRICS" in names
+    def names_in(fn):
+        src = inspect.getsource(fn)
+        return {n.id for n in ast.walk(ast.parse(src.strip())) if isinstance(n, ast.Name)}
+
+    assert "eligibility" in names_in(negative_space.scan_negative_space)
+    gate = names_in(negative_space.eligibility)
+    assert {"UNRELIABLE_METRICS", "SEASONAL_METRICS", "RESCALED_METRICS"} <= gate

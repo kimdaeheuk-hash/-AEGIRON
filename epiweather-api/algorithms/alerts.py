@@ -34,6 +34,9 @@ DASHBOARD_TOP_N = 5
 # notify_new_alerts()는 '채널 미설정'과 '전송 실패'에 똑같이 False를 돌려준다.
 # 조기경보에서 그 둘은 전혀 다른 사건이다: 앞은 캡틴이 아직 안 켠 것이고,
 # 뒤는 켜놨는데 경보가 사람에게 안 닿은 것이다. 뒤쪽은 그 자체로 사고다.
+# 등급 순서 — 통보 판단이 '등급이 올라갔는가'를 물을 수 있게 수로 만든다.
+TIER_RANK = {"low": 0, "medium": 1, "high": 2, "critical": 3}
+
 NOTIFY_NONE = "보낼 신규 경보 없음"
 NOTIFY_UNCONFIGURED = "채널 미설정"
 NOTIFY_SENT = "전송됨"
@@ -124,6 +127,19 @@ def summary_line(result: dict) -> str:
     return f"{line} | {names}" if names else line
 
 
+def negative_space_line(result: dict) -> str | None:
+    """부정적 공간 감시가 '무엇을 봤고 무엇을 안 봤는지' 한 줄. 없으면 None.
+
+    경보 건수 줄과 **따로** 둔다 — 그 줄은 소킹 점검이 매일 세는 값이라
+    길이가 늘면 읽기 어려워진다(#40 에서 정한 원칙).
+    """
+    ns = result.get("negative_space") or {}
+    if not ns:
+        return None
+    from .negative_space import summary_line as ns_summary
+    return f"🔇 부정적 공간: {ns_summary(ns)}"
+
+
 def classify_tier(score: float) -> str:
     if score >= CRITICAL:
         return "critical"
@@ -156,8 +172,47 @@ def _gai_overall_evidence(gai_result: dict) -> list[str]:
     return evidence
 
 
-def collect_candidate_alerts(today: str) -> list[dict]:
-    """GAI 층별 신호원 + 부정적 공간 감시 + 설명불가 신호를 경보 후보로 변환."""
+def seen_rank_today(rows: list[dict]) -> dict[str, int]:
+    """오늘 이미 잡혀 있는 source 별 **최고 등급**. 통보 판단의 기준선이다."""
+    out: dict[str, int] = {}
+    for r in rows:
+        rank = TIER_RANK.get(r.get("tier"), 0)
+        if rank > out.get(r["source"], -1):
+            out[r["source"]] = rank
+    return out
+
+
+def escalated(source: str, tier: str, seen_rank: dict[str, int]) -> bool:
+    """이 경보를 사람에게 보내야 하는가.
+
+    ★ 왜 등급을 봐야 하나 ★ (2026-09-27, 소킹 3일차에 관측)
+
+    예전 조건은 `source not in already_seen_today` 였다 — **등급을 안 봤다.**
+    그래서 오늘 `low` 로 한 번 잡힌 지표는 그 뒤 `critical` 로 올라가도 '이미 본
+    것'이라 조용했다. 09-22 에 `supply_alert_count` 가 critical 로 23시간 떠
+    있었는데 통보가 한 번도 안 나갔다.
+
+    거짓 경보의 정반대 방향이고, 조기경보 제품에서는 이쪽이 더 나쁘다 — 거짓은
+    신뢰를 깎지만 이건 **있는 경보를 없는 것으로 만든다.**
+
+    매시간 재통보를 막으려는 원래 의도는 그대로다. 달라진 건 '같은 등급'이 아니라
+    **'올라간 등급'**만 뚫고 나간다는 것이다:
+
+        처음 보는 source              → 보낸다(기존과 같음)
+        low → critical                → 보낸다 ★ 고친 자리
+        critical → critical (진행중)  → 안 보낸다(기존과 같음)
+        critical → high (완화)        → 안 보낸다 — 나아진 것은 새 소식이 아니다
+        high → critical (악화)        → 보낸다
+    """
+    return TIER_RANK.get(tier, 0) > seen_rank.get(source, -1)
+
+
+def collect_candidate_alerts(today: str, negative_space: dict | None = None) -> list[dict]:
+    """GAI 층별 신호원 + 부정적 공간 감시 + 설명불가 신호를 경보 후보로 변환.
+
+    negative_space 를 받으면 그걸 쓴다 — 호출자가 같은 스캔 결과를 로그에도
+    써야 해서다(두 번 돌리면 파일을 두 번 읽는다). 기존 호출부는 그대로 동작한다.
+    """
     candidates = []
 
     gai_result = compute_gai()
@@ -194,7 +249,8 @@ def collect_candidate_alerts(today: str) -> list[dict]:
                 ],
             })
 
-    for a in scan_negative_space()["alerts"]:
+    ns = negative_space if negative_space is not None else scan_negative_space()
+    for a in ns["alerts"]:
         severity = round((1 - a["drop_ratio"]) * 100, 1) if a.get("drop_ratio") is not None else 70.0
         if severity >= CANDIDATE_FLOOR:
             candidates.append({
@@ -254,9 +310,11 @@ def refresh_alerts(today: str | None = None) -> dict:
     "오늘 이 source로 처음 잡힌" critical/high 경보에만 보낸다 — 안 그러면
     같은 진행중 경보를 매시간 재통보하게 됨."""
     today = today or dt.date.today().isoformat()
-    already_seen_today = {r["source"] for r in db.list_alerts(today)}
+    # ★ 등급까지 기억한다 ★ source 만 보면 low→critical 승격이 조용해진다(escalated 참조).
+    seen_rank = seen_rank_today(db.list_alerts(today))
 
-    for c in collect_candidate_alerts(today):
+    negative_space = scan_negative_space()
+    for c in collect_candidate_alerts(today, negative_space):
         tier = classify_tier(c["score"])
         db.upsert_alert(today, c["source"], tier, c["label"], c["score"], evidence=c.get("evidence"))
 
@@ -284,7 +342,7 @@ def refresh_alerts(today: str | None = None) -> dict:
 
     new_critical_high = [
         r for r in visible_rows
-        if r["tier"] in ("critical", "high") and r["source"] not in already_seen_today
+        if r["tier"] in ("critical", "high") and escalated(r["source"], r["tier"], seen_rank)
     ]
     # 경보→NPI 자동연결: 신규 critical/high에 '무대응 vs 개입' 반사실 요약을 붙여
     # 알림이 "무엇이 온다"를 넘어 "뭘 하면 어떻게 바뀐다"까지 답하게 한다.
@@ -310,4 +368,10 @@ def refresh_alerts(today: str | None = None) -> dict:
         },
         "tier_summary": tier_summary,
         "notification": notification,
+        # 무엇이 부정적 공간 감시 밖에 있는지 — 로그로 나가야 목록을 근거로 늘릴 수 있다.
+        "negative_space": {
+            "metrics_checked": negative_space.get("metrics_checked", 0),
+            "alert_count": negative_space.get("alert_count", 0),
+            "skipped": negative_space.get("skipped") or {},
+        },
     }
