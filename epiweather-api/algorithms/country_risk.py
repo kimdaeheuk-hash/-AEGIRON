@@ -455,6 +455,32 @@ ROUTINE_PREDICTION_COUNT = 5
 PREDICTION_HORIZON_DAYS = 90
 
 
+# 지목 못 한 예측의 질병 칸에 들어가는 문자열. _record_prediction 과 로그 줄이
+# 같은 상수를 봐야 한다 — 글자를 두 군데 적으면 한쪽만 바뀌는 날이 온다.
+UNNAMED_DISEASE = "종합 위험도(GAI 기반)"
+
+
+def prediction_line(pred: dict) -> str:
+    """예측 한 건의 로그 줄. 문자열은 시험 가능한 자리에 둔다.
+
+    ★ 왜 질병을 적나 ★ (2026-09-27, 캡틴이 '루프가 도는지 확인해봐' 라고 물었을 때)
+
+    예전 줄은 `- 콩고민주공화국: 위험도 78.5점` 이었다. #42 가 예측에 질병 이름을
+    붙이게 만들었는데, **그게 실제로 붙었는지 로그로 확인할 방법이 없었다.**
+    코드와 시험으로는 붙지만 프로덕션 관측으로는 미확인이었다 — #40 에서 경보에
+    이름을 넣어 진단이 가능해진 것과 똑같은 자리다.
+
+    지목 못 한 예측은 그렇다고 적는다(`질병 미지목`). 숨기면 '전부 지목되고 있다'
+    로 읽힌다.
+    """
+    disease = (pred.get("disease") or "").strip()
+    head = f"{pred.get('country')}: 위험도 {pred.get('risk_score')}점"
+    named = "질병 미지목" if (not disease or disease == UNNAMED_DISEASE) else disease
+    conf = pred.get("confidence")
+    tail = f" · 신뢰도 {conf}" if conf is not None else ""
+    return f"{head} · {named}{tail}"
+
+
 def log_notable_predictions(ranked: list[dict] | None = None) -> list[dict]:
     """
     '적중률을 실제로 증명하려면 예측 시점과 검증 시점을 분리해서 기록해야 한다'
@@ -546,7 +572,7 @@ def _record_prediction(c: dict, raw: float, routine: bool) -> dict | None:
     # ambiguous 로 판정한다(국가는 맞고 질병은 확인 불가). 거짓 오답보다 낫다.
     top_disease = c.get("dominant_disease")
     share = c.get("dominant_disease_share") or 0.0
-    disease = top_disease or "종합 위험도(GAI 기반)"
+    disease = top_disease or UNNAMED_DISEASE
 
     if top_disease:
         basis.append(

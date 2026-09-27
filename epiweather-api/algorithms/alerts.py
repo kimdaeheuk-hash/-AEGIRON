@@ -121,6 +121,11 @@ def summary_line(result: dict) -> str:
         suppressed = info.get("suppressed") or 0
         parts.append(f"{tier} {total}건" + (f"(억제 {suppressed})" if suppressed else ""))
     body = " · ".join(parts) if parts else "후보 0건"
+    # 내려간 행도 수로 남긴다 — 이 숫자가 0에서 움직이는 순간이 '판정이 화면에
+    # 반영됐다'는 증거다. 안 적으면 사라진 경보가 왜 사라졌는지 알 수 없다.
+    retired = sum((ts.get(t) or {}).get("retired") or 0 for t in ts)
+    if retired:
+        body = f"{body} · 내림 {retired}건"
     n = result.get("notification") or {}
     line = f"{body} · 알림: {n.get('status', '판정 안 함')}"
     names = named_alerts(result)
@@ -314,18 +319,42 @@ def refresh_alerts(today: str | None = None) -> dict:
     seen_rank = seen_rank_today(db.list_alerts(today))
 
     negative_space = scan_negative_space()
+    live_sources: set[str] = set()
     for c in collect_candidate_alerts(today, negative_space):
         tier = classify_tier(c["score"])
+        live_sources.add(c["source"])
         db.upsert_alert(today, c["source"], tier, c["label"], c["score"], evidence=c.get("evidence"))
 
     rows = db.list_alerts(today)  # score 내림차순
+
+    # ★ 후보에서 빠진 행은 내린다 ★ (2026-09-27, #44 배포 직후 관측)
+    #
+    # upsert 만 하고 내리는 경로가 없어서, 한 번 만들어진 행이 자정까지 남았다.
+    # #44 가 social_mpox 를 판정에서 뺀 뒤에도 같은 사이클 로그가 이렇게 찍혔다:
+    #
+    #     🔇 부정적 공간: 판정 8개 · 급감 0건          ← 스캔은 0건
+    #     🚨 경보 주기: critical 1건 … social_mpox …   ← 그런데 화면엔 있다
+    #
+    # 스캔이 0건인데 경보가 남아 있다는 건 **그 경보가 이번 판정에서 나온 게
+    # 아니라는 뜻**이다. 고친 판정이 화면에 반영되지 않으면 고친 게 아니다.
+    #
+    # 행은 지우지 않는다 — 오늘 무엇이 울렸는지는 감사 기록이고, 되살아나면
+    # upsert 가 다시 올린다. 등급 캡 초과분과는 **따로 센다**: 둘 다 '안 보임'
+    # 이지만 '한도에 밀림'과 '판정에서 빠짐'은 다른 사실이다.
+    retired_rows = [r for r in rows if r["source"] not in live_sources]
+    retired_ids = [r["id"] for r in retired_rows]
+    rows = [r for r in rows if r["source"] in live_sources]
 
     by_tier: dict[str, list[dict]] = {"critical": [], "high": [], "medium": [], "low": []}
     for r in rows:
         by_tier[r["tier"]].append(r)
 
+    retired_by_tier: dict[str, int] = {}
+    for r in retired_rows:
+        retired_by_tier[r["tier"]] = retired_by_tier.get(r["tier"], 0) + 1
+
     visible_ids: list[int] = []
-    suppressed_ids: list[int] = []
+    suppressed_ids: list[int] = list(retired_ids)
     tier_summary = {}
     for tier, items in by_tier.items():
         cap = DAILY_CAPS.get(tier)
@@ -333,7 +362,10 @@ def refresh_alerts(today: str | None = None) -> dict:
         hidden = [] if cap is None else items[cap:]
         visible_ids += [i["id"] for i in shown]
         suppressed_ids += [i["id"] for i in hidden]
-        tier_summary[tier] = {"cap": cap, "total": len(items), "suppressed": len(hidden)}
+        tier_summary[tier] = {
+            "cap": cap, "total": len(items), "suppressed": len(hidden),
+            "retired": retired_by_tier.get(tier, 0),
+        }
 
     db.set_suppressed(visible_ids, False)
     db.set_suppressed(suppressed_ids, True)

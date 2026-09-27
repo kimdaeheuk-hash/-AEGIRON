@@ -1042,14 +1042,14 @@ def collect_free_sources() -> dict:
         log_error("Sentinel", e)
 
     try:
-        from algorithms.country_risk import log_notable_predictions
+        from algorithms.country_risk import log_notable_predictions, prediction_line
         import db
         db.init_db()
         logged = log_notable_predictions()
         if logged:
             log(f"  📋 예측 기록: {len(logged)}개국 주의 이상 등급 → predictions 테이블에 자동 기록")
             for p in logged:
-                log(f"     - {p['country']}: 위험도 {p['risk_score']}점")
+                log(f"     - {prediction_line(p)}")
         else:
             log("  예측 기록: 새로 기록할 주의 이상 국가 없음")
     except Exception as e:
