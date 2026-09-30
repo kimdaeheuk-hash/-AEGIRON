@@ -208,9 +208,14 @@ async def _run_alert_cycle() -> None:
     """
     import collector
     try:
-        from algorithms.alerts import negative_space_line, refresh_alerts, summary_line
+        from algorithms.alerts import (
+            negative_space_line, refresh_alerts, retired_alerts_line, summary_line,
+        )
         result = await asyncio.to_thread(refresh_alerts)
         collector.log(f"🚨 경보 주기: {summary_line(result)}")
+        retired_line = retired_alerts_line(result)
+        if retired_line:
+            collector.log(retired_line)
         ns_line = negative_space_line(result)
         if ns_line:
             collector.log(ns_line)
