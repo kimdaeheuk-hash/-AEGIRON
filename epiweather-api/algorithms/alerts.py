@@ -132,6 +132,33 @@ def summary_line(result: dict) -> str:
     return f"{line} | {names}" if names else line
 
 
+def retired_alerts_line(result: dict) -> str | None:
+    """`내림 N건` 의 **이름 줄**. 내려간 행이 없으면 None.
+
+    ★ 왜 따로 두나 ★ (2026-09-30, #46 배포 직후 관측)
+
+    #46 이 프로덕션에서 돌았다 — `내림 3건` 이 두 주기 연속 찍혔다. 그런데 **어느
+    행이 내려갔는지는 로그에 없었다.** 상위 경보 구성이 바뀐 것으로 정황만 짚을 수
+    있었고, 그 3건이 정당하게(스캔이 더는 후보로 안 만든 행) 내려간 것인지는 판정하지
+    못했다. 관측이 안 되는 것은 검증된 게 아니다.
+
+    경보 건수 줄과 **따로** 둔다 — 그 줄은 소킹 점검이 매일 세는 값이라 길이가
+    늘면 읽기 어렵다(#40 에서 정한 원칙, negative_space_line 과 같은 이유).
+
+    이 줄은 **오늘 내려가 있는 행 전부**를 적는다(사이클마다 새로 내려간 것만이
+    아니다). 한 번 내려간 행은 되살아나지 않는 한 다음 주기에도 같은 줄에 남는다.
+    잘라내지 않는다 — 다 적어야 '무엇이 사라졌나'가 닫힌다.
+    """
+    rows = result.get("retired") or []
+    if not rows:
+        return None
+    parts = [
+        f"{r.get('tier')} {r.get('label')} {r.get('score')}점 [{r.get('source')}]"
+        for r in rows
+    ]
+    return f"🔽 내림: {' · '.join(parts)}"
+
+
 def negative_space_line(result: dict) -> str | None:
     """부정적 공간 감시가 '무엇을 봤고 무엇을 안 봤는지' 한 줄. 없으면 None.
 
@@ -399,6 +426,12 @@ def refresh_alerts(today: str | None = None) -> dict:
             "hidden_count": hidden_count,
         },
         "tier_summary": tier_summary,
+        # 내려간 행의 이름 — `내림 N건` 이 건수만 말하면 '정당하게 빠진 것'인지 로그로
+        # 판정할 수 없다(#40 이 고친 '몇 건만 말하고 무엇을 안 말한다'와 같은 모양).
+        "retired": [
+            {"label": r["label"], "tier": r["tier"], "score": r["score"], "source": r["source"]}
+            for r in retired_rows
+        ],
         "notification": notification,
         # 무엇이 부정적 공간 감시 밖에 있는지 — 로그로 나가야 목록을 근거로 늘릴 수 있다.
         "negative_space": {
