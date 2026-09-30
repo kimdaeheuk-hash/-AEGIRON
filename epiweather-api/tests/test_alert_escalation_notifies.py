@@ -75,3 +75,51 @@ def test_refresh_alerts_uses_escalated():
     src = inspect.getsource(alerts.refresh_alerts)
     names = {n.id for n in ast.walk(ast.parse(src.strip())) if isinstance(n, ast.Name)}
     assert "escalated" in names and "seen_rank_today" in names
+
+
+def test_prediction_line_names_the_disease():
+    """★ ⓑ — #42 가 붙인 질병 이름이 실제로 붙었는지 로그로 보이게 한다 ★
+
+    캡틴이 '루프가 도는지 확인해봐' 라고 했을 때, 예측 로그가
+    `- 콩고민주공화국: 위험도 78.5점` 뿐이라 **질병이 붙었는지 관측할 수 없었다.**
+    코드와 시험으로는 붙지만 프로덕션에서는 미확인이었다 — #40 과 같은 자리다.
+    """
+    from algorithms.country_risk import UNNAMED_DISEASE, prediction_line
+
+    named = prediction_line({"country": "콩고민주공화국", "risk_score": 78.5,
+                             "disease": "에볼라", "confidence": 0.42})
+    assert "에볼라" in named and "78.5" in named and "0.42" in named
+
+    # 지목 못 한 경우를 숨기지 않는다 — 숨기면 '전부 지목되고 있다'로 읽힌다.
+    unnamed = prediction_line({"country": "한국", "risk_score": 61.0,
+                               "disease": UNNAMED_DISEASE, "confidence": 0.12})
+    assert "질병 미지목" in unnamed
+    assert UNNAMED_DISEASE not in unnamed
+
+    # disease 칸이 비어 있어도 같은 자리로 떨어진다(빈 문자열·None).
+    assert "질병 미지목" in prediction_line({"country": "한국", "risk_score": 1.0,
+                                          "disease": None})
+    # 신뢰도가 없으면 빈 꼬리를 만들지 않는다.
+    assert prediction_line({"country": "한국", "risk_score": 1.0,
+                            "disease": "홍역"}).endswith("홍역")
+
+
+def test_record_prediction_and_log_share_one_constant():
+    """'종합 위험도(GAI 기반)' 글자를 두 군데 적으면 한쪽만 바뀌는 날이 온다.
+
+    주석에 남은 옛 문장은 **역사 기록이라 놔둔다** — 그래서 원문을 그대로 훑지 않고
+    AST 의 문자열 상수만 본다. 시험이 주석을 금지하면 다음 사람이 이유를 지운다.
+    """
+    import ast
+    import inspect
+
+    from algorithms import country_risk
+    from algorithms.country_risk import UNNAMED_DISEASE
+
+    tree = ast.parse(inspect.getsource(country_risk._record_prediction).strip())
+    literals = {n.value for n in ast.walk(tree)
+                if isinstance(n, ast.Constant) and isinstance(n.value, str)}
+    assert UNNAMED_DISEASE not in literals
+
+    names = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)}
+    assert "UNNAMED_DISEASE" in names
