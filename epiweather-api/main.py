@@ -219,6 +219,8 @@ async def _run_alert_cycle() -> None:
         ns_line = negative_space_line(result)
         if ns_line:
             collector.log(ns_line)
+        from algorithms.comtrade_signals import trade_scan_line
+        collector.log(trade_scan_line())
     except Exception as e:
         collector.log_error("scheduler_alerts", e)
 
