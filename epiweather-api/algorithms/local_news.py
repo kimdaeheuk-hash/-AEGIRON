@@ -26,6 +26,7 @@
 """
 from __future__ import annotations
 import re
+import time
 import urllib.parse
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
@@ -351,6 +352,11 @@ def fetch_local_feed(slug: str, lang: str, region: str, url: str, keywords: list
             # 179줄은 로그에서 못 읽는다. brief_reason 은 상태코드를 붙여주므로
             # (HTTPError 503) 집계했을 때 한 줄로 원인이 드러난다.
             "reason": brief_reason(e),
+            # ★ 조절(503/429)인지 가르는 값과 서버가 말한 대기 시간 ★
+            # reason 문자열을 파싱해 503 을 찾으면 문구가 바뀔 때 조용히 깨진다.
+            "http_status": getattr(getattr(e, "response", None), "status_code", None),
+            "retry_after": (getattr(getattr(e, "response", None), "headers", None) or {})
+                           .get("Retry-After"),
         }
 
 
@@ -402,6 +408,92 @@ def _feed_iso3(slug: str) -> str | None:
     return iso2_to_iso3(slug[3:5])
 
 
+# ── 프로브: 179건을 쏘기 전에 Google 이 받아주는지 한 건으로 본다 (2026-10-02) ──
+# 실측: 09-19 11:00 의 179개 전멸 이후 09-25~10-01 7일 내내 **정확히 11시·12시
+# UTC 에만** `HTTPError 503×179` 가 났다(14/14 주기, 부분 실패는 한 번도 없음).
+# 같은 두 시각에 NewsWatch 의 단건 요청(11:03·12:03)도 503 이었다. 179건은 75초
+# 동안 **한 건도 성공하지 못했으므로 그 주기의 첫 요청부터 막혀 있었다** — 이번
+# 주기의 폭주가 막힘을 만든 건 아니다(앞 주기는 한 시간 전). 그 이상은 **모른다**:
+# 레이트리밋인지 점검인지, 그 시간대 egress 쪽 문제인지 가려내는 값이 없다.
+# 503 에 `Retry-After` 가 오는지조차 로그에 안 남아 있었다.
+#
+# 그래서 이 수정이 하는 일은 셋뿐이다:
+#   ① 막힌 걸 알면서 179건을 더 쏘지 않는다(막힘이 호출량 탓이면 악화를 막고,
+#      아니어도 75초짜리 헛호출을 아낀다).
+#   ② 짧게 두 번 더 물어(기본 15+30초, Retry-After 가 오면 그 값·회당 최대 60초) 일시적이면 그 주기에 건진다.
+#   ③ 서버가 `Retry-After` 를 보내면 그 값을 로그까지 가져온다 — 다음 점검이
+#      막힘이 몇 분짜리인지 추측이 아니라 값으로 읽게.
+# 막힘이 풀리도록 만드는 수정이 아니다. 풀리는 시각은 Google 이 정한다.
+PROBE_FEED_SLUG = "gn_us"
+PROBE_RETRY_WAITS = (15, 30)      # 초. 프로브가 조절당하면 이만큼 쉬고 다시 묻는다
+PROBE_MAX_WAIT = 60               # Retry-After 가 길어도 한 번에 이 이상은 안 쉰다
+SKIPPED_REASON = "호출생략(프로브 조절됨)"
+_THROTTLE_STATUS = (429, 503)
+
+
+def _is_throttled(feed: dict) -> bool:
+    return feed.get("status") == "error" and feed.get("http_status") in _THROTTLE_STATUS
+
+
+def _wait_seconds(feed: dict, default: int) -> int:
+    """서버가 `Retry-After`(초)를 보냈으면 그 값, 아니면 기본값. 상한을 둔다.
+    HTTP-date 꼴이거나 숫자가 아니면 기본값 — 못 읽은 값을 지어내지 않는다."""
+    raw = feed.get("retry_after")
+    try:
+        return max(1, min(int(raw), PROBE_MAX_WAIT))
+    except (TypeError, ValueError):
+        return default
+
+
+def fetch_feeds_with_probe(feeds: list[tuple], sleep=None) -> tuple[list[dict], dict]:
+    """(피드 결과들, 프로브 보고). 결과 순서·개수는 `feeds` 와 같다.
+
+    프로브가 조절(503/429)당하면 대기·재시도 뒤에도 막혀 있을 때만 나머지를
+    **호출하지 않고** `호출생략` 사유로 채운다. 그 피드들은 status="error" 라
+    active_feeds 에서 빠지고 소스 건강이 값없음으로 센다 — 기존 전멸과 같은 취급.
+    프로브가 조절이 아닌 이유(연결 실패 등)로 죽으면 막힘이 아니므로 그대로 전부 시도한다.
+    """
+    # 기본값을 정의 시점에 묶지 않는다(`sleep=time.sleep`) — 그러면 시험의
+    # patch 가 안 먹어 진짜로 45초를 쉰다.
+    sleep = sleep or time.sleep
+    probe_idx = next((i for i, f in enumerate(feeds) if f[0] == PROBE_FEED_SLUG), 0)
+    probe = fetch_local_feed(*feeds[probe_idx])
+    attempts, waited = 1, 0
+    for default_wait in PROBE_RETRY_WAITS:
+        if not _is_throttled(probe):
+            break
+        wait = _wait_seconds(probe, default_wait)
+        sleep(wait)
+        waited += wait
+        probe = fetch_local_feed(*feeds[probe_idx])
+        attempts += 1
+
+    throttled = _is_throttled(probe)
+    report = {
+        "attempts": attempts,
+        "waited_sec": waited,
+        "throttled": throttled,
+        "http_status": probe.get("http_status") if throttled else None,
+        "retry_after": probe.get("retry_after") if throttled else None,
+        "skipped": 0,
+    }
+    others = [f for i, f in enumerate(feeds) if i != probe_idx]
+    if throttled:
+        rest = [{"slug": f[0], "lang": f[1], "region": f[2], "status": "error",
+                 "error": "프로브가 조절당해 호출하지 않음", "reason": SKIPPED_REASON,
+                 "http_status": None, "retry_after": None} for f in others]
+        report["skipped"] = len(rest)
+    else:
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            rest = list(executor.map(lambda feed: fetch_local_feed(*feed), others))
+
+    results: list[dict] = []
+    it = iter(rest)
+    for i in range(len(feeds)):
+        results.append(probe if i == probe_idx else next(it))
+    return results, report
+
+
 def fetch_all_local_news(cerebras_key: str | None = None,
                          groq_key: str | None = None,
                          watch_windows: dict[str, list[dict]] | None = None) -> dict:
@@ -415,8 +507,7 @@ def fetch_all_local_news(cerebras_key: str | None = None,
     ThreadPool로 병렬 수집한다. 죽은 소스는 status="error"로 남아 active_feeds에서
     빠지므로 '조용한 실패'가 아니라 눈에 보인다.
     """
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        results = list(executor.map(lambda feed: fetch_local_feed(*feed), LOCAL_FEEDS))
+    results, fetch_probe = fetch_feeds_with_probe(LOCAL_FEEDS)
 
     # ★ LLM 재분류가 실제로 됐는지를 반환값에 싣는다 (2026-08-28) ★
     # 예전엔 실패해도 아무 흔적이 없었다. 그러면 아래 고경보 판정이
@@ -580,6 +671,8 @@ def fetch_all_local_news(cerebras_key: str | None = None,
         # ↓ 왜 죽었는지. 피드마다 reason 은 이미 있었지만 아무도 안 읽었다 —
         #   2026-09-19 에 179개가 전멸했을 때 로그엔 "0/179" 만 찍혔다.
         "failure_summary": failure_summary(results),
+        # ↓ 프로브 시도 횟수·조절 여부·Retry-After. 막힘이 몇 분짜리인지 읽는 자리.
+        "fetch_probe":     fetch_probe,
         "total_kw_hits":   total_hits,
         "high_alert_feeds": len(high_alert),
         "high_alert":      high_alert,

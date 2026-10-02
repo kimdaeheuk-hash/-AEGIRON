@@ -790,6 +790,12 @@ def collect_free_sources() -> dict:
         # 11:00 에 179개가 전멸했을 때 로그엔 "0/179" 만 남았고, 그 0 이
         # 부정적 공간 감시로 가서 critical 경보가 캡틴 폰으로 나갔다 —
         # '우리 수집기 장애'가 '세상이 조용하다'로 읽힌 것이다.
+        probe = n.get("fetch_probe") or {}
+        if probe.get("attempts", 1) > 1 or probe.get("throttled"):
+            log(f"  ↻ 현지어 뉴스 프로브 {probe.get('attempts')}회 시도·{probe.get('waited_sec')}초 대기 — "
+                + (f"끝내 조절됨(HTTP {probe.get('http_status')}, Retry-After "
+                   f"{probe.get('retry_after') or '없음'}), 나머지 {probe.get('skipped')}개 호출 생략"
+                   if probe.get("throttled") else "재시도로 풀림"))
         if n.get("failure_summary"):
             log(f"  ❌ 현지어 뉴스 피드 실패 {n['total_feeds'] - n['active_feeds']}개: "
                 f"{n['failure_summary']}")
