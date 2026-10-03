@@ -9,7 +9,7 @@ description: 피드백 루프(정답 적재 → 질병 지목 예측 → 채점)
 
 ```
 ① 신호 → 정답        declaration_ingest      (21:00 UTC 슬롯)   📌 정답 적재 N건 / 검토 N건
-② 위험도 → 예측       country_risk._record_prediction            📋 예측 기록: …
+② 위험도 → 예측       country_risk._record_prediction            📋 예측 기록: …   (매 시간 수집 주기 · 새 기록이 있을 때만)
 ③ 예측 → 채점        prediction_resolver.resolve_due_predictions 해소할 예측 없음(미결 N건)
 ```
 
