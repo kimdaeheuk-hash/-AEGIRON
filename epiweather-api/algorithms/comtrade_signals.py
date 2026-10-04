@@ -84,6 +84,25 @@ REPORTING_LAG_MONTHS = 2  # 대부분 국가의 관세 통계 집계·공개 지
 # 산술적으로는 계산되지만 한 달 변동에 그대로 휘둘린다.
 MIN_SERIES_MONTHS = 3
 
+# ★ 최신 달이 '덜 찬 달'이면 빼고 한 달 앞선 달을 최신으로 쓴다 ★ (2026-10-04 프로덕션 관측)
+#
+#     🌐 masks_breathing 6/6달[행 78/71/64/57/42/8] → 8개국      (오래된 달 → 최신 달)
+#
+# 최신 달(202608)에 신고한 나라가 8곳뿐이라, '최신 달에 있어야 시계열에 남는' 규칙 때문에 후보 국가가
+# 8곳으로 줄었다. 한 달 앞선 달은 42곳이다. 신고가 늦게 들어오는 만큼 최신 달일수록 덜 차는데(월초에
+# 특히), 그 정도가 달마다 달라서 **무역 경보가 월 경계마다 있다 없다 한다**(10-01 BLZ·AZE 가 사라진 것도
+# 이 모양이었을 가능성이 크다 — 최신 달이 7월→8월로 밀렸다).
+#
+# 최신 달의 신고국 수가 그 앞 달들(중앙값)의 절반 미만이면 그 달을 **통째로** 뺀다. 일부 국가의 값만
+# 남겨 섞지 않는다(split, never blend). 뺀 사실과 이유는 줄에 남는다.
+#
+#  - 기준이 너무 작으면(앞 달들의 중앙값이 20곳 미만) 판정하지 않고 그대로 둔다 — 작은 표본에서
+#    '덜 찼다'를 말할 근거가 없다.
+#  - 시계열은 최소 MIN_SERIES_MONTHS 개월을 남긴다.
+#  - 대가: 일찍 신고한 소수 국가의 가장 최근 값은 이번 스캔에서 못 쓴다(무역은 어차피 지연 지표다).
+MATURITY_MIN_RATIO = 0.5
+MATURITY_MIN_REFERENCE = 20
+
 # ── 경보 연결용 임계값 (2026-08-23) ────────────────────────────────────
 # 실측 분포(2026-08 스캔, 급증 15건): 최대 4.10 · 중앙값 2.20 · 최소 1.65.
 # 무역 통계는 원래 변동이 크다 — 재고 보충 한 번에 2배가 나온다. 그래서 단일
@@ -246,6 +265,58 @@ def fetch_public_month(hs_code: str, period: str,
     return totals
 
 
+def _lag_months_of(period: str, today=None) -> int:
+    """오늘에서 그 달(YYYYMM)까지 몇 개월 뒤인가. 실제로 반영한 최신 달이 얼마나 낡았는지."""
+    import datetime as dt
+    today = today or dt.date.today()
+    return (today.year * 12 + today.month) - (int(period[:4]) * 12 + int(period[4:6]))
+
+
+def scan_period_summary(scan: dict, today=None) -> dict:
+    """스캔이 **실제로 반영한 최신 달**과 뺀 달. 품목마다 다르면 최신 달을 하나로 말하지 않는다.
+
+    품목별로 '덜 찬 달' 판정을 따로 하므로 품목끼리 최신 달이 다를 수 있다(신고국은 품목끼리 거의
+    같아 드물다). 다르면 `latest_period` 는 None 이고 `mixed` 가 True — 다품목 동시 급증이 서로 다른 달을
+    비교하고 있다는 사실을 숨기지 않는다.
+    """
+    latest, excluded = set(), set()
+    for p in (scan.get("products") or {}).values():
+        if not p.get("data_available"):
+            continue
+        f = p.get("fetch") or {}
+        if f.get("latest_period"):
+            latest.add(f["latest_period"])
+        excluded |= {d["period"] for d in (f.get("immature") or [])}
+    one = next(iter(latest)) if len(latest) == 1 else None
+    return {
+        "latest_period": one,
+        "mixed": len(latest) > 1,
+        "excluded_periods": sorted(excluded),
+        "effective_lag_months": _lag_months_of(one, today) if one else None,
+    }
+
+
+def _drop_immature_months(fetched: list[tuple[str, dict]],
+                          notes: dict | None) -> list[tuple[str, dict]]:
+    """최신 달의 신고국 수가 앞 달들 중앙값의 MATURITY_MIN_RATIO 미만이면 그 달을 뺀다(반복).
+
+    `fetched` 는 (YYYYMM, {ISO3: 값}) 목록(과거 → 최신). 빈 달(신고국 0)도 같은 규칙으로 빠진다 —
+    예전엔 최신 달이 비면 품목 전체가 '사용 불가'였다. `notes["immature"]` 에 뺀 달·신고국 수·기준을 남긴다.
+    """
+    fetched = list(fetched)
+    dropped: list[dict] = []
+    while len(fetched) > MIN_SERIES_MONTHS:
+        period, totals = fetched[-1]
+        reference = statistics.median(len(t) for _, t in fetched[:-1])
+        if reference < MATURITY_MIN_REFERENCE or len(totals) >= MATURITY_MIN_RATIO * reference:
+            break
+        dropped.append({"period": period, "reporters": len(totals), "reference": reference})
+        fetched = fetched[:-1]
+    if notes is not None and dropped:
+        notes["immature"] = dropped
+    return fetched
+
+
 def fetch_public_series(hs_code: str, months: int = TRAILING_MONTHS,
                         notes: dict | None = None) -> dict[str, list[float]]:
     """키 없이 최근 N개월을 받아 {ISO3: [과거…최신]} 시계열로 만든다.
@@ -259,20 +330,26 @@ def fetch_public_series(hs_code: str, months: int = TRAILING_MONTHS,
     건너뛰되 0으로 메우지 않는다 — 없는 값을 0으로 적으면 가짜 급증이 만들어진다.
     """
     periods = list(reversed(_recent_periods(months)))   # 과거 → 최신
-    monthly: list[dict[str, float]] = []
+    fetched: list[tuple[str, dict[str, float]]] = []
     for i, period in enumerate(periods):
         if i:
             _sleep(REQUEST_GAP_SEC)
         totals = fetch_public_month(hs_code, period, notes=notes)
         if totals is None:
             continue
-        monthly.append(totals)
+        fetched.append((period, totals))
     if notes is not None:
         notes["months_total"] = len(periods)
-        notes["months_ok"] = len(monthly)
-        notes["months_empty"] = sum(1 for m in monthly if not m)
-    if len(monthly) < MIN_SERIES_MONTHS:
+        notes["months_ok"] = len(fetched)
+        notes["months_empty"] = sum(1 for _, m in fetched if not m)
+    if len(fetched) < MIN_SERIES_MONTHS:
         return {}
+
+    # 응답을 받은 달 수(months_ok)는 그대로 두고, 그 위에서 '덜 찬 최신 달'을 뺀다.
+    fetched = _drop_immature_months(fetched, notes)
+    monthly = [t for _, t in fetched]
+    if notes is not None:
+        notes["latest_period"] = fetched[-1][0]
 
     # '모든 달에 있는 국가'만 남기면 안 된다 — 관세 신고는 최신 달일수록 늦게
     # 들어와서(실측: 마스크 76개국 → 최신달 30개국), 교집합을 쓰면 커버리지가
@@ -526,6 +603,8 @@ def global_trade_scan(months: int = TRAILING_MONTHS, use_cache: bool = True) -> 
         # 여러 품목이 동시에 튄 국가 — 경보 후보로 올리는 건 이쪽이다.
         "multi_product_surges": multi[:10],
         "reporting_lag_months": REPORTING_LAG_MONTHS,
+        # 실제로 반영한 최신 달 · 뺀 달 · 실효 지연. 명목 지연(reporting_lag_months)과 다르면 이쪽을 믿는다.
+        **scan_period_summary({"products": products}),
         "import_values_measured": True,
         "is_proxy_for_preparedness": True,
         "is_leading_indicator": True,
@@ -535,7 +614,9 @@ def global_trade_scan(months: int = TRAILING_MONTHS, use_cache: bool = True) -> 
                     "100개국만 들어온다(전세계 200여국 중). 여기 안 잡힌 국가는 "
                     "'급증이 없다'가 아니라 '이 스캔 범위 밖'이다. 저소득국 상당수는 "
                     "애초에 UN에 관세통계를 신고하지 않는다(콩고·우간다·에티오피아 등 "
-                    "여러 달 확인).",
+                    "여러 달 확인). 최신 달의 신고국이 앞 달들의 "
+                    f"{MATURITY_MIN_RATIO:.0%} 미만이면 그 달을 빼고 한 달 앞선 달을 최신으로 쓴다"
+                    "(`excluded_periods` · `latest_period`).",
         },
         "method": "un_comtrade_public_global_scan_v1",
     }
@@ -586,6 +667,11 @@ def _product_part(label: str, p: dict) -> str:
             # 오래된 달 → 최신 달. 최신 달이 유독 적으면 '신고가 아직 안 들어온 달'이라는 뜻이고,
             # 국가 수(→ N개국)가 적은 이유를 값으로 읽을 수 있다. 전부 500 근처면 상한에 잘린 것이다.
             head += "[행 " + "/".join(str(rows[k]) for k in sorted(rows)) + "]"
+        if f.get("immature"):
+            gone = " · ".join(
+                f"{d['period']} 제외({d['reporters']}곳<기준 {d['reference']:g}의 {MATURITY_MIN_RATIO:.0%})"
+                for d in f["immature"])
+            head += f"[최신 {f.get('latest_period')} · {gone}]"
         if f.get("capped_months"):
             head += f"[{PUBLIC_MAX_RECORDS}행 상한 {f['capped_months']}달]"
     if p.get("data_available"):
@@ -664,6 +750,15 @@ def trade_alert_candidates(scan: dict | None = None) -> list[dict]:
         return []
 
     out = []
+    # 실제로 반영한 최신 달이 낡았으면 그만큼을 지연으로 적는다(명목 2개월이 아니라 실효 지연).
+    lag = scan.get("effective_lag_months") or REPORTING_LAG_MONTHS
+    period_notes: list[str] = []
+    if scan.get("excluded_periods"):
+        period_notes.append(
+            f"최신 달({', '.join(scan['excluded_periods'])})은 신고국이 적어 제외하고 "
+            f"{scan.get('latest_period') or '품목별 최신 달'}까지 반영했다 — 더 최근 값은 이 경보에 없다")
+    if scan.get("mixed"):
+        period_notes.append("품목마다 반영한 최신 달이 달라, 동시 급증이 서로 다른 달을 비교한 것일 수 있다")
     for m in scan.get("multi_product_surges") or []:
         if m["product_count"] < ALERT_MIN_PRODUCTS:
             continue
@@ -686,9 +781,10 @@ def trade_alert_candidates(scan: dict | None = None) -> list[dict]:
                 f"{products} 가 동시에 평소 대비 급증(최대 {m['max_surge_ratio']}배)",
                 "수입액은 관세청 신고 실측치이나, '발병 대비'라는 해석은 추론(프록시)이다 — "
                 "정기 재고보충·가격변동·계절수요로도 같은 패턴이 나온다",
-                f"무역통계는 신고·집계 지연이 약 {REPORTING_LAG_MONTHS}개월이라 실시간 신호가 "
+                f"무역통계는 신고·집계 지연이 약 {lag}개월이라 실시간 신호가 "
                 "아니다. '지금 벌어지는 일'이 아니라 '몇 달 전 준비 행동'의 사후 확인이다",
                 "단일 품목 급증은 후보로 올리지 않는다 — 둘 이상 동시 급증만 본다",
+                *period_notes,
             ],
         })
     return out
