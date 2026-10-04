@@ -43,12 +43,17 @@ def test_the_line_carries_the_parameters_the_number_came_from():
     assert "IFR 더 낮음" in line
 
 
-def test_generic_tier_also_declares_itself():
-    """실측 파라미터가 없는 질병은 generic 예시 상수로 돈다 — 그 사실이
-    한 줄에 남아야 '실측'과 구분된다."""
+def test_generic_tier_sends_no_scenario_numbers():
+    """실측 파라미터가 없는 질병은 일반 예시 상수로 돈다 — 이제 **그 숫자를 폰에 안 싣는다**.
+
+    예전 계약은 '숫자는 싣되 generic 이라고 고지'였다. 그런데 `행동신호 · social_dengue`(Mastodon
+    게시자 12명) 경보에 '사망 41,779명 … 구할 생명 41,774명'이 독감 일반 상수로 나갔다(2026-10-04).
+    고지문이 있어도 폰에서는 큰 숫자가 먼저 읽힌다. 근거 없는 숫자는 만들지 않는다 — 사유만 보낸다.
+    """
     line = _line("알 수 없는 발열 클러스터")
-    assert "모델 시나리오" in line
-    assert "generic" in line
+    assert "질병별 파라미터가 없어 시나리오를 만들지 않음" in line   # 캡틴이 정한 문구 그대로
+    assert not any(ch.isdigit() for ch in line)          # 사망·병상 숫자가 한 글자도 없다
+    assert "구할 생명" not in line.replace("싣지 않는다", "")
 
 
 # ── 전파 양식 단서 ──────────────────────────────────────────────
