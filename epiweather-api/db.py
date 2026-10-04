@@ -170,6 +170,12 @@ def get_connection() -> sqlite3.Connection:
     return conn
 
 
+# 이 행의 경보가 사람에게 **실제로 전송된** 최고 등급(0 low · 1 medium · 2 high · 3 critical).
+# NULL = 보낸 적 없다. 전송이 성공했을 때만 채운다 — 실패한 통보는 NULL 로 남아 다음 주기에
+# 다시 시도되고, 날이 바뀌어도 '보낸 것'으로 이월되지 않는다.
+_NOTIFIED_RANK_DDL = "ALTER TABLE alerts ADD COLUMN notified_rank INTEGER"
+
+
 def init_db() -> None:
     with get_connection() as conn:
         conn.executescript(SCHEMA)
@@ -182,6 +188,7 @@ def init_db() -> None:
             "ALTER TABLE sentinel_queue ADD COLUMN ai_status TEXT",
             "ALTER TABLE sentinel_queue ADD COLUMN ai_confidence REAL",
             "ALTER TABLE alerts ADD COLUMN evidence TEXT",
+            _NOTIFIED_RANK_DDL,
             "ALTER TABLE extracted_signals ADD COLUMN country_iso3 TEXT",
             "ALTER TABLE extracted_signals ADD COLUMN ai_provider TEXT",
             "ALTER TABLE predictions ADD COLUMN content_hash TEXT",
@@ -200,6 +207,16 @@ def init_db() -> None:
         ):
             try:
                 conn.execute(ddl)
+                if ddl == _NOTIFIED_RANK_DDL:
+                    # ★ 컬럼이 *방금 생긴* 이 한 번만 옛 행을 채운다 ★ 전송 여부를 기록하기 전
+                    # 행은 보냈는지 알 수 없다. 옛 동작은 '오늘 잡힌 행 = 이미 본 것'이었으므로
+                    # 그대로 전송된 것으로 **간주**한다 — 안 그러면 배포 직후 오늘의 critical/high
+                    # 행이 전부 미전송으로 읽혀 한꺼번에 재전송된다. 간주이지 관측이 아니다.
+                    conn.execute(
+                        "UPDATE alerts SET notified_rank = CASE tier "
+                        "WHEN 'critical' THEN 3 WHEN 'high' THEN 2 END "
+                        "WHERE tier IN ('critical', 'high')"
+                    )
             except sqlite3.OperationalError as e:
                 # '이미 있는 컬럼'만 정상으로 넘긴다. 예전엔 OperationalError를
                 # 전부 삼켜서, 오타난 테이블명("no such table")이나 잠금 실패처럼
@@ -436,6 +453,22 @@ def set_suppressed(alert_ids: list[int], suppressed: bool) -> None:
         conn.executemany(
             "UPDATE alerts SET suppressed = ? WHERE id = ?",
             [(int(suppressed), aid) for aid in alert_ids],
+        )
+        conn.commit()
+
+
+def mark_alerts_notified(alert_date: str, items: list[tuple[str, int]]) -> None:
+    """전송에 **성공한** 경보의 등급을 기록한다. (source, rank) 목록.
+
+    이미 더 높은 등급이 기록돼 있으면 낮추지 않는다(high 를 보낸 뒤 critical 로 올라가 다시
+    보냈다면 3, 이후 high 로 내려가도 3 이 유지돼 '완화는 새 소식이 아니다'가 지켜진다)."""
+    if not items:
+        return
+    with get_connection() as conn:
+        conn.executemany(
+            "UPDATE alerts SET notified_rank = MAX(COALESCE(notified_rank, -1), ?) "
+            "WHERE alert_date = ? AND source = ?",
+            [(int(rank), alert_date, source) for source, rank in items],
         )
         conn.commit()
 

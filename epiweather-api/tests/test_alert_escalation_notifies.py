@@ -72,9 +72,18 @@ def test_refresh_alerts_uses_escalated():
     import inspect
 
     from algorithms import alerts
-    src = inspect.getsource(alerts.refresh_alerts)
-    names = {n.id for n in ast.walk(ast.parse(src.strip())) if isinstance(n, ast.Name)}
-    assert "escalated" in names and "seen_rank_today" in names
+
+    def names_in(fn):
+        tree = ast.parse(inspect.getsource(fn).strip())
+        return {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)}
+
+    # refresh_alerts 는 등급 기준선(baseline_rank)으로 escalated 를 부른다. 기준선은 전송 기록
+    # (notified_rank_of)을 쓰고, 채널이 없을 때만 '잡힌 행 = 본 것'(seen_rank_today)으로 센다.
+    # 둘 다 **등급**을 본다 — source 존재 여부만 보는 옛 조건으로 되돌아가면 침묵이 돌아온다.
+    assert "escalated" in names_in(alerts.refresh_alerts)
+    assert "baseline_rank" in names_in(alerts.refresh_alerts)
+    base = names_in(alerts.baseline_rank)
+    assert "seen_rank_today" in base and "notified_rank_of" in base
 
 
 def test_prediction_line_names_the_disease():

@@ -7,7 +7,7 @@ description: 아이기론 시험 작성·실행 규칙 — 픽스처, 스텁 방
 
 ## 실행
 
-`cd epiweather-api && python3 -m pytest -q` — **push 전에 전체를 돌린다.**(마지막 기준 1,843건)
+`cd epiweather-api && python3 -m pytest -q` — **push 전에 전체를 돌린다.**(마지막 기준 1,859건)
 부분 실행은 개발 중에만. CI 는 `pytest tests/ -v`.
 
 ## 기본 도구
