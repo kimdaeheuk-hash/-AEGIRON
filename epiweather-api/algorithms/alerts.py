@@ -21,7 +21,7 @@ from .gai import compute_gai
 from .negative_space import scan_negative_space
 from .unexplained import scan_unexplained
 from .signal_metrics import (ALERT_MIN_COUNT, COUNT_MIN_SIGMA, cap_count_noise_score,
-                             count_significance,
+                             count_significance, metric_unit,
                              is_count_noise_metric, meets_alert_minimum,
                              meets_count_significance)
 from .notifier import notify_new_alerts, telegram_configured
@@ -412,16 +412,25 @@ def collect_candidate_alerts(today: str, negative_space: dict | None = None) -> 
                 print(f"  🧢 [alerts] {m['metric']} — 이상도 {m['trusted_score']}점을 경보 점수 "
                       f"{score}점으로 제한(단독 사회 카운트 신호는 high 미만, 지수에는 그대로 반영됨)",
                       flush=True)
-            evidence = [
-                f"관측값 {m.get('latest')}",
-                f"원시 이상도(과거 대비 z-score 환산) {m['raw_score']}점",
-                f"출처신뢰도 {m['trust']} 반영 후 최종 {m['trusted_score']}점",
-                f"{layer['label']} 계층 가중치 {layer['weight']}",
-            ]
+            # ★ 폰에는 앞 두 줄만 간다(notifier.EVIDENCE_LINES) ★ 첫 줄은 관측값이 **무엇의 값이고
+            # 평소 얼마였는지**, 둘째 줄은 헤드라인 점수가 어떻게 나왔는지다. 예전엔 `관측값 12` 와
+            # `원시 이상도 93.5점` 이 나가서 단위도 평소 값도 없었고, 헤드라인 84.2점과 93.5점이
+            # 왜 다른지는 셋째 줄(폰에서 잘림)에 있었다(2026-10-04 텔레그램 본문 검토).
+            obs = f"관측값 {m.get('latest')}"
+            notes = [n for n in (
+                metric_unit(m["metric"]),
+                f"과거 평균 {m['baseline_mean']:g}" if m.get("baseline_mean") is not None else None,
+            ) if n]
+            if notes:
+                obs += f" ({' · '.join(notes)})"
+            how = (f"원시 이상도 {m['raw_score']}점 × 출처신뢰도 {m['trust']} = {m['trusted_score']}점 "
+                   "(과거 대비 z-score 환산)")
             if capped:
-                evidence.append(
-                    f"경보 점수는 {score}점으로 제한 — 게시자 수(7일, 겹치는 창) 단독 신호라 "
-                    "다른 층과 겹칠 때 비로소 등급이 올라간다")
+                # 헤드라인(제한된 점수)과 `= 84.2점` 이 다르다 — 이유가 폰에서 잘리는 뒷줄에 있으면
+                # 두 숫자가 어긋나 보인다. 같은 줄에 둔다.
+                how += (f" → 경보 점수 {score}점으로 제한(단독 사회 신호 — 게시자 수는 7일 겹치는 창이라 "
+                        "다른 층과 겹칠 때 등급이 올라감)")
+            evidence = [obs, how, f"{layer['label']} 계층 가중치 {layer['weight']}"]
             candidates.append({
                 "source": f"gai:{layer_key}.{m['metric']}",
                 "label": f"{layer['label']} · {m['metric']}",

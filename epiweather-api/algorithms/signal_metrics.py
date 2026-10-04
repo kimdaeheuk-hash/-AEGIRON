@@ -148,6 +148,19 @@ COUNT_MIN_SIGMA = 2.0   # 2σ — anomaly_engine.ANOMALY_Z_THRESHOLD 와 같은 
 COUNT_NOISE_ALERT_CAP = 79.0
 
 
+# 관측값이 **무엇의 값인지**. 경보 본문에 `관측값 12` 만 나가면 환자 12명으로 읽힌다 — 실제로는
+# Mastodon 에서 최근 7일에 해당 해시태그로 글을 쓴 서로 다른 게시자 수다(collector 로그의
+# `Mastodon #dengue(뎅기열): 최근7일 12명(원문 14건)`). 단위를 모르는 지표는 안 적는다(지어내지 않는다).
+METRIC_UNITS: dict[str, str] = {"social_": "Mastodon 최근 7일 게시자 수"}
+
+
+def metric_unit(metric_id: str) -> str | None:
+    for prefix, unit in METRIC_UNITS.items():
+        if metric_id.startswith(prefix):
+            return unit
+    return None
+
+
 def cap_count_noise_score(metric_id: str, score: float) -> float:
     """대상 카운트 지표의 **경보 점수**를 상한으로 깎는다. 대상이 아니면 그대로."""
     if is_count_noise_metric(metric_id):
