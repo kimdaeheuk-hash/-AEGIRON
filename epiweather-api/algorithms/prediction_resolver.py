@@ -112,6 +112,26 @@ def _overlaps(value: str, hay: str) -> bool:
         tok and tok in hay for tok in value.split() if len(tok) >= 3)
 
 
+def _country_matches(country: str | None, event: dict, hay: str) -> bool:
+    """예측의 국가가 사건에 있는가. 글자 겹침으로 먼저 보고, 안 되면 **ISO3 로 맞춘다**.
+
+    ★ 왜 ISO3 로도 보나 ★ (2026-10-04) 예측의 국가 이름은 나라마다 표기가 다르다 — 정기 보정
+    기록이 `한국` 은 한글로, `Cambodia` 는 영어로 적었다. 글자만 겹쳐 보면 `콩고민주공화국` 예측이
+    `Democratic Republic of the Congo` 사건을 못 알아봐서(MATCH_NONE) **맞은 예측이 채점에서
+    조용히 빠진다.** 사전(country_resolve)이 한글·영문을 같은 ISO3 로 읽는다. 사전에 없는
+    이름은 추측하지 않는다(= 전과 같이 못 맞춘다). 이 경로는 맞추는 쪽으로만 넓어진다 —
+    국가가 맞아도 질병까지 겹쳐야 correct 다(match_kind).
+    """
+    if _overlaps(country, hay):
+        return True
+    from algorithms.country_resolve import resolve_countries
+    want = set(resolve_countries(country))
+    if not want:
+        return False
+    raw = " ".join(str(event.get(k) or "") for k in ("event_id", "event_name"))
+    return bool(want & set(resolve_countries(raw)))
+
+
 def match_kind(prediction: dict, event: dict) -> str:
     """예측과 타임라인 이벤트가 얼마나 같은 사건을 가리키는가.
 
@@ -123,7 +143,7 @@ def match_kind(prediction: dict, event: dict) -> str:
     있었으니 '틀렸다'도 사실이 아니다. 계약이 정한 세 번째 칸이 이 자리다.
     """
     hay = " ".join(str(event.get(k) or "") for k in ("event_id", "event_name")).lower()
-    if not _overlaps(prediction.get("country"), hay):
+    if not _country_matches(prediction.get("country"), event, hay):
         return MATCH_NONE
     return MATCH_FULL if _overlaps(prediction.get("disease"), hay) else MATCH_COUNTRY
 

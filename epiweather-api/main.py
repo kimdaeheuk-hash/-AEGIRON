@@ -210,12 +210,16 @@ async def _run_alert_cycle() -> None:
     try:
         from algorithms.alerts import (
             negative_space_line, refresh_alerts, retired_alerts_line, summary_line,
+            undetermined_alerts_line,
         )
         result = await asyncio.to_thread(refresh_alerts)
         collector.log(f"🚨 경보 주기: {summary_line(result)}")
         retired_line = retired_alerts_line(result)
         if retired_line:
             collector.log(retired_line)
+        undetermined_line = undetermined_alerts_line(result)
+        if undetermined_line:
+            collector.log(undetermined_line)
         ns_line = negative_space_line(result)
         if ns_line:
             collector.log(ns_line)
@@ -506,12 +510,46 @@ async def _run_prediction_resolution() -> None:
         _log_error(f"prediction_resolution: {type(e).__name__}: {e}")
 
 
+# 없는 기준 스냅샷을 다시 받아 보는 최소 간격. 원본(openFDA)을 매시간 두드리지 않으려는 것이다.
+_MISSING_SNAPSHOT_RETRY_SEC = 6 * 3600
+_last_missing_snapshot_try: float | None = None
+
+
+async def _maybe_refresh_missing_snapshots() -> None:
+    """파일이 없는 기준 스냅샷을 주간 타이머와 무관하게 받아 본다(6시간에 한 번까지).
+
+    결과는 성공이든 실패든 로그에 **이유와 함께** 남긴다 — 이 자리가 없던 동안 '없다'는
+    경고가 이틀 넘게 반복됐는데 왜 안 채워지는지는 로그에 한 줄도 없었다.
+    """
+    import time
+    import collector
+    global _last_missing_snapshot_try
+    now = time.time()
+    if _last_missing_snapshot_try is not None and now - _last_missing_snapshot_try < _MISSING_SNAPSHOT_RETRY_SEC:
+        return
+    try:
+        from algorithms.reference_snapshots import SNAPSHOTS, refresh_missing, snapshot_status
+        if all(snapshot_status(n)["present"] for n in SNAPSHOTS):
+            return
+        _last_missing_snapshot_try = now
+        result = await asyncio.to_thread(refresh_missing)
+        for item in result["refreshed"]:
+            if item["refreshed"]:
+                collector.log(f"기준 스냅샷 {item['name']}: 없어서 새로 받음 "
+                              f"({item['record_count']}건, {item['snapshot_date']})")
+            else:
+                collector.log(f"  ⚠ 기준 스냅샷 {item['name']}: 없어서 받아 봤으나 {item['reason']}")
+    except Exception as e:
+        collector.log_error("scheduler_missing_snapshots", e)
+
+
 async def _scheduler_loop() -> None:
     # 재배포로 초기화되지 않게 디스크에서 읽어온다(주간작업과 같은 패턴).
     last_ai_run_date: dt.date | None = _load_last_ai_run()
     await _run_collector("free")
     await _run_alert_cycle()
     await _maybe_run_daily_brief()
+    await _maybe_refresh_missing_snapshots()
 
     last_weekly = _load_last_weekly_run()
     now = dt.datetime.now(dt.timezone.utc)
@@ -531,6 +569,7 @@ async def _scheduler_loop() -> None:
         # 수집 바로 뒤에 붙인다 — 방금 들어온 값으로 판정해야 "빨리 알린다"가
         # 실제로 지켜진다. 같은 source 재통보는 refresh_alerts가 막는다.
         await _run_alert_cycle()
+        await _maybe_refresh_missing_snapshots()
 
         now = dt.datetime.utcnow()
         # ★ '정확히 21시'가 아니라 '21시 이후'로 판정한다 ★

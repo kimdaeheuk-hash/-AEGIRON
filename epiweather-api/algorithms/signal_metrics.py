@@ -133,6 +133,28 @@ COUNT_NOISE_PREFIXES: tuple[str, ...] = ("social_",)
 COUNT_MIN_SIGMA = 2.0   # 2σ — anomaly_engine.ANOMALY_Z_THRESHOLD 와 같은 관례
 
 
+# ★ 2σ 문턱만으로는 부족했다 — 프로덕션 관측 (2026-10-04 13:39 UTC, #51 배포 직후) ★
+#
+#     🧮 social_cholera: 관측값 5 · 과거 평균 1.7306 · 2.49σ (문턱 2.0σ) → 통과
+#     🧮 social_dengue : 관측값 12 · 과거 평균 5.0578 · 3.09σ (문턱 2.0σ) → 통과
+#
+# 둘 다 포아송 기준으로는 '유의'하다. 그런데 이 값은 Mastodon **7일 게시자 수**다 — 매시간
+# 겹치는 창으로 재서 서로 독립이 아니고, 게시자 몇 명이 늘어도 critical(90점)로 폰이 울린다.
+# 문턱을 3σ 로 올리면 이 두 건에 맞춘 숫자가 된다(콜레라 2.49 만 막고 뎅기 3.09 는 통과).
+# 그래서 문턱이 아니라 **등급의 상한**을 건다: 사회 카운트 신호는 단독으로 high(80) 에
+# 닿지 못한다. 무역 신호와 같은 원칙이다(comtrade_signals: 상한 79 — "다른 층과 겹칠 때
+# 비로소 등급이 올라가야 정직하다"). 지수는 그대로 두고 **경보 점수만** 깎으며, 깎은 사실은
+# 로그와 근거에 남는다. 진짜 확산이면 다른 층(공식·뉴스)이 같이 올라 종합(gai:overall)이 말한다.
+COUNT_NOISE_ALERT_CAP = 79.0
+
+
+def cap_count_noise_score(metric_id: str, score: float) -> float:
+    """대상 카운트 지표의 **경보 점수**를 상한으로 깎는다. 대상이 아니면 그대로."""
+    if is_count_noise_metric(metric_id):
+        return min(score, COUNT_NOISE_ALERT_CAP)
+    return score
+
+
 def is_count_noise_metric(metric_id: str) -> bool:
     return metric_id.startswith(COUNT_NOISE_PREFIXES)
 

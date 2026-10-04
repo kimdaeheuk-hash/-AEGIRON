@@ -110,3 +110,13 @@ def _isolate_capability_ledger(tmp_path, monkeypatch):
     monkeypatch.setattr(capability_ledger, "LEDGER_FILE",
                         tmp_path / "capability_health.json")
     yield
+
+
+# 무역 스캔은 요청 사이에 간격을 두고(REQUEST_GAP_SEC), 429 에는 기다렸다 다시 묻는다. 스캔을
+# 모의 요청으로 도는 시험이 그 시간을 **실제로** 기다리면 스위트가 4배 느려진다(실측 38초 →
+# 159초). 기다림 자체를 검증하는 시험은 `_sleep` 을 직접 패치해 값을 본다.
+@pytest.fixture(autouse=True)
+def _no_real_sleep_in_trade_scan(monkeypatch):
+    from algorithms import comtrade_signals
+    monkeypatch.setattr(comtrade_signals, "_sleep", lambda sec: None)
+    yield

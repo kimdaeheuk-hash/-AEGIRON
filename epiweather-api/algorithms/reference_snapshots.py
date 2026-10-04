@@ -308,3 +308,26 @@ def refresh_due(now=None) -> dict:
             continue
         results.append(refresh(name, now))
     return {"refreshed": results, "skipped_fresh": skipped}
+
+
+def refresh_missing(now=None) -> dict:
+    """**파일이 아예 없는** 스냅샷만 새로 받는다. 주간 타이머와 무관하게 부른다.
+
+    ★ 왜 필요한가 ★ (2026-10-04 관측)
+
+    `approved_products.json` 은 저장소에 없고 주간작업이 런타임에 만든다. 로그는
+    `기준 파일이 없다. 주간작업이 갱신 시도` 를 최소 10-01 16시부터 **매시간** 찍었는데,
+    같은 기간 로그에서 갱신 성공·실패 줄은 한 줄도 못 찾았다. 주간작업은 마지막 실행 시각이
+    남아 있으면 7일을 기다리고, 파일은 재배포로 사라질 수 있다(저장소 밖에 쓰는 파일) — 이
+    둘이 겹치면 '없다'는 경고만 일주일 내내 반복된다(추정 — 확인된 원인이 아니다).
+
+    묵은 것(`refresh_due`)과 없는 것을 가른다: 없는 것은 기다릴 이유가 없다. 안 바뀐 걸
+    긁지 않는다는 `refresh_due` 의 원칙은 그대로고, 여기서는 **없는 것만** 부른다.
+    """
+    results = []
+    for name in sorted(SNAPSHOTS):
+        if snapshot_status(name, now)["present"]:
+            continue
+        results.append(refresh(name, now))
+    return {"refreshed": results}
+
