@@ -13,13 +13,15 @@
 매시간 돌아도 캡 카운트가 부풀지 않는다.
 """
 from __future__ import annotations
+import contextvars
 import datetime as dt
 
 import db
 from .gai import compute_gai
 from .negative_space import scan_negative_space
 from .unexplained import scan_unexplained
-from .signal_metrics import (ALERT_MIN_COUNT, COUNT_MIN_SIGMA, count_significance,
+from .signal_metrics import (ALERT_MIN_COUNT, COUNT_MIN_SIGMA, cap_count_noise_score,
+                             count_significance,
                              is_count_noise_metric, meets_alert_minimum,
                              meets_count_significance)
 from .notifier import notify_new_alerts, telegram_configured
@@ -38,6 +40,20 @@ DASHBOARD_TOP_N = 5
 # 뒤는 켜놨는데 경보가 사람에게 안 닿은 것이다. 뒤쪽은 그 자체로 사고다.
 # 등급 순서 — 통보 판단이 '등급이 올라갔는가'를 물을 수 있게 수로 만든다.
 TIER_RANK = {"low": 0, "medium": 1, "high": 2, "critical": 3}
+# comtrade_signals.trade_alert_candidates 가 붙이는 source 접두 — 스캔 실패 때 이 계열만 '판정 안 함'으로 둔다.
+TRADE_SOURCE_PREFIX = "trade_surge:"
+
+# collect_candidate_alerts 가 '이 계열은 이번 주기에 판정하지 못했다'를 refresh_alerts 로 알리는 통로.
+# 반환형·시그니처를 바꾸지 않으려고(기존 호출부·시험 스텁이 그대로 동작) 컨텍스트 변수로 둔다 —
+# 동시에 도는 refresh_alerts 호출끼리 섞이지 않는다.
+_UNDETERMINED: contextvars.ContextVar[list[str] | None] = contextvars.ContextVar(
+    "alerts_undetermined", default=None)
+
+
+def _mark_undetermined(prefix: str) -> None:
+    bucket = _UNDETERMINED.get()
+    if bucket is not None and prefix not in bucket:
+        bucket.append(prefix)
 
 NOTIFY_NONE = "보낼 신규 경보 없음"
 NOTIFY_UNCONFIGURED = "채널 미설정"
@@ -161,6 +177,24 @@ def retired_alerts_line(result: dict) -> str | None:
     return f"🔽 내림: {' · '.join(parts)}"
 
 
+def undetermined_alerts_line(result: dict) -> str | None:
+    """이번 주기에 **판정하지 못해** 내리지도 새로 주장하지도 않은 행. 없으면 None.
+
+    `🔽 내림` 과 다른 사실이다: 내림은 '이번 판정에서 후보가 아니었다', 이 줄은 '이번 주기엔
+    판정할 수 없었다'(무역 스캔 조회 실패 등). 한 줄에 섞으면 수집 실패가 '값이 내려갔다'로
+    읽힌다 — 그게 이 줄이 따로 있는 이유다.
+    """
+    rows = result.get("undetermined") or []
+    if not rows:
+        return None
+    parts = [
+        f"{r.get('tier')} {r.get('label')} {r.get('score')}점 [{r.get('source')}]"
+        for r in rows
+    ]
+    return (f"⏸ 판정 안 함: {' · '.join(parts)} — 이번 주기 스캔이 불완전해 내리지 않고 "
+            f"마지막 상태 그대로 둠")
+
+
 def negative_space_line(result: dict) -> str | None:
     """부정적 공간 감시가 '무엇을 봤고 무엇을 안 봤는지' 한 줄. 없으면 None.
 
@@ -213,6 +247,39 @@ def seen_rank_today(rows: list[dict]) -> dict[str, int]:
         rank = TIER_RANK.get(r.get("tier"), 0)
         if rank > out.get(r["source"], -1):
             out[r["source"]] = rank
+    return out
+
+
+def carried_rank_from_yesterday(rows: list[dict]) -> dict[str, int]:
+    """어제 *화면에 떠 있던* source 별 최고 등급 — 날이 바뀌어도 '진행 중'인 경보의 기준선.
+
+    ★ 왜 필요한가 ★ (2026-10-04 관측)
+
+    `alerts` 는 날짜별로 행을 만든다. 날이 바뀌면 오늘 표가 비어서 어제부터 이어지던
+    critical 이 '오늘 처음 보는 것'이 되고, 00:01 주기에 같은 경보가 폰으로 다시 나갔다
+    (social_cholera 가 10-03 에 나가고 10-04 00:01 에 또 나갔다). 같은 등급으로 이어지는
+    경보는 `escalated` 의 원칙대로 새 소식이 아니다 — 날짜 경계에서만 그 원칙이 깨져 있었다.
+
+    ★ 센 것과 안 센 것 ★ `suppressed` 인 행(자정 직전에 내려간 행 · 등급 캡에 밀린 행)은
+    어제 화면에 없었으므로 세지 않는다 — 어제 안 보이던 것이 오늘 올라오면 새 소식이다.
+    **보냈는지가 아니라 화면에 떠 있었는지**를 본다: 전송 실패가 기록되지 않아서, 실패한
+    통보가 다음 날 재시도되는 일은 이 규칙으로 없다(오늘 안에서도 원래 없던 동작이다).
+    """
+    out: dict[str, int] = {}
+    for r in rows:
+        if r.get("suppressed"):
+            continue
+        rank = TIER_RANK.get(r.get("tier"), 0)
+        if rank > out.get(r["source"], -1):
+            out[r["source"]] = rank
+    return out
+
+
+def merge_seen_rank(today_rank: dict[str, int], carried: dict[str, int]) -> dict[str, int]:
+    out = dict(carried)
+    for source, rank in today_rank.items():
+        if rank > out.get(source, -1):
+            out[source] = rank
     return out
 
 
@@ -284,16 +351,29 @@ def collect_candidate_alerts(today: str, negative_space: dict | None = None) -> 
                       flush=True)
                 if not ok:
                     continue
+            # ★ 단독 사회 카운트 신호는 high 미만 ★ 2σ 문턱을 통과한 뒤에도 폰이 울렸다(관측:
+            # 평균 1.73 → 5명 2.49σ). 지수 점수는 그대로, 경보 점수만 깎고 깎은 사실을 남긴다.
+            score = cap_count_noise_score(m["metric"], m["trusted_score"])
+            capped = score < m["trusted_score"]
+            if capped:
+                print(f"  🧢 [alerts] {m['metric']} — 이상도 {m['trusted_score']}점을 경보 점수 "
+                      f"{score}점으로 제한(단독 사회 카운트 신호는 high 미만, 지수에는 그대로 반영됨)",
+                      flush=True)
+            evidence = [
+                f"관측값 {m.get('latest')}",
+                f"원시 이상도(과거 대비 z-score 환산) {m['raw_score']}점",
+                f"출처신뢰도 {m['trust']} 반영 후 최종 {m['trusted_score']}점",
+                f"{layer['label']} 계층 가중치 {layer['weight']}",
+            ]
+            if capped:
+                evidence.append(
+                    f"경보 점수는 {score}점으로 제한 — 게시자 수(7일, 겹치는 창) 단독 신호라 "
+                    "다른 층과 겹칠 때 비로소 등급이 올라간다")
             candidates.append({
                 "source": f"gai:{layer_key}.{m['metric']}",
                 "label": f"{layer['label']} · {m['metric']}",
-                "score": m["trusted_score"],
-                "evidence": [
-                    f"관측값 {m.get('latest')}",
-                    f"원시 이상도(과거 대비 z-score 환산) {m['raw_score']}점",
-                    f"출처신뢰도 {m['trust']} 반영 후 최종 {m['trusted_score']}점",
-                    f"{layer['label']} 계층 가중치 {layer['weight']}",
-                ],
+                "score": score,
+                "evidence": evidence,
             })
 
     ns = negative_space if negative_space is not None else scan_negative_space()
@@ -339,14 +419,21 @@ def collect_candidate_alerts(today: str, negative_space: dict | None = None) -> 
     # 그래서 점수 상한을 79로 두어 혼자서는 high(80)에 못 닿게 했다 —
     # 다른 층과 겹칠 때 비로소 등급이 올라가야 정직하다.
     # 스캔이 느려서(UN 18회 호출) 실패해도 경보 수집 전체를 막지 않게 격리한다.
+    #
+    # ★ 스캔이 못 낸 것과 값이 내려간 것을 가른다 ★ 스캔이 일부 실패했거나 아예 예외가
+    # 났으면 '후보가 없다'는 '급증이 없다'가 아니라 '모른다'이다. 그 주기에는 무역 행을
+    # 내리지 않고 `undetermined_prefixes` 로 알린다(refresh_alerts 가 '판정 안 함'으로 센다).
     try:
-        from algorithms.comtrade_signals import trade_alert_candidates
+        from algorithms.comtrade_signals import last_scan_incomplete, trade_alert_candidates
         for c in trade_alert_candidates():
             if c["score"] >= CANDIDATE_FLOOR:
                 candidates.append(c)
+        if last_scan_incomplete():
+            _mark_undetermined(TRADE_SOURCE_PREFIX)
     except Exception as e:
         print(f"  ⚠️ [alerts] 무역 급증 후보 수집 실패 — 나머지 경보는 계속: "
               f"{type(e).__name__}: {str(e)[:120]}", flush=True)
+        _mark_undetermined(TRADE_SOURCE_PREFIX)
 
     return candidates
 
@@ -358,11 +445,21 @@ def refresh_alerts(today: str | None = None) -> dict:
     같은 진행중 경보를 매시간 재통보하게 됨."""
     today = today or dt.date.today().isoformat()
     # ★ 등급까지 기억한다 ★ source 만 보면 low→critical 승격이 조용해진다(escalated 참조).
-    seen_rank = seen_rank_today(db.list_alerts(today))
+    yesterday = (dt.date.fromisoformat(today) - dt.timedelta(days=1)).isoformat()
+    seen_rank = merge_seen_rank(
+        seen_rank_today(db.list_alerts(today)),
+        carried_rank_from_yesterday(db.list_alerts(yesterday)),
+    )
 
     negative_space = scan_negative_space()
     live_sources: set[str] = set()
-    for c in collect_candidate_alerts(today, negative_space):
+    undetermined_prefixes: list[str] = []
+    token = _UNDETERMINED.set(undetermined_prefixes)
+    try:
+        candidates = collect_candidate_alerts(today, negative_space)
+    finally:
+        _UNDETERMINED.reset(token)
+    for c in candidates:
         tier = classify_tier(c["score"])
         live_sources.add(c["source"])
         db.upsert_alert(today, c["source"], tier, c["label"], c["score"], evidence=c.get("evidence"))
@@ -383,9 +480,19 @@ def refresh_alerts(today: str | None = None) -> dict:
     # 행은 지우지 않는다 — 오늘 무엇이 울렸는지는 감사 기록이고, 되살아나면
     # upsert 가 다시 올린다. 등급 캡 초과분과는 **따로 센다**: 둘 다 '안 보임'
     # 이지만 '한도에 밀림'과 '판정에서 빠짐'은 다른 사실이다.
-    retired_rows = [r for r in rows if r["source"] not in live_sources]
+    #
+    # ★ 단, 이번 주기에 *판정하지 못한* 계열은 내리지 않는다 ★ 무역 스캔이 실패한 주기에
+    # 후보가 없는 것은 값이 내려간 것이 아니라 못 본 것이다. 그 행은 마지막으로 안 상태 그대로
+    # 두고(= 새로 주장도, 지우지도 않는다) 따로 센다. 수집 실패가 진짜 경보를 조용히 내리는
+    # 경로를 막는다(09-30 BLZ·AZE 가설).
+    def _held(r: dict) -> bool:
+        return (bool(undetermined_prefixes) and r["source"] not in live_sources
+                and r["source"].startswith(tuple(undetermined_prefixes)))
+
+    held_rows = [r for r in rows if _held(r)]
+    retired_rows = [r for r in rows if r["source"] not in live_sources and not _held(r)]
     retired_ids = [r["id"] for r in retired_rows]
-    rows = [r for r in rows if r["source"] in live_sources]
+    rows = [r for r in rows if r["source"] in live_sources or _held(r)]
 
     by_tier: dict[str, list[dict]] = {"critical": [], "high": [], "medium": [], "low": []}
     for r in rows:
@@ -446,6 +553,11 @@ def refresh_alerts(today: str | None = None) -> dict:
         "retired": [
             {"label": r["label"], "tier": r["tier"], "score": r["score"], "source": r["source"]}
             for r in retired_rows
+        ],
+        # 이번 주기에 판정하지 못해 그대로 둔 행 — 내림이 아니다.
+        "undetermined": [
+            {"label": r["label"], "tier": r["tier"], "score": r["score"], "source": r["source"]}
+            for r in held_rows
         ],
         "notification": notification,
         # 무엇이 부정적 공간 감시 밖에 있는지 — 로그로 나가야 목록을 근거로 늘릴 수 있다.

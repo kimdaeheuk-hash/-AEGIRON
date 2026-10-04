@@ -125,6 +125,61 @@ def _note_reason(notes: dict | None, reason: str) -> None:
     reasons[reason] = reasons.get(reason, 0) + 1
 
 
+# ★ 429(요청 과다)에만 기다렸다가 다시 묻는다 ★ (2026-10-04 프로덕션 관측)
+#
+#     🌐 무역 스캔: masks 2/6달 → 사용 불가(HTTP 429×4) · gloves 2/6달 → 사용 불가(HTTP 429×4)
+#                  · reagents 1/6달 → 사용 불가(HTTP 429×5) · 부분 스캔 3/3 · 캐시 안 함
+#
+# 스캔은 18번을 간격 없이 연달아 부르고, 429 가 오면 그 달을 그냥 버렸다. 일시적 제한이 '급증
+# 없음'으로 보이는 경로다(09-30 가설이 이 모양이었는지는 그날 로그가 없어 모른다). 기다림에는
+# 상한을 둔다 — 스캔이 경보 주기를 몇 분씩 붙잡지 않게. 429 가 아닌 실패는 전과 같이 바로 버린다.
+RATE_LIMIT_RETRIES = 2          # 429 에 대한 재시도 횟수(달 하나당)
+RATE_LIMIT_BACKOFF_SEC = 5.0    # Retry-After 가 없을 때 첫 기다림(시도마다 배로)
+RATE_LIMIT_MAX_WAIT_SEC = 20.0  # 한 번 기다리는 최대치
+RATE_LIMIT_BUDGET_SEC = 40.0    # 품목 하나(달 6개) 전체에서 기다릴 수 있는 합계
+REQUEST_GAP_SEC = 0.5           # 같은 품목의 달 사이 간격
+
+
+def _sleep(sec: float) -> None:
+    import time
+    time.sleep(sec)
+
+
+def _rate_limit_wait(e: Exception, attempt: int, notes: dict | None) -> float | None:
+    """429 이고 아직 재시도할 수 있으면 기다릴 초, 아니면 None(바로 실패 처리)."""
+    resp = getattr(e, "response", None)
+    if getattr(resp, "status_code", None) != 429 or attempt >= RATE_LIMIT_RETRIES:
+        return None
+    wait = RATE_LIMIT_BACKOFF_SEC * (2 ** attempt)
+    retry_after = (getattr(resp, "headers", None) or {}).get("Retry-After")
+    try:
+        if retry_after is not None:
+            wait = float(retry_after)
+    except (TypeError, ValueError):
+        pass                                 # 날짜 형식 Retry-After 는 안 읽고 기본값을 쓴다
+    wait = max(0.0, min(wait, RATE_LIMIT_MAX_WAIT_SEC))
+    if notes is not None:
+        spent = notes.get("wait_spent", 0.0)
+        if spent + wait > RATE_LIMIT_BUDGET_SEC:
+            return None                      # 예산을 넘기면 더 안 기다린다
+        notes["wait_spent"] = spent + wait
+        notes["retried_429"] = notes.get("retried_429", 0) + 1
+    return wait
+
+
+def _note_rows(notes: dict | None, period: str, n_rows: int) -> None:
+    """그 달 응답이 몇 행이었나. 상한(PUBLIC_MAX_RECORDS)에 닿았으면 '잘렸을 수 있다'로 센다.
+
+    상한에 닿은 달은 뒤쪽 국가가 잘렸을 수 있다 — 스캔마다 국가 구성이 흔들리는 원인 후보다
+    (2026-10-04 가설, 아직 관측 안 됨). 행 수를 안 남기면 그 가설을 가를 근거가 없다.
+    """
+    if notes is None:
+        return
+    notes.setdefault("rows_by_period", {})[period] = n_rows
+    if n_rows >= PUBLIC_MAX_RECORDS:
+        notes["capped_months"] = notes.get("capped_months", 0) + 1
+
+
 def _failure_reason(e: Exception) -> str:
     """실패 사유를 짧은 라벨로 — 로그에 '왜'가 남게 한다(HTTPError×N 처럼 센다)."""
     resp = getattr(e, "response", None)
@@ -151,28 +206,35 @@ def fetch_public_month(hs_code: str, period: str,
     국가당 여러 개 올 수 있다(HS 세부코드·관세제도별로 분리). 같은 국가의
     World 행들은 서로 다른 조각이므로 더하는 게 맞다.
     """
-    try:
-        r = requests.get(
-            PUBLIC_URL,
-            params={
-                "cmdCode": hs_code, "flowCode": "M", "period": period,
-                "partnerCode": 0, "maxRecords": PUBLIC_MAX_RECORDS,
-                "includeDesc": "true",
-            },
-            headers={"Accept": "application/json"},
-            timeout=TIMEOUT,
-        )
-        r.raise_for_status()
-        payload = r.json()
-    except (requests.RequestException, ValueError) as e:
-        _note_reason(notes, _failure_reason(e))
+    params = {
+        "cmdCode": hs_code, "flowCode": "M", "period": period,
+        "partnerCode": 0, "maxRecords": PUBLIC_MAX_RECORDS,
+        "includeDesc": "true",
+    }
+    payload = None
+    for attempt in range(RATE_LIMIT_RETRIES + 1):
+        try:
+            r = requests.get(PUBLIC_URL, params=params,
+                             headers={"Accept": "application/json"}, timeout=TIMEOUT)
+            r.raise_for_status()
+            payload = r.json()
+            break
+        except (requests.RequestException, ValueError) as e:
+            wait = _rate_limit_wait(e, attempt, notes)
+            if wait is None:
+                _note_reason(notes, _failure_reason(e))
+                return None
+            _sleep(wait)
+    if payload is None:
         return None
     if payload.get("error"):
         _note_reason(notes, "응답 error")
         return None
 
+    rows = payload.get("data") or []
+    _note_rows(notes, period, len(rows))
     totals: dict[str, float] = {}
-    for row in payload.get("data") or []:
+    for row in rows:
         iso = row.get("reporterISO")
         if not iso:
             continue
@@ -198,7 +260,9 @@ def fetch_public_series(hs_code: str, months: int = TRAILING_MONTHS,
     """
     periods = list(reversed(_recent_periods(months)))   # 과거 → 최신
     monthly: list[dict[str, float]] = []
-    for period in periods:
+    for i, period in enumerate(periods):
+        if i:
+            _sleep(REQUEST_GAP_SEC)
         totals = fetch_public_month(hs_code, period, notes=notes)
         if totals is None:
             continue
@@ -333,6 +397,47 @@ def compute_country_trade_signal(country_id: str, api_key: str | None = None,
 # 신고 지연이 2개월이라 하루 안에 값이 바뀌지 않으므로 캐시가 정확도를 해치지 않는다.
 _SCAN_CACHE: dict[str, tuple[float, dict]] = {}
 SCAN_CACHE_TTL_SEC = 6 * 3600
+# 조회가 일부 실패한 스캔(품목 사용 불가 · 응답 못 받은 달)은 6시간 굳히지 않는다. 다음 경보
+# 주기(1시간)에 다시 묻되, 실패 직후 연타하지 않을 만큼만 잡아둔다. 09-30 에 부분 결과가
+# 6시간 캐시됐을 가능성이 있었다(가설) — 일시 장애가 '없는 경보'로 굳는 경로를 닫는다.
+PARTIAL_SCAN_CACHE_TTL_SEC = 15 * 60
+
+
+def _cache_ttl(scan: dict) -> int:
+    return PARTIAL_SCAN_CACHE_TTL_SEC if scan_incomplete(scan) else SCAN_CACHE_TTL_SEC
+
+
+def scan_incomplete(scan: dict) -> bool:
+    """조회가 *실패*해서 일부만 들어온 스캔인가.
+
+    빈 달(응답은 왔는데 국가 0개)은 아직 신고가 안 들어온 최신 달의 정상 모양이라 실패로 안
+    친다. 실패는 두 가지다: 품목이 통째로 사용 불가이거나, 요청한 달 중 응답 못 받은 달이 있다.
+    진단이 안 채워진 품목은 *모른다* — 실패로 단정하지 않는다.
+    """
+    products = scan.get("products") or {}
+    for p in products.values():
+        if not p.get("data_available"):
+            return True
+        f = p.get("fetch") or {}
+        total, ok = f.get("months_total"), f.get("months_ok")
+        if total is not None and ok is not None and ok < total:
+            return True
+    return False
+
+
+def last_scan_incomplete(max_age_sec: float = 120.0, now: float | None = None) -> bool:
+    """방금 경보 후보를 만든 스캔이 불완전했나. 호출 기록이 없거나 낡았으면 False(모른다).
+
+    '불완전했다'를 주장하려면 이번 주기의 스캔을 봐야 한다 — 낡은 기록으로 이번 판정을
+    '판정 안 함'으로 돌리지 않는다.
+    """
+    import time
+    if not _LAST_CALL:
+        return False
+    now = now if now is not None else time.time()
+    if now - _LAST_CALL["called_at"] > max_age_sec:
+        return False
+    return scan_incomplete(_LAST_CALL["scan"])
 
 
 def global_trade_scan(months: int = TRAILING_MONTHS, use_cache: bool = True) -> dict:
@@ -355,7 +460,7 @@ def global_trade_scan(months: int = TRAILING_MONTHS, use_cache: bool = True) -> 
     cache_key = f"scan:{months}"
     if use_cache:
         hit = _SCAN_CACHE.get(cache_key)
-        if hit and (time.time() - hit[0]) < SCAN_CACHE_TTL_SEC:
+        if hit and (time.time() - hit[0]) < _cache_ttl(hit[1]):
             _record_call(hit[1], scanned_at=hit[0], cache_hit=True, cached=True)
             return hit[1]
 
@@ -474,6 +579,10 @@ def _product_part(label: str, p: dict) -> str:
         head = f"{label} {ok}/{total}달"
         if f.get("months_empty"):
             head += f"(빈 달 {f['months_empty']})"
+        if f.get("retried_429"):
+            head += f"[429 재시도 {f['retried_429']}회]"
+        if f.get("capped_months"):
+            head += f"[{PUBLIC_MAX_RECORDS}행 상한 {f['capped_months']}달]"
     if p.get("data_available"):
         head += f" → {p.get('countries_observed', 0)}개국"
     else:
