@@ -179,6 +179,23 @@ def retired_alerts_line(result: dict) -> str | None:
     return f"🔽 내림: {' · '.join(parts)}"
 
 
+def already_notified_line(result: dict) -> str | None:
+    """화면에 떠 있는 critical/high 중 **이미 알려서 다시 안 보낸** 것. 없으면 None.
+
+    `알림: 보낼 신규 경보 없음` 이 '울릴 게 없다'인지 '있는데 이미 알렸다'인지 가른다. `origin` 은
+    그 기준선이 오늘 안에서 생겼는지(오늘) 어제부터 이어졌는지(어제 이월)다 — 00:01 에 같은
+    critical 이 안 나간 것이 이월 규칙 덕인지는 이 값으로 읽는다.
+    """
+    rows = result.get("already_notified") or []
+    if not rows:
+        return None
+    parts = [
+        f"{r.get('tier')} {r.get('label')} {r.get('score')}점 [{r.get('source')}] ({r.get('origin')})"
+        for r in rows
+    ]
+    return f"🔕 재통보 안 함: {' · '.join(parts)}"
+
+
 def undetermined_alerts_line(result: dict) -> str | None:
     """이번 주기에 **판정하지 못해** 내리지도 새로 주장하지도 않은 행. 없으면 None.
 
@@ -482,9 +499,10 @@ def refresh_alerts(today: str | None = None) -> dict:
     today = today or dt.date.today().isoformat()
     # ★ 등급까지 기억한다 ★ source 만 보면 low→critical 승격이 조용해진다(escalated 참조).
     yesterday = (dt.date.fromisoformat(today) - dt.timedelta(days=1)).isoformat()
-    seen_rank = baseline_rank(
-        db.list_alerts(today), db.list_alerts(yesterday), telegram_configured(),
-    )
+    today_rows = db.list_alerts(today)
+    channel = telegram_configured()
+    seen_rank = baseline_rank(today_rows, db.list_alerts(yesterday), channel)
+    seen_today_only = baseline_rank(today_rows, [], channel)   # 오늘 안에서 이미 알린 것(출처 구분용)
 
     negative_space = scan_negative_space()
     live_sources: set[str] = set()
@@ -560,6 +578,15 @@ def refresh_alerts(today: str | None = None) -> dict:
         r for r in visible_rows
         if r["tier"] in ("critical", "high") and escalated(r["source"], r["tier"], seen_rank)
     ]
+    # ★ 왜 *안* 보냈는지를 남긴다 ★ '신규 경보 없음' 한 줄로는 critical 이 없어서인지, 있는데 이미
+    # 알려서인지, 어제 알려서(이월)인지 가를 수 없다. 날짜 경계 관측(00:01)이 이 구분에 달려 있다.
+    already_notified = [
+        {"label": r["label"], "tier": r["tier"], "score": r["score"], "source": r["source"],
+         "origin": ("오늘" if seen_today_only.get(r["source"], -1) >= TIER_RANK[r["tier"]]
+                    else "어제 이월")}
+        for r in visible_rows
+        if r["tier"] in ("critical", "high") and not escalated(r["source"], r["tier"], seen_rank)
+    ]
     # 경보→NPI 자동연결: 신규 critical/high에 '무대응 vs 개입' 반사실 요약을 붙여
     # 알림이 "무엇이 온다"를 넘어 "뭘 하면 어떻게 바뀐다"까지 답하게 한다.
     # (봉인은 대량 알림에서 생략 — 단건 조회 엔드포인트에서 OpenTimestamps 수행)
@@ -596,6 +623,8 @@ def refresh_alerts(today: str | None = None) -> dict:
             {"label": r["label"], "tier": r["tier"], "score": r["score"], "source": r["source"]}
             for r in retired_rows
         ],
+        # 화면에 떠 있지만 이미 알려서 다시 안 보낸 critical/high — 알림이 조용한 이유.
+        "already_notified": already_notified,
         # 이번 주기에 판정하지 못해 그대로 둔 행 — 내림이 아니다.
         "undetermined": [
             {"label": r["label"], "tier": r["tier"], "score": r["score"], "source": r["source"]}

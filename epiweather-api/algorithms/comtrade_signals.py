@@ -581,6 +581,11 @@ def _product_part(label: str, p: dict) -> str:
             head += f"(빈 달 {f['months_empty']})"
         if f.get("retried_429"):
             head += f"[429 재시도 {f['retried_429']}회]"
+        rows = f.get("rows_by_period")
+        if rows:
+            # 오래된 달 → 최신 달. 최신 달이 유독 적으면 '신고가 아직 안 들어온 달'이라는 뜻이고,
+            # 국가 수(→ N개국)가 적은 이유를 값으로 읽을 수 있다. 전부 500 근처면 상한에 잘린 것이다.
+            head += "[행 " + "/".join(str(rows[k]) for k in sorted(rows)) + "]"
         if f.get("capped_months"):
             head += f"[{PUBLIC_MAX_RECORDS}행 상한 {f['capped_months']}달]"
     if p.get("data_available"):
