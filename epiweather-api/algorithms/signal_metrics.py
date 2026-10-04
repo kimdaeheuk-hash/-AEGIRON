@@ -104,6 +104,64 @@ def meets_alert_minimum(metric_id: str, latest: float | None) -> bool:
 
 
 
+# ── 소표본 카운트의 유의도 문턱 (2026-10-04, 캡틴 지시 1번) ───────────────────
+#
+# ★ 실측 사고 (2026-10-03) ★ 캡틴 폰이 닷새 만에 세 번 울렸다. 전부 Mastodon 7일 게시자
+# 수(`social_*`)였다.
+#
+#     콜레라  3명 ·· 3명(사흘 넘게 평평) → 5명      → critical 90.0   (11:03 전송됨)
+#     뎅기열  9명 → 12명                              → high     87.6   (13:02 전송됨)
+#
+# 90.0 = 100 × 0.90(behavioral_api 신뢰도) — 원시 이상도가 **상한(z ≥ 3)** 에 닿았다는
+# 역산이다. 게시자 +2명이 최대 이상도를 만들었다. 같은 계열의 선례가 이미 있다:
+# 09-19 신규 계통 1건 → 85.0점(ALERT_MIN_COUNT), 09-24~27 social_mpox.
+#
+# 왜 z-score 가 이걸 못 거르나: 경험적 표준편차는 '과거가 얼마나 평평했나'를 재지, 카운트
+# 자체의 불확실성을 재지 않는다. 평소 3 이던 카운트가 5 가 되는 것은 포아송 잡음만으로도
+# 흔하다(√3 ≈ 1.7). 그래서 승격 자리에서만 **카운트 기준 유의도**를 한 번 더 본다:
+#
+#     유의도 = (관측값 − 과거 평균) / √max(과거 평균, 1)
+#
+# ★ 지수(GAI)는 안 건드린다 ★ 이상도는 측정값이다 — 문턱은 **사람을 깨우는 자리에서만**.
+# 막은 사실과 계산된 유의도는 로그에 남긴다(조용히 거르면 진짜를 놓쳐도 모른다).
+# 막지 못한 쪽(통과)도 같은 줄로 찍는다 — 실제 평균이 얼마였는지가 내일 값으로 보이게.
+#
+# 적용 대상: `social_*` 전부. 같은 함수(`_social_count`)가 같은 모양(7일 게시자 수)으로
+# 만드는 카운트라 함께 넣었다(ALERT_MIN_COUNT 의 genomic 셋과 같은 이유). 다른 지표를
+# 늘릴 땐 '평소 N 인데 작은 변화에 최대 이상도가 났다'는 관측을 먼저 확인해라.
+COUNT_NOISE_PREFIXES: tuple[str, ...] = ("social_",)
+COUNT_MIN_SIGMA = 2.0   # 2σ — anomaly_engine.ANOMALY_Z_THRESHOLD 와 같은 관례
+
+
+def is_count_noise_metric(metric_id: str) -> bool:
+    return metric_id.startswith(COUNT_NOISE_PREFIXES)
+
+
+def count_significance(latest: float | None, baseline_mean: float | None) -> float | None:
+    """(관측값 − 과거 평균) / √max(과거 평균, 1). 값을 못 봤으면 None.
+
+    분모의 하한 1 은 평균이 0 근처일 때 0 나누기·과민반응을 막는다(평균 0.1 에서 관측값 1
+    이 9σ 가 되는 것을 피한다). 음수(평소보다 낮음)도 그대로 음수로 돌려준다 — 하향은
+    승격 대상이 아니다.
+    """
+    if latest is None or baseline_mean is None:
+        return None
+    return (latest - baseline_mean) / (max(baseline_mean, 1.0) ** 0.5)
+
+
+def meets_count_significance(metric_id: str, latest: float | None,
+                             baseline_mean: float | None) -> bool:
+    """이 카운트 지표의 변화가 포아송 잡음 이상인가. 대상 지표가 아니면 언제나 True.
+
+    `meets_alert_minimum` 과 같은 방향 — **막는 목록**이지 허용 목록이 아니다. 단, 대상
+    지표인데 관측값·평균을 못 봤으면 False 다(모르는 것을 통과로 세지 않는다).
+    """
+    if not is_count_noise_metric(metric_id):
+        return True
+    sig = count_significance(latest, baseline_mean)
+    return sig is not None and sig >= COUNT_MIN_SIGMA
+
+
 def sum_if_complete(values) -> float | None:
     """조각을 다 받았을 때만 합계를 낸다. 하나라도 못 받았으면 None.
 

@@ -59,6 +59,19 @@ def _anomaly_score(series: list[float | None]) -> float | None:
     return round(max(0.0, min(z, 3.0)) / 3.0 * 100, 1)
 
 
+def _baseline_mean(series: list[float | None]) -> float | None:
+    """`_anomaly_score` 가 쓰는 과거(최신값 제외)의 평균. 점수는 안 바꾼다 — 승격 자리가
+    '관측값이 평소 대비 몇 σ 인가'를 카운트 기준으로 다시 볼 수 있게 내보낼 뿐이다.
+
+    `_anomaly_score` 와 **같은 과거**를 쓴다(None 제거 · 마지막 하나가 최신값). 판정할 수
+    없는 경우(표본 부족)는 None — 모르는 것을 0 으로 쓰지 않는다.
+    """
+    cleaned = [v for v in series if v is not None]
+    if len(cleaned) < MIN_HISTORY + 1:
+        return None
+    return round(statistics.mean(cleaned[:-1]), 4)
+
+
 def _tier(gai: float | None) -> str | None:
     if gai is None:
         return None
@@ -92,6 +105,9 @@ def compute_gai() -> dict:
                 # "몇 건인데 몇 점"을 볼 수 있다 — 근거가 숫자에서 떨어져
                 # 나가지 않게 하는 것과 같은 이유다.
                 "latest": _latest_value(series),
+                # 점수를 만든 과거의 평균. 경보 승격 자리의 카운트 유의도(signal_metrics.
+                # meets_count_significance)가 쓴다. 점수·지수에는 영향이 없다.
+                "baseline_mean": _baseline_mean(series),
                 "raw_score": raw_score,
                 "trust": trust,
                 "trusted_score": round(raw_score * trust, 1),

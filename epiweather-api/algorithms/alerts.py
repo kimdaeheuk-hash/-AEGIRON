@@ -19,7 +19,9 @@ import db
 from .gai import compute_gai
 from .negative_space import scan_negative_space
 from .unexplained import scan_unexplained
-from .signal_metrics import ALERT_MIN_COUNT, meets_alert_minimum
+from .signal_metrics import (ALERT_MIN_COUNT, COUNT_MIN_SIGMA, count_significance,
+                             is_count_noise_metric, meets_alert_minimum,
+                             meets_count_significance)
 from .notifier import notify_new_alerts, telegram_configured
 
 CRITICAL = 90
@@ -269,6 +271,19 @@ def collect_candidate_alerts(today: str, negative_space: dict | None = None) -> 
                       f"{ALERT_MIN_COUNT.get(m['metric'])} 미만이라 경보로 안 올림"
                       f"(지수에는 그대로 반영됨)", flush=True)
                 continue
+            # ★ 소표본 카운트 유의도 ★ (2026-10-04) 게시자 +2명이 최대 이상도를 만든다.
+            # 이상도는 그대로 두고 **승격 자리에서만** 카운트 기준 유의도를 본다. 통과·차단
+            # 모두 계산값을 로그에 남긴다 — 실제 평균이 얼마였는지가 다음 점검에 값으로 읽힌다.
+            if is_count_noise_metric(m["metric"]):
+                sig = count_significance(m.get("latest"), m.get("baseline_mean"))
+                ok = meets_count_significance(m["metric"], m.get("latest"), m.get("baseline_mean"))
+                sig_txt = "계산 불가" if sig is None else f"{sig:.2f}σ"
+                print(f"  🧮 [alerts] 소표본 유의도 {m['metric']}: 관측값 {m.get('latest')} · "
+                      f"과거 평균 {m.get('baseline_mean')} · {sig_txt} "
+                      f"(문턱 {COUNT_MIN_SIGMA}σ) → {'통과' if ok else '경보로 안 올림(지수에는 그대로 반영됨)'}",
+                      flush=True)
+                if not ok:
+                    continue
             candidates.append({
                 "source": f"gai:{layer_key}.{m['metric']}",
                 "label": f"{layer['label']} · {m['metric']}",
