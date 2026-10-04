@@ -118,8 +118,31 @@ def _recent_periods(n: int, lag_months: int = REPORTING_LAG_MONTHS) -> list[str]
     return periods
 
 
-def fetch_public_month(hs_code: str, period: str) -> dict[str, float] | None:
+def _note_reason(notes: dict | None, reason: str) -> None:
+    if notes is None:
+        return
+    reasons = notes.setdefault("reasons", {})
+    reasons[reason] = reasons.get(reason, 0) + 1
+
+
+def _failure_reason(e: Exception) -> str:
+    """실패 사유를 짧은 라벨로 — 로그에 '왜'가 남게 한다(HTTPError×N 처럼 센다)."""
+    resp = getattr(e, "response", None)
+    status = getattr(resp, "status_code", None)
+    if status is not None:
+        return f"HTTP {status}"
+    if isinstance(e, ValueError):
+        return "JSON 파싱"
+    return type(e).__name__
+
+
+def fetch_public_month(hs_code: str, period: str,
+                       notes: dict | None = None) -> dict[str, float] | None:
     """키 없이 한 달치를 받아 {ISO3: 수입액USD} 로 집계. 실패하면 None.
+
+    `notes` 를 주면 실패 사유를 `notes["reasons"][사유] += 1` 로 남긴다. 반환 형식은
+    그대로다 — 호출부와 시험이 None/dict 만 본다. 사유를 안 남기면 '왜 이 품목이 비었나'를
+    아무도 모른다(2026-09-30 BLZ·AZE 경보가 6시간 사라졌을 때 로그에 아무것도 없었다).
 
     partnerCode=0(World 집계행)만 받는 게 핵심이다 — 안 주면 파트너국별로 행이
     쪼개져 500행 상한에 A~B 국가에서 잘린다(실측: 11개국 vs 100개국).
@@ -141,9 +164,11 @@ def fetch_public_month(hs_code: str, period: str) -> dict[str, float] | None:
         )
         r.raise_for_status()
         payload = r.json()
-    except (requests.RequestException, ValueError):
+    except (requests.RequestException, ValueError) as e:
+        _note_reason(notes, _failure_reason(e))
         return None
     if payload.get("error"):
+        _note_reason(notes, "응답 error")
         return None
 
     totals: dict[str, float] = {}
@@ -159,8 +184,14 @@ def fetch_public_month(hs_code: str, period: str) -> dict[str, float] | None:
     return totals
 
 
-def fetch_public_series(hs_code: str, months: int = TRAILING_MONTHS) -> dict[str, list[float]]:
+def fetch_public_series(hs_code: str, months: int = TRAILING_MONTHS,
+                        notes: dict | None = None) -> dict[str, list[float]]:
     """키 없이 최근 N개월을 받아 {ISO3: [과거…최신]} 시계열로 만든다.
+
+    `notes` 를 주면 진단을 채운다(반환 형식은 그대로): `months_total`(요청한 달),
+    `months_ok`(응답을 받은 달 — None 이 아닌 것), `months_empty`(응답은 왔는데 국가가
+    0개인 달 — 신고가 아직 안 들어온 최신 달이 이 모양이다), `reasons`(실패 사유별 횟수).
+    '빈 결과'가 '조회 실패'인지 '달이 모자람'인지 '최신 달이 비었음'인지 가르는 근거다.
 
     최신 달에 신고가 있고 비교할 과거가 충분한 국가만 남긴다. 결측인 달은
     건너뛰되 0으로 메우지 않는다 — 없는 값을 0으로 적으면 가짜 급증이 만들어진다.
@@ -168,10 +199,14 @@ def fetch_public_series(hs_code: str, months: int = TRAILING_MONTHS) -> dict[str
     periods = list(reversed(_recent_periods(months)))   # 과거 → 최신
     monthly: list[dict[str, float]] = []
     for period in periods:
-        totals = fetch_public_month(hs_code, period)
+        totals = fetch_public_month(hs_code, period, notes=notes)
         if totals is None:
             continue
         monthly.append(totals)
+    if notes is not None:
+        notes["months_total"] = len(periods)
+        notes["months_ok"] = len(monthly)
+        notes["months_empty"] = sum(1 for m in monthly if not m)
     if len(monthly) < MIN_SERIES_MONTHS:
         return {}
 
@@ -321,6 +356,7 @@ def global_trade_scan(months: int = TRAILING_MONTHS, use_cache: bool = True) -> 
     if use_cache:
         hit = _SCAN_CACHE.get(cache_key)
         if hit and (time.time() - hit[0]) < SCAN_CACHE_TTL_SEC:
+            _record_call(hit[1], scanned_at=hit[0], cache_hit=True, cached=True)
             return hit[1]
 
     products: dict[str, dict] = {}
@@ -328,10 +364,12 @@ def global_trade_scan(months: int = TRAILING_MONTHS, use_cache: bool = True) -> 
     surges: list[dict] = []
 
     for label, hs in PUBLIC_HS_CODES.items():
-        series_by_country = fetch_public_series(hs, months=months)
+        notes: dict = {}
+        series_by_country = fetch_public_series(hs, months=months, notes=notes)
         if not series_by_country:
             products[label] = {"data_available": False,
-                               "reason": "공개 엔드포인트 조회 실패 또는 비교 가능한 달이 2개 미만"}
+                               "reason": "공개 엔드포인트 조회 실패 또는 비교 가능한 달이 2개 미만",
+                               "fetch": notes}
             continue
         seen_countries |= set(series_by_country)
         hits = []
@@ -347,6 +385,7 @@ def global_trade_scan(months: int = TRAILING_MONTHS, use_cache: bool = True) -> 
             "data_available": True,
             "countries_observed": len(series_by_country),
             "top_surges": hits[:10],
+            "fetch": notes,
         }
 
     surges.sort(key=lambda s: -s["surge_ratio"])
@@ -397,9 +436,97 @@ def global_trade_scan(months: int = TRAILING_MONTHS, use_cache: bool = True) -> 
     }
     # 조회에 실패한 결과는 캐시하지 않는다 — 일시적 네트워크 장애를 6시간 동안
     # '데이터 없음'으로 굳혀버리면 그게 조용한 실패가 된다.
-    if use_cache and result["data_available"]:
+    cached = bool(use_cache and result["data_available"])
+    if cached:
         _SCAN_CACHE[cache_key] = (time.time(), result)
+    _record_call(result, scanned_at=time.time(), cache_hit=False, cached=cached)
     return result
+
+
+# ── 스캔이 무엇을 했는지 로그로 말한다 (2026-10-01) ──────────────────────────
+#
+# 09-30 BLZ·AZE 무역 경보가 14:40~21:02 사라졌다가 돌아왔다. 그때 스캔은 로그를 한 줄도
+# 안 남겨서 **데이터가 실제로 변한 것인지, 일부 품목 조회가 실패한 부분 결과가 6시간 캐시된
+# 것인지** 가를 수 없었다. 코드상 후자가 가능했다 — 품목 하나만 성공해도 data_available 이
+# True 이고 그 결과가 캐시된다.
+#
+# 여기서는 **관측만** 한다. 스캔의 동작은 바꾸지 않았다(부분 결과를 캐시할지는 별개의 결정).
+_LAST_CALL: dict = {}
+
+
+def _record_call(scan: dict, *, scanned_at: float, cache_hit: bool, cached: bool) -> None:
+    import time
+    global _LAST_CALL
+    _LAST_CALL = {"called_at": time.time(), "scanned_at": scanned_at,
+                  "cache_hit": cache_hit, "cached": cached, "scan": scan}
+
+
+STALE_CALL_SEC = 600  # 이보다 오래된 기록이면 '이번 주기에 호출 안 됨'을 같이 적는다
+
+
+def _product_part(label: str, p: dict) -> str:
+    """품목 하나의 한 조각 — 몇 달 중 몇 달 응답했고 몇 개국이 남았나."""
+    f = p.get("fetch") or {}
+    total, ok = f.get("months_total"), f.get("months_ok")
+    if total is None or ok is None:
+        head = f"{label} 조회기록 없음"          # 진단이 안 채워졌다 — 모른다고 적는다
+    else:
+        head = f"{label} {ok}/{total}달"
+        if f.get("months_empty"):
+            head += f"(빈 달 {f['months_empty']})"
+    if p.get("data_available"):
+        head += f" → {p.get('countries_observed', 0)}개국"
+    else:
+        head += " → 사용 불가"
+    reasons = f.get("reasons") or {}
+    if reasons:
+        head += "(" + " · ".join(f"{r}×{n}" for r, n in sorted(reasons.items())) + ")"
+    return head
+
+
+def _is_partial(p: dict) -> bool:
+    f = p.get("fetch") or {}
+    total, ok = f.get("months_total"), f.get("months_ok")
+    if not p.get("data_available"):
+        return True
+    return total is not None and ok is not None and (ok < total or bool(f.get("months_empty")))
+
+
+def trade_scan_line(now: float | None = None) -> str:
+    """무역 스캔이 마지막으로 한 일 한 줄. 경보 주기 로그 옆에 찍힌다.
+
+    `🌐 무역 스캔: 새로 조회 · masks 6/6달 → 87개국 · gloves 5/6달(HTTP 429×1) → 91개국 · …
+     · 부분 스캔 1/3 · 캐시 저장`
+
+    - **새로 조회 / 캐시 N분 전** — 6시간 캐시가 얼마나 낡은 결과를 보여주는지.
+    - **N/M달** — 응답을 받은 달. **빈 달** 은 응답은 왔는데 국가가 0개인 달.
+    - **부분 스캔 a/3** — 불완전한 품목 수. 이 줄은 그걸 *말할 뿐* 고치지 않는다.
+    - 호출 기록이 오래됐으면 '이번 주기에 호출 안 됨'을 같이 적는다 — 낡은 기록을 현재처럼
+      읽게 두지 않는다.
+    """
+    import time
+    now = now if now is not None else time.time()
+    if not _LAST_CALL:
+        return "🌐 무역 스캔: 호출 기록 없음"
+    scan = _LAST_CALL["scan"]
+    products = scan.get("products") or {}
+    if _LAST_CALL["cache_hit"]:
+        age_min = int((now - _LAST_CALL["scanned_at"]) // 60)
+        head = f"캐시 {age_min}분 전 조회분"
+    else:
+        head = "새로 조회"
+    parts = [_product_part(label, p) for label, p in products.items()]
+    partial = sum(1 for p in products.values() if _is_partial(p))
+    tail = []
+    if partial:
+        tail.append(f"부분 스캔 {partial}/{len(products)}")
+    if not _LAST_CALL["cache_hit"]:
+        tail.append("캐시 저장" if _LAST_CALL["cached"] else "캐시 안 함")
+    line = " · ".join([head, *parts, *tail])
+    since_call = now - _LAST_CALL["called_at"]
+    if since_call > STALE_CALL_SEC:
+        line += f" (마지막 호출 {int(since_call // 60)}분 전 — 이번 주기에는 호출 안 됨)"
+    return f"🌐 무역 스캔: {line}"
 
 
 def trade_alert_candidates(scan: dict | None = None) -> list[dict]:
