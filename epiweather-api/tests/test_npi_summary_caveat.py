@@ -51,8 +51,7 @@ def test_generic_tier_sends_no_scenario_numbers():
     고지문이 있어도 폰에서는 큰 숫자가 먼저 읽힌다. 근거 없는 숫자는 만들지 않는다 — 사유만 보낸다.
     """
     line = _line("알 수 없는 발열 클러스터")
-    assert "질병별 파라미터가 없다" in line
-    assert "만들지 않음" in line
+    assert "질병별 파라미터가 없어 시나리오를 만들지 않음" in line   # 캡틴이 정한 문구 그대로
     assert not any(ch.isdigit() for ch in line)          # 사망·병상 숫자가 한 글자도 없다
     assert "구할 생명" not in line.replace("싣지 않는다", "")
 

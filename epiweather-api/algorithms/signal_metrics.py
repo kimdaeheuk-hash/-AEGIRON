@@ -151,7 +151,13 @@ COUNT_NOISE_ALERT_CAP = 79.0
 # 관측값이 **무엇의 값인지**. 경보 본문에 `관측값 12` 만 나가면 환자 12명으로 읽힌다 — 실제로는
 # Mastodon 에서 최근 7일에 해당 해시태그로 글을 쓴 서로 다른 게시자 수다(collector 로그의
 # `Mastodon #dengue(뎅기열): 최근7일 12명(원문 14건)`). 단위를 모르는 지표는 안 적는다(지어내지 않는다).
-METRIC_UNITS: dict[str, str] = {"social_": "Mastodon 최근 7일 게시자 수"}
+METRIC_UNITS: dict[str, str] = {"social_": "Mastodon 7일 게시자 수"}
+
+
+def approx_baseline(value: float) -> str:
+    """평소 값을 사람이 읽는 만큼만 적는다 — `5.0612` 는 카운트 평균에 과한 정밀도다(`약 5.1`).
+    크면 정수로(`약 64,253`). 정밀도를 줄이는 것이지 값을 바꾸는 게 아니다(로그에는 원값이 남는다)."""
+    return f"약 {value:,.0f}" if abs(value) >= 100 else f"약 {value:,.1f}"
 
 
 def metric_unit(metric_id: str) -> str | None:

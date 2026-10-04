@@ -49,7 +49,7 @@ def _rendered(monkeypatch, gai, tier="high", score=84.2):
 def test_social_dengue_message_carries_no_scenario_numbers(monkeypatch):
     body = _rendered(monkeypatch, _gai("social_dengue", 12, 5.0612, 93.5, 84.2))
     brief_line = [ln for ln in body.splitlines() if "개입 브리핑" in ln][0]
-    assert "만들지 않음" in brief_line and "질병별 파라미터가 없다" in brief_line
+    assert "질병별 파라미터가 없어 시나리오를 만들지 않음" in brief_line
     assert not any(ch.isdigit() for ch in brief_line)                 # 사망·병상 숫자가 한 글자도 없다
     assert "41,7" not in body and "구할 생명" not in body.replace("싣지 않는다", "")
 
@@ -76,21 +76,31 @@ def test_brief_dict_itself_is_untouched_for_explicit_requests():
 
 def test_first_evidence_line_names_unit_and_baseline(monkeypatch):
     body = _rendered(monkeypatch, _gai("social_dengue", 12, 5.0612, 93.5, 84.2))
-    assert "관측값 12 (Mastodon 최근 7일 게시자 수 · 과거 평균 5.0612)" in body
+    assert "관측값 12(Mastodon 7일 게시자 수, 평소 약 5.1)" in body          # 캡틴이 정한 형식 그대로
 
 
 def test_unit_is_only_named_for_metrics_whose_unit_is_known(monkeypatch):
-    assert metric_unit("social_dengue") == "Mastodon 최근 7일 게시자 수"
+    assert metric_unit("social_dengue") == "Mastodon 7일 게시자 수"
     assert metric_unit("kdca_weekly_total") is None                   # 모르는 단위는 지어내지 않는다
     body = _rendered(monkeypatch, _gai("kdca_weekly_total", 900, 100.0, 95.0, 95.0, trust=1.0),
                      tier="critical", score=95.0)
-    assert "관측값 900 (과거 평균 100)" in body and "Mastodon" not in body
+    assert "관측값 900(평소 약 100)" in body and "Mastodon" not in body
 
 
 def test_baseline_is_omitted_when_it_is_unknown(monkeypatch):
     body = _rendered(monkeypatch, _gai("kdca_weekly_total", 900, None, 95.0, 95.0, trust=1.0),
                      tier="critical", score=95.0)
-    assert "관측값 900" in body and "과거 평균" not in body           # 모르는 값을 0 으로 적지 않는다
+    assert "관측값 900" in body and "평소" not in body               # 모르는 값을 0 으로 적지 않는다
+
+
+def test_baseline_is_rounded_for_people_not_for_the_log():
+    """`5.0612` 는 카운트 평균에 과한 정밀도다 — 폰에는 `약 5.1`. 값을 바꾸는 게 아니라 정밀도만 줄인다."""
+    from algorithms.signal_metrics import approx_baseline
+    assert approx_baseline(5.0612) == "약 5.1"
+    assert approx_baseline(1.7322) == "약 1.7"
+    assert approx_baseline(64253.4) == "약 64,253"
+    assert approx_baseline(99.96) == "약 100.0"            # 경계 — 100 미만은 소수 한 자리를 유지한다
+    assert approx_baseline(100.0) == "약 100"
 
 
 # ── C. 두 점수의 관계가 폰에 보인다 ──────────────────────────
@@ -116,5 +126,5 @@ def test_both_lines_survive_the_phone_truncation(monkeypatch):
     cand = [c for c in _collect(monkeypatch, _gai("social_dengue", 12, 5.0612, 93.5, 84.2))
             if "social_dengue" in c["source"]][0]
     first_two = cand["evidence"][:EVIDENCE_LINES]
-    assert "Mastodon" in first_two[0] and "과거 평균" in first_two[0]
+    assert "Mastodon" in first_two[0] and "평소 약" in first_two[0]
     assert "×" in first_two[1] and "=" in first_two[1]

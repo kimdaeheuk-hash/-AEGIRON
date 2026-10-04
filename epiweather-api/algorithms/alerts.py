@@ -21,7 +21,7 @@ from .gai import compute_gai
 from .negative_space import scan_negative_space
 from .unexplained import scan_unexplained
 from .signal_metrics import (ALERT_MIN_COUNT, COUNT_MIN_SIGMA, cap_count_noise_score,
-                             count_significance, metric_unit,
+                             approx_baseline, count_significance, metric_unit,
                              is_count_noise_metric, meets_alert_minimum,
                              meets_count_significance)
 from .notifier import notify_new_alerts, telegram_configured
@@ -419,10 +419,10 @@ def collect_candidate_alerts(today: str, negative_space: dict | None = None) -> 
             obs = f"관측값 {m.get('latest')}"
             notes = [n for n in (
                 metric_unit(m["metric"]),
-                f"과거 평균 {m['baseline_mean']:g}" if m.get("baseline_mean") is not None else None,
+                f"평소 {approx_baseline(m['baseline_mean'])}" if m.get("baseline_mean") is not None else None,
             ) if n]
             if notes:
-                obs += f" ({' · '.join(notes)})"
+                obs += f"({', '.join(notes)})"
             how = (f"원시 이상도 {m['raw_score']}점 × 출처신뢰도 {m['trust']} = {m['trusted_score']}점 "
                    "(과거 대비 z-score 환산)")
             if capped:
