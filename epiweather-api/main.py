@@ -209,8 +209,8 @@ async def _run_alert_cycle() -> None:
     import collector
     try:
         from algorithms.alerts import (
-            negative_space_line, refresh_alerts, retired_alerts_line, summary_line,
-            undetermined_alerts_line,
+            already_notified_line, negative_space_line, refresh_alerts, retired_alerts_line,
+            summary_line, undetermined_alerts_line,
         )
         result = await asyncio.to_thread(refresh_alerts)
         collector.log(f"🚨 경보 주기: {summary_line(result)}")
@@ -220,6 +220,9 @@ async def _run_alert_cycle() -> None:
         undetermined_line = undetermined_alerts_line(result)
         if undetermined_line:
             collector.log(undetermined_line)
+        already_line = already_notified_line(result)
+        if already_line:
+            collector.log(already_line)
         ns_line = negative_space_line(result)
         if ns_line:
             collector.log(ns_line)
@@ -543,9 +546,31 @@ async def _maybe_refresh_missing_snapshots() -> None:
         collector.log_error("scheduler_missing_snapshots", e)
 
 
+def _weekly_state_line(now: dt.datetime | None = None) -> str:
+    """주간작업이 마지막으로 언제 돌았고 이번 시작에서 도는지 — 값으로 말한다.
+
+    ★ 왜 필요한가 ★ (2026-10-04) 기준 스냅샷 파일이 재배포로 사라지는데 주간작업이 이를 다시
+    채우지 못한 이유가 '마지막 실행 시각은 남고 7일을 기다린다'는 추정뿐이었다. 시작할 때 이 줄이
+    찍히면 추정이 아니라 값이 된다: `기록 없음` 이면 상태 파일이 재배포로 사라진 것이고, `N일 전`
+    이면 남아 있는 것이다.
+    """
+    now = now or dt.datetime.now(dt.timezone.utc)
+    last = _load_last_weekly_run()
+    if last is None:
+        return "주간 작업: 마지막 실행 기록 없음 → 이번 시작에서 실행"
+    age = now - last
+    stamp = last.strftime("%Y-%m-%d %H:%M UTC")
+    if age.total_seconds() >= _WEEKLY_INTERVAL_SEC:
+        return f"주간 작업: 마지막 실행 {stamp}({age.days}일 전) → 이번 시작에서 실행"
+    wait_days = max(0, (_WEEKLY_INTERVAL_SEC - age.total_seconds()) / 86400)
+    return f"주간 작업: 마지막 실행 {stamp}({age.days}일 전) → 다음 실행까지 약 {wait_days:.1f}일"
+
+
 async def _scheduler_loop() -> None:
     # 재배포로 초기화되지 않게 디스크에서 읽어온다(주간작업과 같은 패턴).
     last_ai_run_date: dt.date | None = _load_last_ai_run()
+    import collector
+    collector.log(_weekly_state_line())
     await _run_collector("free")
     await _run_alert_cycle()
     await _maybe_run_daily_brief()

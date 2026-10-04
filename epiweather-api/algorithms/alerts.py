@@ -146,6 +146,8 @@ def summary_line(result: dict) -> str:
         body = f"{body} · 내림 {retired}건"
     n = result.get("notification") or {}
     line = f"{body} · 알림: {n.get('status', '판정 안 함')}"
+    if n.get("retry_pending"):
+        line += f"(미전송 {n['retry_pending']}건, 다음 주기에 재시도)"
     names = named_alerts(result)
     return f"{line} | {names}" if names else line
 
@@ -175,6 +177,23 @@ def retired_alerts_line(result: dict) -> str | None:
         for r in rows
     ]
     return f"🔽 내림: {' · '.join(parts)}"
+
+
+def already_notified_line(result: dict) -> str | None:
+    """화면에 떠 있는 critical/high 중 **이미 알려서 다시 안 보낸** 것. 없으면 None.
+
+    `알림: 보낼 신규 경보 없음` 이 '울릴 게 없다'인지 '있는데 이미 알렸다'인지 가른다. `origin` 은
+    그 기준선이 오늘 안에서 생겼는지(오늘) 어제부터 이어졌는지(어제 이월)다 — 00:01 에 같은
+    critical 이 안 나간 것이 이월 규칙 덕인지는 이 값으로 읽는다.
+    """
+    rows = result.get("already_notified") or []
+    if not rows:
+        return None
+    parts = [
+        f"{r.get('tier')} {r.get('label')} {r.get('score')}점 [{r.get('source')}] ({r.get('origin')})"
+        for r in rows
+    ]
+    return f"🔕 재통보 안 함: {' · '.join(parts)}"
 
 
 def undetermined_alerts_line(result: dict) -> str | None:
@@ -273,6 +292,40 @@ def carried_rank_from_yesterday(rows: list[dict]) -> dict[str, int]:
         if rank > out.get(r["source"], -1):
             out[r["source"]] = rank
     return out
+
+
+def notified_rank_of(rows: list[dict]) -> dict[str, int]:
+    """source 별로 **실제로 전송된** 최고 등급. 보낸 적 없는 행(notified_rank 없음)은 안 센다.
+
+    ★ 왜 '화면에 떠 있었나'에서 '보냈나'로 바꿨나 ★ (2026-10-04, 캡틴 지시 9번)
+
+    이월 규칙(`carried_rank_from_yesterday`)은 전송 기록이 없어서 *화면에 떠 있던 것*을 '보낸
+    것'으로 간주했다. 그래서 전송이 실패한 critical 도 다음 날 '이미 본 것'이 되어 **재시도되지
+    않았다** — 있는 경보를 없는 것으로 만드는 방향이고, 이 제품에서 더 나쁜 쪽이다. 이제는
+    전송이 성공했을 때만 기록하고(db.mark_alerts_notified), 이 기록을 기준선으로 쓴다.
+    """
+    out: dict[str, int] = {}
+    for r in rows:
+        rank = r.get("notified_rank")
+        if rank is None:
+            continue
+        if rank > out.get(r["source"], -1):
+            out[r["source"]] = rank
+    return out
+
+
+def baseline_rank(today_rows: list[dict], yesterday_rows: list[dict],
+                  channel_configured: bool) -> dict[str, int]:
+    """'이미 알린 것'의 기준선 — 이보다 높은 등급이어야 다시 보낸다.
+
+    - 채널이 설정돼 있으면 **전송 기록**을 쓴다: 실패한 통보는 기준선에 안 들어가 다음 주기에
+      재시도된다. 오늘과 어제(이월)를 합친다.
+    - 채널이 없으면 재시도할 곳이 없다 — 예전처럼 '잡힌 행 = 본 것'으로 센다. 안 그러면 보낼 수
+      없는 통보를 매 주기 만들고 브리프를 붙이느라 일만 한다(기록을 거짓으로 채우지는 않는다).
+    """
+    if channel_configured:
+        return merge_seen_rank(notified_rank_of(today_rows), notified_rank_of(yesterday_rows))
+    return merge_seen_rank(seen_rank_today(today_rows), carried_rank_from_yesterday(yesterday_rows))
 
 
 def merge_seen_rank(today_rank: dict[str, int], carried: dict[str, int]) -> dict[str, int]:
@@ -446,10 +499,10 @@ def refresh_alerts(today: str | None = None) -> dict:
     today = today or dt.date.today().isoformat()
     # ★ 등급까지 기억한다 ★ source 만 보면 low→critical 승격이 조용해진다(escalated 참조).
     yesterday = (dt.date.fromisoformat(today) - dt.timedelta(days=1)).isoformat()
-    seen_rank = merge_seen_rank(
-        seen_rank_today(db.list_alerts(today)),
-        carried_rank_from_yesterday(db.list_alerts(yesterday)),
-    )
+    today_rows = db.list_alerts(today)
+    channel = telegram_configured()
+    seen_rank = baseline_rank(today_rows, db.list_alerts(yesterday), channel)
+    seen_today_only = baseline_rank(today_rows, [], channel)   # 오늘 안에서 이미 알린 것(출처 구분용)
 
     negative_space = scan_negative_space()
     live_sources: set[str] = set()
@@ -525,12 +578,28 @@ def refresh_alerts(today: str | None = None) -> dict:
         r for r in visible_rows
         if r["tier"] in ("critical", "high") and escalated(r["source"], r["tier"], seen_rank)
     ]
+    # ★ 왜 *안* 보냈는지를 남긴다 ★ '신규 경보 없음' 한 줄로는 critical 이 없어서인지, 있는데 이미
+    # 알려서인지, 어제 알려서(이월)인지 가를 수 없다. 날짜 경계 관측(00:01)이 이 구분에 달려 있다.
+    already_notified = [
+        {"label": r["label"], "tier": r["tier"], "score": r["score"], "source": r["source"],
+         "origin": ("오늘" if seen_today_only.get(r["source"], -1) >= TIER_RANK[r["tier"]]
+                    else "어제 이월")}
+        for r in visible_rows
+        if r["tier"] in ("critical", "high") and not escalated(r["source"], r["tier"], seen_rank)
+    ]
     # 경보→NPI 자동연결: 신규 critical/high에 '무대응 vs 개입' 반사실 요약을 붙여
     # 알림이 "무엇이 온다"를 넘어 "뭘 하면 어떻게 바뀐다"까지 답하게 한다.
     # (봉인은 대량 알림에서 생략 — 단건 조회 엔드포인트에서 OpenTimestamps 수행)
     from .alert_intervention import enrich_alerts_with_briefs
+    to_mark = [(r["source"], TIER_RANK[r["tier"]]) for r in new_critical_high]
     new_critical_high = enrich_alerts_with_briefs(new_critical_high, seal=False)
     notification = _notify(new_critical_high)
+    # ★ 전송이 성공했을 때만 기록한다 ★ 실패·미설정은 기록하지 않는다 — 실패한 critical 은
+    # 기준선에 안 들어가 다음 주기에 다시 시도된다(채널이 있을 때). 거짓으로 '보냄'을 적지 않는다.
+    if notification["status"] == NOTIFY_SENT:
+        db.mark_alerts_notified(today, to_mark)
+    elif notification["status"] == NOTIFY_FAILED:
+        notification["retry_pending"] = len(to_mark)
 
     dashboard_top = visible_rows[:DASHBOARD_TOP_N]
     hidden_count = len(visible_rows) - len(dashboard_top)
@@ -554,6 +623,8 @@ def refresh_alerts(today: str | None = None) -> dict:
             {"label": r["label"], "tier": r["tier"], "score": r["score"], "source": r["source"]}
             for r in retired_rows
         ],
+        # 화면에 떠 있지만 이미 알려서 다시 안 보낸 critical/high — 알림이 조용한 이유.
+        "already_notified": already_notified,
         # 이번 주기에 판정하지 못해 그대로 둔 행 — 내림이 아니다.
         "undetermined": [
             {"label": r["label"], "tier": r["tier"], "score": r["score"], "source": r["source"]}
