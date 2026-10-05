@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import datetime as dt
 
-import pytest
 
 from algorithms import quality_health as qh
 
