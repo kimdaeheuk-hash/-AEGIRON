@@ -415,3 +415,60 @@ def test_both_branches_use_the_same_arithmetic():
     qh.record_cycle(_result())
     report = qh.quality_report()
     assert qh._healthy_tail(report) in qh.summary_line()
+
+
+# ── ★2026-10-05★ 경보 전 위반이 '정상' 줄에 묻히던 구멍 ────────────────
+#
+# 10-04 11·12시 UTC 줄이 `정상 2/6 · 판정불가 1` 이었다 — 6층 중 3층이 줄에 없었다.
+# 현지어 뉴스 503 블록이 매일 정확히 2주기라 alarm_after(3)에 못 닿았고, 위반 층은
+# 정상·판정불가·저하 어느 쪽에도 안 세어졌다.
+
+
+def _two_provider_violations():
+    qh.record_extraction_outcome(_extraction(saved=3))
+    for _ in range(2):                       # alarm_after=3 보다 하나 모자란다
+        qh.record_cycle(_result(provider=None))
+
+
+def test_pre_alarm_violation_is_named_and_not_called_healthy():
+    _two_provider_violations()
+    assert not _alarming("llm_provider"), "전제: 아직 문턱 아래"
+
+    line = qh.summary_line()
+    assert line.startswith("⚠️ 품질 주의(경보 전):")
+    assert not line.startswith("🔎"), "위반이 있는데 '정상' 표시를 쓰면 안 된다"
+    assert next(i for i in qh.quality_report()["invariants"]
+                if i["key"] == "llm_provider")["label"] in line
+    assert "2주기째" in line
+
+
+def test_every_invariant_is_accounted_for_in_the_line():
+    """정상 + 판정불가 + 경보 전 위반 + 저하 == 총계 — 줄에서 층이 사라지지 않는다."""
+    _two_provider_violations()
+    r = qh.quality_report()
+    assert (r["healthy_count"] + r["unknown_count"] + r["pre_alarm_count"]
+            + r["degraded_count"]) == r["total_invariants"]
+    assert r["pre_alarm_count"] >= 1
+    assert f"경보 전 위반 {r['pre_alarm_count']}" in qh.summary_line()
+
+
+def test_degraded_line_also_names_pre_alarm_layers():
+    qh.record_extraction_outcome(_extraction(saved=0, failed=5))
+    _age_state(first_attempt_at=_hours_ago(96))
+    for _ in range(2):
+        qh.record_cycle(_result(provider=None))
+    qh.record_cycle(_result())                # provider 는 회복, 추출은 3주기째 저하
+    qh.record_cycle(_result(provider=None))   # provider 위반 1주기째(경보 전)
+
+    r = qh.quality_report()
+    assert r["degraded_count"] >= 1 and r["pre_alarm_count"] >= 1
+    line = qh.summary_line()
+    assert line.startswith("⚠️ 품질 저하:")
+    assert "경보 전 위반:" in line
+
+
+def test_clean_line_has_no_doubled_label():
+    qh.record_extraction_outcome(_extraction(saved=3))
+    qh.record_cycle(_result())
+    assert "정상 정상" not in qh.summary_line()
+    assert qh.summary_line().startswith("🔎 품질 불변식: 정상 ")

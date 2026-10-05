@@ -514,24 +514,38 @@ def quality_report() -> dict:
         "total_invariants": len(invariants),
         # 판정 불가를 정상으로 세지 않는다 — '모른다'와 '괜찮다'는 다르다.
         "unknown_count": sum(1 for i in invariants if i["last_result"] == "unknown"),
+        # 위반 중이지만 아직 문턱(alarm_after)에 못 닿은 층. 정상도 판정불가도 아니고
+        # 경보도 아니라서, 이 숫자가 없으면 정상+판정불가+경보 가 총계에 못 미친다.
+        "pre_alarm_count": sum(1 for i in invariants
+                               if i["last_result"] == "violated" and not i["alarming"]),
         # 추출층은 하루 1회라 주기 수로는 경과를 못 읽는다(_extraction_detail 참고).
         "extraction": _extraction_detail(data),
     }
 
 
+def _span_text(item: dict) -> str:
+    span = f"{item['consecutive_violations']}주기째"
+    hours = item["violated_hours"]
+    if hours is not None:
+        span += f"/{hours:.0f}시간"
+    return span
+
+
+def _pre_alarm_items(report: dict) -> list[dict]:
+    return [i for i in report["invariants"]
+            if i["last_result"] == "violated" and not i["alarming"]]
+
+
 def summary_line() -> str:
     """수집 로그 한 줄. 소스 건강 줄과 나란히 찍힌다."""
     report = quality_report()
+    pre_alarm = _pre_alarm_items(report)
     if report["degraded"]:
         parts = []
         for item in report["invariants"]:
             if not item["alarming"]:
                 continue
-            hours = item["violated_hours"]
-            span = f"{item['consecutive_violations']}주기째"
-            if hours is not None:
-                span += f"/{hours:.0f}시간"
-            piece = f"{item['label']} {span}"
+            piece = f"{item['label']} {_span_text(item)}"
             # 그 층만 아는 진짜 숫자가 있으면 같이 싣는다(Invariant.detail 주석).
             if item.get("detail"):
                 piece += f"({item['detail']})"
@@ -543,14 +557,31 @@ def summary_line() -> str:
         # 끝났다 — 이 층을 만든 이유가 "판정 불가를 정상으로 세지 않는다"인데,
         # 정작 저하 중에는 그 숫자가 보이지 않았다.
         # 위반이 있을 때야말로 다른 층이 조용히 사라졌는지가 중요하다.
-        return (f"⚠️ 품질 저하: {' · '.join(parts)}"
-                f" · 나머지 {_healthy_tail(report)}")
-    return f"🔎 품질 불변식: 정상 {_healthy_tail(report)}"
+        line = f"⚠️ 품질 저하: {' · '.join(parts)}"
+        if pre_alarm:
+            line += " · 경보 전 위반: " + " · ".join(
+                f"{i['label']} {_span_text(i)}" for i in pre_alarm)
+        return f"{line} · 나머지 {_healthy_tail(report)}"
+    if pre_alarm:
+        # ★ 경보 전 위반을 '정상' 줄에 묻지 않는다 (2026-10-05) ★
+        # 10-04 11·12시 UTC 의 `정상 2/6 · 판정불가 1` 은 6층 중 3층이 줄에
+        # 없었다. 현지어 뉴스 503 블록이 매일 정확히 2주기라 alarm_after(3)에
+        # 영영 못 닿았고, 위반 층은 정상·판정불가·저하 어느 쪽에도 안 세어졌다.
+        return ("⚠️ 품질 주의(경보 전): "
+                + " · ".join(f"{i['label']} {_span_text(i)}" for i in pre_alarm)
+                + f" · {_healthy_tail(report)}")
+    # _healthy_tail 이 이미 '정상' 으로 시작한다(예전엔 '정상 정상 6/6' 으로 찍혔다).
+    return f"🔎 품질 불변식: {_healthy_tail(report)}"
 
 
 def _healthy_tail(report: dict) -> str:
-    """"정상 5/6 · 판정불가 1" — 두 갈래가 같은 셈법을 쓰게 한 곳에 둔다."""
+    """"정상 4/6 · 판정불가 1 · 경보 전 위반 1" — 두 갈래가 같은 셈법을 쓰게 한 곳에 둔다.
+
+    정상 + 판정불가 + 경보 전 위반 (+ 저하로 이름이 따로 찍힌 층) == 총계.
+    """
     tail = f" · 판정불가 {report['unknown_count']}" if report["unknown_count"] else ""
+    if report["pre_alarm_count"]:
+        tail += f" · 경보 전 위반 {report['pre_alarm_count']}"
     return f"정상 {report['healthy_count']}/{report['total_invariants']}{tail}"
 
 
