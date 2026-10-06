@@ -53,6 +53,7 @@ import requests
 
 from .country_resolve import resolve_countries
 from .glacier_regions import coverage_summary as glacier_coverage, glacier_context
+from . import kma_warnings
 
 USER_AGENT = {"User-Agent": "EpiWeather-DisasterWatch/1.0 (epiweather.kr)"}
 TIMEOUT = 20
@@ -76,6 +77,10 @@ THRESHOLD_CALIBRATED = False  # 감시창 문턱 0.08 — 임의값, 실증 근�
 
 # 이 일수를 넘긴 이벤트는 저장소에서 지운다(가장 긴 창 + 여유).
 EVENT_RETENTION_DAYS = 150
+
+# 기상청 특보는 며칠씩 이어지고 구역·날짜마다 따로 나온다. 같은 종류 특보가 이 일수 안에 이어지면
+# 한 사건(에피소드)으로 본다 — 안 그러면 호우 사흘이 감시창 셋이 된다. 판단 상수이고 보정하지 않았다.
+KMA_EPISODE_GAP_DAYS = 3
 
 
 class DisasterWatchError(RuntimeError):
@@ -298,14 +303,58 @@ def record_events(events: list[dict], today: dt.date | None = None) -> dict:
         stored[ev["key"]] = {**ev, "first_seen": today.isoformat()}
         new += 1
 
-    cutoff = today - dt.timedelta(days=EVENT_RETENTION_DAYS)
-    stale = [k for k, v in stored.items()
-             if (_as_date(v.get("date")) or today) < cutoff]
-    for k in stale:
-        del stored[k]
+    pruned = _prune(stored, today)
 
     _save_state(state)
-    return {"stored": len(stored), "new": new, "pruned": len(stale)}
+    return {"stored": len(stored), "new": new, "pruned": pruned}
+
+
+def record_kma_events(events: list[dict], today: dt.date | None = None) -> dict:
+    """기상청 경보 사건을 저장소에 합친다. 이미 있는 에피소드(같은 종류·`KMA_EPISODE_GAP_DAYS` 이내)면
+    새로 만들지 않고 가장 이른 날짜와 최대 구역 수만 갱신한다 — 창의 기준일은 에피소드의 첫날이다.
+
+    반환: {"stored", "new", "pruned"} (`record_events` 와 같은 모양)
+    """
+    today = today or dt.date.today()
+    state = _load_state()
+    stored: dict = state["events"]
+
+    new = 0
+    for ev in events:
+        day = _as_date(ev.get("date"))
+        if not day:
+            continue
+        match = None
+        for key, old in stored.items():
+            if old.get("source") != "kma" or old.get("type") != ev["type"] or old.get("iso3") != ev["iso3"]:
+                continue
+            old_day = _as_date(old.get("date"))
+            if old_day and abs((old_day - day).days) <= KMA_EPISODE_GAP_DAYS:
+                match = key
+                break
+        if match:
+            old = stored[match]
+            if day < _as_date(old["date"]):
+                old["date"] = ev["date"]
+            old["regions"] = max(old.get("regions") or 0, ev.get("regions") or 0)
+            old["last_warned"] = max(old.get("last_warned") or ev["date"], ev["date"])
+            continue
+        stored[f"KMA-{ev['type']}-{ev['date']}-{ev['iso3']}"] = {
+            **ev, "event_id": "", "key": f"KMA-{ev['type']}-{ev['date']}-{ev['iso3']}",
+            "first_seen": today.isoformat(), "last_warned": ev["date"]}
+        new += 1
+
+    pruned = _prune(stored, today)
+    _save_state(state)
+    return {"stored": len(stored), "new": new, "pruned": pruned}
+
+
+def _prune(stored: dict, today: dt.date) -> int:
+    cutoff = today - dt.timedelta(days=EVENT_RETENTION_DAYS)
+    stale = [k for k, v in stored.items() if (_as_date(v.get("date")) or today) < cutoff]
+    for k in stale:
+        del stored[k]
+    return len(stale)
 
 
 def _as_date(raw: str | None) -> dt.date | None:
@@ -327,7 +376,9 @@ def open_windows(today: dt.date | None = None) -> dict[str, list[dict]]:
     """
     today = today or dt.date.today()
     out: dict[str, list[dict]] = {}
-    for ev in _load_state()["events"].values():
+    events = list(_load_state()["events"].values())
+    gdacs_days = _gdacs_days(events)
+    for ev in events:
         date = _as_date(ev.get("date"))
         rules = WATCH_RULES.get(ev.get("type", ""))
         if not date or not rules:
@@ -335,6 +386,8 @@ def open_windows(today: dt.date | None = None) -> dict[str, list[dict]]:
         elapsed = (today - date).days
         if elapsed < 0:            # 미래 날짜(예보성 항목) — 아직 창이 아니다
             continue
+        if ev.get("source") == "kma" and _covered_by_gdacs(ev, date, gdacs_days):
+            continue               # 같은 재난을 GDACS 도 열었다 — 두 번 세지 않는다
         for disease, keywords, lo, hi, why in rules:
             if not lo <= elapsed <= hi:
                 continue
@@ -349,13 +402,37 @@ def open_windows(today: dt.date | None = None) -> dict[str, list[dict]]:
                 "window_days": [lo, hi],
                 "rationale": why,
                 "title": ev.get("title"),
+                "source": ev.get("source") or "gdacs",
             })
     return out
+
+
+def _gdacs_days(events: list[dict]) -> dict[tuple[str, str], list[dt.date]]:
+    out: dict[tuple[str, str], list[dt.date]] = {}
+    for ev in events:
+        if ev.get("source") == "kma":
+            continue
+        d = _as_date(ev.get("date"))
+        if d:
+            out.setdefault((ev.get("iso3", ""), ev.get("type", "")), []).append(d)
+    return out
+
+
+def _covered_by_gdacs(ev: dict, date: dt.date, gdacs_days: dict) -> bool:
+    return any(abs((d - date).days) <= KMA_EPISODE_GAP_DAYS
+               for d in gdacs_days.get((ev.get("iso3", ""), ev.get("type", "")), []))
 
 
 def watched_countries(today: dt.date | None = None) -> set[str]:
     """지금 감시창이 하나라도 열려 있는 나라들. local_news 가 이걸 쓴다."""
     return set(open_windows(today))
+
+
+def _data_source(state: dict) -> str:
+    text = "GDACS (Global Disaster Alert and Coordination System, 무료·키 불필요)"
+    if any(v.get("source") == "kma" for v in state["events"].values()):
+        text += " + 기상청 특보(KMA API허브, 한국 호우·태풍 경보만)"
+    return text
 
 
 def disaster_watch_report(today: dt.date | None = None) -> dict:
@@ -392,7 +469,7 @@ def disaster_watch_report(today: dt.date | None = None) -> dict:
         "watched_country_count": len(countries),
         "stored_events": len(state["events"]),
         "updated_at": state.get("updated_at"),
-        "data_source": "GDACS (Global Disaster Alert and Coordination System, 무료·키 불필요)",
+        "data_source": _data_source(state),
         "opening_alert_levels": sorted(OPENING_ALERT_LEVELS),
         # 지금 감시 중인 나라 가운데 빙하 산맥 지역은 어디인가.
         "glacier_regions_watched": sorted(
@@ -413,20 +490,50 @@ def disaster_watch_report(today: dt.date | None = None) -> dict:
     }
 
 
+def collect_kma_warnings() -> dict:
+    """한국 기상청 경보를 받아 저장한다. GDACS 와 **따로** 실패한다 — 한쪽이 죽어도 다른 쪽은 돈다.
+
+    반환의 `status`: `skipped_no_key`(키 없음 — 실패가 아니다) · `ok` · `failed`(사유 `error`).
+    """
+    key = kma_warnings.api_key()
+    if not key:
+        return {"status": "skipped_no_key"}
+    try:
+        got = kma_warnings.fetch_warnings(key)
+        counts = record_kma_events(got["events"])
+    except Exception as e:                          # 어떤 실패든 키를 지우고 올린다
+        return {"status": "failed", "error": f"{type(e).__name__}: {kma_warnings.scrub(e, key)[:200]}"}
+    return {"status": "ok", "rows": got["rows"], "events": len(got["events"]),
+            "skipped": got["skipped"], **counts}
+
+
 def collect_disaster_watch() -> dict:
-    """수집 주기 1회분: GDACS 를 받아 저장하고 현재 창을 돌려준다.
+    """수집 주기 1회분: GDACS·기상청 특보를 받아 저장하고 현재 창을 돌려준다.
 
     ★ 반환값은 signals.jsonl 에 **매 주기** 통째로 쌓인다 ★ 그래서 규칙표에서
     오는 고정 텍스트(근거 문장·키워드 목록)는 빼고 압축해서 돌려준다. 안 그러면
     같은 문장이 매시간 다시 적혀 하루 1MB 가까이 불어난다. 전체 상세가 필요하면
     `/api/disaster-watch` 를 보면 된다 — 거기선 저장소를 그때그때 읽는다.
+
+    GDACS 가 실패해도 기상청 쪽은 먼저 저장한 뒤 GDACS 오류를 올린다(예전 계약 유지).
     """
-    events = fetch_gdacs_events()
-    counts = record_events(events)
+    gdacs_error: DisasterWatchError | None = None
+    events: list[dict] = []
+    counts: dict = {}
+    try:
+        events = fetch_gdacs_events()
+        counts = record_events(events)
+    except DisasterWatchError as e:
+        gdacs_error = e
+    kma = collect_kma_warnings()
+    if gdacs_error is not None:
+        raise gdacs_error
+    counts["stored"] = len(_load_state()["events"])      # 기상청 사건까지 합친 누적
     report = disaster_watch_report()
     return {
         **counts,
         "fetched": len(events),
+        "kma": kma,
         "watched_country_count": report["watched_country_count"],
         "countries": [
             {
@@ -435,7 +542,7 @@ def collect_disaster_watch() -> dict:
                 "diseases": c["diseases"],
                 "open_windows": [
                     {"disease": w["disease"], "disaster_type": w["disaster_type"],
-                     "alert_level": w["alert_level"],
+                     "alert_level": w["alert_level"], "source": w["source"],
                      "days_since_disaster": w["days_since_disaster"],
                      "window_days": w["window_days"]}
                     for w in c["open_windows"]

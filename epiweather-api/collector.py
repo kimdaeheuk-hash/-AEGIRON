@@ -30,6 +30,21 @@ ERR_FILE = DATA_DIR / "error_log.txt"
 USER_AGENT = {"User-Agent": "EpiWeather-Collector/1.0 (epiweather.kr)"}
 
 
+def _kma_line(kma: dict | None) -> str:
+    """기상청 특보 층의 한 줄 — 키 없음·성공·실패를 서로 다른 말로 적는다(셋은 다른 일이다)."""
+    kma = kma or {}
+    status = kma.get("status")
+    if status == "skipped_no_key":
+        return "기상청 특보: KMA_API_KEY 없음 — 이 입력은 꺼져 있다(실패 아님)"
+    if status == "ok":
+        skipped = "·".join(f"{k} {v}" for k, v in sorted((kma.get("skipped") or {}).items()))
+        return (f"기상청 특보: {kma['rows']}행 → 경보 사건 {kma['events']}건(신규 {kma['new']})"
+                + (f" · 제외 {skipped}" if skipped else ""))
+    if status == "failed":
+        return f"❌ 기상청 특보 실패 — {kma.get('error')}"
+    return "기상청 특보: 상태 모름"
+
+
 def log(msg: str) -> None:
     print(f"[{dt.datetime.now().strftime('%H:%M:%S')}] {msg}")
 
@@ -714,6 +729,7 @@ def collect_free_sources() -> dict:
         d = result["disaster_watch"]
         log(f"  재난 감시창: GDACS {d['fetched']}건 수신(신규 {d['new']}) · "
             f"감시 중 {d['watched_country_count']}개국 · 누적 {d['stored']}건")
+        log(f"  {_kma_line(d.get('kma'))}")
         for c in d["countries"][:5]:
             w = c["open_windows"][0]
             log(f"    ⚠ {c['country'] or c['country_iso3']}: "
