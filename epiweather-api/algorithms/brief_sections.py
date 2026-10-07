@@ -559,12 +559,57 @@ def build_disaster_watch_section(lang: str = "ko") -> dict | None:
     }
 
 
+# ─── 📰 오늘의 뉴스 요약(AI) ──────────────────────────────────────────────────
+#
+# NewsWatch 가 매시간 만드는 요약인데 **경보 점수에 연결된 적이 없어** 로그에만 있었다(2026-10-07 진단:
+# 소비자가 은퇴한 `groq_pulse` 키를 읽는다). 점수에 연결하면 소표본 노이즈 경보 위험이 있어, 연결하지 않고
+# **브리핑에 요약으로만** 싣는다. 이 섹션은 경보가 아니다.
+_NP_TITLE = {
+    "ko": "오늘의 뉴스 요약(AI)", "en": "Today's news digest (AI)", "fr": "Synthèse de l'actualité (IA)",
+}
+_NP_HONESTY = {
+    "ko": "뉴스 제목 20~40건을 AI 가 요약한 것입니다. 측정값이 아니고 경보 점수에 연결돼 있지 않으며, "
+          "사건의 진위·규모는 확인되지 않았습니다. 요약문은 한국어로 생성됩니다.",
+    "en": "An AI summary of 20–40 news headlines. It is not a measurement, is not connected to any alert "
+          "score, and the truth and scale of the events are unverified. The summary text is generated in Korean.",
+    "fr": "Résumé par IA de 20 à 40 titres de presse. Ce n'est pas une mesure, il n'est relié à aucun score "
+          "d'alerte, et la réalité et l'ampleur des événements ne sont pas vérifiées. Le texte est généré en coréen.",
+}
+_NP_URGENCY = {
+    "ko": "모델 판단(보정 안 됨): 긴급도 {u}", "en": "Model judgement (uncalibrated): urgency {u}",
+    "fr": "Jugement du modèle (non calibré) : urgence {u}",
+}
+
+
+def build_news_pulse_section(lang: str = "ko") -> dict | None:
+    """최근 3시간 안의 NewsWatch 요약. 없거나 낡았거나 새 신호가 없다고 했으면 None(말없이 뺀다)."""
+    from .news_watch import latest_pulse
+
+    pulse = latest_pulse()
+    if not pulse:
+        return None
+    urgency = pulse.get("urgency")
+    return {
+        "id": "news_pulse",
+        "icon": "📰",
+        "title": _pick(_NP_TITLE, lang),
+        "lead": pulse["summary"],
+        "why": _pick(_NP_URGENCY, lang).format(u=urgency) if urgency else None,
+        "rows": [{"disease": d} for d in (pulse.get("diseases") or []) if isinstance(d, str)],
+        "grade": "watch",
+        "honesty": _pick(_NP_HONESTY, lang),
+        "data_source": f"Google News RSS 제목 {pulse.get('headline_count')}건 + {pulse.get('source')} "
+                       f"(관측 {pulse.get('observed_at')})",
+    }
+
+
 _BUILDERS = (
     ("silence", build_silence_section),          # 조용해진 곳이 제일 앞 — 아무도 안 보는 각도
     ("disaster_watch", build_disaster_watch_section),   # 지금 열려 있는 창 — 가장 현재형이다
     ("polar", build_polar_section),
     ("forecast", build_forecast_section),
     ("unexplained", build_unexplained_section),
+    ("news_pulse", build_news_pulse_section),    # 점수에 연결되지 않은 AI 요약 — 맨 뒤, 경보가 아님
 )
 
 

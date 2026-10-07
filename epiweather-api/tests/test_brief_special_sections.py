@@ -214,13 +214,16 @@ def test_every_section_carries_its_limits():
     # 깨끗한 기계에서만 통과했다(2026-09-03 발견 — 수집기를 한 번 돌리자 창이
     # 열리며 5개가 됐다). 층 하나가 검사에서 빠지면 그 층에 정직성 문구가 없어도
     # 아무도 모른다.
+    payload_news_pulse = {"has_new_signal": True, "summary": "러시아에서 페스트 의심 사례가 보고됐다.",
+                          "diseases": ["페스트"], "urgency": "high", "headline_count": 20,
+                          "source": "google_news+cerebras", "observed_at": "2026-10-07T09:00:00"}
     payload_disaster = {"countries": [
         {"country": "네팔", "country_iso3": "NPL", "window_count": 1,
          "diseases": ["콜레라"],
          "open_windows": [{"country": "네팔", "disaster_type": "FL",
                            "days_since_disaster": 12, "closes_in_days": 18}]}]}
 
-    with patch("algorithms.negative_space.scan_negative_space", return_value=payload_silence),          patch("algorithms.disaster_watch.disaster_watch_report", return_value=payload_disaster),          patch("algorithms.polar_signals.polar_watch_all", return_value=payload_polar),          patch("algorithms.forecast_engine.forecast_summary", return_value=payload_forecast),          patch("algorithms.unexplained.scan_unexplained", return_value=payload_unexplained):
+    with patch("algorithms.negative_space.scan_negative_space", return_value=payload_silence),          patch("algorithms.disaster_watch.disaster_watch_report", return_value=payload_disaster),          patch("algorithms.polar_signals.polar_watch_all", return_value=payload_polar),          patch("algorithms.forecast_engine.forecast_summary", return_value=payload_forecast),          patch("algorithms.unexplained.scan_unexplained", return_value=payload_unexplained),          patch("algorithms.news_watch.latest_pulse", return_value=payload_news_pulse):
         sections = bs.build_special_sections("ko")
 
     # 개수를 손으로 적지 않는다 — 층이 늘면 이 검사도 같이 늘어야 한다.

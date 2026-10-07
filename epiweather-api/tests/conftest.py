@@ -120,3 +120,16 @@ def _no_real_sleep_in_trade_scan(monkeypatch):
     from algorithms import comtrade_signals
     monkeypatch.setattr(comtrade_signals, "_sleep", lambda sec: None)
     yield
+
+
+# ★ 고위험 병원체 보도 감시(pathogen_sentinel)는 실제 네트워크를 부른다 ★ 경보 후보를 모으는 모든 시험이
+# 그 호출을 만나므로, 기본은 '빈 피드'로 막고 캐시를 비운다. 이 층을 시험하는 파일은 `fetch_local_feed` 를
+# 직접 패치해 제목을 준다.
+@pytest.fixture(autouse=True)
+def _no_real_network_in_pathogen_sentinel(monkeypatch):
+    from algorithms import pathogen_sentinel
+    pathogen_sentinel._CACHE.update(at=0.0, titles=None)
+    monkeypatch.setattr(pathogen_sentinel, "fetch_local_feed",
+                        lambda *a, **k: {"status": "ok", "_all_titles": []})
+    yield
+    pathogen_sentinel._CACHE.update(at=0.0, titles=None)
