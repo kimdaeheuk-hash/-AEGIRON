@@ -187,6 +187,8 @@ def resolve_ledger(now: dt.datetime | None = None) -> dict:
     }
 
     closed_declared, closed_silent, duplicates, still_open = [], [], [], 0
+    blind = 0
+    blind_reasons: dict[str, int] = {}
     # 먼저 넘은 것부터 본다 — 가장 이른 기록이 그 사건의 선행일수다.
     for entry in sorted(list_entries(outcome=OUTCOME_OPEN, limit=1000),
                         key=lambda e: e["crossed_at"]):
@@ -222,6 +224,14 @@ def resolve_ledger(now: dt.datetime | None = None) -> dict:
 
         if today > crossed + dt.timedelta(days=RESOLUTION_HORIZON_DAYS):
             # 기한이 지났는데 선언이 없다 — 오경보다. 지우지 않고 남긴다.
+            # ★ 단, 정답 경로가 그 기간을 보고 있었을 때만 ★ 눈이 먼 채 지나간 침묵은 오경보가
+            # 아니라 '못 봤다'다. 닫지 않고 열어 둔다(판정 안 함).
+            from .ground_truth_channel import blind_reason
+            reason = blind_reason(crossed, crossed + dt.timedelta(days=RESOLUTION_HORIZON_DAYS))
+            if reason:
+                blind += 1
+                blind_reasons[reason] = blind_reasons.get(reason, 0) + 1
+                continue
             _close(entry["id"], OUTCOME_NO_DECLARATION, now)
             closed_silent.append(entry)
         else:
@@ -232,6 +242,8 @@ def resolve_ledger(now: dt.datetime | None = None) -> dict:
         "closed_no_declaration": len(closed_silent),
         "closed_duplicate": len(duplicates),
         "still_open": still_open,
+        "blind": blind,
+        "blind_reasons": blind_reasons,
         "horizon_days": RESOLUTION_HORIZON_DAYS,
     }
 

@@ -482,6 +482,16 @@ async def _run_prediction_resolution() -> None:
         # 빗나간 예측만 90일 뒤 incorrect 로 쌓여 '측정된 것처럼 보이는 적중률 0%'
         # 가 만들어지는 중이었다. 순서가 중요하다: 적재가 먼저, 채점이 나중이다.
         from algorithms.declaration_ingest import ingest_declarations, summary as decl_summary
+        # ★ 정답 경로의 실제 생산자 (2026-10-07) ★ 신호 추출에서 오는 정답은 신뢰도 0.90 이면서
+        # `신규발생` 인 것이 한 건도 없어 구조적으로 0건이었다. WHO DON(사람이 쓴 공식 발표)이
+        # 그 자리를 채운다. 실패해도 채점은 돈다 — 다만 정답 경로가 눈이 멀면 채점기가 침묵을
+        # 오답으로 세지 않고 판정을 보류한다(ground_truth_channel).
+        try:
+            from algorithms.who_don_declarations import ingest_don, summary as don_summary
+            collector.log(f"📌 {don_summary(await asyncio.to_thread(ingest_don))}")
+        except Exception as e:
+            collector.log(f"  ❌ WHO DON 정답 적재 실패 — {type(e).__name__}: {str(e)[:200]}")
+            _log_error(f"who_don_declarations: {type(e).__name__}: {e}")
         try:
             ingested = await asyncio.to_thread(ingest_declarations)
             collector.log(f"📌 {decl_summary(ingested)}")
@@ -493,6 +503,11 @@ async def _run_prediction_resolution() -> None:
         from algorithms.prediction_resolver import resolve_due_predictions
         outcome = await asyncio.to_thread(resolve_due_predictions)
         resolved = outcome["resolved"]
+        if outcome.get("blind"):
+            # 닫지 않고 연 채로 둔 것 — 오답으로 세지 않았다는 사실과 이유를 그대로 남긴다.
+            reasons = " / ".join(f"{k} {v}건" for k, v in sorted(outcome["blind_reasons"].items()))
+            collector.log(f"⏸ 예측 판정 보류: 기한이 지났으나 정답 경로가 그 기간을 못 보고 있어 "
+                          f"오답으로 닫지 않음 {outcome['blind']}건 — {reasons}")
         if resolved:
             hits = [r for r in resolved if r["correct"] == 1]
             collector.log(

@@ -115,11 +115,18 @@ def test_declaration_before_our_record_is_not_our_lead(isolated_db):
     assert outcome["still_open"] == 1, "선언에 잘못 붙였다"
 
 
+def _watching(start: dt.date) -> None:
+    """정답 경로가 `start` 구간을 보고 있었다는 전제(전날부터 가동, 구간 안에 선언 1건)."""
+    from tests._live_channel import seed_live_channel
+    seed_live_channel(start - dt.timedelta(days=1), start + dt.timedelta(days=10))
+
+
 def test_declaration_beyond_the_horizon_is_not_credited(isolated_db):
     """★핵심★ 90일 뒤에 난 선언을 우리 공으로 세지 않는다."""
     dbmod = isolated_db
     open_crossing("에볼라", "COD", 85.0, 80.0, [1], now=_at(2026, 1, 1))
     _declare(dbmod, "ebola_cod", "에볼라 COD", "2026-06-01")   # 151일 뒤
+    _watching(dt.date(2026, 1, 1))
 
     outcome = resolve_ledger(now=_at(2026, 6, 5))
 
@@ -135,6 +142,7 @@ def test_silent_crossings_are_closed_as_false_alarms(isolated_db):
     맞은 것만 남기면 정밀도만 있고 재현율이 사라진다.
     """
     open_crossing("니파", "IND", 85.0, 80.0, [1], now=_at(2026, 1, 1))
+    _watching(dt.date(2026, 1, 1))
 
     outcome = resolve_ledger(now=_at(2026, 1, 1) + dt.timedelta(days=RESOLUTION_HORIZON_DAYS + 1))
 
@@ -161,6 +169,7 @@ def test_report_shows_false_alarms_and_precision(isolated_db):
     open_crossing("에볼라", "COD", 85.0, 80.0, [1], now=_at(2026, 5, 1))
     _declare(dbmod, "ebola_cod", "에볼라 COD", "2026-05-15")
     open_crossing("니파", "IND", 85.0, 80.0, [2], now=_at(2026, 1, 1))
+    _watching(dt.date(2026, 1, 1))
     resolve_ledger(now=_at(2026, 5, 20))
 
     record = ledger_record()

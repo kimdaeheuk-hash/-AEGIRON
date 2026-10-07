@@ -137,6 +137,10 @@ def test_silent_period_closes_as_incorrect_after_the_horizon(isolated_db):
     맞은 것만 세면 정밀도만 남고 재현율이 사라져 숫자가 무의미해진다.
     """
     pid = _predict(days_ago=200)              # 판정기한(90일) 한참 지남
+    # 정답 경로가 그 기간을 보고 있었다는 전제(예측 전날부터 가동, 구간 안에 선언 1건)
+    from tests._live_channel import seed_live_channel
+    start = dt.date.today() - dt.timedelta(days=200)
+    seed_live_channel(start - dt.timedelta(days=1), start + dt.timedelta(days=10))
 
     outcome = resolve_due_predictions()
     closed = next(r for r in outcome["resolved"] if r["prediction_id"] == pid)
