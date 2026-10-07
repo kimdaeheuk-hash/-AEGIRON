@@ -61,6 +61,13 @@ from .local_news import fetch_local_feed
 GLOBAL_TERMS = [
     "outbreak", "epidemic", "disease outbreak", "ebola", "cholera",
     "dengue", "mpox", "measles", "bird flu", "H5N1", "marburg",
+    # ★ 고위험 병원체 (2026-10-07) ★ 이르쿠츠크 항페스트 연구소 연구원 사망(10-02 첫 보도)을
+    # 이 층은 사흘 뒤(10-05 01:02 UTC)에야 언급했다. 위 질의에 `plague` 가 없어서 일반어
+    # `outbreak` 에 우연히 걸린 것이다. 페스트·탄저는 사건 하나가 곧 뉴스가 되는 병원체라
+    # 카운트가 쌓이기를 기다리는 지표로는 못 잡는다. ⚠️ 이 층은 **경보 점수에 연결돼 있지 않다**
+    # (`news_pulse` 를 읽는 소비자가 없다 — `groq_pulse_urgency` 는 은퇴한 `groq_pulse` 키를 읽는다).
+    # 그래서 이 보강은 '더 빨리 언급된다' 이지 '경보가 된다' 가 아니다. 연결은 별도 결정이다.
+    "plague", "anthrax",
 ]
 # `when:1d` 는 Google News 검색 연산자(최근 1일). 혹시 무시되더라도 RSS 자체가
 # 최신순이라 조용히 나빠질 뿐 깨지지는 않는다 — 대조 주기에 결과 개수로 확인한다.
