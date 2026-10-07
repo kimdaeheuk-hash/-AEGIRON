@@ -202,3 +202,30 @@ def test_query_is_global_and_recent():
     assert "hl=en-US" in url and "gl=US" in url
     assert "when%3A1d" in url, "최근 1일 필터가 빠졌다"
     assert "outbreak" in url
+
+
+# ── 고위험 병원체 검색어 (2026-10-07) ─────────────────────────────────
+
+def test_high_consequence_pathogens_are_in_the_global_query():
+    """이르쿠츠크 페스트 연구소 사건(10-02)을 사흘 늦게야 언급했다 — 검색어에 `plague` 가 없었다."""
+    import urllib.parse
+    assert {"plague", "anthrax"} <= set(nw.GLOBAL_TERMS)
+    url = urllib.parse.unquote(nw._global_gnews_url())
+    assert " OR plague" in url or "plague OR" in url
+    assert "anthrax" in url
+
+
+def test_pathogen_terms_are_known_to_the_hit_counter():
+    """같은 목록이 키워드 히트 집계에도 쓰인다 — 질의에만 넣고 세지 못하면 헛일이다."""
+    from algorithms import local_news
+    assert {"plague", "anthrax"} <= set(local_news.UNIVERSAL_DISEASE_TERMS)
+
+
+def test_query_url_stays_short_enough_for_google_news():
+    assert len(nw._global_gnews_url()) < 1500
+
+
+def test_fetch_passes_the_extended_terms_to_the_feed_reader():
+    with patch.object(nw, "fetch_local_feed", return_value=_feed(["Plague death in lab"])) as m:
+        nw.fetch_headlines()
+    assert {"plague", "anthrax"} <= set(m.call_args.args[4])
