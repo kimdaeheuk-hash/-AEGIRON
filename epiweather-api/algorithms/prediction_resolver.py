@@ -189,8 +189,11 @@ def _declarations() -> list[dict]:
 def resolve_due_predictions(today: dt.date | None = None) -> dict:
     """미해소 예측을 공식 선언과 대조해 채점한다.
 
-    반환: {"resolved": [...], "still_open": n, "checked": n}
+    반환: {"resolved": [...], "still_open": n, "checked": n,
+           "blind": 기한이 지났으나 정답 경로가 못 보고 있어 판정을 보류한 수, "blind_reasons": {사유: 수}}
     """
+    from algorithms.ground_truth_channel import blind_reason
+
     today = today or dt.date.today()
     horizon = _horizon_days()
     declarations = _declarations()
@@ -198,6 +201,8 @@ def resolve_due_predictions(today: dt.date | None = None) -> dict:
     resolved: list[dict] = []
     still_open = 0
     checked = 0
+    blind = 0
+    blind_reasons: dict[str, int] = {}
 
     for pred in db.list_predictions() or []:
         if pred.get("verified_at"):
@@ -278,7 +283,15 @@ def resolve_due_predictions(today: dt.date | None = None) -> dict:
             continue
 
         # ③ 기한이 지났는데 선언이 없었다 — 조용했다. 그것도 채점한다.
+        # ★ 단, 정답 경로가 그 기간을 보고 있었을 때만 ★ 눈이 먼 채 지나간 침묵은 '조용했다'가
+        # 아니라 '못 봤다'다 — 그걸 incorrect 로 세면 측정된 것처럼 보이는 적중률 0% 가 생긴다.
+        # 닫지 않고 열어 둔다(판정 안 함). 나중에 정답이 적재되면 ①이 다시 대조할 수 있다.
         if today > deadline:
+            reason = blind_reason(predicted, deadline)
+            if reason:
+                blind += 1
+                blind_reasons[reason] = blind_reasons.get(reason, 0) + 1
+                continue
             db.verify_prediction(
                 pred["id"],
                 actual_result=f"판정기한({horizon}일) 내 공식 선언 없음",
@@ -299,7 +312,8 @@ def resolve_due_predictions(today: dt.date | None = None) -> dict:
 
         still_open += 1
 
-    return {"resolved": resolved, "still_open": still_open, "checked": checked}
+    return {"resolved": resolved, "still_open": still_open, "checked": checked,
+            "blind": blind, "blind_reasons": blind_reasons}
 
 
 def lead_time_record() -> dict:

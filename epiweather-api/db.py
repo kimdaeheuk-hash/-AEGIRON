@@ -590,6 +590,20 @@ def get_timeline(event_id: str) -> dict:
         }
 
 
+def list_live_timeline_rows(source_types: tuple[str, ...]) -> list[dict]:
+    """실시간으로 적재된 정답 행(event_date·created_at). 손으로 적은 백필은 source_type 이 달라 빠진다."""
+    if not source_types:
+        return []
+    marks = ",".join("?" for _ in source_types)
+    with get_connection() as conn:
+        rows = conn.execute(
+            f"SELECT event_id, event_date, created_at, source_type FROM outbreak_timeline "
+            f"WHERE source_type IN ({marks})",
+            tuple(source_types),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
 def list_timeline_events() -> list[dict]:
     """진행 중인 발병 이벤트 목록 (event_id별 최신 마일스톤)."""
     with get_connection() as conn:

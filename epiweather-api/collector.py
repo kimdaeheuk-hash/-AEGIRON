@@ -1086,6 +1086,10 @@ def collect_free_sources() -> dict:
             # 빗나간 것도 말한다. 안 그러면 정밀도만 있는 성적표가 된다.
             log("  선행성 원장: 기한 내 선언 없음 %d건(오경보로 닫음)"
                 % outcome["closed_no_declaration"])
+        if outcome.get("blind"):
+            reasons = " / ".join(f"{k} {v}건" for k, v in sorted(outcome["blind_reasons"].items()))
+            log("  ⏸ 선행성 원장: 기한이 지났으나 정답 경로가 그 기간을 못 보고 있어 오경보로 닫지 "
+                "않음 %d건 — %s" % (outcome["blind"], reasons))
         record = ledger_record()
         log("  선행성 원장: 실측 %d건 · 오경보 %d건 · 추적 중 %d건"
             % (record["measured_events"], record["false_alarms"],
