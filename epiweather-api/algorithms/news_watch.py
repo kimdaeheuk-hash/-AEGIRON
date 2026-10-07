@@ -227,6 +227,53 @@ def _llm_json(prompt: str, url: str, model: str, api_key: str) -> tuple[dict, di
     return data, (payload.get("usage") or {})
 
 
+def latest_pulse(max_age_hours: float = 3.0, now: dt.datetime | None = None,
+                 log_file=None, tail_bytes: int = 3_000_000) -> dict | None:
+    """수집 기록(signals_log.jsonl)에서 **가장 최근의 NewsWatch 결과**. 없거나 오래됐으면 None.
+
+    브리핑이 읽는다. 네트워크를 부르지 않는다 — 수집 주기가 이미 남겨 둔 값을 읽을 뿐이다.
+    오래된 요약을 '지금'처럼 보이지 않게 `max_age_hours` 를 넘기면 None(= 섹션을 빼고 말없이 둔다).
+    파일 끝에서 `tail_bytes` 만 읽는다(기록은 수 MB 라 통째로 읽지 않는다).
+    """
+    import json
+    from pathlib import Path
+
+    from .signal_metrics import LOG_FILE
+
+    path = Path(log_file) if log_file else LOG_FILE
+    if not path.exists():
+        return None
+    now = now or dt.datetime.now()
+    with open(path, "rb") as f:
+        f.seek(0, 2)
+        size = f.tell()
+        f.seek(max(0, size - tail_bytes))
+        chunk = f.read().decode("utf-8", errors="ignore")
+    lines = chunk.splitlines()
+    if size > tail_bytes:
+        lines = lines[1:]                      # 잘린 첫 줄은 버린다
+    for line in reversed(lines):
+        try:
+            rec = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        pulse = rec.get("news_pulse") if isinstance(rec, dict) else None
+        if not isinstance(pulse, dict):
+            continue
+        try:
+            at = dt.datetime.fromisoformat(str(rec.get("timestamp")))
+        except ValueError:
+            return None
+        if at.tzinfo is not None:
+            at = at.replace(tzinfo=None)
+        if (now - at).total_seconds() > max_age_hours * 3600:
+            return None                        # 가장 최근 값도 낡았다 — 현재형으로 내놓지 않는다
+        if not pulse.get("has_new_signal") or not pulse.get("summary"):
+            return None
+        return {**pulse, "observed_at": at.isoformat()}
+    return None
+
+
 def fetch_news_pulse(api_key: str | None, groq_key: str | None = None) -> dict:
     """Google News RSS 검색 + LLM 요약 1건.
 

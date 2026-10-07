@@ -497,6 +497,21 @@ def collect_candidate_alerts(today: str, negative_space: dict | None = None) -> 
               f"{type(e).__name__}: {str(e)[:120]}", flush=True)
         _mark_undetermined(TRADE_SOURCE_PREFIX)
 
+    # 고위험 병원체 단건 보도(페스트·탄저·두창) — 카운트 지표로는 못 잡는 사건. medium 고정 구간이고
+    # 폰을 울리지 않는다. 조회가 실패하면 '없다'가 아니라 '모른다' — 이 계열 행을 내리지 않는다.
+    try:
+        from algorithms.pathogen_sentinel import SOURCE_PREFIX as SENTINEL_PREFIX
+        from algorithms.pathogen_sentinel import candidates as sentinel_candidates, fetch_titles
+        titles = fetch_titles()
+        found = [c for c in sentinel_candidates(titles) if c["score"] >= CANDIDATE_FLOOR]
+        candidates.extend(found)
+        print(f"  📰 고위험 병원체 보도: 제목 {len(titles)}건 조회 → 후보 {len(found)}개"
+              + (f" [{' · '.join(c['label'] for c in found)}]" if found else ""), flush=True)
+    except Exception as e:
+        print(f"  ⚠️ [alerts] 고위험 병원체 보도 수집 실패 — 나머지 경보는 계속: "
+              f"{type(e).__name__}: {str(e)[:120]}", flush=True)
+        _mark_undetermined("headline:")
+
     return candidates
 
 
