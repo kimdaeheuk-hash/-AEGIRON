@@ -30,6 +30,7 @@ provider_status는 nim_configured=true를 보고했다 — 설정은 됐지만 �
 """
 from __future__ import annotations
 import os
+import re
 
 # 로컬(자체) 모델 경로. 설정돼 있고 로딩 가능하면 자체 모델 사용.
 LOCAL_MODEL_PATH_ENV = "AEGIRON_LOCAL_MODEL"
@@ -156,7 +157,8 @@ def nim_raw_detailed(text: str, conf: dict) -> tuple[str | None, str | None]:
             timeout=NIM_TIMEOUT_SEC,
         )
         resp.raise_for_status()
-        content = resp.json()["choices"][0]["message"]["content"]
+        choice = resp.json()["choices"][0]
+        content = choice["message"]["content"]
     except Exception as e:
         # 실패해도 None을 돌려 폴백시키되(기존 동작), '시도했고 실패했다'는
         # 사실은 남긴다. 이게 없으면 NIM이 매번 죽는데도 상태 필드는 계속
@@ -169,8 +171,35 @@ def nim_raw_detailed(text: str, conf: dict) -> tuple[str | None, str | None]:
         # 확정할 방법이 로그에 없었다 — 본문이 장부로만 갔기 때문이다.
         # 이제 NVIDIA 가 본문에 적어 보내는 사유가 요약 줄에 같이 실린다.
         return None, reason_with_detail(e)
+    # ★ HTTP 200 이어도 쓸 본문이 없으면 성공이 아니다 (2026-10-07) ★
+    # 10-01~06 매 슬롯 `nvidia_nim_hosted: 실패×5` 에 사유가 한 줄도 없었다. 예외는
+    # 위에서 반드시 종류를 달고 나가므로, 사유 없는 실패는 "200 인데 content 가
+    # null" 한 길뿐이다. 그 길이 아래 줄에서 ok=True 로 장부에 적혀, 장부는 NIM 이
+    # 멀쩡하다고 말하는 중이었다 — 전멸을 성공으로 기록한 것이다.
+    if not isinstance(content, str) or not content.strip():
+        reason = _empty_content_reason(choice, content)
+        _nvidia.record_layer_call("text", conf["base_url"], ok=False, error=reason)
+        return None, reason
     _nvidia.record_layer_call("text", conf["base_url"], ok=True)
     return content, None
+
+
+_SAFE_TOKEN = re.compile(r"^[A-Za-z0-9_.-]{1,32}$")
+
+
+def _empty_content_reason(choice: dict, content) -> str:
+    """본문 없는 200 응답의 사유. **응답의 모양만** 싣는다 — finish_reason 과
+    message 의 키 이름. 본문·URL·헤더는 안 싣는다(#28 판단 유지).
+
+    왜 이 둘인가: finish_reason=length 이면 토큰 한도(max_tokens)에 걸려 본문 전에
+    잘린 것이고, `reasoning_content` 같은 키가 content 대신 채워져 있으면 추론형
+    모델이 본문을 다른 칸에 둔 것이다. 처방이 전혀 다르다(한도 상향 / 모델 교체)."""
+    finish = choice.get("finish_reason") if isinstance(choice, dict) else None
+    finish = finish if isinstance(finish, str) and _SAFE_TOKEN.match(finish) else "없음"
+    message = choice.get("message") if isinstance(choice, dict) else None
+    keys = sorted(k for k in (message or {}) if isinstance(k, str) and _SAFE_TOKEN.match(k))
+    kind = "null" if content is None else "빈문자열"
+    return f"빈응답(content={kind}, finish_reason={finish}, 응답키={'·'.join(keys) or '없음'})"
 
 
 def nim_raw(text: str, conf: dict) -> str | None:
