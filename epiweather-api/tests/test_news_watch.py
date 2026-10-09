@@ -204,28 +204,26 @@ def test_query_is_global_and_recent():
     assert "outbreak" in url
 
 
-# ── 고위험 병원체 검색어 (2026-10-07) ─────────────────────────────────
+# ── 고위험 병원체는 NewsWatch 가 아니라 pathogen_sentinel 이 전담한다 (2026-10-09) ──────
 
-def test_high_consequence_pathogens_are_in_the_global_query():
-    """이르쿠츠크 페스트 연구소 사건(10-02)을 사흘 늦게야 언급했다 — 검색어에 `plague` 가 없었다."""
+def test_pathogen_terms_stay_out_of_the_general_digest_query():
+    """#64 가 `plague`·`anthrax` 를 넣자 상위 제목을 페스트 중복 보도가 채워 요약이 16주기 중 13주기
+    `새 신호 없음`이 됐다. 전용 질의(pathogen_sentinel)가 있으니 일반 요약 질의에는 넣지 않는다."""
     import urllib.parse
-    assert {"plague", "anthrax"} <= set(nw.GLOBAL_TERMS)
+    assert not ({"plague", "anthrax"} & set(nw.GLOBAL_TERMS))
     url = urllib.parse.unquote(nw._global_gnews_url())
-    assert " OR plague" in url or "plague OR" in url
-    assert "anthrax" in url
+    assert "plague" not in url and "anthrax" not in url
 
 
-def test_pathogen_terms_are_known_to_the_hit_counter():
-    """같은 목록이 키워드 히트 집계에도 쓰인다 — 질의에만 넣고 세지 못하면 헛일이다."""
-    from algorithms import local_news
-    assert {"plague", "anthrax"} <= set(local_news.UNIVERSAL_DISEASE_TERMS)
+def test_the_tavily_fallback_query_keeps_pathogens_out_too():
+    """Google 이 막혀 Tavily 로 넘어가도 같은 이유(상위 제목을 페스트 보도가 채움)가 그대로 적용된다."""
+    assert "plague" not in nw.FALLBACK_QUERY and "anthrax" not in nw.FALLBACK_QUERY
+
+
+def test_the_sentinel_owns_the_pathogen_query():
+    from algorithms import pathogen_sentinel as ps
+    assert {"plague", "anthrax"} <= set(ps.QUERY_TERMS)
 
 
 def test_query_url_stays_short_enough_for_google_news():
     assert len(nw._global_gnews_url()) < 1500
-
-
-def test_fetch_passes_the_extended_terms_to_the_feed_reader():
-    with patch.object(nw, "fetch_local_feed", return_value=_feed(["Plague death in lab"])) as m:
-        nw.fetch_headlines()
-    assert {"plague", "anthrax"} <= set(m.call_args.args[4])

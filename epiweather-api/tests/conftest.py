@@ -129,7 +129,9 @@ def _no_real_sleep_in_trade_scan(monkeypatch):
 def _no_real_network_in_pathogen_sentinel(monkeypatch):
     from algorithms import pathogen_sentinel
     pathogen_sentinel._CACHE.update(at=0.0, titles=None)
+    pathogen_sentinel._FAIL.update(at=0.0, err=None)
     monkeypatch.setattr(pathogen_sentinel, "fetch_local_feed",
                         lambda *a, **k: {"status": "ok", "_all_titles": []})
     yield
     pathogen_sentinel._CACHE.update(at=0.0, titles=None)
+    pathogen_sentinel._FAIL.update(at=0.0, err=None)

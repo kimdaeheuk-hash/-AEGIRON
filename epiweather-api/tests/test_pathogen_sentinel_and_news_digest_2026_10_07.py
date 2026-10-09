@@ -160,12 +160,14 @@ def test_fetch_failure_holds_the_row_instead_of_retiring_it(isolated_db, monkeyp
         monkeypatch.setattr(ps, "fetch_local_feed", _feed(IRKUTSK))
         refresh_alerts("2026-10-07")
         ps._CACHE.update(at=0.0, titles=None)
+        ps._FAIL.update(at=0.0, err=None)
         monkeypatch.setattr(ps, "fetch_local_feed", lambda *a, **k: {"status": "error", "error": "503"})
         result = refresh_alerts("2026-10-07")
         assert [r["source"] for r in result["undetermined"]] == ["headline:plague"]
         assert db.list_alerts("2026-10-07")[0].get("suppressed") in (0, None, False)
         # 대조군 — 조회가 성공했는데 제목이 없으면 그때는 내려간다
         ps._CACHE.update(at=0.0, titles=None)
+        ps._FAIL.update(at=0.0, err=None)               # 쿨다운이 풀린 뒤의 조회
         monkeypatch.setattr(ps, "fetch_local_feed", _feed([]))
         result = refresh_alerts("2026-10-07")
         assert result["undetermined"] == []

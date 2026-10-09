@@ -37,6 +37,8 @@ USER_AGENT = {"User-Agent": "EpiWeather-DonIngest/1.0 (epiweather.kr)"}
 TIMEOUT = 20
 DON_URL = "https://www.who.int/api/news/diseaseoutbreaknews"
 PAGE_SIZE = 100
+SAMPLES_PER_REASON = 3
+SAMPLE_CHARS = 90
 
 MILESTONE = "who_statement"
 SOURCE_TYPE = "who_don"
@@ -60,14 +62,41 @@ def _first(item: dict, keys: tuple[str, ...]):
     return None
 
 
+# 제목 앞의 군더더기("Disease Outbreak News: " 같은) — 질병 이름에 섞이지 않게 뗀다.
+_PREFIX = re.compile(r"^\s*(?:disease outbreak news|don)\s*[:;\-–—]\s*", re.I)
+# "Outbreak of cholera in Angola" 의 "Outbreak of" — 질병명 앞 일반어.
+_LEAD = re.compile(r"^\s*(?:(?:an?\s+)?(?:outbreak|outbreaks|cases?|cluster|clusters|human cases?|confirmed cases?|"
+                   r"detection|emergence|spread)\s+(?:of|in)\s+)+", re.I)
+
+
 def split_title(title: str | None) -> tuple[str, str] | None:
     """`질병 – 국가` 제목을 (질병, 국가 문구)로. 구분자가 없으면 None — 추측하지 않는다."""
-    parts = _SEPARATOR.split((title or "").strip())
+    parts = _SEPARATOR.split(_PREFIX.sub("", (title or "").strip()))
     if len(parts) < 2:
         return None
     disease = " ".join(parts[:-1]).strip()
     place = parts[-1].strip()
     return (disease, place) if disease and place else None
+
+
+def title_options(title: str | None) -> list[tuple[str, str]]:
+    """제목에서 (질병, 국가 문구) 후보를 **믿을 만한 순서**로. 여기선 추측만 늘어놓고,
+    실제로 쓸지는 호출부가 국가 문구가 **사전에서 나라로 읽히는지**로 가린다(읽히지 않으면 버린다).
+
+    형식: ① `질병 – 국가`(구분자) ② `… in 국가` ③ `질병, 국가`.
+    """
+    text = _PREFIX.sub("", (title or "").strip())
+    out: list[tuple[str, str]] = []
+    first = split_title(text)
+    if first:
+        out.append(first)
+    head, sep, tail = text.rpartition(" in ")
+    if sep and head.strip() and tail.strip():
+        out.append((_LEAD.sub("", head).strip() or head.strip(), tail.strip()))
+    head, sep, tail = text.rpartition(", ")
+    if sep and head.strip() and tail.strip():
+        out.append((head.strip(), tail.strip()))
+    return out
 
 
 def parse_items(payload: object, today: dt.date | None = None) -> dict:
@@ -81,9 +110,13 @@ def parse_items(payload: object, today: dt.date | None = None) -> dict:
         raise DonError(f"DON 응답에서 목록(value[])을 못 찾았다(형식 확인 필요): {str(payload)[:200]}")
 
     skipped: dict[str, int] = {}
+    samples: dict[str, list[str]] = {}
 
-    def skip(reason: str) -> None:
+    def skip(reason: str, title: str | None = None) -> None:
         skipped[reason] = skipped.get(reason, 0) + 1
+        # 못 읽은 제목의 예 — 어떤 형식을 못 읽는지는 제목을 봐야 안다(2026-10-09: 기간 안 54건 중 40건이 그랬다).
+        if title and len(samples.setdefault(reason, [])) < SAMPLES_PER_REASON:
+            samples[reason].append(str(title)[:SAMPLE_CHARS])
 
     cutoff = today - dt.timedelta(days=LOOKBACK_DAYS)
     declarations: list[dict] = []
@@ -91,21 +124,28 @@ def parse_items(payload: object, today: dt.date | None = None) -> dict:
         if not isinstance(item, dict):
             skip("항목 형식 아님")
             continue
-        split = split_title(_first(item, _TITLE_KEYS))
-        if split is None:
-            skip("제목 형식 모름")
+        raw_title = _first(item, _TITLE_KEYS)
+        options = title_options(raw_title)
+        if not options:
+            skip("제목 형식 모름", raw_title)
             continue
         when = _date(_first(item, _DATE_KEYS))
         if when is None:
-            skip("날짜 못 읽음")
+            skip("날짜 못 읽음", raw_title)
             continue
         if when < cutoff or when > today:
             skip("기간 밖")
             continue
-        disease, place = split
-        isos = resolve_countries(place)
+        # 후보 가운데 **국가 문구가 사전에서 나라로 읽히는 첫 번째**만 쓴다. 하나도 안 읽히면 추측하지 않는다.
+        disease = place = None
+        isos: list[str] = []
+        for d, p in options:
+            isos = resolve_countries(p)
+            if isos:
+                disease, place = d, p
+                break
         if not isos:
-            skip("국가 못 읽음")
+            skip("국가 못 읽음", raw_title)
             continue
         for iso3 in isos:
             declarations.append({
@@ -117,7 +157,7 @@ def parse_items(payload: object, today: dt.date | None = None) -> dict:
             skipped.get("제목 형식 모름", 0) + skipped.get("날짜 못 읽음", 0) == len(items):
         raise DonError("DON 항목을 하나도 못 읽었다(제목·날짜 필드명 확인 필요): "
                        f"{str(items[0])[:200]}")
-    return {"declarations": declarations, "read": len(items), "skipped": skipped}
+    return {"declarations": declarations, "read": len(items), "skipped": skipped, "samples": samples}
 
 
 def _date(raw) -> dt.date | None:
@@ -162,7 +202,17 @@ def ingest_don(payload: object | None = None, today: dt.date | None = None) -> d
             SOURCE_TYPE,
         )
         added += 1
-    return {"등재": added, "이미있음": existing, "건너뜀": parsed["skipped"], "검토": parsed["read"]}
+    return {"등재": added, "이미있음": existing, "건너뜀": parsed["skipped"], "검토": parsed["read"],
+            "예시": parsed.get("samples") or {}}
+
+
+def samples_line(result: dict) -> str | None:
+    """못 읽은 제목의 예 한 줄. 없으면 None. 다음 파서 개선이 추측이 아니라 실제 제목을 보고 하게 한다."""
+    ex = result.get("예시") or {}
+    if not ex:
+        return None
+    return "WHO DON 못 읽은 제목 예: " + " · ".join(
+        f"{reason}[{' / '.join(titles)}]" for reason, titles in sorted(ex.items()))
 
 
 def summary(result: dict) -> str:
