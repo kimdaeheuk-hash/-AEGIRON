@@ -60,7 +60,7 @@ def test_polar_carries_the_watch_not_alert_caveat():
         }],
         "grade": "watch",
         "note": "이 층은 저확률·고충격 '관찰(watch)'이지 '경보(alert)'가 아니다.",
-        "disclaimer": "thaw_days는 기후 정상값 대비 이상이 아니라 해빙 활동 프록시.",
+        "disclaimer": "해빙일 수는 기후 정상값 대비 이상이 아니라 해빙 활동 프록시.",
     }
     with patch("algorithms.polar_signals.polar_watch_all", return_value=payload):
         sec = bs.build_polar_section("ko")
@@ -201,7 +201,7 @@ def test_every_section_carries_its_limits():
                      # 실제 프로덕션 문구를 그대로 쓴다 — 짧은 더미로는 이 테스트가 무의미하다
                      "note": "이 층은 저확률·고충격 '관찰(watch)'이지 '경보(alert)'가 아니다 "
                              "— 경보 파이프라인과 섞지 않는다.",
-                     "disclaimer": "thaw_days는 기후 정상값 대비 이상이 아니라 해빙 활동 프록시."}
+                     "disclaimer": "해빙일 수는 기후 정상값 대비 이상이 아니라 해빙 활동 프록시."}
     payload_forecast = {"score_7d": 58.0, "score_14d": 58.3, "tier_7d": "정상",
                         "tier_14d": "정상", "confidence": "medium", "top_alerts": []}
     payload_unexplained = {"alerts": [{"source": "x", "signal_date": "2026-08-12"}],
