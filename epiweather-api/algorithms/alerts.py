@@ -19,6 +19,7 @@ import datetime as dt
 import db
 from .gai import compute_gai
 from .negative_space import scan_negative_space
+from .country_resolve import resolve_country
 from .unexplained import scan_unexplained
 from .signal_metrics import (ALERT_MIN_COUNT, COUNT_MIN_SIGMA, cap_count_noise_score,
                              approx_baseline, count_significance, metric_unit,
@@ -190,7 +191,8 @@ def already_notified_line(result: dict) -> str | None:
     if not rows:
         return None
     parts = [
-        f"{r.get('tier')} {r.get('label')} {r.get('score')}점 [{r.get('source')}] ({r.get('origin')})"
+        f"{r.get('tier')} {r.get('label')} {r.get('score')}점 [{r.get('source')}] ({r.get('origin')}"
+        + (f" · 같은 나라 {r['same_country']} 로 이미 알림" if r.get("same_country") else "") + ")"
         for r in rows
     ]
     return f"🔕 재통보 안 함: {' · '.join(parts)}"
@@ -314,6 +316,65 @@ def notified_rank_of(rows: list[dict]) -> dict[str, int]:
     return out
 
 
+UNEXPLAINED_PREFIX = "unexplained:"
+
+
+def alert_group_key(source: str) -> str:
+    """같은 사건인데 **이름만 다른** 경보를 한 기준선으로 묶는 키. 묶을 근거가 없으면 source 그대로.
+
+    ★ 왜 필요한가 ★ (2026-10-09, 브리핑 검토에서 관측)
+
+    설명불가 경보의 키는 `unexplained:{위치 문자열}` 이고, 위치는 추출 모델이 자유 문장으로 쓴다.
+    같은 러시아 페스트 사건이 이렇게 두 번 기록됐다:
+
+        10-07  unexplained:Irkutsk, Russia      → critical 폰 1회
+        10-08  unexplained:러시아 시베리아        → critical 폰 1회   ← 새 경보로 보였다
+
+    기준선이 문자열 그대로라 이름이 바뀌면 '처음 보는 source' 가 된다. 둘 다 `resolve_country` 로
+    `RUS` 가 풀리므로, 풀리는 경우에만 `unexplained:@RUS` 로 묶는다.
+
+    ★ 묶지 않는 것 ★ 국가가 안 풀리는 위치(`시베리아`·`이르쿠츠크` 단독)는 **그대로 둔다** — 모르는 것을
+    같다고 추측하지 않는다. 그 경우 이름이 바뀌면 지금처럼 다시 울린다(놓침보다 중복 쪽 실패를 택한 것이다).
+
+    ★ 알려진 한계 ★ (1) 여러 나라가 적힌 위치는 **먼저 나온 나라** 하나로 묶는다(`resolve_country`
+    규칙). (2) 같은 나라의 서로 다른 사건도 한 기준선을 쓴다 — 행은 따로 남고 화면에는 그대로 뜨지만
+    폰은 기준선 안(오늘+어제)에서 한 번만 울린다. (3) `resolve_country` 가 `New Mexico` 를 `MEX` 로
+    푼다(미국 주가 멕시코로) — 그 리졸버의 기존 한계이고 여기서 고치지 않았다.
+    """
+    if source.startswith(UNEXPLAINED_PREFIX):
+        iso = resolve_country(source[len(UNEXPLAINED_PREFIX):])
+        if iso:
+            return f"{UNEXPLAINED_PREFIX}@{iso}"
+    return source
+
+
+def rank_for(source: str, ranks: dict[str, int]) -> int:
+    """기준선에서 이 source 의 등급 — **정확히 같은 키**와 **같은 사건 묶음 키** 중 높은 쪽.
+
+    둘 다 보는 이유: 묶음 키 없이 손으로 만든 기준선(옛 호출자·시험)도 그대로 동작해야 한다."""
+    return max(ranks.get(source, -1), ranks.get(alert_group_key(source), -1))
+
+
+def matched_country(source: str, tier: str, ranks: dict[str, int]) -> str | None:
+    """정확히 같은 키로는 기준선에 못 걸렸고 **같은 나라 묶음으로만** 걸렸으면 그 나라(ISO3), 아니면 None."""
+    if ranks.get(source, -1) >= TIER_RANK.get(tier, 0):
+        return None
+    group = alert_group_key(source)
+    if group == source or "@" not in group:
+        return None
+    return group.split("@", 1)[1] if ranks.get(group, -1) >= TIER_RANK.get(tier, 0) else None
+
+
+def _with_group_keys(ranks: dict[str, int]) -> dict[str, int]:
+    """기준선에 묶음 키를 **덧붙인다**(원래 키는 그대로 둔다)."""
+    out = dict(ranks)
+    for source, rank in ranks.items():
+        group = alert_group_key(source)
+        if group != source and rank > out.get(group, -1):
+            out[group] = rank
+    return out
+
+
 def baseline_rank(today_rows: list[dict], yesterday_rows: list[dict],
                   channel_configured: bool) -> dict[str, int]:
     """'이미 알린 것'의 기준선 — 이보다 높은 등급이어야 다시 보낸다.
@@ -324,8 +385,10 @@ def baseline_rank(today_rows: list[dict], yesterday_rows: list[dict],
       없는 통보를 매 주기 만들고 브리프를 붙이느라 일만 한다(기록을 거짓으로 채우지는 않는다).
     """
     if channel_configured:
-        return merge_seen_rank(notified_rank_of(today_rows), notified_rank_of(yesterday_rows))
-    return merge_seen_rank(seen_rank_today(today_rows), carried_rank_from_yesterday(yesterday_rows))
+        merged = merge_seen_rank(notified_rank_of(today_rows), notified_rank_of(yesterday_rows))
+    else:
+        merged = merge_seen_rank(seen_rank_today(today_rows), carried_rank_from_yesterday(yesterday_rows))
+    return _with_group_keys(merged)
 
 
 def merge_seen_rank(today_rank: dict[str, int], carried: dict[str, int]) -> dict[str, int]:
@@ -358,7 +421,7 @@ def escalated(source: str, tier: str, seen_rank: dict[str, int]) -> bool:
         critical → high (완화)        → 안 보낸다 — 나아진 것은 새 소식이 아니다
         high → critical (악화)        → 보낸다
     """
-    return TIER_RANK.get(tier, 0) > seen_rank.get(source, -1)
+    return TIER_RANK.get(tier, 0) > rank_for(source, seen_rank)
 
 
 def collect_candidate_alerts(today: str, negative_space: dict | None = None) -> list[dict]:
@@ -617,8 +680,11 @@ def refresh_alerts(today: str | None = None) -> dict:
     # 알려서인지, 어제 알려서(이월)인지 가를 수 없다. 날짜 경계 관측(00:01)이 이 구분에 달려 있다.
     already_notified = [
         {"label": r["label"], "tier": r["tier"], "score": r["score"], "source": r["source"],
-         "origin": ("오늘" if seen_today_only.get(r["source"], -1) >= TIER_RANK[r["tier"]]
-                    else "어제 이월")}
+         "origin": ("오늘" if rank_for(r["source"], seen_today_only) >= TIER_RANK[r["tier"]]
+                    else "어제 이월"),
+         # 이름이 달라서 정확히 같은 키로는 안 걸렸고 같은 나라 묶음으로 걸렸을 때만 그 나라를 적는다.
+         # 안 적으면 '같은 경보라서 안 보냈다'와 '같은 나라라서 안 보냈다'를 로그로 못 가른다.
+         "same_country": matched_country(r["source"], r["tier"], seen_rank)}
         for r in visible_rows
         if r["tier"] in ("critical", "high") and not escalated(r["source"], r["tier"], seen_rank)
     ]
