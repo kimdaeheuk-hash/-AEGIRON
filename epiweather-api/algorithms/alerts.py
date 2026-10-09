@@ -502,10 +502,21 @@ def collect_candidate_alerts(today: str, negative_space: dict | None = None) -> 
     try:
         from algorithms.pathogen_sentinel import SOURCE_PREFIX as SENTINEL_PREFIX
         from algorithms.pathogen_sentinel import candidates as sentinel_candidates, fetch_titles
+        from algorithms.pathogen_sentinel import GOOGLE as SENTINEL_GOOGLE, last_provider
         titles = fetch_titles()
-        found = [c for c in sentinel_candidates(titles) if c["score"] >= CANDIDATE_FLOOR]
+        provider = last_provider()
+        found = [c for c in sentinel_candidates(titles, provider=provider) if c["score"] >= CANDIDATE_FLOOR]
         candidates.extend(found)
-        print(f"  📰 고위험 병원체 보도: 제목 {len(titles)}건 조회 → 후보 {len(found)}개"
+        # ★ 대체 공급자(Tavily)가 답한 주기의 '없음'은 '모름'이다 ★ (2026-10-09)
+        # 대체 경로는 관련도 순 상위 일부라 최근 1일을 빠짐없이 주지 않는다. 거기서 후보가 안 나왔다고
+        # 이미 올라 있던 행을 내리면, Google 이 막힌 시간마다 경보가 깜빡인다(올랐다 내렸다).
+        # 후보가 나온 행은 그대로 올리고(additive), 안 나온 행만 내리지 않고 `판정 안 함`으로 둔다.
+        if provider != SENTINEL_GOOGLE:
+            _mark_undetermined("headline:")
+        print(f"  📰 고위험 병원체 보도: 제목 {len(titles)}건 조회"
+              + ("" if provider == SENTINEL_GOOGLE
+                 else f"({provider} 대체 — Google 막힘·없는 행은 내리지 않음)")
+              + f" → 후보 {len(found)}개"
               + (f" [{' · '.join(c['label'] for c in found)}]" if found else ""), flush=True)
     except Exception as e:
         print(f"  ⚠️ [alerts] 고위험 병원체 보도 수집 실패 — 나머지 경보는 계속: "
