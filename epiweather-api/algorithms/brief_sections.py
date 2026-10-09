@@ -328,6 +328,36 @@ _FORECAST_HONESTY = {
 }
 
 
+# ★ AI 가 뽑은 사람 수는 그렇다고 말한다 ★ (2026-10-09)
+# `africa_cdc_confirmed`·`africa_cdc_deaths` 는 웹 검색 결과 문장에서 AI 가 뽑은 값이다
+# (signal_metrics 의 카테고리 `ai_extracted`). 그런데 코드 스스로 "누적값인지 주간값인지
+# 확인하지 않았다"(negative_space.py)고 적어둔 지표다. 브리핑은 사람 숫자를 맨 앞에 세우고
+# 폰은 거기에 "명" 을 붙이므로, 고지가 없으면 `확진 8,625명 → 14일 후 7,961명` 이 **줄어드는
+# 사람 수**처럼 읽힌다. 누적이라면 그건 말이 안 되고, 주간이라면 기간이 빠졌다.
+_FORECAST_AI_COUNT_NOTE = {
+    "ko": "이 가운데 사람 수 지표는 웹 검색 결과 문장에서 AI가 뽑은 값이며, 누적 수치인지 "
+          "주간 수치인지 확인하지 않았습니다. 줄어드는 외삽이 나와도 상황이 나아진다는 뜻이 아닙니다.",
+    "en": "The people-count metrics here are figures an AI extracted from web-search text; "
+          "we have not verified whether they are cumulative or weekly. A falling "
+          "extrapolation does not mean the situation is improving.",
+    "fr": "Les indicateurs de personnes ici sont des chiffres extraits par une IA à partir de "
+          "textes de recherche web ; nous n’avons pas vérifié s’ils sont cumulés ou "
+          "hebdomadaires. Une extrapolation à la baisse ne signifie pas que la situation "
+          "s’améliore.",
+}
+
+
+def _is_ai_extracted(metric: str | None) -> bool:
+    """지표가 AI 추출값인가 — 신뢰도 카테고리 표(signal_metrics.LAYERS)가 유일한 출처다.
+    여기에 이름을 손으로 적지 않는다: 카테고리가 바뀌면 고지도 같이 바뀌어야 한다."""
+    from .signal_metrics import LAYERS
+    for layer in LAYERS.values():
+        for entry in layer["metrics"]:
+            if entry[0] == metric:
+                return entry[3] == "ai_extracted"
+    return False
+
+
 def build_forecast_section(lang: str = "ko") -> dict | None:
     """7·14일 예보 + **사람 수가 실린 지표**를 앞세운다.
 
@@ -360,7 +390,14 @@ def build_forecast_section(lang: str = "ko") -> dict | None:
             "in_7d": f7.get("val"),
             "in_14d": f14.get("val"),
             "counts_people": any(w in str(a.get("metric", "")) for w in human_first),
+            # 기계가 읽는 표시 — 화면·폰이 숫자 옆에 출처 성격을 붙일 수 있게.
+            "ai_extracted": _is_ai_extracted(a.get("metric")),
         })
+
+    honesty = _pick(_FORECAST_HONESTY, lang)
+    # 사람 수로 읽히는 행 중 AI 추출값이 하나라도 있으면 고지를 붙인다.
+    if any(r["counts_people"] and r["ai_extracted"] for r in rows):
+        honesty += " " + _pick(_FORECAST_AI_COUNT_NOTE, lang)
 
     return {
         "id": "forecast",
@@ -371,7 +408,7 @@ def build_forecast_section(lang: str = "ko") -> dict | None:
             conf=data.get("confidence")),
         "why": None,
         "rows": rows,
-        "honesty": _pick(_FORECAST_HONESTY, lang),
+        "honesty": honesty,
         "score_model": data.get("score_model"),
     }
 
@@ -385,6 +422,29 @@ _UNEXPLAINED_LEAD = {
     "ko": "알려진 질병 어느 것과도 맞지 않는 신호 {k}건이 추적 중입니다.",
     "en": "{k} signals under watch match no known disease pattern.",
     "fr": "{k} signaux suivis ne correspondent à aucune maladie connue.",
+}
+
+
+# ★ API 의 `caveat` 는 개발자 문구다 ★ (2026-10-09) `known_disease`·`source='unexplained_cluster'`·
+# `alerts.py` 가 그대로 들어 있어서, 브리핑이 그걸 `honesty` 로 실으면 읽는 사람에게는 암호가 된다.
+# 담긴 사실 셋은 그대로 옮긴다: (1) 병원 방문은 못 잰다 (2) 판정은 AI 의 판단이다 (3) 능동 검색
+# 출처만 즉시경보가 되고 나머지는 오탐 가능성이 더 높다. API 응답의 `caveat` 는 건드리지 않는다.
+_UNEXPLAINED_HONESTY = {
+    "ko": "병원 방문이 늘었는지는 증후군 감시 데이터가 연결돼 있지 않아 확인하지 못합니다. "
+          "이 신호는 AI가 '알려진 질병과 맞지 않는다'고 판단한 결과이며 의료기관의 확인이 아닙니다. "
+          "능동 검색으로 잡힌 신호만 즉시경보로 올리고, 그 밖의 출처는 질병 묘사가 아닌 일반 동향 "
+          "요약일 수 있어 오탐 가능성이 더 높습니다.",
+    "en": "We cannot tell whether hospital visits are rising: no syndromic-surveillance data is "
+          "connected. These signals are an AI’s judgment that something matches no known "
+          "disease — not a clinical confirmation. Only signals found by active search trigger "
+          "an immediate alert; other sources may be general trend summaries, so false "
+          "positives are more likely.",
+    "fr": "Nous ne pouvons pas savoir si les consultations hospitalières augmentent : aucune "
+          "donnée de surveillance syndromique n’est connectée. Ces signaux sont le jugement "
+          "d’une IA selon lequel quelque chose ne correspond à aucune maladie connue — pas "
+          "une confirmation clinique. Seuls les signaux trouvés par recherche active "
+          "déclenchent une alerte immédiate ; les autres sources peuvent être des synthèses "
+          "générales, d’où un risque plus élevé de faux positifs.",
 }
 
 
@@ -419,7 +479,7 @@ def build_unexplained_section(lang: str = "ko", limit: int = 4) -> dict | None:
         "lead": _pick(_UNEXPLAINED_LEAD, lang).format(k=len(alerts)),
         "why": None,
         "rows": rows,
-        "honesty": data.get("caveat"),
+        "honesty": _pick(_UNEXPLAINED_HONESTY, lang),
     }
 
 
@@ -589,6 +649,11 @@ def build_news_pulse_section(lang: str = "ko") -> dict | None:
     if not pulse:
         return None
     urgency = pulse.get("urgency")
+    # ★ 출처를 하드코딩하지 않는다 ★ (2026-10-09) Google 이 막혀 Tavily 대체 검색이 답한 요약에
+    # "Google News RSS" 를 붙이면 출처가 거짓이 된다. `source` 의 접두가 답한 공급자다.
+    src = str(pulse.get("source") or "")
+    origin = ("Tavily 뉴스 검색(Google News 막힘 — 대체 경로, 상위 일부)"
+              if src.startswith("tavily_news") else "Google News RSS")
     return {
         "id": "news_pulse",
         "icon": "📰",
@@ -598,7 +663,7 @@ def build_news_pulse_section(lang: str = "ko") -> dict | None:
         "rows": [{"disease": d} for d in (pulse.get("diseases") or []) if isinstance(d, str)],
         "grade": "watch",
         "honesty": _pick(_NP_HONESTY, lang),
-        "data_source": f"Google News RSS 제목 {pulse.get('headline_count')}건 + {pulse.get('source')} "
+        "data_source": f"{origin} 제목 {pulse.get('headline_count')}건 + {src} "
                        f"(관측 {pulse.get('observed_at')})",
     }
 

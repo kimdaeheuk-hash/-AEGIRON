@@ -46,6 +46,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import os
 import urllib.parse
 
 import requests
@@ -55,6 +56,7 @@ from .cerebras_classify import (
     WORST_CHARS_PER_TOKEN,
 )
 from .local_news import fetch_local_feed
+from .news_fallback import NewsFallbackError, tavily_headlines
 
 # 전 세계 영어권 대상 질의. 국가별 현지어 피드(local_news)가 이미 179개 돌고
 # 있으므로, 이 층은 그 그물에 안 걸리는 **전 지구 규모 보도**를 노린다.
@@ -69,6 +71,14 @@ GLOBAL_TERMS = [
     # 그래서 이 보강은 '더 빨리 언급된다' 이지 '경보가 된다' 가 아니다. 연결은 별도 결정이다.
     "plague", "anthrax",
 ]
+# Google 이 막혔을 때만 쓰는 Tavily 대체 질의(2026-10-09). Google 연산자(OR·when:)는 평문에서 의미가 없다.
+FALLBACK_QUERY = "disease outbreak epidemic ebola cholera dengue mpox measles bird flu H5N1 marburg plague anthrax"
+FALLBACK_KEY_ENV = "TAVILY_API_KEY"
+GOOGLE_NEWS, TAVILY_NEWS = "google_news", "tavily_news"
+# 가장 최근 `fetch_headlines()` 에 답한 공급자. `fetch_news_pulse` 가 `source` 에 싣는다 —
+# 폴백이 조용히 도는 걸 막는다(모델 폴백이 `source` 에 이름을 남기는 것과 같은 이유).
+_STATE: dict = {"provider": GOOGLE_NEWS}
+
 # `when:1d` 는 Google News 검색 연산자(최근 1일). 혹시 무시되더라도 RSS 자체가
 # 최신순이라 조용히 나빠질 뿐 깨지지는 않는다 — 대조 주기에 결과 개수로 확인한다.
 RECENCY = "when:1d"
@@ -130,12 +140,7 @@ def _global_gnews_url() -> str:
     return f"https://news.google.com/rss/search?q={q}&hl=en-US&gl=US&ceid=US:en"
 
 
-def fetch_headlines() -> list[str]:
-    """전 지구 규모 검색 결과 제목. 실패하면 종류를 담아 올린다.
-
-    RSS 파싱은 `local_news.fetch_local_feed` 를 그대로 쓴다 — CDATA 처리까지
-    이미 179개 피드로 검증된 코드다. 여기서 다시 짜면 같은 버그를 새로 만든다.
-    """
+def _fetch_headlines_google() -> list[str]:
     feed = fetch_local_feed(
         "global_watch", "en", "global", _global_gnews_url(), GLOBAL_TERMS
     )
@@ -148,10 +153,33 @@ def fetch_headlines() -> list[str]:
     # 안 버리면 검색어가 기사 제목 자리에 실린다. 2026-08-26 에 브리핑에서 실제로
     # 그럴 뻔했다 — `"сибирская язва OR падёж оленей OR…"` 가 헤드라인이 될 뻔했다.
     # RSS 채널 제목은 `"<질의>" - Google News` 꼴이라 그 둘 중 하나로 걸러낸다.
-    titles = [
-        t for t in titles
-        if "Google News" not in t and " OR " not in t
-    ]
+    return [t for t in titles if "Google News" not in t and " OR " not in t]
+
+
+def fetch_headlines() -> list[str]:
+    """전 지구 규모 검색 결과 제목. 실패하면 종류를 담아 올린다.
+
+    RSS 파싱은 `local_news.fetch_local_feed` 를 그대로 쓴다 — CDATA 처리까지
+    이미 179개 피드로 검증된 코드다. 여기서 다시 짜면 같은 버그를 새로 만든다.
+
+    Google 이 실패하면 Tavily 로 한 번 넘어간다(`TAVILY_API_KEY` 가 있을 때, 2026-10-09 —
+    10-08 15:00 UTC 부터 Google 503 으로 이 층이 9주기 연속 `중단` 이었다). 누가 답했는지는
+    `_STATE["provider"]` → `fetch_news_pulse` 의 `source` 가 남긴다. 이 층은 경보 점수에 연결돼
+    있지 않아(위 GLOBAL_TERMS 주석) 대체 경로가 더 얕아도 거짓 경보로 번지지 않는다.
+    """
+    _STATE["provider"] = GOOGLE_NEWS
+    try:
+        titles = _fetch_headlines_google()
+    except NewsWatchError as google_err:
+        key = os.environ.get(FALLBACK_KEY_ENV)
+        if not key:
+            raise NewsWatchError(f"{google_err} · 대체 공급자 없음({FALLBACK_KEY_ENV} 미설정)") from google_err
+        try:
+            titles = tavily_headlines(FALLBACK_QUERY, key)
+        except NewsFallbackError as fb_err:
+            g = str(google_err).removeprefix("Google News RSS 수집 실패: ")[:40]
+            raise NewsWatchError(f"Google News RSS 수집 실패: {g} · 대체 {fb_err}") from fb_err
+        _STATE["provider"] = TAVILY_NEWS
     return [t[:MAX_TITLE_CHARS] for t in titles[:MAX_HEADLINES]]
 
 
@@ -283,7 +311,9 @@ def fetch_news_pulse(api_key: str | None, groq_key: str | None = None) -> dict:
 
     실패하면 **예외를 올린다.** None 을 돌려주지 않는다(2026-08-25 교훈).
     """
+    _STATE["provider"] = GOOGLE_NEWS      # fetch_headlines 가 대체로 넘어가면 거기서 바꾼다
     headlines = fetch_headlines()
+    headline_provider = _STATE["provider"]
     if not headlines:
         # 제목이 0개인 것은 '고장' 이 아니라 '이번엔 걸린 게 없음' 일 수 있다.
         # 다만 구분이 안 되면 안 되므로 headline_count 로 드러낸다.
@@ -291,7 +321,7 @@ def fetch_news_pulse(api_key: str | None, groq_key: str | None = None) -> dict:
             "has_new_signal": False, "summary": None, "diseases": [], "urgency": None,
             "tokens_used": None, "tokens_prompt": None,
             # LLM 을 아예 안 불렀으니 모델 이름을 붙이지 않는다.
-            "headline_count": 0, "headlines_found": 0, "source": "google_news",
+            "headline_count": 0, "headlines_found": 0, "source": headline_provider,
         }
 
     today = dt.date.today().isoformat()
@@ -361,5 +391,5 @@ def fetch_news_pulse(api_key: str | None, groq_key: str | None = None) -> dict:
         "headline_count": len(used_headlines),
         "headlines_found": len(headlines),
         # 어느 모델이 답했는지 남긴다 — 폴백이 조용히 도는 걸 막는다.
-        "source": f"google_news+{provider}",
+        "source": f"{headline_provider}+{provider}",
     }
