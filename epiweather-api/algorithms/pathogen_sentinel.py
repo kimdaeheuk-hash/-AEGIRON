@@ -74,6 +74,11 @@ FALLBACK_KEY_ENV = "TAVILY_API_KEY"
 GOOGLE, TAVILY = "google", "tavily"
 
 _CACHE: dict = {"at": 0.0, "titles": None, "provider": GOOGLE}
+# 공급자 **둘 다** 실패했을 때의 쿨다운 — 10-08 22시대에는 5분 사이 네 번(22:03 · 22:03 · 22:05 · 22:07) 같은 실패를
+# 다시 불렀다(수동 호출·갱신이 겹침). 막힌 쪽을 두드릴수록 풀리는 데 오래 걸릴 수 있어, 쿨다운 안에는 같은
+# 사유를 그대로 올린다(네트워크 호출 없음).
+FAIL_COOLDOWN_SEC = 5 * 60
+_FAIL: dict = {"at": 0.0, "err": None}
 
 
 class SentinelError(RuntimeError):
@@ -104,20 +109,27 @@ def fetch_titles(now: float | None = None) -> list[str]:
     now = time.time() if now is None else now
     if _CACHE["titles"] is not None and now - _CACHE["at"] < CACHE_TTL_SEC:
         return _CACHE["titles"]
+    if _FAIL["err"] is not None and 0 <= now - _FAIL["at"] < FAIL_COOLDOWN_SEC:
+        raise SentinelError(f"{_FAIL['err']} (쿨다운 {FAIL_COOLDOWN_SEC // 60}분 — 재호출 안 함)")
     provider = GOOGLE
     try:
-        titles = _fetch_google()
-    except SentinelError as google_err:
-        key = os.environ.get(FALLBACK_KEY_ENV)
-        if not key:
-            raise SentinelError(f"{google_err} · 대체 공급자 없음({FALLBACK_KEY_ENV} 미설정)") from google_err
         try:
-            titles = [html.unescape(t) for t in tavily_headlines(FALLBACK_QUERY, key)]
-        except NewsFallbackError as fb_err:
-            g = str(google_err).removeprefix("Google News RSS 수집 실패: ")[:40]
-            raise SentinelError(f"Google News RSS 수집 실패: {g} · 대체 {fb_err}") from fb_err
-        provider = TAVILY
+            titles = _fetch_google()
+        except SentinelError as google_err:
+            key = os.environ.get(FALLBACK_KEY_ENV)
+            if not key:
+                raise SentinelError(f"{google_err} · 대체 공급자 없음({FALLBACK_KEY_ENV} 미설정)") from google_err
+            try:
+                titles = [html.unescape(t) for t in tavily_headlines(FALLBACK_QUERY, key)]
+            except NewsFallbackError as fb_err:
+                g = str(google_err).removeprefix("Google News RSS 수집 실패: ")[:40]
+                raise SentinelError(f"Google News RSS 수집 실패: {g} · 대체 {fb_err}") from fb_err
+            provider = TAVILY
+    except SentinelError as e:
+        _FAIL.update(at=now, err=str(e))            # 둘 다 실패 — 쿨다운 동안 다시 안 부른다
+        raise
     _CACHE.update(at=now, titles=titles, provider=provider)
+    _FAIL.update(at=0.0, err=None)
     return titles
 
 

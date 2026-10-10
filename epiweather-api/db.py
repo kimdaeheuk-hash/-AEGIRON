@@ -446,6 +446,15 @@ def upsert_alert(
         conn.commit()
 
 
+def set_alert_evidence(alert_id: int, evidence: list[str]) -> None:
+    """근거 문구만 바꾼다. **updated_at 은 건드리지 않는다** — 그 값이 '마지막으로 실제 확인한 시각'이고,
+    판정 못 한 행에 낡음 표시를 붙이는 일이 그 시각을 새것처럼 만들면 안 된다."""
+    with get_connection() as conn:
+        conn.execute("UPDATE alerts SET evidence = ? WHERE id = ?",
+                     (json.dumps(evidence or [], ensure_ascii=False), int(alert_id)))
+        conn.commit()
+
+
 def set_suppressed(alert_ids: list[int], suppressed: bool) -> None:
     if not alert_ids:
         return

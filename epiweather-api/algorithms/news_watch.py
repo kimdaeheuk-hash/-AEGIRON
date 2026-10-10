@@ -63,16 +63,12 @@ from .news_fallback import NewsFallbackError, tavily_headlines
 GLOBAL_TERMS = [
     "outbreak", "epidemic", "disease outbreak", "ebola", "cholera",
     "dengue", "mpox", "measles", "bird flu", "H5N1", "marburg",
-    # ★ 고위험 병원체 (2026-10-07) ★ 이르쿠츠크 항페스트 연구소 연구원 사망(10-02 첫 보도)을
-    # 이 층은 사흘 뒤(10-05 01:02 UTC)에야 언급했다. 위 질의에 `plague` 가 없어서 일반어
-    # `outbreak` 에 우연히 걸린 것이다. 페스트·탄저는 사건 하나가 곧 뉴스가 되는 병원체라
-    # 카운트가 쌓이기를 기다리는 지표로는 못 잡는다. ⚠️ 이 층은 **경보 점수에 연결돼 있지 않다**
-    # (`news_pulse` 를 읽는 소비자가 없다 — `groq_pulse_urgency` 는 은퇴한 `groq_pulse` 키를 읽는다).
-    # 그래서 이 보강은 '더 빨리 언급된다' 이지 '경보가 된다' 가 아니다. 연결은 별도 결정이다.
-    "plague", "anthrax",
+    # ⚠️ `plague`·`anthrax` 는 일부러 **없다** (2026-10-09). #64 가 넣었더니 상위 제목을 페스트 중복 보도가
+    # 채워 다른 질병 제목이 밀렸고, 요약이 16주기 중 13주기 `새 신호 없음`이 됐다(소킹 일지 10-07).
+    # 고위험 병원체는 `pathogen_sentinel` 이 **전용 질의**로 전담한다 — 여기서 겹쳐 찾지 않는다.
 ]
 # Google 이 막혔을 때만 쓰는 Tavily 대체 질의(2026-10-09). Google 연산자(OR·when:)는 평문에서 의미가 없다.
-FALLBACK_QUERY = "disease outbreak epidemic ebola cholera dengue mpox measles bird flu H5N1 marburg plague anthrax"
+FALLBACK_QUERY = "disease outbreak epidemic ebola cholera dengue mpox measles bird flu H5N1 marburg"
 FALLBACK_KEY_ENV = "TAVILY_API_KEY"
 GOOGLE_NEWS, TAVILY_NEWS = "google_news", "tavily_news"
 # 가장 최근 `fetch_headlines()` 에 답한 공급자. `fetch_news_pulse` 가 `source` 에 싣는다 —

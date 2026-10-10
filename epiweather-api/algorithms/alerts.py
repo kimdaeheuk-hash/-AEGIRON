@@ -14,6 +14,7 @@
 """
 from __future__ import annotations
 import contextvars
+import re
 import datetime as dt
 
 import db
@@ -54,6 +55,55 @@ def _mark_undetermined(prefix: str) -> None:
     bucket = _UNDETERMINED.get()
     if bucket is not None and prefix not in bucket:
         bucket.append(prefix)
+
+# ── 판정 못 한 행의 '낡음' 표시 (2026-10-09) ───────────────────────────────────────────
+# 판정 못 한 행(`⏸`)은 내리지 않고 마지막 상태 그대로 둔다. 그런데 화면의 근거 문구는 마지막 실제 조회 때의
+# 숫자("24시간 안에 25곳이 보도")를 현재형으로 그대로 보였다 — 10-08 에 9시간 동안 14:01 값이 그랬다.
+# 붙들되 **낡았다고 적는다.** 표시는 근거 맨 앞 줄이고, 다시 판정되면 근거가 통째로 새로 써지며 사라진다.
+STALE_PREFIX = "⏸ 이번 주기 판정 못 함"
+# 날이 바뀐 뒤에도 붙들어 넘기는 최대 나이. 이보다 오래 확인 못 한 행은 새 날 표에 만들지 않는다.
+CARRY_MAX_HOURS = 48
+_STALE_SINCE = re.compile(r"(\d{2}-\d{2} \d{2}:\d{2}) UTC")
+
+
+def _since_text(iso: str | None) -> str:
+    try:
+        at = dt.datetime.fromisoformat(str(iso))
+    except (TypeError, ValueError):
+        return "시각 모름"
+    if at.tzinfo is not None:
+        at = at.astimezone(dt.timezone.utc)
+    return at.strftime("%m-%d %H:%M")
+
+
+def stale_marker(since_iso: str | None) -> str:
+    return (f"{STALE_PREFIX} — 아래는 {_since_text(since_iso)} UTC 에 마지막으로 확인한 값이며 "
+            f"지금 확인된 것이 아니다")
+
+
+def is_stale_marked(evidence: list[str] | None) -> bool:
+    return bool(evidence) and str(evidence[0]).startswith(STALE_PREFIX)
+
+
+def last_verified_text(row: dict) -> str:
+    """이 행을 마지막으로 실제 확인한 시각(`MM-DD HH:MM`). 낡음 표시가 있으면 거기 적힌 시각을 쓴다."""
+    ev = row.get("evidence") or []
+    if is_stale_marked(ev):
+        m = _STALE_SINCE.search(str(ev[0]))
+        if m:
+            return m.group(1)
+    return _since_text(row.get("updated_at"))
+
+
+def _within_carry_age(iso: str | None, now: dt.datetime) -> bool:
+    try:
+        at = dt.datetime.fromisoformat(str(iso))
+    except (TypeError, ValueError):
+        return False
+    if at.tzinfo is None:
+        at = at.replace(tzinfo=dt.timezone.utc)
+    return (now - at).total_seconds() <= CARRY_MAX_HOURS * 3600
+
 
 NOTIFY_NONE = "보낼 신규 경보 없음"
 NOTIFY_UNCONFIGURED = "채널 미설정"
@@ -208,6 +258,7 @@ def undetermined_alerts_line(result: dict) -> str | None:
         return None
     parts = [
         f"{r.get('tier')} {r.get('label')} {r.get('score')}점 [{r.get('source')}]"
+        + (f"(마지막 확인 {r['last_verified']} UTC)" if r.get("last_verified") else "")
         for r in rows
     ]
     return (f"⏸ 판정 안 함: {' · '.join(parts)} — 이번 주기 스캔이 불완전해 내리지 않고 "
@@ -463,7 +514,7 @@ def collect_candidate_alerts(today: str, negative_space: dict | None = None) -> 
             continue
         if (a["extracted_at"] or "")[:10] != today:
             continue
-        key = a["location"] or a["raw_disease_text"] or a["source"]
+        key = unexplained_key(a)
         candidates.append({
             "source": f"unexplained:{key}",
             "evidence": [
@@ -526,6 +577,45 @@ def collect_candidate_alerts(today: str, negative_space: dict | None = None) -> 
     return candidates
 
 
+def unexplained_key(a: dict) -> str:
+    """설명불가 경보의 식별 키. 위치가 **한 나라**로 읽히면 그 나라의 ISO3, 아니면 예전처럼 원문 위치.
+
+    ★ 왜 나라로 묶나 ★ (2026-10-09, 소킹 일지 10-08) 같은 이르쿠츠크 사건을 어제는 `Irkutsk, Russia`, 오늘은
+    `러시아 시베리아` 로 뽑아 키가 달라졌고, 새 경보로 취급돼 폰이 이틀 연속 울렸다. 키가 위치 문구 그대로면
+    추출 표현이 바뀔 때마다 같은 사건이 '새 소식'이 된다. 한계: 같은 나라의 서로 다른 설명불가 사건은 한 키로
+    묶인다 — 화면에는 계속 뜨지만(critical) 이미 알린 등급이면 폰은 다시 안 울린다.
+    """
+    from .country_resolve import resolve_countries
+    isos = resolve_countries(a.get("location"))
+    if len(isos) == 1:
+        return isos[0]
+    return a.get("location") or a.get("raw_disease_text") or a["source"]
+
+
+def _carry_forward_undetermined(today: str, yesterday_rows: list[dict], prefixes: list[str],
+                                live_sources: set[str]) -> int:
+    """어제 행 가운데 이번 주기에 판정 못 한 계열을 오늘 표에 낡음 표시와 함께 만든다. 만든 수를 돌려준다.
+
+    조건: 판정 못 한 계열 · 이번 주기 후보가 아님 · 오늘 표에 아직 없음 · 마지막 확인이 `CARRY_MAX_HOURS` 이내.
+    """
+    if not prefixes:
+        return 0
+    have = {r["source"] for r in db.list_alerts(today)}
+    now = dt.datetime.now(dt.timezone.utc)
+    made = 0
+    for r in yesterday_rows:
+        src = r["source"]
+        if (not src.startswith(tuple(prefixes)) or src in live_sources or src in have
+                or not _within_carry_age(r.get("updated_at"), now)):
+            continue
+        ev = list(r.get("evidence") or [])
+        if not is_stale_marked(ev):
+            ev = [stale_marker(r.get("updated_at")), *ev]     # 이미 표시된 행은 최초 확인 시각을 그대로 유지
+        db.upsert_alert(today, src, r["tier"], r["label"], r["score"], evidence=ev)
+        made += 1
+    return made
+
+
 def refresh_alerts(today: str | None = None) -> dict:
     """후보를 분류·저장하고, 등급별 일일 캡을 적용해 오늘자 경보 상태를 반환.
     스케줄러가 매시간 돌면서 같은 경보를 반복 재계산하므로, Telegram 알림은
@@ -536,7 +626,8 @@ def refresh_alerts(today: str | None = None) -> dict:
     yesterday = (dt.date.fromisoformat(today) - dt.timedelta(days=1)).isoformat()
     today_rows = db.list_alerts(today)
     channel = telegram_configured()
-    seen_rank = baseline_rank(today_rows, db.list_alerts(yesterday), channel)
+    yesterday_rows = db.list_alerts(yesterday)
+    seen_rank = baseline_rank(today_rows, yesterday_rows, channel)
     seen_today_only = baseline_rank(today_rows, [], channel)   # 오늘 안에서 이미 알린 것(출처 구분용)
 
     negative_space = scan_negative_space()
@@ -551,6 +642,12 @@ def refresh_alerts(today: str | None = None) -> dict:
         tier = classify_tier(c["score"])
         live_sources.add(c["source"])
         db.upsert_alert(today, c["source"], tier, c["label"], c["score"], evidence=c.get("evidence"))
+
+    # ★ 날이 바뀐 첫 주기에 판정 못 한 계열은 어제 행을 낡음 표시와 함께 넘긴다 ★ (2026-10-09)
+    # 알림 표는 날짜별 행이라 자정에 비는데, 조회가 막힌 채 날이 바뀌면 붙들 행이 새 날 표에 없어
+    # 경보가 조용히 사라진다(10-09 00:05 페스트 보도 행) — 화면에서 '보도 없음'과 구별이 안 됐다.
+    # 값을 새로 주장하지 않는다: 어제 값 그대로에 마지막 확인 시각을 적어 만든다.
+    _carry_forward_undetermined(today, yesterday_rows, undetermined_prefixes, live_sources)
 
     rows = db.list_alerts(today)  # score 내림차순
 
@@ -578,6 +675,10 @@ def refresh_alerts(today: str | None = None) -> dict:
                 and r["source"].startswith(tuple(undetermined_prefixes)))
 
     held_rows = [r for r in rows if _held(r)]
+    for r in held_rows:
+        if not is_stale_marked(r.get("evidence")):
+            r["evidence"] = [stale_marker(r.get("updated_at")), *(r.get("evidence") or [])]
+            db.set_alert_evidence(r["id"], r["evidence"])
     retired_rows = [r for r in rows if r["source"] not in live_sources and not _held(r)]
     retired_ids = [r["id"] for r in retired_rows]
     rows = [r for r in rows if r["source"] in live_sources or _held(r)]
@@ -635,6 +736,15 @@ def refresh_alerts(today: str | None = None) -> dict:
         db.mark_alerts_notified(today, to_mark)
     elif notification["status"] == NOTIFY_FAILED:
         notification["retry_pending"] = len(to_mark)
+    # ★ 어제 알린 등급이 오늘도 이어지는 행은 오늘 행에도 그 기록을 잇는다 ★ (2026-10-09)
+    # 기록이 없으면 이어지는 critical 이 '이틀에 한 번' 다시 울린다: 1일차 전송(기록) → 2일차 이월로 조용
+    # (기록 없음) → 3일차 기준선에 어제 기록이 없어 다시 전송. 이월로 조용했던 날에도 기록을 이어 두면
+    # 사건이 화면에 이어지는 동안은 다시 안 울리고, 하루라도 끊기면(행이 사라지면) 이어짐이 끝난다.
+    if channel:
+        inherited = [(a["source"], seen_rank[a["source"]]) for a in already_notified
+                     if a["origin"] == "어제 이월" and a["source"] in seen_rank]
+        if inherited:
+            db.mark_alerts_notified(today, inherited)
 
     dashboard_top = visible_rows[:DASHBOARD_TOP_N]
     hidden_count = len(visible_rows) - len(dashboard_top)
@@ -662,7 +772,8 @@ def refresh_alerts(today: str | None = None) -> dict:
         "already_notified": already_notified,
         # 이번 주기에 판정하지 못해 그대로 둔 행 — 내림이 아니다.
         "undetermined": [
-            {"label": r["label"], "tier": r["tier"], "score": r["score"], "source": r["source"]}
+            {"label": r["label"], "tier": r["tier"], "score": r["score"], "source": r["source"],
+             "last_verified": last_verified_text(r)}
             for r in held_rows
         ],
         "notification": notification,
