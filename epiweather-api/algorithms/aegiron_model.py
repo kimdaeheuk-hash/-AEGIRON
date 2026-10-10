@@ -48,7 +48,34 @@ NIM_MODEL_ENV = "AEGIRON_NIM_MODEL"
 # NVIDIA 호스팅 기본 엔드포인트(설정 없으면 여기 — 준주권으로 표시).
 NIM_HOSTED_BASE_URL = "https://integrate.api.nvidia.com/v1"
 NIM_DEFAULT_MODEL = "meta/llama-3.1-8b-instruct"
-NIM_TIMEOUT_SEC = 30
+
+# ★ 추론형 모델이 본문 전에 잘리고 있었다 (2026-10-10) ★
+#
+# 10-07·08·09 세 AI 슬롯 모두 5/5 가 같은 사유였다(프로덕션 실측):
+#     빈응답(content=null, finish_reason=length,
+#            응답키=annotations·audio·content·function_call·reasoning·
+#                  reasoning_content·refusal·role·tool_calls)
+#
+# 두 신호가 같은 곳을 가리킨다 — `finish_reason=length` 는 한도에 걸려 잘렸다는
+# 뜻이고, `reasoning_content` 키는 추론형 모델이라는 뜻이다. 추론형은 답 본문
+# 전에 추론 토큰을 먼저 쓰는데, 옛 한도 300 은 **추론을 안 하는 8B**
+# (`meta/llama-3.1-8b-instruct`)에 맞춰 잡은 값이었다. 09-18 에 모델만
+# `AEGIRON_NIM_MODEL` 로 갈고 한도는 그대로 둬서, 추론이 300 을 다 쓰고 본문
+# 차례에서 끊겼다. 그게 '본문 없는 200' 이다.
+#
+# 그래서 둘을 같이 손본다: ① 한도를 올린다 ② 추론 노력을 'low' 로 요청해
+# 추론이 예산을 덜 먹게 한다. ②는 서버가 거부할 수 있어 스스로 물러선다(아래).
+#
+# ⚠️ 라이브 검증 못 함 — 이 샌드박스는 `integrate.api.nvidia.com` 에 못 나간다
+# (허용목록 403). 판정은 다음 AI 슬롯(UTC 21시대) 로그 한 줄이다.
+NIM_MAX_TOKENS = 1500
+# 추론 노력을 낮춰 달라는 요청. NVIDIA 의 gpt-oss NIM 이 받는 꼴이
+# `chat_template_kwargs` 라고 문서는 말하지만 **우리가 불러본 적은 없다** —
+# 그래서 거부당하면 물러선다(_REASONING_EFFORT_REJECTED).
+NIM_REASONING_EFFORT = "low"
+# 한도를 5배로 올리면 생성이 길어진다. 30초는 300토큰에 맞춰 잡은 값이라
+# 그대로 두면 ReadTimeout 으로 슬롯을 잃는다(사유는 보이지만 결과는 같다).
+NIM_TIMEOUT_SEC = 60
 
 _LOCAL_MODEL = None
 _LOCAL_TRIED = False
@@ -133,36 +160,89 @@ def _nim_config() -> dict | None:
     }
 
 
-def nim_raw_detailed(text: str, conf: dict) -> tuple[str | None, str | None]:
-    """(NIM 원시 응답, 실패 사유). 실패해도 '왜'를 들고 나온다.
+# 추론 노력 지정이 거부됐는지 — 프로세스 수명 동안 기억한다. 슬롯마다 5번
+# 부르는데 낱말마다 다시 시험하면 거부된 뒤에도 매번 두 번씩 나간다. TED 의
+# 설명 식별자(#30)와 같은 판단이다 — 판정은 한 번이면 족하다.
+# (환경변수로 모델을 갈면 컨테이너가 다시 뜨므로 이 기억도 같이 비워진다.)
+_REASONING_EFFORT_REJECTED = False
 
-    예전엔 실패가 전부 None 하나로 접혀서, 폴백이 조용히 받아 갔고 로그에는
-    아무것도 안 남았다. 키가 죽은 것과 모델명이 틀린 것과 응답이 늦은 것을
-    구분하지 못하면 고칠 수가 없다."""
+_EFFORT_REJECTED_NOTE = " (추론 노력 지정 거부됨 — 기본 설정으로 호출)"
+
+
+def _with_effort_note(reason: str | None) -> str | None:
+    """거부가 확정된 뒤의 실패 사유에는 그 사실을 붙인다.
+
+    ★ 왜 장부로 안 끝내나 (09-15 의 교훈) ★ 거부는 능력 장부에도 남는다. 그런데
+    장부는 `/api/status` 뒤에 있고 **아침 점검은 거기 닿지 못한다**(허용목록). 거부된
+    뒤 두 번째 호출부터는 그 필드를 아예 안 보내니, 사유에 안 적으면 "추론 노력을
+    낮춰 달라고 했는데 거부당한 상태로 돌고 있다"가 로그 어디에도 없게 된다 —
+    그러면 다음 점검이 `출력토큰` 숫자를 'low 로 돌린 결과'로 잘못 읽는다.
+
+    사유가 만들어지는 자리마다 붙이지 않고 **나가는 한 곳**에서만 붙인다 —
+    그래서 같은 원인이면 같은 문자열이고(`tally()` 가 5번 호출을 한 줄로 묶는다)
+    두 번 붙을 길이 없다. (붙이는 자리를 늘리면 `endswith` 같은 방어가 필요해지고,
+    그 방어는 시험으로 못 재는 가지가 된다.)"""
+    if reason is None or not _REASONING_EFFORT_REJECTED:
+        return reason
+    return reason + _EFFORT_REJECTED_NOTE
+
+
+REQUEST_REJECTED_CODES = (400, 422)
+
+
+def _is_request_rejected(status: int | None) -> bool:
+    """400·422 = 요청 본문 거부. 우리가 더한 건 `chat_template_kwargs` 하나뿐이니
+    이 둘이면 그 후보가 원인이라고 보고 한 번 물러선다.
+    401(키)·404(모델명)·410(철수)·429(한도)·5xx·타임아웃은 해당 없다 —
+    물러서도 안 고쳐지고, 매 호출이 두 번씩 나가기만 한다.
+
+    ★ 사유 문자열이 아니라 상태코드를 본다 ★ 사유는 `HTTPError 400: <공급자 문장>`
+    꼴이라 앞에 예외 클래스 이름이 붙고(테스트 더블에서는 그 이름이 다르다) 뒤에
+    공급자 메시지가 붙는다. 거기서 `400` 을 찾으면 메시지에 섞인 숫자도 걸린다."""
+    return status in REQUEST_REJECTED_CODES
+
+
+def _nim_attempt(text: str, conf: dict, *, reasoning_effort: bool
+                 ) -> tuple[dict | None, dict, str | None, int | None]:
+    """한 번의 NIM 호출. (choice, usage, 실패 사유, HTTP 상태코드).
+    예외는 사유+코드로 접어 돌려준다.
+
+    예외를 올리지 않는 이유: 호출부가 '물러서서 한 번 더' 를 판단해야 하고, 예외를
+    올리면 그 판단이 호출부에서 또 `except` 로 갈라져 같은 처리가 두 곳에 흩어진다."""
     import requests
 
+    from .common import http_status
     from .nlp_extract import build_prompt, reason_with_detail
 
+    payload = {
+        "model": conf["model"],
+        "messages": [{"role": "user", "content": build_prompt(text)}],
+        "temperature": 0.0,
+        "max_tokens": NIM_MAX_TOKENS,
+    }
+    if reasoning_effort:
+        payload["chat_template_kwargs"] = {"reasoning_effort": NIM_REASONING_EFFORT}
     try:
         resp = requests.post(
             f"{conf['base_url']}/chat/completions",
             headers={"Authorization": f"Bearer {conf['key']}",
                      "Content-Type": "application/json"},
-            json={
-                "model": conf["model"],
-                "messages": [{"role": "user", "content": build_prompt(text)}],
-                "temperature": 0.0,
-                "max_tokens": 300,
-            },
+            json=payload,
             timeout=NIM_TIMEOUT_SEC,
         )
         resp.raise_for_status()
-        choice = resp.json()["choices"][0]
-        content = choice["message"]["content"]
+        body = resp.json()
+        usage = body.get("usage") if isinstance(body, dict) else None
+        return body["choices"][0], (usage if isinstance(usage, dict) else {}), None, None
     except Exception as e:
-        # 실패해도 None을 돌려 폴백시키되(기존 동작), '시도했고 실패했다'는
-        # 사실은 남긴다. 이게 없으면 NIM이 매번 죽는데도 상태 필드는 계속
+        # 실패해도 None을 돌려 폴백시키되(기존 동작), '시도했고 실패했다'는 사실은
+        # 남긴다. 이게 없으면 NIM이 매번 죽는데도 상태 필드는 계속
         # nim_configured=true로 좋게 말한다 — 몇 주 갇혀 있던 그 상태다.
+        #
+        # ★ 장부와 사유는 일부러 다른 문자열이다 ★ 장부(`last_error`)는 서버 안에
+        # 남는 자리라 예외 전문을 싣고, 돌려주는 사유는 로그·`/api/status` 로 나가는
+        # 자리라 모양만 싣는다(#28). 물러섬 때문에 호출이 두 번이면 두 번 다 적힌다 —
+        # 실제로 두 번 불렀으니 그게 맞고, 장부의 최종 상태는 두 번째가 말한다.
         _nvidia.record_layer_call("text", conf["base_url"], ok=False,
                                   error=f"{type(e).__name__}: {e}")
         # ★ 410 이 무엇인지 서버가 대답하게 한다 (2026-09-15) ★
@@ -170,14 +250,40 @@ def nim_raw_detailed(text: str, conf: dict) -> tuple[str | None, str | None]:
         # 게 없어졌다"는 **대답**이라 카탈로그 철수가 유력하지만, 그건 추정이었고
         # 확정할 방법이 로그에 없었다 — 본문이 장부로만 갔기 때문이다.
         # 이제 NVIDIA 가 본문에 적어 보내는 사유가 요약 줄에 같이 실린다.
-        return None, reason_with_detail(e)
+        return None, {}, reason_with_detail(e), http_status(e)
+
+
+def nim_raw_detailed(text: str, conf: dict) -> tuple[str | None, str | None]:
+    """(NIM 원시 응답, 실패 사유). 실패해도 '왜'를 들고 나온다.
+
+    예전엔 실패가 전부 None 하나로 접혀서, 폴백이 조용히 받아 갔고 로그에는
+    아무것도 안 남았다. 키가 죽은 것과 모델명이 틀린 것과 응답이 늦은 것을
+    구분하지 못하면 고칠 수가 없다."""
+    global _REASONING_EFFORT_REJECTED
+
+    ask_effort = not _REASONING_EFFORT_REJECTED
+    choice, usage, reason, status = _nim_attempt(text, conf, reasoning_effort=ask_effort)
+    if ask_effort and _is_request_rejected(status):
+        # 우리가 더한 건 `chat_template_kwargs` 하나뿐이다 — 물러서서 같은 원문을
+        # 한 번만 다시. 거부가 확정이면 한도 상향만으로 돌고, 그 사실을 사유에
+        # 남긴다(다음 점검이 "요청해봤고 거부됐다"를 로그만 보고 알 수 있게).
+        _REASONING_EFFORT_REJECTED = True
+        choice, usage, reason, _ = _nim_attempt(text, conf, reasoning_effort=False)
+    reason = _with_effort_note(reason)
+    if choice is None:
+        # 장부는 `_nim_attempt` 가 이미 남겼다(전문까지). 여기서 또 적으면 한 번의
+        # 실패가 두 줄이 되고, 두 번째 줄은 전문이 빠진 짧은 사유라 장부가 가진
+        # 정보를 덮어쓴다 — 10-10 에 실제로 `502` 가 그렇게 사라졌다.
+        return None, reason
+    content = choice.get("message") if isinstance(choice, dict) else None
+    content = content.get("content") if isinstance(content, dict) else None
     # ★ HTTP 200 이어도 쓸 본문이 없으면 성공이 아니다 (2026-10-07) ★
     # 10-01~06 매 슬롯 `nvidia_nim_hosted: 실패×5` 에 사유가 한 줄도 없었다. 예외는
     # 위에서 반드시 종류를 달고 나가므로, 사유 없는 실패는 "200 인데 content 가
     # null" 한 길뿐이다. 그 길이 아래 줄에서 ok=True 로 장부에 적혀, 장부는 NIM 이
     # 멀쩡하다고 말하는 중이었다 — 전멸을 성공으로 기록한 것이다.
     if not isinstance(content, str) or not content.strip():
-        reason = _empty_content_reason(choice, content)
+        reason = _with_effort_note(_empty_content_reason(choice, content, usage))
         _nvidia.record_layer_call("text", conf["base_url"], ok=False, error=reason)
         return None, reason
     _nvidia.record_layer_call("text", conf["base_url"], ok=True)
@@ -187,19 +293,43 @@ def nim_raw_detailed(text: str, conf: dict) -> tuple[str | None, str | None]:
 _SAFE_TOKEN = re.compile(r"^[A-Za-z0-9_.-]{1,32}$")
 
 
-def _empty_content_reason(choice: dict, content) -> str:
+def _empty_content_reason(choice: dict, content, usage: dict | None = None) -> str:
     """본문 없는 200 응답의 사유. **응답의 모양만** 싣는다 — finish_reason 과
-    message 의 키 이름. 본문·URL·헤더는 안 싣는다(#28 판단 유지).
+    message 의 키 이름, 그리고 토큰 숫자. 본문·URL·헤더는 안 싣는다(#28 판단 유지).
 
     왜 이 둘인가: finish_reason=length 이면 토큰 한도(max_tokens)에 걸려 본문 전에
     잘린 것이고, `reasoning_content` 같은 키가 content 대신 채워져 있으면 추론형
-    모델이 본문을 다른 칸에 둔 것이다. 처방이 전혀 다르다(한도 상향 / 모델 교체)."""
+    모델이 본문을 다른 칸에 둔 것이다. 처방이 전혀 다르다(한도 상향 / 모델 교체).
+
+    ★ 토큰 숫자를 같이 싣는 이유 (2026-10-10) ★ 사흘 동안 사유가 글자 하나 안
+    변했는데도 '한도가 모자란 것'과 '다른 이유로 비어 온 것'을 가를 수가 없었다.
+    `출력토큰 1500/1500` 이면 한도를 또 올릴 근거이고, `300/1500` 이면 한도가
+    아니라 다른 데 있다는 뜻이다 — 다음 점검이 추측 없이 갈라 읽는다."""
     finish = choice.get("finish_reason") if isinstance(choice, dict) else None
     finish = finish if isinstance(finish, str) and _SAFE_TOKEN.match(finish) else "없음"
     message = choice.get("message") if isinstance(choice, dict) else None
     keys = sorted(k for k in (message or {}) if isinstance(k, str) and _SAFE_TOKEN.match(k))
     kind = "null" if content is None else "빈문자열"
-    return f"빈응답(content={kind}, finish_reason={finish}, 응답키={'·'.join(keys) or '없음'})"
+    return (f"빈응답(content={kind}, finish_reason={finish}, "
+            f"{_token_note(usage)}응답키={'·'.join(keys) or '없음'})")
+
+
+def _token_note(usage: dict | None) -> str:
+    """`출력토큰 1500/1500(추론 1480) · ` 또는 서버가 안 줬으면 빈 문자열.
+
+    **정수만 싣는다.** usage 는 서버가 채우는 칸이라 무엇이든 올 수 있다 —
+    숫자가 아니면 그 조각을 버린다(사유가 로그·`/api/status` 로 나가는 자리라
+    문자열을 그대로 실으면 #28 이 막은 길이 다시 열린다)."""
+    if not isinstance(usage, dict):
+        return ""
+    out = usage.get("completion_tokens")
+    if not isinstance(out, int) or isinstance(out, bool):
+        return ""
+    detail = usage.get("completion_tokens_details")
+    thinking = detail.get("reasoning_tokens") if isinstance(detail, dict) else None
+    tail = (f"(추론 {thinking})"
+            if isinstance(thinking, int) and not isinstance(thinking, bool) else "")
+    return f"출력토큰 {out}/{NIM_MAX_TOKENS}{tail} · "
 
 
 def nim_raw(text: str, conf: dict) -> str | None:
