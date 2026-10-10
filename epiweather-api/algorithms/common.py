@@ -191,6 +191,18 @@ def safe_float(raw, default=None):
 # 전부 실패했는데 로그가 "HTTPErro" 라고만 말했다 — 잘린 데다 상태코드가 없어서
 # 401(키)·404(경로)·400(쿼리 형식) 중 무엇인지 알 수 없었고, 고칠 수가 없었다.
 # 실패 사유를 만드는 자리는 한 곳이어야 한다.
+def http_status(exc: BaseException) -> int | None:
+    """예외에서 HTTP 상태코드만. 없으면 None.
+
+    `brief_reason` 이 사유 문자열을 만들 때 쓰던 계산을 꺼내 둔 것이다 —
+    **사유 문자열에서 코드를 다시 긁어 읽는 호출부가 생겼기 때문**이다
+    (NIM 의 400 물러섬, 2026-10-10). 문자열은 앞에 예외 클래스 이름이 붙고
+    공급자 메시지가 뒤에 붙는 자리라, 거기서 `400` 을 찾으면 메시지에 섞인
+    숫자까지 걸린다. 코드로 판단하는 곳은 코드를 보게 한다."""
+    return getattr(exc, "status_code", None) or getattr(
+        getattr(exc, "response", None), "status_code", None)
+
+
 def brief_reason(exc: BaseException) -> str:
     """예외 → 짧은 사유. 종류와 상태코드까지만 담는다.
 
@@ -198,8 +210,7 @@ def brief_reason(exc: BaseException) -> str:
     진단에 실제로 필요한 건 '어떤 종류가 몇 번'이다(401=키, 404=경로·모델명,
     400=요청 형식, 402/429=한도, Timeout=네트워크). 전문이 필요하면 능력 장부의
     last_error 처럼 서버 안에 남기고, 요약 줄에는 이 값만 싣는다."""
-    status = getattr(exc, "status_code", None) or getattr(
-        getattr(exc, "response", None), "status_code", None)
+    status = http_status(exc)
     return f"{type(exc).__name__} {status}" if status else type(exc).__name__
 
 
