@@ -31,6 +31,53 @@ def _state_key(source: str, report: dict) -> str:
     return f"{source}|{report.get('issued') or report.get('uuid')}"
 
 
+def _bump(reasons: dict[str, int], reason: str) -> None:
+    reasons[reason] = reasons.get(reason, 0) + 1
+
+
+def _fmt_reasons(reasons: dict[str, int] | None) -> str:
+    """{"PDF 못 받음": 2} → "PDF 못 받음×2".
+
+    collector._fmt_failure_reasons 와 같은 규약이다 — 수집기를 import 하면
+    순환(collector → algorithms)이라 여기에 둔다. '사유 없음'도 정보다:
+    실패를 셌는데 사유가 하나도 안 잡혔다는 건 실패 경로가 아직 어딘가에서
+    조용히 삼켜지고 있다는 뜻이라, 그때는 그것부터 찾아야 한다.
+    """
+    if not reasons:
+        return "사유 없음(실패 경로가 아직 조용하다)"
+    return ", ".join(f"{k}×{v}" for k, v in sorted(reasons.items(), key=lambda kv: -kv[1]))
+
+
+def collection_summary(result: dict) -> str:
+    """수집기 로그 한 줄. 호출측에서 즉석 조립하지 않고 여기서 만든다 —
+    nlp_extract.extraction_summary·naver_trends.summary 와 같은 이유로,
+    로그 문구도 시험 가능한 자리에 둔다.
+
+    ★ 어떤 경로로 끝나도 문장이 나온다 ★ 예전엔 호출측이 `if result["parsed"]`
+    일 때만 로그를 남겨서 세 가지가 전부 같은 침묵이 됐다: ① 확인했고 새 회차가
+    없다 ② IRIS 조회가 죽었다 ③ 스케줄러가 이 줄에 닿지도 못했다. 2026-10-09~11
+    사흘간 이 층의 로그가 0줄이었는데 **어느 쪽인지 가릴 방법이 없었다** —
+    10-08 21:05 에는 실제로 돌아 신호 2건을 적재했으니 죽은 층도 아니었다.
+    """
+    if not result.get("ok"):
+        return f"❌ WHO 상황보고서 수집 실패: {result.get('reason') or '사유 미상'}"
+
+    parts: list[str] = []
+    if result.get("parsed"):
+        parts.append(f"새 회차 {result['parsed']}건 파싱")
+        parts.append(f"신호 {result.get('inserted', 0)}건 적재")
+    else:
+        # '없음'과 '못 봤음'을 구분한다 — 확인 건수를 늘 함께 싣는다.
+        parts.append("새 회차 없음")
+    parts.append(f"확인 {result.get('reports_seen', 0)}건")
+    if result.get("skipped_existing"):
+        parts.append(f"기존 {result['skipped_existing']}건 건너뜀")
+    if result.get("failed"):
+        parts.append(f"실패 {result['failed']}건"
+                     f"({_fmt_reasons(result.get('failure_reasons'))})")
+    return "WHO 상황보고서: " + " · ".join(parts)
+
+
 def load_processed() -> dict:
     """시도 기록 읽기. 파일이 없거나 깨져도 빈 기록으로 계속 간다."""
     try:
@@ -85,6 +132,12 @@ def collect_new_reports(dbmod=None, source: str = "who_sitrep_bundibugyo",
     now_iso = dt.datetime.now(dt.timezone.utc).isoformat()
 
     parsed = inserted = skipped = failed = 0
+    # ★ 실패를 숫자 하나로 뭉개지 않는다 ★ PDF 를 못 받은 것과 표 추출이 죽은
+    # 것은 조치가 전혀 다르다(IRIS 쪽이냐 NVIDIA 쪽이냐). 서로 다른 실패를 한
+    # 통에 담아 원인을 못 찾게 만든 전례가 둘 있다 — GroqWatch 의 `except
+    # Exception: return None`(2026-08-25)과 Mobility 가 401·403·5xx 를
+    # `"http_error"` 하나로 묶은 것(2026-08-28).
+    failure_reasons: dict[str, int] = {}
     processed: list[dict] = []
     for report in reports:
         issued = report.get("issued")
@@ -98,10 +151,16 @@ def collect_new_reports(dbmod=None, source: str = "who_sitrep_bundibugyo",
         pdf = fetch_bytes(report["pdf"]["url"])
         if not pdf:
             failed += 1
+            _bump(failure_reasons, "PDF 못 받음")
             continue
         table_result = extract_tables(pdf, max_pages=max_pages)
         if not table_result.get("ok"):
             failed += 1
+            # extract_tables 는 키 없음·PDF 손상에는 reason 을 주지만, 페이지가
+            # 전부 실패하면 ok=False 에 reason 이 없다(ok 는 bool(parsed)다).
+            # 그 경우를 '사유 미상'으로 흘리지 않고 몇 장이 죽었는지로 적는다.
+            _bump(failure_reasons, table_result.get("reason")
+                  or f"표 추출 전멸(페이지 {table_result.get('pages_failed', 0)}장 실패)")
             continue
         found = extract_signals(table_result, source=source, signal_date=issued)
 
@@ -148,6 +207,9 @@ def collect_new_reports(dbmod=None, source: str = "who_sitrep_bundibugyo",
         "parsed": parsed,
         "inserted": inserted,
         "failed": failed,
+        # 실패 '몇 번' 뒤에 반드시 '왜'. 조치가 갈리는 지점이라 숫자만으로는
+        # IRIS 를 봐야 하는지 NVIDIA 를 봐야 하는지 알 수 없다.
+        "failure_reasons": failure_reasons,
         "processed": processed,
         "note": (
             "이미 처리한 회차는 PDF를 열지 않는다 — 표 추출이 회차당 VLM 4회 호출이라 "

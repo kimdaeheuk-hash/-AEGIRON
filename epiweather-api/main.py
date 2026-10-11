@@ -280,20 +280,49 @@ async def _run_bulletin_collection() -> None:
     확인 자체는 IRIS API 호출 몇 번이라 사실상 공짜다. 비용은 표 추출(회차당 VLM
     4회 호출)에 걸려 있는데, 이미 적재한 회차는 PDF를 열지도 않으므로 새 보고서가
     없는 날은 비용이 0이다. 보고서는 주 1회 나오므로 실제 파싱도 주 1회다.
-    NVIDIA_API_KEY가 없으면 조용히 건너뛴다(키 없는 환경에서 로그만 더럽히지 않게)."""
+
+    ★ 어떤 경로로 끝나도 한 줄을 남긴다 (2026-10-12) ★
+    예전엔 `if result["parsed"]` 일 때만 로그를 남기고 키 없음은 조용히
+    return 했다. 그래서 네 가지가 전부 같은 침묵이 됐다: ① 확인했고 새 회차가
+    없다 ② IRIS 조회가 죽었다(`ok: False` 반환값이 통째로 버려졌다) ③ 키가
+    빠졌다 ④ 스케줄러가 이 줄에 닿지도 못했다. 2026-10-09~11 사흘간 이 층의
+    로그가 0줄이었는데 **어느 쪽인지 가릴 방법이 없었다** — 10-08 21:05 에는
+    실제로 돌아 신호 2건을 적재했으니 죽은 층도 아니었다. 일일 브리핑이 '성공
+    시 로그를 안 남겨 침묵과 구별되지 않던' 것과 같은 결함이다.
+
+    ★ 이 층은 소스 건강에 없다 ★ 그래서 로그가 유일한 관측 경로다. 넣지 않은
+    이유는 숨기려는 게 아니라 거짓 경보를 만들기 때문이다: source_health 는
+    1시간 주기 수집을 전제로 `STALE_HOURS = 6`·`FLAKY_WINDOW = 24`(최근 24주기
+    성공률)를 쓰는데, 주 1회 원천을 그 틀에 넣으면 성공률이 영구히 문턱 아래라
+    `flaky` 로 계속 올라온다. 주기(cadence) 인지를 source_health 에 넣는 건
+    경보 판정 코어를 건드리는 별건이라 소킹 중에 하지 않는다.
+
+    ★ 전부 try 안에 둔다 ★ `_scheduler_loop` 는 이 호출을 감싸지 않는다. 즉
+    여기서 예외가 올라가면 매시간 수집 루프가 통째로 죽는다 — import 한 줄을
+    try 밖으로 내는 것조차 사고 ②(스케줄러가 조용히 멈춘다)의 입구가 된다."""
     import collector
 
     if not os.environ.get("NVIDIA_API_KEY"):
+        # 키 없음도 남긴다 — 조용히 돌아가면 '키가 빠졌다'와 '층이 죽었다'를
+        # 가릴 수 없다(Tavily 의 `대체 공급자 없음(TAVILY_API_KEY 미설정)`과
+        # 같은 규칙). 로그가 더러워지는 비용보다 이 구별이 비싸다.
+        collector.log("⏭ WHO 상황보고서 건너뜀 — NVIDIA_API_KEY 미설정")
         return
     try:
-        from algorithms.bulletin_collect import collect_new_reports
+        from algorithms.bulletin_collect import (collect_new_reports,
+                                                 collection_summary)
         result = await asyncio.to_thread(collect_new_reports, db)
-        if result.get("parsed"):
-            collector.log(
-                f"WHO 상황보고서: 새 회차 {result['parsed']}건 파싱, "
-                f"신호 {result['inserted']}건 적재 "
-                f"(기존 {result['skipped_existing']}건은 건너뜀)"
-            )
+        # parsed 와 무관하게 먼저 찍는다 — 이 한 줄이 '새 회차 없음'과
+        # 'IRIS 가 죽었다'를 가른다.
+        collector.log(collection_summary(result))
+        if not result.get("ok"):
+            # ok=False 는 IRIS 조회가 죽은 것이다. 로그로 끝내지 않고 장부에도
+            # 넣는다 — /api/status 의 recent_errors 에 안 들어가면 "실패는
+            # 아는데 왜 실패했는지 어디에도 없는" 상태가 된다(2026-08-25 GroqWatch).
+            collector.log_error(
+                "scheduler_bulletin",
+                RuntimeError(result.get("reason") or "사유 미상"))
+        elif result.get("parsed"):
             await _broadcast_dashboard()
     except Exception as e:
         collector.log_error("scheduler_bulletin", e)
