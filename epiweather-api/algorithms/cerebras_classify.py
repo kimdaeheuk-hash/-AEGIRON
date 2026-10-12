@@ -53,6 +53,11 @@ TIMEOUT = 30
 # 터뜨린 413/429 는 compound-mini 가 서버 쪽에서 끌어온 검색결과 때문이었고,
 # 여기서는 우리가 준 제목만 들어가므로 그 문제가 없다.
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+# Groq 무료 티어의 분당 토큰 한도. 이 층과 NewsWatch 가 **같은 키로 이 한도를
+# 나눠 쓴다** — GroqWatch 를 은퇴시킨 이유가 바로 그것이었다("죽은 채로
+# 살아있는 소스의 예산을 먹고 있었다", source_health.RETIRED_SOURCES).
+# 숫자는 관측값이다: GroqWatch 가 은퇴 전 `⚙ Groq 토큰 3990/8000` 을 찍었다.
+GROQ_TPM_LIMIT = 8000
 
 # ★ 모델 ID 를 찍지 않는다 — 후보를 순서대로 시도하고 어느 게 됐는지 로그로 남긴다 ★
 # 2026-08-28 에 `llama-3.3-70b-versatile` 로 찍었다가 프로덕션에서 404 가 났다.
@@ -393,6 +398,42 @@ def _answered_flags(elements: list, closed: bool, n_entries: int) -> dict[int, b
     return flags
 
 
+def usage_line(news: dict) -> str | None:
+    """재분류가 쓴 토큰·공급자 한 줄. 재분류가 안 된 주기면 None(실패 줄이 따로 나간다).
+
+    수집기에서 즉석 조립하지 않고 여기 둔다 — nlp_extract.extraction_summary 와
+    같은 규약(로그 문구도 시험 가능한 자리에).
+
+    ★ 왜 필요한가 (2026-10-12) ★ 이 층과 NewsWatch 는 같은 `GROQ_API_KEY` 의
+    분당 8,000 토큰을 나눠 쓴다. 그런데 NewsWatch 만 `토큰 1517 (프롬프트 654)` 를
+    찍고 이쪽은 숫자를 **아예 계산하지 않았다**(응답의 `usage` 를 안 읽었다).
+    그래서 '아직 429 가 안 났다' 는 알아도 '한도에 얼마나 가까운가' 는 알 수
+    없었다 — GroqWatch 를 은퇴시킨 그 예산 문제를 다시 진단할 수단이 없는 상태다.
+
+    공급자 이름은 반환값에 있었고 품질 불변식이 그 **존재**를 검사하지만
+    (`quality_health._check_llm_provider_present`), 로그에는 없었다. curl 이 막히는
+    날(실측 2026-10-08~12 닷새 연속)에는 아침 점검이 `/api/status` 를 못 열어
+    어느 공급자가 답했는지 볼 방법이 없다.
+    """
+    if not news.get("llm_classified_feeds"):
+        return None
+
+    provider = news.get("llm_provider") or "공급자 미기록"
+    used, prompt_tokens = news.get("llm_total_tokens"), news.get("llm_prompt_tokens")
+    if isinstance(used, int) and not isinstance(used, bool):
+        # 한도는 Groq 일 때만 붙인다 — Cerebras 의 한도는 우리가 모른다.
+        budget = f"/{GROQ_TPM_LIMIT}" if provider.startswith("Groq") else ""
+        tokens = f"토큰 {used}{budget}"
+        if isinstance(prompt_tokens, int):
+            tokens += f" (프롬프트 {prompt_tokens})"
+    else:
+        # ★ '0 토큰' 이 아니다 ★ 서버가 usage 를 안 준 것이고, 그 둘을 섞으면
+        # 한도 여유를 거꾸로 읽는다(NIM 의 `출력토큰` 과 같은 규칙).
+        tokens = "토큰 모름(서버가 usage 미제공)"
+    return (f"⚙ 현지어 뉴스 재분류[{provider}] {tokens} · "
+            f"제목 {news.get('llm_answered_titles')}/{news.get('llm_sent_titles')}개")
+
+
 def classify_multi_feed(
     feeds: list[dict], api_key: str, groq_key: str | None = None
 ) -> str | None:
@@ -462,7 +503,15 @@ def _try_classify(feeds, entries, url: str, model: str, api_key: str,
             return f"분당 요청 한도(429): {r.text[:150]}"
         r.raise_for_status()
 
-        choice = r.json()["choices"][0]
+        payload = r.json()
+        # ★ 쓴 토큰을 들고 간다 (2026-10-12) ★ 이 층과 NewsWatch 는 같은
+        # GROQ_API_KEY 의 **분당 8,000 토큰을 나눠 쓴다.** 그런데 NewsWatch 만
+        # `토큰 1517 (프롬프트 654)` 를 찍고 이쪽은 아무 숫자도 안 남겼다 —
+        # 한도에 얼마나 가까운지 알 수 없으니 '아직 429 가 안 났다' 만 알고
+        # '언제 날지' 는 모르는 상태였다. GroqWatch 는 은퇴 전에 `⚙ Groq 토큰
+        # 3990/8000` 을 찍었다. 그 가시성이 여기엔 없었다.
+        usage = payload.get("usage") or {}
+        choice = payload["choices"][0]
         # ★ finish_reason 을 반드시 들고 간다 ★ 이게 없어서 2026-08-29 하루치
         # 실패 14건이 전부 "JSONDecodeError" 한 덩어리로만 남았다. 'length' 면
         # 잘린 것이고 'stop' 이면 모델이 애초에 JSON 을 안 준 것이다 —
@@ -518,4 +567,14 @@ def _try_classify(feeds, entries, url: str, model: str, api_key: str,
         marker["llm_answered_titles"] = len(flags)
         marker["llm_sent_titles"] = len(entries)
         marker["llm_finish_reason"] = finish
+        # ★ 정수만 싣는다 ★ usage 는 서버가 채우는 칸이다. 없으면 그 조각을
+        # 비워 둔다 — '0 토큰을 썼다' 가 아니라 '서버가 안 줬다' 이고, 둘을
+        # 섞으면 한도 여유를 거꾸로 읽는다(NIM 의 `출력토큰` 과 같은 규칙).
+        for src, dst in (("total_tokens", "llm_total_tokens"),
+                         ("prompt_tokens", "llm_prompt_tokens")):
+            value = usage.get(src)
+            # bool 을 따로 뺀다 — 파이썬에서 True 는 int 이고, 그러면 `토큰 True`
+            # 가 찍힌다. `_answered_flags` 가 모델 응답에 쓰는 것과 같은 규약이다.
+            if isinstance(value, int) and not isinstance(value, bool):
+                marker[dst] = value
     return None

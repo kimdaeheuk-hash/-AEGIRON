@@ -686,6 +686,15 @@ def fetch_all_local_news(cerebras_key: str | None = None,
         "llm_sent_titles":      sent,
         "llm_provider":         next(
             (r.get("llm_provider") for r in results if r.get("llm_provider")), None),
+        # ↓ 쓴 토큰. NewsWatch 와 같은 GROQ_API_KEY·같은 분당 한도를 나눠 쓰는데
+        #   이쪽만 숫자가 없어서 한도 여유를 읽을 수 없었다. 서버가 usage 를
+        #   안 주면 None 이다 — 0 이 아니다.
+        "llm_total_tokens":     next(
+            (r.get("llm_total_tokens") for r in results
+             if isinstance(r.get("llm_total_tokens"), int)), None),
+        "llm_prompt_tokens":    next(
+            (r.get("llm_prompt_tokens") for r in results
+             if isinstance(r.get("llm_prompt_tokens"), int)), None),
         # ↓ 감시창이 실제로 무엇을 바꿨는지. 0 이면 '창은 열렸지만 아무것도
         #   끌어올리지 못했다' 는 뜻이고, 그것도 알 가치가 있는 사실이다.
         # ── 되돌림·표본 상태 (2026-08-31) ─────────────────────────────
