@@ -807,6 +807,15 @@ def collect_free_sources() -> dict:
         if not classified:
             log(f"  ❌ 현지어 뉴스 LLM 재분류 실패 — 고경보 {n['high_alert_feeds']}개는 "
                 f"**키워드 기준**(오탐 많음)이다: {n.get('llm_failure_reason')}")
+        else:
+            # ★ 성공한 주기에도 숫자를 남긴다 (2026-10-12) ★ 이 층과 NewsWatch 가
+            # 같은 GROQ_API_KEY 의 분당 8,000 토큰을 나눠 쓰는데 이쪽만 사용량이
+            # 안 보였다. 공급자는 /api/status 에 있었지만 curl 이 막히는 날에는
+            # 아침 점검이 못 읽는다(실측 닷새 연속). 문구는 시험 가능한 자리에 둔다.
+            from algorithms.cerebras_classify import usage_line
+            usage = usage_line(n)
+            if usage:
+                log(f"  {usage}")
         # 179개 피드가 전멸해도 dict는 정상 모양으로 오기 때문에, 예전엔 소스가
         # 살아있다고 기록됐다. '히트 0건'과 '한 곳도 못 읽음'은 다른 사실이다.
         if not n["active_feeds"]:
