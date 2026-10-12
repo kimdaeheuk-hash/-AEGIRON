@@ -504,27 +504,14 @@ def collect_candidate_alerts(today: str, negative_space: dict | None = None) -> 
                 ],
             })
 
-    # 설명불가 신호는 문서 요구사항대로 무조건 critical(100점)으로 즉시 올림 —
-    # 단, 능동 검색(unexplained_cluster)만 대상으로 함. who_wpro 같은 일반
-    # 지역동향 요약은 질병명이 없는 게 흔해서, 전체 source를 다 포함하면
-    # "원인불명 클러스터"가 아니라 그냥 막연한 요약문까지 critical로 오탐함.
-    # 오늘 추출된 것만 후보로 올림(아니면 과거 발견이 매일 영원히 재후보로 뜸).
-    for a in scan_unexplained()["alerts"]:
-        if a["source"] != "unexplained_cluster":
-            continue
-        if (a["extracted_at"] or "")[:10] != today:
-            continue
-        key = unexplained_key(a)
-        candidates.append({
-            "source": f"unexplained:{key}",
-            "evidence": [
-                f"위치: {a['location'] or '불명'}",
-                f"모델이 추출한 원문 질병명: {a['raw_disease_text'] or '불명'} — 기존 알려진 패턴과 불일치 판정",
-                f"원문 발췌: {(a['raw_text'] or '')[:120]}",
-            ],
-            "label": f"설명불가 신호 · {a['location'] or '지역불명'} ({a['raw_disease_text'] or '질병불명'})",
-            "score": 100.0,
-        })
+    # 설명불가 신호는 문서 요구사항대로 무조건 critical(100점)으로 즉시 올린다.
+    # 후보 자격(능동 검색만·오늘 추출분만)과 같은 나라 사건을 잃지 않고 합치는 규칙은
+    # unexplained_candidates 가 들고 있다 — 거기 주석이 이유를 말한다.
+    unexplained, unexplained_notes = unexplained_candidates(
+        scan_unexplained()["alerts"], today)
+    candidates.extend(unexplained)
+    for note in unexplained_notes:
+        print(f"  {note}", flush=True)
 
     # 무역 선행지표(Phase 42) — 의료물자 수입이 여러 품목 동시에 급증한 국가.
     # 다른 층과 성격이 다르다: 뉴스·공식통계는 '지금 벌어지는 일'이지만 무역은
@@ -590,6 +577,97 @@ def unexplained_key(a: dict) -> str:
     if len(isos) == 1:
         return isos[0]
     return a.get("location") or a.get("raw_disease_text") or a["source"]
+
+
+def _unexplained_label(items: list[dict]) -> str:
+    """경보 제목. 단건은 예전 문구 그대로 — 10-07·10-08 에 실제로 폰으로 나간 줄이다.
+
+    묶였으면 **개수를 제목에 싣는다.** 제목에서 숨기면 합친 것이 손실처럼 보인다.
+    """
+    first = items[0]
+    label = (f"설명불가 신호 · {first.get('location') or '지역불명'} "
+             f"({first.get('raw_disease_text') or '질병불명'})")
+    if len(items) > 1:
+        label += f" + 같은 나라 {len(items) - 1}건"
+    return label
+
+
+def _unexplained_evidence(items: list[dict]) -> list[str]:
+    """근거. 단건은 예전 세 줄 그대로(나간 문구를 바꾸지 않는다).
+
+    ★ 텔레그램은 근거 **앞 두 줄만** 보낸다 ★ 그래서 묶였다는 사실과 사건 목록이
+    첫 줄에 와야 한다. 셋째 줄로 밀면 폰에서 안 보이고, 그러면 합친 것이 다시
+    손실이 된다 — 이 수리가 막으려는 바로 그 일이다.
+    """
+    first = items[0]
+    if len(items) == 1:
+        return [
+            f"위치: {first.get('location') or '불명'}",
+            f"모델이 추출한 원문 질병명: {first.get('raw_disease_text') or '불명'}"
+            " — 기존 알려진 패턴과 불일치 판정",
+            f"원문 발췌: {(first.get('raw_text') or '')[:120]}",
+        ]
+
+    listed = " / ".join(
+        f"{i}) {a.get('location') or '지역불명'} — {a.get('raw_disease_text') or '질병불명'}"
+        for i, a in enumerate(items, 1))
+    lines = [
+        f"같은 나라 설명불가 신호 {len(items)}건(경보 행은 나라 단위 하나) — {listed}",
+        f"기존 알려진 패턴과 불일치 판정(모델) · 1) 원문: {(first.get('raw_text') or '')[:80]}",
+    ]
+    # ★ 1번도 여기 다시 싣는다 ★ 둘째 줄의 80자는 폰에 보이는 미리보기다. 1번을
+    # 그 줄에만 두면 **1번 원문만 80자로 잘려** 2번 이후(120자)보다 불리해진다 —
+    # 손실을 막으려는 수리가 1번에서 손실을 만드는 셈이다. 길이를 모두 같게 둔다.
+    lines += [f"{i}) 원문 발췌: {(a.get('raw_text') or '')[:120]}"
+              for i, a in enumerate(items, 1)]
+    return lines
+
+
+def unexplained_candidates(scan_alerts: list[dict],
+                           today: str) -> tuple[list[dict], list[str]]:
+    """(후보 목록, 로그 줄 목록). 같은 나라의 사건을 **잃지 않고** 한 행으로 합친다.
+
+    ★ 왜 필요한가 (2026-10-12) ★ 키를 나라 단위로 묶은 것(#67)은 맞다 — 같은 사건이
+    추출 표현만 달라져 폰이 이틀 연속 울리던 것을 막았다. 그런데 `db.upsert_alert` 는
+    같은 `(날짜, source)` 에 **label·evidence 를 통째로 덮어쓴다**
+    (`ON CONFLICT … DO UPDATE SET label = excluded.label, evidence = excluded.evidence`).
+    그래서 같은 나라에 설명불가 사건이 둘이면 **먼저 온 사건이 흔적 없이 사라졌다** —
+    화면에도 로그에도 근거에도 남지 않아 '한 건뿐'과 구별할 수 없었다. 조용한 손실이다.
+
+    합치는 것 자체는 유지한다(폰을 두 번 울리지 않는다). **잃지만 않으면 된다** —
+    개수는 제목에, 사건 목록은 근거 첫 줄에, 원문은 전부 싣는다.
+
+    ⚠️ 이 결함은 프로덕션에서 관측된 적이 없다. 로그 보존 기간(2026-09-01~10-12)
+    전체에서 설명불가 경보는 이르쿠츠크 한 사건뿐이었고, 같은 나라 동시 발생은 0건이다.
+    즉 이것은 **코드를 읽어 확정한 결함**이지 관측된 사고가 아니다. 그래서 수리도
+    판정·점수·통보 시점을 건드리지 않고 표시만 고친다.
+    """
+    groups: dict[str, list[dict]] = {}
+    for a in scan_alerts:
+        # 능동 검색만 즉시경보 대상이다(일반 지역동향 요약은 질병명이 없는 게 흔해 오탐).
+        if a.get("source") != "unexplained_cluster":
+            continue
+        # 오늘 추출된 것만 — 아니면 과거 발견이 매일 영원히 재후보로 뜬다.
+        if (a.get("extracted_at") or "")[:10] != today:
+            continue
+        groups.setdefault(unexplained_key(a), []).append(a)
+
+    candidates, notes = [], []
+    for key, items in groups.items():
+        candidates.append({
+            "source": f"unexplained:{key}",
+            "evidence": _unexplained_evidence(items),
+            "label": _unexplained_label(items),
+            # 문서 요구사항대로 무조건 critical(100점)로 즉시 올린다.
+            "score": 100.0,
+        })
+        if len(items) > 1:
+            # 합쳤다는 사실을 로그에도 남긴다 — 제목·근거에만 있으면 '왜 한 행인가'를
+            # 나중에 추적할 때 경보 표를 거꾸로 읽어야 한다.
+            notes.append(
+                f"🧷 [alerts] 설명불가 {len(items)}건을 나라 키 하나로 합침"
+                f"(unexplained:{key}) — 제목과 근거에 전부 싣는다")
+    return candidates, notes
 
 
 def _carry_forward_undetermined(today: str, yesterday_rows: list[dict], prefixes: list[str],
