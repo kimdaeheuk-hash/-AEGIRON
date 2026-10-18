@@ -29,7 +29,12 @@ async function save(rel, buf) {
 }
 
 // ── 1. 운영 API 스냅샷 (실제 값으로 그림을 그릴 때 쓴다) ─────────────────
-for (const p of ['/api/status', '/api/dashboard', '/api/daily-brief?lang=ko', '/api/biodefense/readiness', '/api/risk-quantification']) {
+// 2026-10-18 오후: 공개 예측 원장·경보 해부·홈 실시간 신호를 실데이터로 설계하려고 늘렸다.
+for (const p of [
+  '/api/status', '/api/dashboard', '/api/daily-brief?lang=ko', '/api/biodefense/readiness', '/api/risk-quantification',
+  '/api/predictions', '/api/predictions/scorecard', '/api/lead-time-ledger?limit=50', '/api/alerts',
+  '/api/risk-index', '/api/launch-readiness', '/api/extracted-signals?limit=30', '/api/unexplained-signals',
+]) {
   try {
     const res = await fetch(API + p, { headers: { accept: 'application/json', 'user-agent': UA } });
     const body = await res.text();
