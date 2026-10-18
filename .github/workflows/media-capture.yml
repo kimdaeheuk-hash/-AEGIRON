@@ -9,6 +9,11 @@ name: Media capture
 #   · claude/** 브랜치에서 수집 스크립트·워크플로를 바꿔 푸시할 때
 on:
   workflow_dispatch:
+    inputs:
+      photos:
+        description: "공공 사진 후보도 다시 받기(용량이 큼)"
+        type: boolean
+        default: false
   push:
     branches: ["claude/**"]
     paths:
@@ -46,13 +51,15 @@ jobs:
         working-directory: .github/media-capture
         run: |
           rm -rf out
-          node capture.mjs out
+          CAPTURE_PHOTOS=${{ inputs.photos && '1' || '0' }} node capture.mjs out
 
       - name: Commit results
         run: |
           git config user.name "aegiron-media-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add .github/media-capture/out
+          # 사진 후보는 용량이 커서(첫 수집 100MB+) 수동으로 켰을 때만 커밋한다.
+          git add .github/media-capture/out/manifest.json .github/media-capture/out/screens .github/media-capture/out/api
+          if [ "${{ inputs.photos }}" = "true" ]; then git add .github/media-capture/out/photos; fi
           if git diff --cached --quiet; then
             echo "수집 결과에 변화 없음 — 커밋하지 않음"
           else

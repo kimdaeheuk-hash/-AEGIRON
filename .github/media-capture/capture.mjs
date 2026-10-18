@@ -77,8 +77,8 @@ try {
             const loaded = await page.getByText('서버 연결 중').waitFor({ state: 'detached', timeout: 90_000 }).then(() => true, () => false);
             if (!loaded) manifest.failures.push({ what: `stage 9 ${tag}`, error: 'still loading after 90s+ (서버 연결 중)' });
           }
-          const rel = `screens/${tag}-stage${i}.png`;
-          await save(rel, await page.screenshot({ fullPage: false }));
+          const rel = `screens/${tag}-stage${i}.jpg`;
+          await save(rel, await page.screenshot({ fullPage: false, type: 'jpeg', quality: 80 }));
           manifest.screens.push({ stage: i, name, viewport: tag, file: rel, url: `${SITE}/dashboard`, at: new Date().toISOString() });
         } catch (e) {
           manifest.failures.push({ what: `stage ${i} ${tag}`, error: String(e).slice(0, 300) });
@@ -93,7 +93,7 @@ try {
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 });
     try {
       await page.goto(`${SITE}/${loc}`, { waitUntil: 'networkidle', timeout: 90_000 });
-      await save(`screens/site-home-${loc}.png`, await page.screenshot());
+      await save(`screens/site-home-${loc}.jpg`, await page.screenshot({ type: 'jpeg', quality: 80 }));
     } catch (e) {
       manifest.failures.push({ what: `home ${loc}`, error: String(e).slice(0, 300) });
     } finally {
@@ -105,7 +105,10 @@ try {
 }
 
 // ── 3. 공공 사진 후보 (퍼블릭 도메인 · CC0 · CC BY(-SA) 만) ───────────
-const QUERIES = [
+// 첫 수집(2026-10-18)에서 후보 40장이 100MB 를 넘었다. 사진은 이미 골라 public/media 로
+// 옮겼으므로 기본은 건너뛴다. 다시 받을 때만 CAPTURE_PHOTOS=1 로 켠다.
+const WANT_PHOTOS = process.env.CAPTURE_PHOTOS === '1';
+const QUERIES = !WANT_PHOTOS ? [] : [
   'Ebola virus transmission electron micrograph CDC',
   'SARS-CoV-2 scanning electron micrograph NIAID',
   'Influenza virus transmission electron micrograph CDC',
