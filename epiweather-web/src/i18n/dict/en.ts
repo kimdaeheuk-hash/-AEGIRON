@@ -170,6 +170,13 @@ export const en: Dictionary = {
         credit: 'BalticServers.com · CC BY-SA 3.0',
         sourceUrl: 'https://commons.wikimedia.org/wiki/File:BalticServers_data_center.jpg',
       },
+      {
+        src: '/media/photos/arctic-permafrost.jpg',
+        alt: 'Arctic thaw ponds formed by melting permafrost',
+        caption: 'Permafrost thaw (Arctic). The new outbreak conditions polar-territory surveillance watches.',
+        credit: 'NPS Climate Change Response · Public domain',
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:Permafrost_Thaw_(14413865677).jpg',
+      },
     ],
 
     engineTitle: 'The engines',
@@ -210,6 +217,32 @@ export const en: Dictionary = {
             name: 'Unexplained clusters',
             body: 'Counts, as a separate class, clusters extracted from reporting that do not match any known disease pattern. The pneumonia of unknown cause in Wuhan in December 2019 is the archetype.',
             mode: 'hourly',
+          },
+        ],
+      },
+      {
+        key: 'environment',
+        label: 'Environment · polar territory',
+        engines: [
+          {
+            id: 'polar_signals',
+            name: 'Polar-territory surveillance',
+            body: 'Observes the Arctic, the Antarctic and 27 glacier mountain regions with baseline and trend. As permafrost thaws — exposing pathogens and polar avian influenza — it watches, at the territory level, the new outbreak conditions a changing climate opens.',
+            mode: 'daily',
+            caveat: 'An object of observation, not an alert. A polar signal does not by itself mean an outbreak.',
+          },
+          {
+            id: 'disaster_watch',
+            name: 'Disaster watch window',
+            body: 'After floods, quakes and storms, the country is watched at a lower threshold through the window when water- and vector-borne risk rises. It targets the time between a disaster and the outbreak that follows.',
+            mode: 'hourly',
+          },
+          {
+            id: 'comtrade_signals',
+            name: 'Medical-supply trade watch',
+            body: 'Detects import surges of masks, PPE and test kits by country via UN Comtrade — a preparedness-behaviour signal that can appear before an official announcement.',
+            mode: 'daily',
+            caveat: 'Trade filings lag by roughly two months and are not a real-time indicator.',
           },
         ],
       },
@@ -313,6 +346,55 @@ export const en: Dictionary = {
             mode: 'hourly',
           },
         ],
+      },
+    ],
+
+    engineCatalogueCta: 'See the role of all 114 modules in the engine catalogue',
+
+    diffEyebrow: 'WHAT MAKES US DIFFERENT',
+    diffTitle: 'What sets us apart from other early warning',
+    diffLead:
+      'Early warning for infectious disease is not new — services like BlueDot, EIOS and Metabiota already exist. Where AEGIRON differs is that it does not stop at detection but puts verification, response and sovereignty into one system. We state this by structure, without overstatement.',
+    diffItems: [
+      {
+        title: 'It does not stop at detection',
+        body: 'Most early warning stops at “something is happening, somewhere”. AEGIRON attaches spread simulation, intervention scenarios and countermeasure readiness, to answer “so what, and at what strength”.',
+      },
+      {
+        title: 'It scores its own numbers',
+        body: 'Every forecast is sealed when made and checked daily against official declarations, recording hit and miss by itself. Building a track record as a verifiable record rather than a claim is rare.',
+      },
+      {
+        title: 'Surveillance gaps included from the start',
+        body: 'It watches, to the same standard, 178 countries and 52 languages that commercial services rarely cover — Africa, Central Asia, Pacific island states, and polar territory too.',
+      },
+      {
+        title: 'A national-biosecurity axis',
+        body: 'Defensive genomic screening (HEIMDALL) and countermeasure coverage / production-sovereignty analysis (VALHALLA) are a national-scale axis that commercial early-warning services do not have.',
+      },
+      {
+        title: 'Everything open',
+        body: 'The system, methodology, data and limits are open from the start — a choice a larger service bound by customer contracts cannot structurally copy, and a basis for trust that due diligence can verify directly.',
+      },
+    ],
+    futureTitle: 'Where we are headed',
+    futureLead: 'This is a starting point. It is built to grow stronger as operation accrues.',
+    futureItems: [
+      {
+        title: 'A proprietary extraction model',
+        body: 'Extraction runs through external APIs today, but the path is wired so it can switch, in one place, to a self-hosted model (NVIDIA NIM), moving toward a design where sensitive data does not leave for overseas APIs.',
+      },
+      {
+        title: 'A data moat',
+        body: '“Which signal led to a real outbreak” is assembled into a training set every day. As operation continues, that set grows and heuristics can be replaced by a measured learning model.',
+      },
+      {
+        title: 'A sealed track record',
+        body: 'As sealed forecasts accumulate, “we knew first” becomes a record a third party can verify on the blockchain — an asset whose proof grows stronger with time.',
+      },
+      {
+        title: 'Field connections',
+        body: 'The next step is connecting with real surveillance networks and field organisations to get closer to the source of the signal — the path to becoming global early-warning infrastructure.',
       },
     ],
 

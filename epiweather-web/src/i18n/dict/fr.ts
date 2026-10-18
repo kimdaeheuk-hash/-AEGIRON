@@ -172,6 +172,13 @@ export const fr: Dictionary = {
         credit: 'BalticServers.com · CC BY-SA 3.0',
         sourceUrl: 'https://commons.wikimedia.org/wiki/File:BalticServers_data_center.jpg',
       },
+      {
+        src: '/media/photos/arctic-permafrost.jpg',
+        alt: 'Mares de dégel arctiques formées par la fonte du pergélisol',
+        caption: 'Dégel du pergélisol (Arctique). Les nouvelles conditions d’épidémie que surveille la veille du territoire polaire.',
+        credit: 'NPS Climate Change Response · Domaine public',
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:Permafrost_Thaw_(14413865677).jpg',
+      },
     ],
 
     engineTitle: 'Les moteurs',
@@ -212,6 +219,32 @@ export const fr: Dictionary = {
             name: 'Foyers inexpliqués',
             body: 'Comptabilise à part les foyers extraits de la presse qui ne correspondent à aucun profil de maladie connu. La pneumonie d’origine inconnue de Wuhan, en décembre 2019, en est l’archétype.',
             mode: 'hourly',
+          },
+        ],
+      },
+      {
+        key: 'environment',
+        label: 'Environnement · territoire polaire',
+        engines: [
+          {
+            id: 'polar_signals',
+            name: 'Veille du territoire polaire',
+            body: 'Observe l’Arctique, l’Antarctique et 27 régions montagneuses glaciaires avec ligne de base et tendance. À mesure que le pergélisol fond — révélant des pathogènes et la grippe aviaire polaire —, elle surveille, à l’échelle du territoire, les nouvelles conditions d’épidémie qu’ouvre le changement climatique.',
+            mode: 'daily',
+            caveat: 'Un objet d’observation, non une alerte. Un signal polaire ne signifie pas en soi une épidémie.',
+          },
+          {
+            id: 'disaster_watch',
+            name: 'Fenêtre de veille post-catastrophe',
+            body: 'Après inondations, séismes et tempêtes, le pays est surveillé à un seuil plus bas pendant la fenêtre où le risque hydrique et vectoriel monte. Elle vise le temps entre une catastrophe et l’épidémie qui suit.',
+            mode: 'hourly',
+          },
+          {
+            id: 'comtrade_signals',
+            name: 'Veille du commerce de fournitures médicales',
+            body: 'Détecte par pays les flambées d’importation de masques, d’EPI et de tests via UN Comtrade — un signal de comportement de préparation qui peut apparaître avant une annonce officielle.',
+            mode: 'daily',
+            caveat: 'Les déclarations commerciales accusent un retard d’environ deux mois et ne sont pas un indicateur en temps réel.',
           },
         ],
       },
@@ -315,6 +348,55 @@ export const fr: Dictionary = {
             mode: 'hourly',
           },
         ],
+      },
+    ],
+
+    engineCatalogueCta: 'Voir le rôle des 114 modules dans le catalogue des moteurs',
+
+    diffEyebrow: 'WHAT MAKES US DIFFERENT',
+    diffTitle: 'Ce qui nous distingue des autres systèmes d’alerte',
+    diffLead:
+      'L’alerte précoce en maladies infectieuses n’est pas nouvelle — des services comme BlueDot, EIOS et Metabiota existent déjà. Là où AEGIRON diffère, c’est qu’il ne s’arrête pas à la détection, mais met vérification, réponse et souveraineté dans un seul système. Nous l’énonçons par la structure, sans exagération.',
+    diffItems: [
+      {
+        title: 'Il ne s’arrête pas à la détection',
+        body: 'La plupart des systèmes d’alerte s’arrêtent à « quelque chose se passe, quelque part ». AEGIRON y joint simulation de propagation, scénarios d’intervention et préparation en contre-mesures, pour répondre à « et alors, à quelle intensité ».',
+      },
+      {
+        title: 'Il évalue ses propres chiffres',
+        body: 'Chaque prévision est scellée à sa création et confrontée chaque jour aux déclarations officielles, consignant elle-même succès et échec. Bâtir un historique comme un enregistrement vérifiable plutôt qu’une affirmation est rare.',
+      },
+      {
+        title: 'Les lacunes de veille incluses dès le départ',
+        body: 'Il surveille, au même standard, 178 pays et 52 langues que les services commerciaux couvrent rarement — Afrique, Asie centrale, États insulaires du Pacifique, et le territoire polaire aussi.',
+      },
+      {
+        title: 'Un axe de biosécurité nationale',
+        body: 'Le criblage génomique défensif (HEIMDALL) et l’analyse de couverture et de souveraineté de production des contre-mesures (VALHALLA) sont un axe national que les services commerciaux d’alerte n’ont pas.',
+      },
+      {
+        title: 'Tout est ouvert',
+        body: 'Le système, la méthodologie, les données et les limites sont ouverts dès le départ — un choix qu’un service plus grand, lié par des contrats clients, ne peut structurellement copier, et une base de confiance que la diligence peut vérifier directement.',
+      },
+    ],
+    futureTitle: 'Où nous allons',
+    futureLead: 'C’est un point de départ. Conçu pour se renforcer à mesure que l’exploitation s’accumule.',
+    futureItems: [
+      {
+        title: 'Un modèle d’extraction propriétaire',
+        body: 'L’extraction passe aujourd’hui par des API externes, mais le chemin est câblé pour basculer, en un seul endroit, vers un modèle auto-hébergé (NVIDIA NIM), vers une conception où les données sensibles ne partent pas vers des API étrangères.',
+      },
+      {
+        title: 'Un fossé de données',
+        body: '« Quel signal a mené à un vrai foyer » est assemblé en jeu d’apprentissage chaque jour. À mesure que l’exploitation continue, ce jeu grandit et les heuristiques peuvent être remplacées par un modèle appris mesuré.',
+      },
+      {
+        title: 'Un historique scellé',
+        body: 'À mesure que les prévisions scellées s’accumulent, « nous l’avons su en premier » devient un enregistrement qu’un tiers peut vérifier sur la blockchain — un actif dont la preuve se renforce avec le temps.',
+      },
+      {
+        title: 'Des liens de terrain',
+        body: 'L’étape suivante est de nous connecter à des réseaux de surveillance et des organisations de terrain réels pour nous rapprocher de la source du signal — la voie pour devenir une infrastructure mondiale d’alerte précoce.',
       },
     ],
 

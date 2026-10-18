@@ -188,6 +188,47 @@ export default async function HomePage(props: { params: Promise<{ locale: string
               </div>
             ))}
           </div>
+          <Link
+            href={localePath(locale, 'engines')}
+            style={{
+              display: 'inline-block', marginTop: 26,
+              fontFamily: 'var(--mono)', fontSize: 12.5, color: 'var(--accent)', textDecoration: 'none', fontWeight: 700,
+            }}
+          >
+            {t.engineCatalogueCta} →
+          </Link>
+        </Section>
+      </div>
+
+      {/* ── 다른 조기경보와 무엇이 다른가 + 미래성 ───────────── */}
+      <Section>
+        <SectionHeading eyebrow={t.diffEyebrow} title={t.diffTitle} lead={t.diffLead} />
+        <Grid min={260}>
+          {t.diffItems.map((d, i) => (
+            <div
+              key={d.title}
+              data-tone={DIFF_TONES[i % DIFF_TONES.length]}
+              className="toned-card"
+              style={{ border: '1px solid var(--line)', borderRadius: 13, padding: 20, background: 'var(--panel)', wordBreak: 'keep-all' }}
+            >
+              <h3 style={{ fontFamily: 'var(--disp)', fontWeight: 800, fontSize: 16.5, marginBottom: 10, lineHeight: 1.3 }}>{d.title}</h3>
+              <p style={{ color: 'var(--muted)', fontSize: 13.5, lineHeight: 1.72 }}>{d.body}</p>
+            </div>
+          ))}
+        </Grid>
+      </Section>
+
+      <div className="band-deep">
+        <Section>
+          <SectionHeading eyebrow="FUTURE" title={t.futureTitle} lead={t.futureLead} />
+          <Grid min={250}>
+            {t.futureItems.map((f) => (
+              <div key={f.title} style={{ border: '1px solid var(--line2)', borderRadius: 13, padding: 20, background: 'var(--panel)', wordBreak: 'keep-all' }}>
+                <h3 style={{ fontFamily: 'var(--disp)', fontWeight: 800, fontSize: 16, marginBottom: 10, color: 'var(--cyan)' }}>{f.title}</h3>
+                <p style={{ color: 'var(--muted)', fontSize: 13.5, lineHeight: 1.72 }}>{f.body}</p>
+              </div>
+            ))}
+          </Grid>
         </Section>
       </div>
 
@@ -427,6 +468,9 @@ function LiveBadge({
     </p>
   );
 }
+
+/** 차별점 카드의 묶음 색 — 좌상단 띠로 구별만 준다. */
+const DIFF_TONES = ['teal', 'indigo', 'forest', 'violet', 'crimson'] as const;
 
 const MODE_COLOR: Record<EngineMode, string> = {
   hourly: 'var(--ok)',

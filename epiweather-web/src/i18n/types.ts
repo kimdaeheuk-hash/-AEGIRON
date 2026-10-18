@@ -106,6 +106,17 @@ export type HomeDict = {
   engineModes: Record<EngineMode, string>;
   engineCaveatLabel: string;
   engineGroups: EngineGroupDict[];
+  /** 엔진 카탈로그(전체 114개 모듈)로 보내는 링크 문구. */
+  engineCatalogueCta: string;
+
+  /** 경쟁 조기경보와 무엇이 다른가 + 미래성. */
+  diffEyebrow: string;
+  diffTitle: string;
+  diffLead: string;
+  diffItems: { title: string; body: string }[];
+  futureTitle: string;
+  futureLead: string;
+  futureItems: { title: string; body: string }[];
 
   /** 스페셜 프로그램(헤임달·발할라) 강조 띠 — 홈에서 /programs 로 보낸다. */
   specialEyebrow: string;
