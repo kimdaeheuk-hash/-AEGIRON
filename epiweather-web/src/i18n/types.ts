@@ -40,16 +40,50 @@ export type StatDict = {
   note: string;
 };
 
+/**
+ * 엔진이 **언제 도는가.** 상시 가동하는 것과 부를 때만 도는 것을 같은 무게로
+ * 적으면 그 자체로 과장이 된다 — 그래서 엔진마다 이 값을 반드시 단다.
+ */
+export type EngineMode = 'hourly' | 'daily' | 'onAlert' | 'onRequest';
+
+export type EngineDict = {
+  /** 백엔드 모듈 파일명 그대로(algorithms/{id}.py) — 실재하는 코드를 가리킨다. */
+  id: string;
+  name: string;
+  body: string;
+  mode: EngineMode;
+  /** 이 엔진의 숫자를 어디까지 믿어도 되는지. 있으면 반드시 그린다. */
+  caveat?: string;
+};
+
+export type EngineGroupDict = {
+  key: string;
+  label: string;
+  engines: EngineDict[];
+};
+
 export type HomeDict = {
   metaTitle: string;
   metaDescription: string;
-  heroEyebrow: string;
+  /** '{ok}' '{total}' 자리에 /api/status 의 실측값이 들어간다. */
+  heroLiveOk: string;
+  /** API 를 못 읽었을 때 — 초록 불을 켜지 않는다. */
+  heroLiveUnknown: string;
+  /** [[ ]] 로 감싼 낱말은 강조색으로 그린다. 줄바꿈은 \n. */
   heroTitle: string;
   heroLead: string;
   heroPrimaryCta: string;
   heroSecondaryCta: string;
   heroNoLogin: string;
   stats: StatDict[];
+  /** 수치는 세는 날 바뀐다 — 언제 센 값인지를 수치 옆에 둔다. */
+  statsAsOf: string;
+
+  engineTitle: string;
+  engineLead: string;
+  engineModes: Record<EngineMode, string>;
+  engineCaveatLabel: string;
+  engineGroups: EngineGroupDict[];
 
   openTitle: string;
   openLead: string;

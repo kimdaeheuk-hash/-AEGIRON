@@ -70,23 +70,169 @@ export const en: Dictionary = {
   },
 
   home: {
-    metaTitle: 'AEGIRON — Infectious disease early warning, shown as it actually runs',
+    metaTitle: 'AEGIRON — Infectious disease early warning, forecasting and spread simulation',
     metaDescription:
-      'An early-warning system monitoring 21 live data sources for infectious disease signals. The live dashboard, the full methodology and every data source are open without a login — and so are the things we have not yet validated.',
+      'An infectious disease intelligence system that detects anomalies in local-language reporting from 179 countries and in official surveillance data, attaches intervention scenarios to every alert, and scores each of its forecasts against the official declarations that follow.',
 
-    heroEyebrow: 'Fully open · No login',
-    heroTitle: 'See the system\nexactly as it runs today',
+    heroLiveOk: 'Data sources: {ok}/{total} reporting normally',
+    heroLiveUnknown: 'Collection status could not be checked just now',
+    heroTitle: 'Beyond alerts —\n[[forecasting]] and [[simulation]]',
     heroLead:
-      'Most infectious disease intelligence sits behind a sales call. AEGIRON publishes the live system, the methodology, every data source, and the parts we have not yet validated. Look first, then judge.',
-    heroPrimaryCta: 'Open the live dashboard',
-    heroSecondaryCta: 'See how it works',
+      'AEGIRON detects anomalies in local-language reporting from 179 countries and in official surveillance data, and the moment an alert is raised it computes spread scenarios for each level of intervention. Every forecast is scored automatically against the official declarations that follow; a forecast with nothing to score it against is counted neither as a hit nor as a miss.',
+    heroPrimaryCta: 'Live dashboard',
+    heroSecondaryCta: 'Engine architecture',
     heroNoLogin: 'Opens immediately — no signup, no login',
 
     stats: [
-      { value: '21', label: 'Live data sources', note: 'WHO · CDC · local-language news · climate · satellite' },
-      { value: '106', label: 'API endpoints', note: 'Collection · analysis · forecasting · simulation' },
-      { value: '217', label: 'Country reference set', note: 'Vulnerability index built on World Bank data' },
-      { value: '740', label: 'Automated tests', note: 'All passing · re-run on every change' },
+      { value: '114', label: 'Algorithm modules', note: 'Detection · genomics · forecasting · response · verification' },
+      { value: '123', label: 'API endpoints', note: 'Collection · analysis · simulation · scoring' },
+      { value: '2,145', label: 'Automated tests', note: 'All must pass before anything reaches production' },
+      { value: '179', label: 'Local-language news feeds', note: 'Aggregated by country and language, collected hourly' },
+    ],
+    statsAsOf: 'Measured 2026-10-18 from the repository and production logs',
+
+    engineTitle: 'The engines',
+    engineLead:
+      'Sixteen of the 114 modules form the backbone of detection, genomics, forecasting, response and verification. Each one is labelled with how it actually runs, so that an engine that runs every hour is never presented with the same weight as one that computes only when asked.',
+    engineModes: {
+      hourly: 'Runs hourly',
+      daily: 'Runs daily',
+      onAlert: 'Runs on alert',
+      onRequest: 'On request',
+    },
+    engineCaveatLabel: 'Limits',
+    engineGroups: [
+      {
+        key: 'detect',
+        label: 'Detection',
+        engines: [
+          {
+            id: 'local_news',
+            name: 'Local-language news surveillance',
+            body: 'Measures the density of disease vocabulary in news aggregated by country and language, and re-classifies ambiguous feeds with a language model. The target is the first local report, before any English-language coverage exists.',
+            mode: 'hourly',
+          },
+          {
+            id: 'gai',
+            name: 'Six-layer anomaly index',
+            body: 'Converts signals from six layers — official, unofficial, behavioural, environmental, animal and unexplained — into anomaly scores against each signal’s own baseline, weights them by source reliability and combines them into one index. The reference is each indicator’s usual level, not its absolute volume.',
+            mode: 'hourly',
+          },
+          {
+            id: 'negative_space',
+            name: 'Reporting-silence watch',
+            body: 'Tracks reporting channels that fall below half their baseline. It targets cases such as Ebola in Guinea in 2014, where the collapse of reporting came before the spread, and judges only indicators with a declared decision rule.',
+            mode: 'hourly',
+          },
+          {
+            id: 'unexplained',
+            name: 'Unexplained clusters',
+            body: 'Counts, as a separate class, clusters extracted from reporting that do not match any known disease pattern. The pneumonia of unknown cause in Wuhan in December 2019 is the archetype.',
+            mode: 'hourly',
+          },
+        ],
+      },
+      {
+        key: 'genomics',
+        label: 'Genomics',
+        engines: [
+          {
+            id: 'genomic_variants',
+            name: 'Clade composition tracking',
+            body: 'Reads shifts in dominant-clade share and the emergence of new clades from Nextstrain’s reanalysis of public sequences — changes in transmissibility or immune escape that move before case counts do. Builds that have stopped updating are not used as signals.',
+            mode: 'hourly',
+          },
+          {
+            id: 'evo2_naturalness',
+            name: 'Measured sequence-order naturalness',
+            body: 'Gives the genomic foundation model Evo2 only the first part of a sequence, asks it to predict the next bases, and measures agreement with the real sequence. It targets spliced or recombined segments that composition statistics cannot reveal.',
+            mode: 'onRequest',
+            caveat: 'Evo2 excluded eukaryotic-host viruses from training, so it is not applied to coronavirus, influenza or Ebola sequences.',
+          },
+          {
+            id: 'msa_homology',
+            name: 'Homology-based chimera detection',
+            body: 'Searches public homology databases to see whether any natural protein covers the full length of the query. Because it is a search rather than a trained model, it also works for pathogens Evo2 cannot handle.',
+            mode: 'onRequest',
+          },
+        ],
+      },
+      {
+        key: 'simulate',
+        label: 'Forecasting · Simulation',
+        engines: [
+          {
+            id: 'forecast_engine',
+            name: '7- and 14-day trend outlook',
+            body: 'Extrapolates each indicator’s time series 7 and 14 days ahead with an ensemble of linear regression and exponential smoothing, and publishes the result in the daily briefing.',
+            mode: 'daily',
+            caveat: 'An extrapolation of signal time series, not a measured case count.',
+          },
+          {
+            id: 'digital_twin',
+            name: 'Cross-border spread simulation',
+            body: 'A metapopulation SEIR model with 159 countries as nodes and 1,671 air-linked country pairs and 314 land borders as edges. It reports countries not reached within the period separately from countries for which no route is known.',
+            mode: 'onRequest',
+            caveat: 'The air network uses 2014 route data; land traffic is a population-based estimate.',
+          },
+          {
+            id: 'global_inflow',
+            name: 'Import-date estimate',
+            body: 'Estimates the days until a first imported case reaches Korea, and the risk at each port of entry, from the origin city’s international passenger volume, flight time and early exponential growth.',
+            mode: 'onRequest',
+            caveat: 'A model estimate, not an observed import date.',
+          },
+        ],
+      },
+      {
+        key: 'respond',
+        label: 'Response',
+        engines: [
+          {
+            id: 'alert_intervention',
+            name: 'Intervention scenarios per alert',
+            body: 'For every new critical or high alert, runs an SEIR defence simulation with disease-specific parameters and attaches the difference between no response and intervention. The alert no longer stops at “what is coming”; it also answers “which measures change what”.',
+            mode: 'onAlert',
+            caveat: 'A model scenario built on literature parameters, not a forecast. No figures are produced for alerts where the disease cannot be identified.',
+          },
+          {
+            id: 'defense',
+            name: 'Time-varying intervention comparison',
+            body: 'Varies the start date and intensity of isolation, distancing and vaccination to compare how the effective reproduction number and days of hospital overload change.',
+            mode: 'onRequest',
+          },
+        ],
+      },
+      {
+        key: 'verify',
+        label: 'Self-verification',
+        engines: [
+          {
+            id: 'prediction_resolver',
+            name: 'Automatic forecast scoring',
+            body: 'Checks recorded forecasts every day against the official declarations that follow and sorts them into hit, miss or undetermined. Spikes in page views and case-count updates are never used as ground truth — that would be scoring our signals with our own signals.',
+            mode: 'daily',
+          },
+          {
+            id: 'lead_time_ledger',
+            name: 'Lead-time ledger',
+            body: 'Records the moment a signal was first seen before any official declaration. A lead time found by searching backwards after a declaration is not accepted as a measurement.',
+            mode: 'hourly',
+          },
+          {
+            id: 'prediction_timestamp',
+            name: 'Forecast sealing',
+            body: 'Anchors the SHA-256 hash of a forecast record in the Bitcoin blockchain through OpenTimestamps, so that a third party can verify for themselves that the forecast was not rewritten after the fact.',
+            mode: 'onRequest',
+          },
+          {
+            id: 'source_health',
+            name: 'Silent-failure watch',
+            body: 'Counts separately, every cycle, whether each source actually delivered values and whether the method that produced them still holds. A source whose collection ran but returned nothing is not counted as healthy.',
+            mode: 'hourly',
+          },
+        ],
+      },
     ],
 
     openTitle: 'What we publish',

@@ -72,23 +72,169 @@ export const fr: Dictionary = {
   },
 
   home: {
-    metaTitle: 'AEGIRON — Alerte précoce des maladies infectieuses, telle qu’elle fonctionne',
+    metaTitle: 'AEGIRON — Alerte précoce, prévision et simulation de la propagation des maladies infectieuses',
     metaDescription:
-      'Un système d’alerte précoce qui surveille 21 sources de données en temps réel. Le tableau de bord, la méthodologie complète et toutes les sources sont accessibles sans authentification — tout comme ce que nous n’avons pas encore validé.',
+      'Un système de renseignement épidémiologique qui détecte les anomalies dans la presse en langue locale de 179 pays et dans les données officielles de surveillance, joint des scénarios d’intervention à chaque alerte et évalue chacune de ses prévisions au regard des déclarations officielles qui suivent.',
 
-    heroEyebrow: 'Entièrement ouvert · Sans authentification',
-    heroTitle: 'Voyez le système\ntel qu’il fonctionne aujourd’hui',
+    heroLiveOk: 'Sources de données : {ok}/{total} en fonctionnement normal',
+    heroLiveUnknown: 'L’état de la collecte n’a pas pu être vérifié pour l’instant',
+    heroTitle: 'Au-delà de l’alerte :\n[[prévision]] et [[simulation]]',
     heroLead:
-      'La plupart des systèmes de veille épidémiologique se cachent derrière un rendez-vous commercial. AEGIRON publie le système en direct, la méthodologie, chaque source de données, et ce que nous n’avons pas encore validé. Regardez d’abord, jugez ensuite.',
-    heroPrimaryCta: 'Ouvrir le tableau de bord',
-    heroSecondaryCta: 'Voir le fonctionnement',
+      'AEGIRON détecte les anomalies dans la presse en langue locale de 179 pays et dans les données officielles de surveillance, et calcule, dès qu’une alerte est émise, des scénarios de propagation pour chaque niveau d’intervention. Chaque prévision est évaluée automatiquement au regard des déclarations officielles qui suivent ; une prévision sans élément de comparaison n’est comptée ni comme un succès ni comme un échec.',
+    heroPrimaryCta: 'Tableau de bord',
+    heroSecondaryCta: 'Architecture des moteurs',
     heroNoLogin: 'Accès immédiat — sans inscription ni connexion',
 
     stats: [
-      { value: '21', label: 'Sources en temps réel', note: 'OMS · CDC · presse en langue locale · climat · satellite' },
-      { value: '106', label: 'Points d’accès API', note: 'Collecte · analyse · prévision · simulation' },
-      { value: '217', label: 'Pays référencés', note: 'Indice de vulnérabilité fondé sur les données de la Banque mondiale' },
-      { value: '740', label: 'Tests automatisés', note: 'Tous validés · relancés à chaque modification' },
+      { value: '114', label: 'Modules algorithmiques', note: 'Détection · génomique · prévision · réponse · vérification' },
+      { value: '123', label: 'Points d’accès API', note: 'Collecte · analyse · simulation · évaluation' },
+      { value: '2 145', label: 'Tests automatisés', note: 'Tous doivent réussir avant toute mise en production' },
+      { value: '179', label: 'Flux d’actualité en langue locale', note: 'Agrégés par pays et par langue, collectés toutes les heures' },
+    ],
+    statsAsOf: 'Mesuré le 2026-10-18 à partir du dépôt et des journaux de production',
+
+    engineTitle: 'Les moteurs',
+    engineLead:
+      'Seize des 114 modules forment l’ossature de la détection, de la génomique, de la prévision, de la réponse et de la vérification. Chacun indique son mode de fonctionnement réel, afin qu’un moteur exécuté toutes les heures ne soit jamais présenté avec le même poids qu’un moteur qui ne calcule qu’à la demande.',
+    engineModes: {
+      hourly: 'Toutes les heures',
+      daily: 'Quotidien',
+      onAlert: 'À chaque alerte',
+      onRequest: 'À la demande',
+    },
+    engineCaveatLabel: 'Limites',
+    engineGroups: [
+      {
+        key: 'detect',
+        label: 'Détection',
+        engines: [
+          {
+            id: 'local_news',
+            name: 'Veille de la presse en langue locale',
+            body: 'Mesure la densité du vocabulaire épidémiologique dans l’actualité agrégée par pays et par langue, et reclasse les flux ambigus à l’aide d’un modèle de langage. La cible est le premier article local, avant toute couverture en anglais.',
+            mode: 'hourly',
+          },
+          {
+            id: 'gai',
+            name: 'Indice d’anomalie à six couches',
+            body: 'Convertit les signaux de six couches — officielle, officieuse, comportementale, environnementale, animale et inexpliquée — en scores d’anomalie par rapport à la ligne de base propre à chaque signal, les pondère par la fiabilité de la source et les combine en un indice unique. La référence est le niveau habituel de chaque indicateur, non son volume absolu.',
+            mode: 'hourly',
+          },
+          {
+            id: 'negative_space',
+            name: 'Veille des silences de déclaration',
+            body: 'Suit les canaux de déclaration qui tombent sous la moitié de leur ligne de base. Elle vise des situations comme Ebola en Guinée en 2014, où l’effondrement de la déclaration a précédé la propagation, et ne juge que les indicateurs dotés d’une règle de décision déclarée.',
+            mode: 'hourly',
+          },
+          {
+            id: 'unexplained',
+            name: 'Foyers inexpliqués',
+            body: 'Comptabilise à part les foyers extraits de la presse qui ne correspondent à aucun profil de maladie connu. La pneumonie d’origine inconnue de Wuhan, en décembre 2019, en est l’archétype.',
+            mode: 'hourly',
+          },
+        ],
+      },
+      {
+        key: 'genomics',
+        label: 'Génomique',
+        engines: [
+          {
+            id: 'genomic_variants',
+            name: 'Suivi de la composition des clades',
+            body: 'Lit, dans la réanalyse des séquences publiques par Nextstrain, l’évolution de la part du clade dominant et l’apparition de nouveaux clades — des changements de transmissibilité ou d’échappement immunitaire qui précèdent les nombres de cas. Les jeux de données qui ne sont plus mis à jour ne servent pas de signal.',
+            mode: 'hourly',
+          },
+          {
+            id: 'evo2_naturalness',
+            name: 'Mesure du naturel de l’ordre des séquences',
+            body: 'Fournit au modèle génomique de fondation Evo2 le seul début d’une séquence, lui fait prédire les bases suivantes et mesure la concordance avec la séquence réelle. Il vise les segments assemblés ou recombinés que les statistiques de composition ne révèlent pas.',
+            mode: 'onRequest',
+            caveat: 'Evo2 a exclu de son entraînement les virus à hôte eucaryote ; il n’est donc pas appliqué aux séquences de coronavirus, de grippe ou d’Ebola.',
+          },
+          {
+            id: 'msa_homology',
+            name: 'Détection de chimères par homologie',
+            body: 'Interroge des bases d’homologie publiques pour vérifier si une protéine naturelle couvre toute la longueur de la séquence. S’agissant d’une recherche et non d’un modèle entraîné, la méthode s’applique aussi aux pathogènes qu’Evo2 ne traite pas.',
+            mode: 'onRequest',
+          },
+        ],
+      },
+      {
+        key: 'simulate',
+        label: 'Prévision · Simulation',
+        engines: [
+          {
+            id: 'forecast_engine',
+            name: 'Tendance à 7 et 14 jours',
+            body: 'Extrapole à 7 et 14 jours la série temporelle de chaque indicateur à l’aide d’un ensemble régression linéaire et lissage exponentiel, et publie le résultat dans le bulletin quotidien.',
+            mode: 'daily',
+            caveat: 'Une extrapolation de séries de signaux, et non un nombre de cas mesuré.',
+          },
+          {
+            id: 'digital_twin',
+            name: 'Simulation de la propagation entre pays',
+            body: 'Un modèle SEIR métapopulationnel dont les nœuds sont 159 pays et les arêtes 1 671 paires de pays reliées par avion et 314 frontières terrestres. Il distingue les pays non atteints pendant la période de ceux pour lesquels aucune voie n’est connue.',
+            mode: 'onRequest',
+            caveat: 'Le réseau aérien repose sur des données de liaisons de 2014 ; le trafic terrestre est une estimation fondée sur la population.',
+          },
+          {
+            id: 'global_inflow',
+            name: 'Estimation de la date d’importation',
+            body: 'Estime le nombre de jours avant un premier cas importé en Corée, ainsi que le risque par point d’entrée, à partir du trafic international de la ville d’origine, de la durée de vol et de la croissance exponentielle initiale.',
+            mode: 'onRequest',
+            caveat: 'Une estimation de modèle, et non une date d’importation observée.',
+          },
+        ],
+      },
+      {
+        key: 'respond',
+        label: 'Réponse',
+        engines: [
+          {
+            id: 'alert_intervention',
+            name: 'Scénarios d’intervention par alerte',
+            body: 'Pour chaque nouvelle alerte critique ou élevée, exécute une simulation SEIR de défense avec des paramètres propres à la maladie et joint l’écart entre absence de réponse et intervention. L’alerte ne s’arrête plus à « ce qui arrive » : elle répond aussi à « quelle mesure change quoi ».',
+            mode: 'onAlert',
+            caveat: 'Un scénario de modèle fondé sur des paramètres de la littérature, et non une prévision. Aucun chiffre n’est produit lorsque la maladie ne peut être identifiée.',
+          },
+          {
+            id: 'defense',
+            name: 'Comparaison d’interventions dans le temps',
+            body: 'Fait varier la date de début et l’intensité de l’isolement, de la distanciation et de la vaccination pour comparer l’évolution du nombre de reproduction effectif et des jours de saturation hospitalière.',
+            mode: 'onRequest',
+          },
+        ],
+      },
+      {
+        key: 'verify',
+        label: 'Auto-vérification',
+        engines: [
+          {
+            id: 'prediction_resolver',
+            name: 'Évaluation automatique des prévisions',
+            body: 'Confronte chaque jour les prévisions enregistrées aux déclarations officielles qui suivent et les classe en succès, échec ou indéterminé. Les pics de consultation et les mises à jour du nombre de cas ne servent jamais de vérité terrain : ce serait évaluer nos signaux avec nos propres signaux.',
+            mode: 'daily',
+          },
+          {
+            id: 'lead_time_ledger',
+            name: 'Registre d’antériorité',
+            body: 'Enregistre le moment où un signal a été vu pour la première fois, avant toute déclaration officielle. Une antériorité reconstituée a posteriori, après la déclaration, n’est pas acceptée comme mesure.',
+            mode: 'hourly',
+          },
+          {
+            id: 'prediction_timestamp',
+            name: 'Scellement des prévisions',
+            body: 'Ancre l’empreinte SHA-256 d’une prévision dans la blockchain Bitcoin via OpenTimestamps, afin qu’un tiers puisse vérifier lui-même que la prévision n’a pas été réécrite après coup.',
+            mode: 'onRequest',
+          },
+          {
+            id: 'source_health',
+            name: 'Veille des défaillances silencieuses',
+            body: 'Vérifie séparément, à chaque cycle, si chaque source a réellement livré des valeurs et si la méthode qui les produit tient toujours. Une source dont la collecte a tourné sans rien renvoyer n’est pas comptée comme saine.',
+            mode: 'hourly',
+          },
+        ],
+      },
     ],
 
     openTitle: 'Ce que nous publions',
