@@ -18,7 +18,9 @@ const COLUMNS: { titleKey: 'product' | 'company'; links: { key: keyof Dictionary
     titleKey: 'product',
     links: [
       { key: 'platform', path: 'platform' },
-      { key: 'technology', path: 'technology' },
+      { key: 'techSpec1', path: 'technology' },
+      { key: 'techSpec2', path: 'technology-advanced' },
+      { key: 'engines', path: 'engines' },
       { key: 'programs', path: 'programs' },
       { key: 'methodology', path: 'methodology' },
       { key: 'transparency', path: 'transparency' },
@@ -30,6 +32,9 @@ const COLUMNS: { titleKey: 'product' | 'company'; links: { key: keyof Dictionary
     titleKey: 'company',
     links: [
       { key: 'about', path: 'about' },
+      { key: 'solGovernment', path: 'solutions/government' },
+      { key: 'solReinsurance', path: 'solutions/reinsurance' },
+      { key: 'solNgo', path: 'solutions/ngo' },
       { key: 'contact', path: 'contact' },
     ],
   },

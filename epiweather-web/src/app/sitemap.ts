@@ -16,6 +16,7 @@ const ROUTES: { path: string; priority: number; changeFrequency: MetadataRoute.S
   { path: 'platform', priority: 0.9, changeFrequency: 'monthly' },
   { path: 'technology', priority: 0.9, changeFrequency: 'monthly' },
   { path: 'technology-advanced', priority: 0.8, changeFrequency: 'monthly' },
+  { path: 'engines', priority: 0.8, changeFrequency: 'monthly' },
   { path: 'programs', priority: 0.9, changeFrequency: 'monthly' },
   { path: 'methodology', priority: 0.9, changeFrequency: 'monthly' },
   { path: 'transparency', priority: 0.9, changeFrequency: 'monthly' },

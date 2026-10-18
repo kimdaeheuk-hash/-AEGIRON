@@ -3,96 +3,94 @@ import type { Dictionary } from '@/i18n/types';
 import { localePath, type Locale } from '@/i18n/config';
 import { Logo } from './Logo';
 import { LocaleSwitcher } from './LocaleSwitcher';
+import { MobileMenu } from './MobileMenu';
 
 /**
  * 사이트 공통 네비게이션.
  *
- * 예전 홈페이지는 항목이 '방법론'과 '대시보드' 둘뿐이라 페이지가 늘어도 방문자가
- * 찾아갈 길이 없었다. 조사한 경쟁사(BlueDot·Airfinity·Perimeter)는 공통적으로
- * ①제품 ②근거 ③활용처 ④회사 ⑤행동유도(CTA)를 둔다 — 그 골격을 따르되,
- * 우리에게만 있는 '우리가 모르는 것'을 최상위에 노출한다.
+ * ★ 2026-10-18 재구성 ★ 캡틴 지시: "맨 위 페이지 제목들이 정리가 안 된 것처럼 보인다 —
+ * 회사, 플랫폼, 기술 등을 순서대로 정리해라." 예전에는 링크 여덟 개를 한 줄에 늘어놓고
+ * 넘치면 옆으로 밀었다. 휴대폰에서는 절반이 잘려 보였고, 무엇이 무엇의 하위인지도 안 보였다.
+ *
+ * 이제는 방문자가 읽는 순서대로 여섯 묶음이다 —
+ *   회사 → 플랫폼 → 기술 → 스페셜 프로그램 → 활용 분야 → 검증·데이터
+ * 넓은 화면은 묶음마다 펼침 메뉴, 좁은 화면은 '메뉴' 버튼 하나로 접는다.
  */
-const LINKS: { key: keyof Dictionary['nav']; path: string; emphasis?: boolean }[] = [
-  { key: 'platform', path: 'platform' },
-  { key: 'technology', path: 'technology' },
-  { key: 'programs', path: 'programs', emphasis: true },
-  { key: 'methodology', path: 'methodology' },
-  { key: 'transparency', path: 'transparency' },
-  { key: 'dataSources', path: 'data-sources' },
-  { key: 'briefings', path: 'briefings' },
-  { key: 'about', path: 'about' },
-];
+export type NavItem = { label: string; href: string };
+export type NavGroup = { label: string; href?: string; items?: NavItem[]; emphasis?: boolean };
+
+export function navGroups(locale: Locale, nav: Dictionary['nav']): NavGroup[] {
+  const p = (path: string) => localePath(locale, path);
+  return [
+    { label: nav.company, items: [
+      { label: nav.about, href: p('about') },
+      { label: nav.contact, href: p('contact') },
+    ] },
+    { label: nav.platform, href: p('platform') },
+    { label: nav.technology, items: [
+      { label: nav.techSpec1, href: p('technology') },
+      { label: nav.techSpec2, href: p('technology-advanced') },
+      { label: nav.engines, href: p('engines') },
+      { label: nav.methodology, href: p('methodology') },
+    ] },
+    // 스페셜 프로그램(헤임달·발할라)은 강조색 — 캡틴이 "R&D처럼 중요하다"고 지목한 항목이다.
+    { label: nav.programs, href: p('programs'), emphasis: true },
+    { label: nav.solutions, items: [
+      { label: nav.solGovernment, href: p('solutions/government') },
+      { label: nav.solReinsurance, href: p('solutions/reinsurance') },
+      { label: nav.solNgo, href: p('solutions/ngo') },
+    ] },
+    { label: nav.trust, items: [
+      { label: nav.transparency, href: p('transparency') },
+      { label: nav.dataSources, href: p('data-sources') },
+      { label: nav.briefings, href: p('briefings') },
+    ] },
+  ];
+}
 
 export function SiteNav({ locale, dict }: { locale: Locale; dict: Dictionary }) {
+  const groups = navGroups(locale, dict.nav);
   return (
-    <header style={{ borderBottom: '1px solid var(--line)', position: 'sticky', top: 0, zIndex: 40, backdropFilter: 'blur(10px)', background: 'var(--nav-bg)' }}>
-      <nav
-        aria-label={dict.common.siteName}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap',
-          maxWidth: 1320, margin: '0 auto', padding: '14px clamp(14px,2.4vw,26px)',
-        }}
-      >
-        <Link
-          href={localePath(locale)}
-          style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', color: 'var(--txt)' }}
-        >
+    <header className="site-header">
+      <nav aria-label={dict.common.siteName} className="site-nav">
+        <Link href={localePath(locale)} className="site-brand">
           <Logo size={30} />
-          <span style={{ fontFamily: 'var(--disp)', fontWeight: 800, fontSize: 17, letterSpacing: '-.02em' }}>
-            {dict.common.siteName}
-          </span>
+          <span>{dict.common.siteName}</span>
         </Link>
 
-        {/* ★ 모바일에서 줄바꿈 대신 가로 스크롤 ★
-            wrap으로 두면 좁은 화면에서 링크가 여러 줄로 쌓여 네비 높이가 185px까지
-            올라갔다(390px 기기 실측). 844px 화면의 22%를 메뉴가 먹는다는 뜻이다.
-            한 줄을 유지하고 넘치는 만큼만 옆으로 밀면 모든 링크가 그대로 닿는다. */}
-        <ul
-          className="nav-links"
-          style={{
-            display: 'flex', alignItems: 'center', gap: 18, listStyle: 'none',
-            marginLeft: 'auto', fontFamily: 'var(--mono)', fontSize: 12,
-            overflowX: 'auto', overflowY: 'hidden',
-            // ★ minWidth: 0이 없으면 overflow가 동작하지 않는다 ★
-            // flex 아이템의 기본 min-width는 auto라, 내용보다 작게 줄어들기를
-            // 거부하고 그대로 부모를 밀어낸다. 그러면 스크롤 컨테이너가 아니라
-            // 페이지 전체에 가로 스크롤이 생긴다(390px에서 408px 폭 실측).
-            minWidth: 0,
-            flex: '1 1 auto',
-            scrollbarWidth: 'none',
-            WebkitOverflowScrolling: 'touch',
-          }}
-        >
-          {LINKS.map(({ key, path, emphasis }) => (
-            <li key={key} style={{ flexShrink: 0 }}>
-              <Link
-                href={localePath(locale, path)}
-                style={{
-                  // 스페셜 프로그램(헤임달·발할라)은 다른 항목과 구별되게 강조색으로 둔다 —
-                  // 캡틴이 "스페셜 부분을 강조해라"라고 지목한 항목이다.
-                  color: emphasis ? 'var(--accent)' : 'var(--muted)',
-                  fontWeight: emphasis ? 700 : undefined,
-                  textDecoration: 'none', whiteSpace: 'nowrap',
-                }}
-              >
-                {dict.nav[key]}
-              </Link>
+        <ul className="nav-groups">
+          {groups.map((g) => (
+            <li key={g.label} className={g.items ? 'nav-group has-menu' : 'nav-group'}>
+              {g.href ? (
+                <Link href={g.href} className={g.emphasis ? 'nav-top emphasis' : 'nav-top'}>
+                  {g.label}
+                </Link>
+              ) : (
+                // 묶음 제목은 링크가 아니다 — 누르거나(포커스) 올리면 하위 메뉴가 열린다.
+                <button type="button" className="nav-top" aria-haspopup="true">
+                  {g.label}
+                  <span aria-hidden="true" className="nav-caret">▾</span>
+                </button>
+              )}
+              {g.items && (
+                <ul className="nav-menu">
+                  {g.items.map((it) => (
+                    <li key={it.href}>
+                      <Link href={it.href}>{it.label}</Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </li>
           ))}
         </ul>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div className="nav-actions">
           <LocaleSwitcher current={locale} label={dict.nav.language} />
-          <Link
-            href="/dashboard"
-            style={{
-              fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--txt)', textDecoration: 'none',
-              border: '1px solid var(--line2)', borderRadius: 9, padding: '8px 14px',
-              background: 'var(--panel)', whiteSpace: 'nowrap',
-            }}
-          >
+          <Link href="/dashboard" className="nav-cta">
             {dict.nav.dashboard} →
           </Link>
+          <MobileMenu groups={groups} openLabel={dict.nav.openMenu} closeLabel={dict.nav.closeMenu} dashboard={dict.nav.dashboard} />
         </div>
       </nav>
     </header>

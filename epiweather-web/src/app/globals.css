@@ -51,10 +51,76 @@ body::before {
 @keyframes sp     { to{transform:rotate(360deg)} }
 
 
-/* 네비 링크 줄은 가로 스크롤이지만 스크롤바를 숨긴다 —
-   막대가 보이면 메뉴가 잘린 것처럼 보여 오히려 지저분하다.
-   (좁은 화면에서 줄바꿈 대신 옆으로 미는 방식. SiteNav 주석 참고) */
-.nav-links::-webkit-scrollbar { display: none; }
+/* ── 상단 메뉴 (SiteNav · MobileMenu) ─────────────────────────────
+   넓은 화면: 여섯 묶음 + 펼침 메뉴. 좁은 화면(1080px 미만): '메뉴' 버튼 하나.
+   펼침은 :hover 와 :focus-within 둘 다로 연다 — 키보드로 Tab 해 들어가도 열린다. */
+.site-header {
+  position: sticky; top: 0; z-index: 40;
+  border-bottom: 1px solid var(--line);
+  background: var(--nav-bg); backdrop-filter: blur(10px);
+}
+.site-nav {
+  display: flex; align-items: center; gap: 18px;
+  max-width: 1320px; margin: 0 auto; padding: 12px clamp(14px,2.4vw,26px);
+}
+.site-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--txt); flex-shrink: 0; }
+.site-brand span { font-family: var(--disp); font-weight: 800; font-size: 17px; letter-spacing: -.02em; }
+.nav-groups { display: flex; align-items: center; gap: 2px; list-style: none; margin: 0 auto; }
+.nav-group { position: relative; }
+.nav-top {
+  display: inline-flex; align-items: center; gap: 5px;
+  font: 600 14px/1 var(--kr); color: var(--txt); text-decoration: none;
+  background: none; border: 0; cursor: pointer; padding: 11px 13px; border-radius: 8px; white-space: nowrap;
+}
+.nav-top:hover, .nav-group:focus-within > .nav-top { background: var(--panel2); }
+.nav-top.emphasis { color: var(--accent); font-weight: 800; }
+.nav-caret { font-size: 10px; color: var(--muted2); }
+.nav-menu {
+  position: absolute; top: 100%; left: 0; min-width: 210px; list-style: none;
+  background: var(--panel); border: 1px solid var(--line2); border-radius: 12px; padding: 6px;
+  box-shadow: 0 14px 34px rgba(20,24,30,.14);
+  opacity: 0; visibility: hidden; transform: translateY(4px); transition: opacity .14s, transform .14s, visibility .14s;
+}
+.nav-group.has-menu:hover .nav-menu, .nav-group.has-menu:focus-within .nav-menu { opacity: 1; visibility: visible; transform: none; }
+.nav-menu a {
+  display: block; padding: 10px 12px; border-radius: 8px; font-size: 14px; color: var(--txt);
+  text-decoration: none; white-space: nowrap;
+}
+.nav-menu a:hover, .nav-menu a:focus-visible { background: var(--panel2); color: var(--accent); }
+.nav-actions { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.nav-cta {
+  font-family: var(--mono); font-size: 12px; color: var(--on-accent); text-decoration: none; white-space: nowrap;
+  background: var(--deep, var(--accent)); border-radius: 9px; padding: 9px 14px;
+}
+.mobile-menu { display: none; position: static; }
+.mobile-menu summary {
+  list-style: none; cursor: pointer; width: 42px; height: 42px; border-radius: 10px;
+  display: grid; place-items: center; font-size: 19px; color: var(--txt);
+  border: 1px solid var(--line2); background: var(--panel);
+}
+.mobile-menu summary::-webkit-details-marker { display: none; }
+.mobile-menu .when-open, .mobile-menu[open] .when-closed { display: none; }
+.mobile-menu[open] .when-open { display: inline; }
+.mobile-panel {
+  position: absolute; left: 0; right: 0; top: 100%;
+  background: var(--bg); border-bottom: 1px solid var(--line2);
+  box-shadow: 0 18px 30px rgba(20,24,30,.12);
+  padding: 8px 18px 20px; max-height: calc(100dvh - 70px); overflow-y: auto;
+}
+.mobile-group { padding: 12px 0; border-bottom: 1px solid var(--line); }
+.mobile-top { display: block; font-weight: 800; font-size: 15.5px; color: var(--txt); text-decoration: none; }
+.mobile-top.emphasis { color: var(--accent); }
+.mobile-group ul { list-style: none; display: grid; gap: 2px; margin-top: 8px; }
+.mobile-group ul a { display: block; padding: 8px 0 8px 12px; font-size: 14.5px; color: var(--muted); text-decoration: none; border-left: 2px solid var(--line2); }
+.mobile-cta {
+  display: block; text-align: center; margin-top: 18px; padding: 13px; border-radius: 10px;
+  background: var(--deep, var(--accent)); color: var(--on-accent); text-decoration: none; font-family: var(--mono); font-size: 13px;
+}
+@media (max-width: 1079px) {
+  .nav-groups, .nav-cta { display: none; }
+  .mobile-menu { display: block; }
+  .nav-actions { margin-left: auto; }
+}
 
 /* 화면낭독기 전용 텍스트 — 언어 전환기가 "KO" 옆에 "한국어"를 숨겨 읽힌다. */
 .sr-only {
@@ -142,6 +208,49 @@ body[data-theme="lab"] {
   --hero-glow: #b42318;
   background: var(--bg);
 }
+/* ★ 배색 C 보강(2026-10-18 오후, 캡틴: "다른 색상이 필요해") ★
+   상아색 한 가지로만 이어지면 페이지가 단조롭고 구획이 안 보인다. 두 가지를 더한다.
+   ① 깊은 남청색 띠(--deep) — 첫 화면·스페셜 프로그램·마무리처럼 무게를 주는 구간.
+   ② 엔진 묶음별 색(--t-*) — 감시·추출·판정·예측·유전체·대응제·검증을 색으로 구별한다.
+   본문 바탕과 글자색은 그대로라 읽기 편한 밝은 배색은 유지된다. */
+body[data-theme="lab"] {
+  --deep: #0f2a43; --deep2: #133a5c;
+  --t-teal: #0f766e; --t-indigo: #4338ca; --t-amber: #b45309; --t-crimson: #b42318;
+  --t-forest: #15803d; --t-violet: #7e22ce; --t-sky: #0369a1;
+}
+body[data-theme="lab"] .hero-band,
+body[data-theme="lab"] .band-deep {
+  background:
+    radial-gradient(900px 520px at 85% -10%, rgba(94,234,212,.16), transparent 60%),
+    radial-gradient(700px 480px at 0% 120%, rgba(244,114,94,.14), transparent 55%),
+    linear-gradient(160deg, #0b2036 0%, #0f2a43 55%, #12395a 100%);
+  color: #eef4fa;
+  --txt: #eef4fa; --muted: #b3c3d6; --muted2: #8ea3bb;
+  --panel: rgba(255,255,255,.06); --panel2: rgba(255,255,255,.10);
+  --line: rgba(190,210,240,.16); --line2: rgba(190,210,240,.30);
+  --code-bg: rgba(255,255,255,.05);
+  --accent: #ff7a6b; --cyan: #5eead4; --on-accent: #2a0703;
+  --accent-soft: rgba(255,122,107,.10); --accent-line: rgba(255,122,107,.38);
+  --ok: #4ade80; --amber: #fbbf24;
+}
+body[data-theme="lab"] .band-deep { padding: 8px 0; }
+
+/* 묶음 색 — data-tone 이 붙은 요소는 --tone 으로 제 색을 받는다. */
+[data-tone="teal"]    { --tone: var(--t-teal, #0f766e); }
+[data-tone="indigo"]  { --tone: var(--t-indigo, #4338ca); }
+[data-tone="amber"]   { --tone: var(--t-amber, #b45309); }
+[data-tone="crimson"] { --tone: var(--t-crimson, #b42318); }
+[data-tone="forest"]  { --tone: var(--t-forest, #15803d); }
+[data-tone="violet"]  { --tone: var(--t-violet, #7e22ce); }
+[data-tone="sky"]     { --tone: var(--t-sky, #0369a1); }
+.toned-card { border-top: 3px solid var(--tone) !important; }
+.tone-chip {
+  display: inline-flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 11px;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--tone); font-weight: 700;
+}
+.tone-chip::before { content: ""; width: 8px; height: 8px; border-radius: 2px; background: var(--tone); }
+.tone-item { border-left: 3px solid var(--tone) !important; }
+
 body[data-theme="clinical"]::before,
 body[data-theme="lab"]::before { opacity: 0; }
 

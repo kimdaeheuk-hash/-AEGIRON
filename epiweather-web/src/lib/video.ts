@@ -20,6 +20,13 @@ export type IntroVideo =
   | { kind: 'file'; src: string; poster?: string }
   | null;
 
+/**
+ * 기본 소개 포스터 — 유튜브가 주는 썸네일(제작자 이름·채널명이 박혀 있을 수 있음)을 쓰지 않고,
+ * 우리 퍼블릭 도메인 이미지를 첫 화면에 둔다. 재생 전까지 유튜브 쪽 텍스트가 전혀 안 보이게 하는
+ * 핵심 장치다(캡틴 지시: "유튜브 동영상 화면에 내 이름 빼"). 환경변수 포스터가 있으면 그쪽이 이긴다.
+ */
+export const DEFAULT_INTRO_POSTER = '/media/photos/earth-eastern-hemisphere.jpg';
+
 function youtubeId(url: string): string | null {
   // youtu.be/ID · watch?v=ID · /embed/ID · /shorts/ID
   const m =
@@ -46,11 +53,12 @@ export function introVideo(): IntroVideo {
   const yt = youtubeId(url);
   if (yt) {
     // rel=0: 끝나고 남의 영상을 권하지 않는다. modestbranding: 로고 최소화.
-    return { kind: 'youtube', embedUrl: `https://www.youtube-nocookie.com/embed/${yt}?rel=0&modestbranding=1`, poster };
+    // autoplay=1: 파사드(우리 포스터)를 눌렀을 때만 iframe 이 생기므로, 그때 바로 재생된다.
+    return { kind: 'youtube', embedUrl: `https://www.youtube-nocookie.com/embed/${yt}?rel=0&modestbranding=1&playsinline=1&autoplay=1`, poster };
   }
   const vm = vimeoId(url);
   if (vm) {
-    return { kind: 'vimeo', embedUrl: `https://player.vimeo.com/video/${vm}?dnt=1`, poster };
+    return { kind: 'vimeo', embedUrl: `https://player.vimeo.com/video/${vm}?dnt=1&autoplay=1`, poster };
   }
   // 그 외에는 직접 재생 가능한 파일 주소로 본다(.mp4/.webm, Vercel Blob 등).
   return { kind: 'file', src: url, poster };

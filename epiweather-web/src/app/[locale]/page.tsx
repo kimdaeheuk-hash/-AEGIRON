@@ -141,6 +141,21 @@ export default async function HomePage(props: { params: Promise<{ locale: string
         <PhotoFigure photo={t.photo} />
       </Section>
 
+      {/* ── 감시 현장 갤러리 ───────────────────────────────── */}
+      <Section>
+        <SectionHeading eyebrow="IN THE FIELD" title={t.galleryTitle} lead={t.galleryLead} />
+        <div
+          style={{
+            display: 'grid', gap: 16,
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))',
+          }}
+        >
+          {t.gallery.map((p) => (
+            <PhotoFigure key={p.src} photo={p} aspect="4 / 3" />
+          ))}
+        </div>
+      </Section>
+
       {/* ── 엔진 구성 ──────────────────────────────────────── */}
       <div id="engines" style={{ scrollMarginTop: 80, wordBreak: 'keep-all' }}>
         <Section>
@@ -176,7 +191,8 @@ export default async function HomePage(props: { params: Promise<{ locale: string
         </Section>
       </div>
 
-      {/* ── 스페셜 프로그램 강조(헤임달·발할라) ─────────────── */}
+      {/* ── 스페셜 프로그램 강조(헤임달·발할라) ─ 깊은 남청색 띠로 무게를 준다 ── */}
+      <div className="band-deep">
       <Section>
         <Card accent>
           <div style={{ wordBreak: 'keep-all' }}>
@@ -207,6 +223,7 @@ export default async function HomePage(props: { params: Promise<{ locale: string
           </div>
         </Card>
       </Section>
+      </div>
 
       {/* ── 우리가 공개하는 것 ─────────────────────────────── */}
       <Section>

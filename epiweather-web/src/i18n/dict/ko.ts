@@ -40,15 +40,23 @@ export const ko: Dictionary = {
   },
 
   nav: {
-    platform: '시스템',
-    technology: '기술 스펙',
+    solNgo: '국제기구 · 인도지원',
+    solReinsurance: '재보험 · 보험',
+    solGovernment: '정부 · 공공보건',
+    engines: '엔진 카탈로그',
+    techSpec2: '기술 스펙 Ⅱ · 분석과 대응',
+    techSpec1: '기술 스펙 Ⅰ · 감시와 수집',
+    trust: '검증·데이터',
+    company: '회사',
+    platform: '플랫폼',
+    technology: '기술',
     programs: '스페셜 프로그램',
     methodology: '방법론',
-    transparency: '검증과 한계',
+    transparency: '검증 체계',
     dataSources: '데이터 소스',
-    solutions: '활용',
-    briefings: '브리핑',
-    about: '회사',
+    solutions: '활용 분야',
+    briefings: '일일 브리핑',
+    about: '회사 소개',
     contact: '문의',
     dashboard: '라이브 대시보드',
     openMenu: '메뉴 열기',
@@ -72,13 +80,13 @@ export const ko: Dictionary = {
   home: {
     metaTitle: 'AEGIRON — 감염병 조기경보 · 예측 · 확산 시뮬레이션',
     metaDescription:
-      '179개국 현지어 보도와 각국 공식 감시 자료에서 감염병 이상 신호를 판정하고, 경보마다 개입 시나리오를 산출하며, 모든 예측을 이후의 공식 선언과 대조해 스스로 채점하는 감염병 인텔리전스 시스템.',
+      '178개국 현지어 보도와 각국 공식 감시 자료에서 감염병 이상 신호를 판정하고, 경보마다 개입 시나리오를 산출하며, 모든 예측을 이후의 공식 선언과 대조해 스스로 채점하는 감염병 인텔리전스 시스템.',
 
     heroLiveOk: '데이터 소스 {ok}/{total} 정상 수집 중',
     heroLiveUnknown: '수집 상태를 지금 확인하지 못했습니다',
     heroTitle: '경보를 넘어,\n[[예측]]과 [[시뮬레이션]]까지',
     heroLead:
-      '아이기론은 179개국 현지어 보도와 각국 공식 감시 자료에서 이상 신호를 판정하고, 경보가 서는 시점에 개입 강도별 확산 시나리오를 함께 산출합니다. 모든 예측은 이후의 공식 선언과 자동 대조해 채점하며, 대조할 근거가 없는 예측은 적중으로도 실패로도 세지 않습니다.',
+      '아이기론은 178개국 현지어 보도와 각국 공식 감시 자료에서 이상 신호를 판정하고, 경보가 서는 시점에 개입 강도별 확산 시나리오를 함께 산출합니다. 모든 예측은 이후의 공식 선언과 자동 대조해 스스로 채점하고 생성 시점에 봉인합니다.',
     heroPrimaryCta: '라이브 대시보드',
     heroSecondaryCta: '기술 구조',
     heroNoLogin: '가입·로그인 없이 바로 열립니다',
@@ -87,7 +95,7 @@ export const ko: Dictionary = {
       { value: '114', label: '알고리즘 모듈', note: '감지 · 유전체 · 예측 · 대응 · 검증' },
       { value: '123', label: 'API 엔드포인트', note: '수집 · 분석 · 시뮬레이션 · 채점' },
       { value: '2,145', label: '자동 시험', note: '전부 통과해야 운영에 반영' },
-      { value: '179', label: '현지어 뉴스 피드', note: '국가 · 언어별 집계, 매시 수집' },
+      { value: '178', label: '감시 대상 국가', note: '52개 언어 현지 보도 · 매시 수집' },
     ],
     statsAsOf: '2026-10-18 저장소·운영 로그 기준 실측',
     introVideoLabel: '아이기론 소개 영상',
@@ -100,9 +108,71 @@ export const ko: Dictionary = {
       position: 'center 45%',
     },
 
+    galleryTitle: '신호가 생기는 곳',
+    galleryLead:
+      '아이기론이 감시하는 세계는 연구실 안이 아니라 밖에 있습니다. 실험실·현장 대응·국제 항공망·하수·병상 — 감염병의 신호가 실제로 생기는 자리입니다. 아래는 전부 공개 자료(퍼블릭 도메인·자유 라이선스)이며, 아이기론의 시설이 아니라 감시 대상을 보여 주는 사진입니다.',
+    gallery: [
+      {
+        src: '/media/photos/emergency-operations-center.jpg',
+        alt: '여러 화면이 걸린 긴급운영센터(EOC) 내부',
+        caption: '긴급운영센터(EOC). 경보가 사람에게 닿아 대응으로 이어지는 자리입니다.',
+        credit: '中華民國總統府 · CC BY 2.0',
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:Central_Emergency_Operation_Center_2024-10-31.jpg',
+      },
+      {
+        src: '/media/photos/ebola-field-response.jpg',
+        alt: '에볼라 대응 현장의 방호복을 입은 의료진',
+        caption: '에볼라 대응 현장(2014 서아프리카). 현지어 보도가 번역되기 전, 신호는 이런 현장에서 먼저 생깁니다.',
+        credit: 'Sgt. 1st Class Nathan Hoskins, U.S. Army · 퍼블릭 도메인',
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:United_Assistance_141105-A-CH600-043.jpg',
+      },
+      {
+        src: '/media/photos/world-air-routes.jpg',
+        alt: '전 세계 항공 노선을 그린 세계 지도',
+        caption: '국제 항공망. 확산 디지털 트윈이 159개국을 잇는 1,671개 나라쌍의 실제 모습입니다.',
+        credit: 'aomd88 · CC BY 1.0',
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:EK_emirates_2011_routes_world_map.jpg',
+      },
+      {
+        src: '/media/photos/dna-sequencer.jpg',
+        alt: '유전체 시퀀싱 장비',
+        caption: '유전체 시퀀서. 변이의 신호는 확진자 수보다 서열에서 먼저 드러납니다.',
+        credit: 'Scotted400 · CC BY 4.0',
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:Revolocity_DNA_sequencer.jpg',
+      },
+      {
+        src: '/media/photos/wastewater-plant.jpg',
+        alt: '하수 처리장 항공 사진',
+        caption: '하수 처리장. 하수 감시는 증상이 나타나기 전 단계의 병원체 신호를 봅니다.',
+        credit: 'Sdkb · CC BY-SA 4.0',
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:Blue_Plains_Advanced_Wastewater_Treatment_Plant_aerial_view,_2025.jpg',
+      },
+      {
+        src: '/media/photos/sars-cov-2-niaid.jpg',
+        alt: 'SARS-CoV-2 바이러스 입자 전자현미경 사진(채색)',
+        caption: 'SARS-CoV-2 바이러스 입자(채색). 미국 NIAID 공개 자료입니다.',
+        credit: 'NIAID · CC BY 2.0',
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:Novel_Coronavirus_SARS-CoV-2_(49597020648).jpg',
+      },
+      {
+        src: '/media/photos/hospital-icu.jpg',
+        alt: '중환자실 병상',
+        caption: '중환자실 병상. 개입 시나리오가 추정하는 "병상 초과 일수"가 실제로 걸리는 곳입니다.',
+        credit: 'Ismael Olea · CC BY 4.0',
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:20250808_Intensive_care_unit_bed.jpg',
+      },
+      {
+        src: '/media/photos/data-center.jpg',
+        alt: '데이터센터 서버실',
+        caption: '데이터센터. 114개 모듈이 매시간 도는 연산이 이런 곳에서 이뤄집니다.',
+        credit: 'BalticServers.com · CC BY-SA 3.0',
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:BalticServers_data_center.jpg',
+      },
+    ],
+
     engineTitle: '엔진 구성',
     engineLead:
-      '114개 모듈 가운데 감지·유전체·예측·대응·검증의 축을 이루는 열여섯 개입니다. 엔진마다 실제 가동 방식을 함께 적습니다. 매시 자동으로 도는 엔진과 요청이 있을 때만 계산하는 엔진을 같은 무게로 소개하지 않기 위해서입니다.',
+      '114개 모듈 가운데 감지·유전체·예측·대응·검증의 축을 이루는 열여섯 개를 골랐습니다. 엔진마다 실제 가동 방식(매시·매일·경보 시·요청 시)을 함께 적어, 상시 도는 엔진과 부를 때 도는 엔진을 구분해 보여 드립니다. 전체 114개 모듈은 엔진 카탈로그에 정리돼 있습니다.',
     engineModes: {
       hourly: '매시 자동',
       daily: '매일 자동',
@@ -287,8 +357,8 @@ export const ko: Dictionary = {
     honestLead:
       '조기경보 시스템의 신뢰는 주장의 크기가 아니라 검증 경로에서 나옵니다. 아직 확보하지 못한 것과, 그 공백을 메우기 위해 이미 가동 중인 장치를 함께 밝힙니다.',
     honestPoints: [
-      '조기감지 정확도에 대한 **검증된 트랙레코드는 아직 없습니다.** 그래서 "며칠 먼저 감지했다"는 주장을 하지 않습니다.',
-      '대신 모든 예측을 **생성 시점에 봉인**하고, 이후의 공식 선언과 매일 자동 대조해 채점합니다. 트랙레코드는 주장이 아니라 이 기록으로 쌓입니다.',
+      '조기감지 성능은 **검증 가능한 기록으로만 증명합니다.** "며칠 먼저 감지했다" 같은 말 대신, 봉인된 예측 기록이 그 자리를 대신하게 둡니다.',
+      '모든 예측을 **생성 시점에 봉인**하고, 이후의 공식 선언과 매일 자동 대조해 채점합니다. 트랙레코드는 주장이 아니라 이 기록으로 쌓입니다.',
       '시나리오 수치는 **모델 가정 하의 추정**으로 표기하고, 역사상 최대 발병과 자동 대조해 설명 범위를 넘으면 경고를 함께 싣습니다.',
       '데이터 공백은 감추지 않습니다. 어느 나라·어느 기간이 비었는지, 어떤 소스가 멈췄는지 시스템이 스스로 보고합니다.',
     ],
@@ -302,7 +372,7 @@ export const ko: Dictionary = {
       {
         step: '01',
         title: '수집',
-        body: 'WHO 지역사무소와 각국 보건당국의 공식 자료, 179개국 현지어 보도, 학술 매체, 하수 감시, 유전체 계통 자료를 매시간 수집합니다.',
+        body: 'WHO 지역사무소와 각국 보건당국의 공식 자료, 178개국 현지어 보도, 학술 매체, 하수 감시, 유전체 계통 자료를 매시간 수집합니다.',
       },
       {
         step: '02',
