@@ -1,7 +1,7 @@
 import Link from 'next/link';
-import type { ContentPage } from '@/i18n/types';
+import type { ContentPage, PageBlock } from '@/i18n/types';
 import { localePath, type Locale } from '@/i18n/config';
-import { Section, SectionHeading, Card, Grid } from './Section';
+import { Section, SectionHeading, Grid } from './Section';
 import { PhotoFigure } from './PhotoFigure';
 
 /**
@@ -11,6 +11,9 @@ import { PhotoFigure } from './PhotoFigure';
  * 문구 하나 고칠 때마다 세 군데를 건드려야 한다. 콘텐츠를 사전으로 빼고 렌더러를
  * 하나만 두면 **언어 추가가 사전 파일 하나로 끝난다** — 캡틴이 경계한 '맨날 수정'을
  * 구조로 막는 방식이다.
+ *
+ * 2026-10-18 오후: 블록마다 묶음 색(tone)·꼬리표(kicker)·사양표(specs)·사진(photo)·
+ * 깊은 남청색 띠(deep)를 받는다. 기술 스펙과 엔진 카탈로그가 묶음을 색으로 가르기 위해서다.
  */
 export function ContentPageView({ page, locale }: { page: ContentPage; locale: Locale }) {
   return (
@@ -25,117 +28,172 @@ export function ContentPageView({ page, locale }: { page: ContentPage; locale: L
         )}
       </Section>
 
-      {page.blocks.map((block, i) => (
-        <Section key={i} pad="sm">
-          <Card accent={block.accent}>
-            <div style={{ maxWidth: block.items ? undefined : 860 }}>
-              <h2
-                style={{
-                  fontFamily: 'var(--disp)', fontWeight: 800,
-                  fontSize: 'clamp(19px,2.1vw,26px)', lineHeight: 1.25, letterSpacing: '-.02em',
-                }}
-              >
-                {block.title}
-              </h2>
-
-              {block.body && (
-                <p style={{ color: 'var(--muted)', fontSize: 14.5, lineHeight: 1.78, marginTop: 14 }}>
-                  {block.body}
-                </p>
-              )}
-
-              {block.points && (
-                <ul style={{ listStyle: 'none', display: 'grid', gap: 13, marginTop: block.body ? 22 : 18 }}>
-                  {block.points.map((point, j) => (
-                    <li key={j} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                      <span
-                        aria-hidden="true"
-                        style={{
-                          fontFamily: 'var(--mono)', fontSize: 11,
-                          color: block.accent ? 'var(--accent)' : 'var(--muted2)',
-                          paddingTop: 3, flexShrink: 0,
-                        }}
-                      >
-                        {String(j + 1).padStart(2, '0')}
-                      </span>
-                      <span
-                        style={{ color: 'var(--txt)', fontSize: 14, lineHeight: 1.74 }}
-                        dangerouslySetInnerHTML={{ __html: boldify(point) }}
-                      />
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {block.items && (
-                <div style={{ marginTop: block.body || block.points ? 24 : 18 }}>
-                  <Grid min={250}>
-                    {block.items.map((item) => (
-                      <div
-                        key={item.title}
-                        style={{
-                          border: '1px solid var(--line)', borderRadius: 11,
-                          padding: 17, background: 'var(--code-bg)',
-                        }}
-                      >
-                        <h3 style={{ fontSize: 14.5, fontWeight: 700, marginBottom: 8 }}>{item.title}</h3>
-                        <p style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.68 }}>{item.body}</p>
-                        {item.meta && (
-                          <p
-                            style={{
-                              fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)',
-                              marginTop: 11, paddingTop: 10, borderTop: '1px solid var(--line)',
-                            }}
-                          >
-                            {item.meta}
-                          </p>
-                        )}
-                      </div>
-                    ))}
-                  </Grid>
-                </div>
-              )}
-
-              {block.note && (
-                <p
-                  style={{
-                    color: 'var(--muted2)', fontSize: 12.5, lineHeight: 1.7, marginTop: 20,
-                    paddingTop: 16, borderTop: '1px solid var(--line)',
-                  }}
-                >
-                  {block.note}
-                </p>
-              )}
-            </div>
-          </Card>
-        </Section>
-      ))}
+      {page.blocks.map((block, i) =>
+        block.deep ? (
+          <div key={i} className="band-deep">
+            <Section pad="sm">
+              <BlockCard block={block} />
+            </Section>
+          </div>
+        ) : (
+          <Section key={i} pad="sm">
+            <BlockCard block={block} />
+          </Section>
+        ),
+      )}
 
       {page.cta && (
-        <Section pad="sm">
-          <Card>
-            <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ maxWidth: 560 }}>
-                <h2 style={{ fontFamily: 'var(--disp)', fontWeight: 800, fontSize: 'clamp(19px,2.1vw,25px)', letterSpacing: '-.02em' }}>
+        <div className="band-deep">
+          <Section pad="sm">
+            <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', padding: 'clamp(10px,2vw,22px) 0' }}>
+              <div style={{ maxWidth: 620 }}>
+                <h2 style={{ fontFamily: 'var(--disp)', fontWeight: 800, fontSize: 'clamp(20px,2.3vw,28px)', letterSpacing: '-.02em' }}>
                   {page.cta.title}
                 </h2>
-                <p style={{ color: 'var(--muted)', fontSize: 14, lineHeight: 1.7, marginTop: 11 }}>
+                <p style={{ color: 'var(--muted)', fontSize: 14.5, lineHeight: 1.7, marginTop: 11 }}>
                   {page.cta.body}
                 </p>
               </div>
               <Link
                 href={page.cta.href.startsWith('/') ? page.cta.href : localePath(locale, page.cta.href)}
                 style={{
-                  fontFamily: 'var(--mono)', fontSize: 13, textDecoration: 'none',
+                  fontFamily: 'var(--mono)', fontSize: 13, textDecoration: 'none', fontWeight: 600,
                   background: 'var(--accent)', color: 'var(--on-accent)', borderRadius: 10, padding: '13px 22px',
                 }}
               >
                 {page.cta.label} →
               </Link>
             </div>
-          </Card>
-        </Section>
+          </Section>
+        </div>
       )}
+    </div>
+  );
+}
+
+function BlockCard({ block }: { block: PageBlock }) {
+  const toned = Boolean(block.tone);
+  return (
+    <div
+      data-tone={block.tone}
+      className={toned ? 'toned-card' : undefined}
+      style={{
+        border: `1px solid ${block.accent ? 'var(--accent-line)' : 'var(--line)'}`,
+        background: block.accent ? 'var(--accent-soft)' : 'var(--panel)',
+        borderRadius: 14,
+        padding: 'clamp(18px,2.2vw,30px)',
+      }}
+    >
+      <div style={{ maxWidth: block.items || block.specs ? undefined : 860 }}>
+        {block.kicker && (
+          <p className={toned ? 'tone-chip' : undefined} style={toned ? { marginBottom: 12 } : {
+            fontFamily: 'var(--mono)', fontSize: 11, letterSpacing: '.1em', color: 'var(--accent)', marginBottom: 12,
+          }}>
+            {block.kicker}
+          </p>
+        )}
+        <h2
+          style={{
+            fontFamily: 'var(--disp)', fontWeight: 800,
+            fontSize: 'clamp(19px,2.1vw,26px)', lineHeight: 1.25, letterSpacing: '-.02em',
+          }}
+        >
+          {block.title}
+        </h2>
+
+        {block.body && (
+          <p style={{ color: 'var(--muted)', fontSize: 14.5, lineHeight: 1.8, marginTop: 14, maxWidth: 900 }}>
+            {block.body}
+          </p>
+        )}
+
+        {block.photo && (
+          <div style={{ marginTop: 20 }}>
+            <PhotoFigure photo={block.photo} aspect="21 / 8" />
+          </div>
+        )}
+
+        {block.specs && (
+          <dl
+            style={{
+              marginTop: 20, display: 'grid', gap: 1, background: 'var(--line)',
+              border: '1px solid var(--line)', borderRadius: 12, overflow: 'hidden',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(min(300px, 100%), 1fr))',
+            }}
+          >
+            {block.specs.map((s) => (
+              <div key={s.label} style={{ background: 'var(--panel)', padding: '14px 16px', display: 'grid', gap: 5 }}>
+                <dt style={{ fontFamily: 'var(--mono)', fontSize: 11, letterSpacing: '.06em', color: 'var(--muted2)' }}>{s.label}</dt>
+                <dd style={{ fontSize: 14.5, fontWeight: 600, lineHeight: 1.55 }}>{s.value}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+
+        {block.points && (
+          <ul style={{ listStyle: 'none', display: 'grid', gap: 13, marginTop: block.body ? 22 : 18 }}>
+            {block.points.map((point, j) => (
+              <li key={j} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                <span
+                  aria-hidden="true"
+                  style={{
+                    fontFamily: 'var(--mono)', fontSize: 11,
+                    color: toned ? 'var(--tone)' : block.accent ? 'var(--accent)' : 'var(--muted2)',
+                    paddingTop: 3, flexShrink: 0, fontWeight: 700,
+                  }}
+                >
+                  {String(j + 1).padStart(2, '0')}
+                </span>
+                <span
+                  style={{ color: 'var(--txt)', fontSize: 14, lineHeight: 1.74 }}
+                  dangerouslySetInnerHTML={{ __html: boldify(point) }}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {block.items && (
+          <div style={{ marginTop: block.body || block.points || block.specs ? 24 : 18 }}>
+            <Grid min={260}>
+              {block.items.map((item) => (
+                <div
+                  key={item.title}
+                  className={toned ? 'tone-item' : undefined}
+                  style={{
+                    border: '1px solid var(--line)', borderRadius: 11,
+                    padding: 17, background: 'var(--code-bg)',
+                  }}
+                >
+                  <h3 style={{ fontSize: 14.5, fontWeight: 700, marginBottom: 8, lineHeight: 1.4 }}>{item.title}</h3>
+                  <p style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.7 }}>{item.body}</p>
+                  {item.meta && (
+                    <p
+                      style={{
+                        fontFamily: 'var(--mono)', fontSize: 11, color: toned ? 'var(--tone)' : 'var(--muted2)',
+                        marginTop: 11, paddingTop: 10, borderTop: '1px solid var(--line)', wordBreak: 'break-word',
+                      }}
+                    >
+                      {item.meta}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </Grid>
+          </div>
+        )}
+
+        {block.note && (
+          <p
+            style={{
+              color: 'var(--muted2)', fontSize: 12.5, lineHeight: 1.7, marginTop: 20,
+              paddingTop: 16, borderTop: '1px solid var(--line)',
+            }}
+          >
+            {block.note}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

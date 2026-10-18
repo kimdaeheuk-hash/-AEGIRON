@@ -44,15 +44,23 @@ export const fr: Dictionary = {
   },
 
   nav: {
-    platform: 'Système',
+    solNgo: 'Organisations internationales et humanitaires',
+    solReinsurance: 'Réassurance et assurance',
+    solGovernment: 'Gouvernements et santé publique',
+    engines: 'Catalogue des moteurs',
+    techSpec2: 'Spécifications II · Analyse et réponse',
+    techSpec1: 'Spécifications I · Veille et collecte',
+    trust: 'Preuves et données',
+    company: 'Société',
+    platform: 'Plateforme',
     technology: 'Technologie',
     programs: 'Programmes spéciaux',
     methodology: 'Méthodologie',
-    transparency: 'Validation et limites',
+    transparency: 'Cadre de validation',
     dataSources: 'Sources de données',
     solutions: 'Cas d’usage',
-    briefings: 'Bulletins',
-    about: 'À propos',
+    briefings: 'Briefings quotidiens',
+    about: 'À propos d’AEGIRON',
     contact: 'Contact',
     dashboard: 'Tableau de bord en direct',
     openMenu: 'Ouvrir le menu',
@@ -104,6 +112,75 @@ export const fr: Dictionary = {
       position: 'center 45%',
     },
 
+    galleryTitle: 'Là où naissent les signaux',
+    galleryLead:
+      'Le monde qu’AEGIRON surveille est au-dehors, pas au laboratoire. Laboratoires, réponse de terrain, réseau aérien international, eaux usées, lits d’hôpital : les lieux où naît réellement le signal d’une épidémie. Chaque image ci-dessous est un document public (domaine public ou licence libre) et montre ce que nous surveillons, non une installation d’AEGIRON.',
+    gallery: [
+      {
+        src: '/media/photos/emergency-operations-center.jpg',
+        alt: 'Intérieur d’un centre d’opérations d’urgence avec de nombreux écrans',
+        caption: 'Un centre d’opérations d’urgence : là où une alerte atteint les gens et devient une réponse.',
+        credit: 'Présidence de la République de Chine (Taïwan) · CC BY 2.0',
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:Central_Emergency_Operation_Center_2024-10-31.jpg',
+      },
+      {
+        src: '/media/photos/ebola-field-response.jpg',
+        alt: 'Soignants en tenue de protection lors d’une réponse à Ebola',
+        caption: 'Réponse à Ebola sur le terrain (Afrique de l’Ouest, 2014). Avant la traduction de la presse locale, le signal naît d’abord dans de tels lieux.',
+        credit: 'Sgt. 1re classe Nathan Hoskins, U.S. Army · Domaine public',
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:United_Assistance_141105-A-CH600-043.jpg',
+      },
+      {
+        src: '/media/photos/world-air-routes.jpg',
+        alt: 'Carte du monde des routes aériennes mondiales',
+        caption: 'Le réseau aérien international : la forme réelle des 1 671 paires de pays que le jumeau numérique relie à travers 159 pays.',
+        credit: 'aomd88 · CC BY 1.0',
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:EK_emirates_2011_routes_world_map.jpg',
+      },
+      {
+        src: '/media/photos/dna-sequencer.jpg',
+        alt: 'Un séquenceur de génome',
+        caption: 'Un séquenceur de génome. Le signal d’un variant apparaît dans la séquence avant d’apparaître dans le nombre de cas.',
+        credit: 'Scotted400 · CC BY 4.0',
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:Revolocity_DNA_sequencer.jpg',
+      },
+      {
+        src: '/media/photos/wastewater-plant.jpg',
+        alt: 'Vue aérienne d’une station d’épuration des eaux usées',
+        caption: 'Une station d’épuration. La surveillance des eaux usées capte un signal de pathogène avant l’apparition des symptômes.',
+        credit: 'Sdkb · CC BY-SA 4.0',
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:Blue_Plains_Advanced_Wastewater_Treatment_Plant_aerial_view,_2025.jpg',
+      },
+      {
+        src: '/media/photos/sars-cov-2-niaid.jpg',
+        alt: 'Micrographie électronique de particules du SARS-CoV-2 (colorisée)',
+        caption: 'Particules du SARS-CoV-2 (colorisées). Document public du NIAID (États-Unis).',
+        credit: 'NIAID · CC BY 2.0',
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:Novel_Coronavirus_SARS-CoV-2_(49597020648).jpg',
+      },
+      {
+        src: '/media/photos/hospital-icu.jpg',
+        alt: 'Un lit de soins intensifs',
+        caption: 'Un lit de soins intensifs. Les « jours de dépassement hospitalier » qu’estiment les scénarios d’intervention se jouent ici.',
+        credit: 'Ismael Olea · CC BY 4.0',
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:20250808_Intensive_care_unit_bed.jpg',
+      },
+      {
+        src: '/media/photos/data-center.jpg',
+        alt: 'Salle de serveurs d’un centre de données',
+        caption: 'Un centre de données. Le calcul horaire des 114 modules s’exécute dans de tels lieux.',
+        credit: 'BalticServers.com · CC BY-SA 3.0',
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:BalticServers_data_center.jpg',
+      },
+      {
+        src: '/media/photos/arctic-permafrost.jpg',
+        alt: 'Mares de dégel arctiques formées par la fonte du pergélisol',
+        caption: 'Dégel du pergélisol (Arctique). Les nouvelles conditions d’épidémie que surveille la veille du territoire polaire.',
+        credit: 'NPS Climate Change Response · Domaine public',
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:Permafrost_Thaw_(14413865677).jpg',
+      },
+    ],
+
     engineTitle: 'Les moteurs',
     engineLead:
       'Seize des 114 modules forment l’ossature de la détection, de la génomique, de la prévision, de la réponse et de la vérification. Chacun indique son mode de fonctionnement réel, afin qu’un moteur exécuté toutes les heures ne soit jamais présenté avec le même poids qu’un moteur qui ne calcule qu’à la demande.',
@@ -142,6 +219,32 @@ export const fr: Dictionary = {
             name: 'Foyers inexpliqués',
             body: 'Comptabilise à part les foyers extraits de la presse qui ne correspondent à aucun profil de maladie connu. La pneumonie d’origine inconnue de Wuhan, en décembre 2019, en est l’archétype.',
             mode: 'hourly',
+          },
+        ],
+      },
+      {
+        key: 'environment',
+        label: 'Environnement · territoire polaire',
+        engines: [
+          {
+            id: 'polar_signals',
+            name: 'Veille du territoire polaire',
+            body: 'Observe l’Arctique, l’Antarctique et 27 régions montagneuses glaciaires avec ligne de base et tendance. À mesure que le pergélisol fond — révélant des pathogènes et la grippe aviaire polaire —, elle surveille, à l’échelle du territoire, les nouvelles conditions d’épidémie qu’ouvre le changement climatique.',
+            mode: 'daily',
+            caveat: 'Un objet d’observation, non une alerte. Un signal polaire ne signifie pas en soi une épidémie.',
+          },
+          {
+            id: 'disaster_watch',
+            name: 'Fenêtre de veille post-catastrophe',
+            body: 'Après inondations, séismes et tempêtes, le pays est surveillé à un seuil plus bas pendant la fenêtre où le risque hydrique et vectoriel monte. Elle vise le temps entre une catastrophe et l’épidémie qui suit.',
+            mode: 'hourly',
+          },
+          {
+            id: 'comtrade_signals',
+            name: 'Veille du commerce de fournitures médicales',
+            body: 'Détecte par pays les flambées d’importation de masques, d’EPI et de tests via UN Comtrade — un signal de comportement de préparation qui peut apparaître avant une annonce officielle.',
+            mode: 'daily',
+            caveat: 'Les déclarations commerciales accusent un retard d’environ deux mois et ne sont pas un indicateur en temps réel.',
           },
         ],
       },
@@ -245,6 +348,55 @@ export const fr: Dictionary = {
             mode: 'hourly',
           },
         ],
+      },
+    ],
+
+    engineCatalogueCta: 'Voir le rôle des 114 modules dans le catalogue des moteurs',
+
+    diffEyebrow: 'WHAT MAKES US DIFFERENT',
+    diffTitle: 'Ce qui nous distingue des autres systèmes d’alerte',
+    diffLead:
+      'L’alerte précoce en maladies infectieuses n’est pas nouvelle — des services comme BlueDot, EIOS et Metabiota existent déjà. Là où AEGIRON diffère, c’est qu’il ne s’arrête pas à la détection, mais met vérification, réponse et souveraineté dans un seul système. Nous l’énonçons par la structure, sans exagération.',
+    diffItems: [
+      {
+        title: 'Il ne s’arrête pas à la détection',
+        body: 'La plupart des systèmes d’alerte s’arrêtent à « quelque chose se passe, quelque part ». AEGIRON y joint simulation de propagation, scénarios d’intervention et préparation en contre-mesures, pour répondre à « et alors, à quelle intensité ».',
+      },
+      {
+        title: 'Il évalue ses propres chiffres',
+        body: 'Chaque prévision est scellée à sa création et confrontée chaque jour aux déclarations officielles, consignant elle-même succès et échec. Bâtir un historique comme un enregistrement vérifiable plutôt qu’une affirmation est rare.',
+      },
+      {
+        title: 'Les lacunes de veille incluses dès le départ',
+        body: 'Il surveille, au même standard, 178 pays et 52 langues que les services commerciaux couvrent rarement — Afrique, Asie centrale, États insulaires du Pacifique, et le territoire polaire aussi.',
+      },
+      {
+        title: 'Un axe de biosécurité nationale',
+        body: 'Le criblage génomique défensif (HEIMDALL) et l’analyse de couverture et de souveraineté de production des contre-mesures (VALHALLA) sont un axe national que les services commerciaux d’alerte n’ont pas.',
+      },
+      {
+        title: 'Tout est ouvert',
+        body: 'Le système, la méthodologie, les données et les limites sont ouverts dès le départ — un choix qu’un service plus grand, lié par des contrats clients, ne peut structurellement copier, et une base de confiance que la diligence peut vérifier directement.',
+      },
+    ],
+    futureTitle: 'Où nous allons',
+    futureLead: 'C’est un point de départ. Conçu pour se renforcer à mesure que l’exploitation s’accumule.',
+    futureItems: [
+      {
+        title: 'Un modèle d’extraction propriétaire',
+        body: 'L’extraction passe aujourd’hui par des API externes, mais le chemin est câblé pour basculer, en un seul endroit, vers un modèle auto-hébergé (NVIDIA NIM), vers une conception où les données sensibles ne partent pas vers des API étrangères.',
+      },
+      {
+        title: 'Un fossé de données',
+        body: '« Quel signal a mené à un vrai foyer » est assemblé en jeu d’apprentissage chaque jour. À mesure que l’exploitation continue, ce jeu grandit et les heuristiques peuvent être remplacées par un modèle appris mesuré.',
+      },
+      {
+        title: 'Un historique scellé',
+        body: 'À mesure que les prévisions scellées s’accumulent, « nous l’avons su en premier » devient un enregistrement qu’un tiers peut vérifier sur la blockchain — un actif dont la preuve se renforce avec le temps.',
+      },
+      {
+        title: 'Des liens de terrain',
+        body: 'L’étape suivante est de nous connecter à des réseaux de surveillance et des organisations de terrain réels pour nous rapprocher de la source du signal — la voie pour devenir une infrastructure mondiale d’alerte précoce.',
       },
     ],
 

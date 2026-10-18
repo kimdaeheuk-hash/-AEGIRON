@@ -141,6 +141,21 @@ export default async function HomePage(props: { params: Promise<{ locale: string
         <PhotoFigure photo={t.photo} />
       </Section>
 
+      {/* ── 감시 현장 갤러리 ───────────────────────────────── */}
+      <Section>
+        <SectionHeading eyebrow="IN THE FIELD" title={t.galleryTitle} lead={t.galleryLead} />
+        <div
+          style={{
+            display: 'grid', gap: 16,
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))',
+          }}
+        >
+          {t.gallery.map((p) => (
+            <PhotoFigure key={p.src} photo={p} aspect="4 / 3" />
+          ))}
+        </div>
+      </Section>
+
       {/* ── 엔진 구성 ──────────────────────────────────────── */}
       <div id="engines" style={{ scrollMarginTop: 80, wordBreak: 'keep-all' }}>
         <Section>
@@ -173,10 +188,52 @@ export default async function HomePage(props: { params: Promise<{ locale: string
               </div>
             ))}
           </div>
+          <Link
+            href={localePath(locale, 'engines')}
+            style={{
+              display: 'inline-block', marginTop: 26,
+              fontFamily: 'var(--mono)', fontSize: 12.5, color: 'var(--accent)', textDecoration: 'none', fontWeight: 700,
+            }}
+          >
+            {t.engineCatalogueCta} →
+          </Link>
         </Section>
       </div>
 
-      {/* ── 스페셜 프로그램 강조(헤임달·발할라) ─────────────── */}
+      {/* ── 다른 조기경보와 무엇이 다른가 + 미래성 ───────────── */}
+      <Section>
+        <SectionHeading eyebrow={t.diffEyebrow} title={t.diffTitle} lead={t.diffLead} />
+        <Grid min={260}>
+          {t.diffItems.map((d, i) => (
+            <div
+              key={d.title}
+              data-tone={DIFF_TONES[i % DIFF_TONES.length]}
+              className="toned-card"
+              style={{ border: '1px solid var(--line)', borderRadius: 13, padding: 20, background: 'var(--panel)', wordBreak: 'keep-all' }}
+            >
+              <h3 style={{ fontFamily: 'var(--disp)', fontWeight: 800, fontSize: 16.5, marginBottom: 10, lineHeight: 1.3 }}>{d.title}</h3>
+              <p style={{ color: 'var(--muted)', fontSize: 13.5, lineHeight: 1.72 }}>{d.body}</p>
+            </div>
+          ))}
+        </Grid>
+      </Section>
+
+      <div className="band-deep">
+        <Section>
+          <SectionHeading eyebrow="FUTURE" title={t.futureTitle} lead={t.futureLead} />
+          <Grid min={250}>
+            {t.futureItems.map((f) => (
+              <div key={f.title} style={{ border: '1px solid var(--line2)', borderRadius: 13, padding: 20, background: 'var(--panel)', wordBreak: 'keep-all' }}>
+                <h3 style={{ fontFamily: 'var(--disp)', fontWeight: 800, fontSize: 16, marginBottom: 10, color: 'var(--cyan)' }}>{f.title}</h3>
+                <p style={{ color: 'var(--muted)', fontSize: 13.5, lineHeight: 1.72 }}>{f.body}</p>
+              </div>
+            ))}
+          </Grid>
+        </Section>
+      </div>
+
+      {/* ── 스페셜 프로그램 강조(헤임달·발할라) ─ 깊은 남청색 띠로 무게를 준다 ── */}
+      <div className="band-deep">
       <Section>
         <Card accent>
           <div style={{ wordBreak: 'keep-all' }}>
@@ -207,6 +264,7 @@ export default async function HomePage(props: { params: Promise<{ locale: string
           </div>
         </Card>
       </Section>
+      </div>
 
       {/* ── 우리가 공개하는 것 ─────────────────────────────── */}
       <Section>
@@ -410,6 +468,9 @@ function LiveBadge({
     </p>
   );
 }
+
+/** 차별점 카드의 묶음 색 — 좌상단 띠로 구별만 준다. */
+const DIFF_TONES = ['teal', 'indigo', 'forest', 'violet', 'crimson'] as const;
 
 const MODE_COLOR: Record<EngineMode, string> = {
   hourly: 'var(--ok)',

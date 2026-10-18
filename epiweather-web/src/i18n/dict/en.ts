@@ -42,15 +42,23 @@ export const en: Dictionary = {
   },
 
   nav: {
-    platform: 'System',
+    solNgo: 'International & humanitarian',
+    solReinsurance: 'Reinsurance & insurance',
+    solGovernment: 'Government & public health',
+    engines: 'Engine catalogue',
+    techSpec2: 'Tech Spec II · Analysis & response',
+    techSpec1: 'Tech Spec I · Surveillance & ingestion',
+    trust: 'Evidence & data',
+    company: 'Company',
+    platform: 'Platform',
     technology: 'Technology',
     programs: 'Special programs',
     methodology: 'Methodology',
-    transparency: 'Validation & limits',
+    transparency: 'Validation framework',
     dataSources: 'Data sources',
     solutions: 'Use cases',
-    briefings: 'Briefings',
-    about: 'About',
+    briefings: 'Daily briefings',
+    about: 'About AEGIRON',
     contact: 'Contact',
     dashboard: 'Live dashboard',
     openMenu: 'Open menu',
@@ -102,6 +110,75 @@ export const en: Dictionary = {
       position: 'center 45%',
     },
 
+    galleryTitle: 'Where the signals arise',
+    galleryLead:
+      'The world AEGIRON watches is outside the lab, not inside it. Laboratories, field response, the international air network, wastewater, hospital beds — the places where an outbreak signal actually arises. Every image below is public material (public-domain or free licence) and shows what we watch, not an AEGIRON facility.',
+    gallery: [
+      {
+        src: '/media/photos/emergency-operations-center.jpg',
+        alt: 'Inside an emergency operations centre with many screens',
+        caption: 'An emergency operations centre — where an alert reaches people and turns into response.',
+        credit: 'Office of the President, ROC · CC BY 2.0',
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:Central_Emergency_Operation_Center_2024-10-31.jpg',
+      },
+      {
+        src: '/media/photos/ebola-field-response.jpg',
+        alt: 'Health workers in protective gear during an Ebola response',
+        caption: 'Ebola response in the field (West Africa, 2014). Before local reporting is translated, the signal arises first in places like this.',
+        credit: 'Sgt. 1st Class Nathan Hoskins, U.S. Army · Public domain',
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:United_Assistance_141105-A-CH600-043.jpg',
+      },
+      {
+        src: '/media/photos/world-air-routes.jpg',
+        alt: 'A world map of global airline routes',
+        caption: 'The international air network — the real shape of the 1,671 country pairs the spread digital twin links across 159 countries.',
+        credit: 'aomd88 · CC BY 1.0',
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:EK_emirates_2011_routes_world_map.jpg',
+      },
+      {
+        src: '/media/photos/dna-sequencer.jpg',
+        alt: 'A genome sequencing instrument',
+        caption: 'A genome sequencer. The signal of a variant shows in the sequence before it shows in case counts.',
+        credit: 'Scotted400 · CC BY 4.0',
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:Revolocity_DNA_sequencer.jpg',
+      },
+      {
+        src: '/media/photos/wastewater-plant.jpg',
+        alt: 'Aerial view of a wastewater treatment plant',
+        caption: 'A wastewater treatment plant. Wastewater surveillance catches a pathogen signal from before symptoms appear.',
+        credit: 'Sdkb · CC BY-SA 4.0',
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:Blue_Plains_Advanced_Wastewater_Treatment_Plant_aerial_view,_2025.jpg',
+      },
+      {
+        src: '/media/photos/sars-cov-2-niaid.jpg',
+        alt: 'Electron micrograph of SARS-CoV-2 virus particles (colorized)',
+        caption: 'SARS-CoV-2 virus particles (colorized). Public material from the US NIAID.',
+        credit: 'NIAID · CC BY 2.0',
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:Novel_Coronavirus_SARS-CoV-2_(49597020648).jpg',
+      },
+      {
+        src: '/media/photos/hospital-icu.jpg',
+        alt: 'An intensive care unit bed',
+        caption: 'An intensive-care bed. The “days of hospital overload” the intervention scenarios estimate land here.',
+        credit: 'Ismael Olea · CC BY 4.0',
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:20250808_Intensive_care_unit_bed.jpg',
+      },
+      {
+        src: '/media/photos/data-center.jpg',
+        alt: 'A data-centre server room',
+        caption: 'A data centre. The hourly computation of 114 modules runs in places like this.',
+        credit: 'BalticServers.com · CC BY-SA 3.0',
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:BalticServers_data_center.jpg',
+      },
+      {
+        src: '/media/photos/arctic-permafrost.jpg',
+        alt: 'Arctic thaw ponds formed by melting permafrost',
+        caption: 'Permafrost thaw (Arctic). The new outbreak conditions polar-territory surveillance watches.',
+        credit: 'NPS Climate Change Response · Public domain',
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:Permafrost_Thaw_(14413865677).jpg',
+      },
+    ],
+
     engineTitle: 'The engines',
     engineLead:
       'Sixteen of the 114 modules form the backbone of detection, genomics, forecasting, response and verification. Each one is labelled with how it actually runs, so that an engine that runs every hour is never presented with the same weight as one that computes only when asked.',
@@ -140,6 +217,32 @@ export const en: Dictionary = {
             name: 'Unexplained clusters',
             body: 'Counts, as a separate class, clusters extracted from reporting that do not match any known disease pattern. The pneumonia of unknown cause in Wuhan in December 2019 is the archetype.',
             mode: 'hourly',
+          },
+        ],
+      },
+      {
+        key: 'environment',
+        label: 'Environment · polar territory',
+        engines: [
+          {
+            id: 'polar_signals',
+            name: 'Polar-territory surveillance',
+            body: 'Observes the Arctic, the Antarctic and 27 glacier mountain regions with baseline and trend. As permafrost thaws — exposing pathogens and polar avian influenza — it watches, at the territory level, the new outbreak conditions a changing climate opens.',
+            mode: 'daily',
+            caveat: 'An object of observation, not an alert. A polar signal does not by itself mean an outbreak.',
+          },
+          {
+            id: 'disaster_watch',
+            name: 'Disaster watch window',
+            body: 'After floods, quakes and storms, the country is watched at a lower threshold through the window when water- and vector-borne risk rises. It targets the time between a disaster and the outbreak that follows.',
+            mode: 'hourly',
+          },
+          {
+            id: 'comtrade_signals',
+            name: 'Medical-supply trade watch',
+            body: 'Detects import surges of masks, PPE and test kits by country via UN Comtrade — a preparedness-behaviour signal that can appear before an official announcement.',
+            mode: 'daily',
+            caveat: 'Trade filings lag by roughly two months and are not a real-time indicator.',
           },
         ],
       },
@@ -243,6 +346,55 @@ export const en: Dictionary = {
             mode: 'hourly',
           },
         ],
+      },
+    ],
+
+    engineCatalogueCta: 'See the role of all 114 modules in the engine catalogue',
+
+    diffEyebrow: 'WHAT MAKES US DIFFERENT',
+    diffTitle: 'What sets us apart from other early warning',
+    diffLead:
+      'Early warning for infectious disease is not new — services like BlueDot, EIOS and Metabiota already exist. Where AEGIRON differs is that it does not stop at detection but puts verification, response and sovereignty into one system. We state this by structure, without overstatement.',
+    diffItems: [
+      {
+        title: 'It does not stop at detection',
+        body: 'Most early warning stops at “something is happening, somewhere”. AEGIRON attaches spread simulation, intervention scenarios and countermeasure readiness, to answer “so what, and at what strength”.',
+      },
+      {
+        title: 'It scores its own numbers',
+        body: 'Every forecast is sealed when made and checked daily against official declarations, recording hit and miss by itself. Building a track record as a verifiable record rather than a claim is rare.',
+      },
+      {
+        title: 'Surveillance gaps included from the start',
+        body: 'It watches, to the same standard, 178 countries and 52 languages that commercial services rarely cover — Africa, Central Asia, Pacific island states, and polar territory too.',
+      },
+      {
+        title: 'A national-biosecurity axis',
+        body: 'Defensive genomic screening (HEIMDALL) and countermeasure coverage / production-sovereignty analysis (VALHALLA) are a national-scale axis that commercial early-warning services do not have.',
+      },
+      {
+        title: 'Everything open',
+        body: 'The system, methodology, data and limits are open from the start — a choice a larger service bound by customer contracts cannot structurally copy, and a basis for trust that due diligence can verify directly.',
+      },
+    ],
+    futureTitle: 'Where we are headed',
+    futureLead: 'This is a starting point. It is built to grow stronger as operation accrues.',
+    futureItems: [
+      {
+        title: 'A proprietary extraction model',
+        body: 'Extraction runs through external APIs today, but the path is wired so it can switch, in one place, to a self-hosted model (NVIDIA NIM), moving toward a design where sensitive data does not leave for overseas APIs.',
+      },
+      {
+        title: 'A data moat',
+        body: '“Which signal led to a real outbreak” is assembled into a training set every day. As operation continues, that set grows and heuristics can be replaced by a measured learning model.',
+      },
+      {
+        title: 'A sealed track record',
+        body: 'As sealed forecasts accumulate, “we knew first” becomes a record a third party can verify on the blockchain — an asset whose proof grows stronger with time.',
+      },
+      {
+        title: 'Field connections',
+        body: 'The next step is connecting with real surveillance networks and field organisations to get closer to the source of the signal — the path to becoming global early-warning infrastructure.',
       },
     ],
 

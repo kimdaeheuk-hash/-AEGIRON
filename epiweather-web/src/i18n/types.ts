@@ -7,6 +7,15 @@
  */
 
 export type NavDict = {
+  /** 묶음 제목 — 회사 · 기술 · 활용 분야 · 검증·데이터 */
+  company: string;
+  trust: string;
+  techSpec1: string;
+  techSpec2: string;
+  engines: string;
+  solGovernment: string;
+  solReinsurance: string;
+  solNgo: string;
   platform: string;
   technology: string;
   programs: string;
@@ -87,11 +96,27 @@ export type HomeDict = {
   /** 수치 띠 아래 사진 한 장(퍼블릭 도메인, 출처 표기). */
   photo: PhotoDict;
 
+  /** 감시 현장 갤러리 — 전부 퍼블릭/자유 라이선스, 우리 시설이 아님을 캡션에 명시. */
+  galleryTitle: string;
+  galleryLead: string;
+  gallery: PhotoDict[];
+
   engineTitle: string;
   engineLead: string;
   engineModes: Record<EngineMode, string>;
   engineCaveatLabel: string;
   engineGroups: EngineGroupDict[];
+  /** 엔진 카탈로그(전체 114개 모듈)로 보내는 링크 문구. */
+  engineCatalogueCta: string;
+
+  /** 경쟁 조기경보와 무엇이 다른가 + 미래성. */
+  diffEyebrow: string;
+  diffTitle: string;
+  diffLead: string;
+  diffItems: { title: string; body: string }[];
+  futureTitle: string;
+  futureLead: string;
+  futureItems: { title: string; body: string }[];
 
   /** 스페셜 프로그램(헤임달·발할라) 강조 띠 — 홈에서 /programs 로 보낸다. */
   specialEyebrow: string;
@@ -153,11 +178,23 @@ export type Dictionary = {
  * 문구를 하나 고칠 때마다 세 군데를 건드려야 한다. 콘텐츠를 데이터로 분리하고
  * 렌더러를 하나만 두면, 언어 추가는 사전 파일 하나로 끝난다.
  */
+/** 묶음 색 — globals.css 의 [data-tone] 과 짝. 엔진 묶음·페이지 구획을 색으로 가른다. */
+export type BlockTone = 'teal' | 'indigo' | 'amber' | 'crimson' | 'forest' | 'violet' | 'sky';
+
 export type PageBlock = {
   title: string;
+  /** 제목 위 작은 꼬리표(예: "GROUP 01 · 감시"). tone 색으로 그린다. */
+  kicker?: string;
+  tone?: BlockTone;
+  /** 깊은 남청색 띠로 그릴지 — 스페셜 프로그램처럼 무게를 줄 구획. */
+  deep?: boolean;
   body?: string;
+  /** 사양표 — 왼쪽 항목 · 오른쪽 값. */
+  specs?: { label: string; value: string }[];
   /** 카드 목록. 있으면 격자로 렌더링한다. */
   items?: { title: string; body: string; meta?: string }[];
+  /** 블록 안 사진(선택). */
+  photo?: PhotoDict;
   /** 번호 매긴 목록. **강조** 표기를 지원한다. */
   points?: string[];
   /** 블록 하단 각주 — 한계·출처를 남길 때 쓴다. */
@@ -219,6 +256,7 @@ export type PagesDict = {
   platform: ContentPage;
   techSpec1: ContentPage;
   techSpec2: ContentPage;
+  engines: ContentPage;
   programs: ContentPage;
   transparency: ContentPage;
   dataSources: ContentPage;

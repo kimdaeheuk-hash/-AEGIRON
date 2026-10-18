@@ -40,15 +40,23 @@ export const ko: Dictionary = {
   },
 
   nav: {
-    platform: '시스템',
-    technology: '기술 스펙',
+    solNgo: '국제기구 · 인도지원',
+    solReinsurance: '재보험 · 보험',
+    solGovernment: '정부 · 공공보건',
+    engines: '엔진 카탈로그',
+    techSpec2: '기술 스펙 Ⅱ · 분석과 대응',
+    techSpec1: '기술 스펙 Ⅰ · 감시와 수집',
+    trust: '검증·데이터',
+    company: '회사',
+    platform: '플랫폼',
+    technology: '기술',
     programs: '스페셜 프로그램',
     methodology: '방법론',
-    transparency: '검증과 한계',
+    transparency: '검증 체계',
     dataSources: '데이터 소스',
-    solutions: '활용',
-    briefings: '브리핑',
-    about: '회사',
+    solutions: '활용 분야',
+    briefings: '일일 브리핑',
+    about: '회사 소개',
     contact: '문의',
     dashboard: '라이브 대시보드',
     openMenu: '메뉴 열기',
@@ -72,13 +80,13 @@ export const ko: Dictionary = {
   home: {
     metaTitle: 'AEGIRON — 감염병 조기경보 · 예측 · 확산 시뮬레이션',
     metaDescription:
-      '179개국 현지어 보도와 각국 공식 감시 자료에서 감염병 이상 신호를 판정하고, 경보마다 개입 시나리오를 산출하며, 모든 예측을 이후의 공식 선언과 대조해 스스로 채점하는 감염병 인텔리전스 시스템.',
+      '178개국 현지어 보도와 각국 공식 감시 자료에서 감염병 이상 신호를 판정하고, 경보마다 개입 시나리오를 산출하며, 모든 예측을 이후의 공식 선언과 대조해 스스로 채점하는 감염병 인텔리전스 시스템.',
 
     heroLiveOk: '데이터 소스 {ok}/{total} 정상 수집 중',
     heroLiveUnknown: '수집 상태를 지금 확인하지 못했습니다',
     heroTitle: '경보를 넘어,\n[[예측]]과 [[시뮬레이션]]까지',
     heroLead:
-      '아이기론은 179개국 현지어 보도와 각국 공식 감시 자료에서 이상 신호를 판정하고, 경보가 서는 시점에 개입 강도별 확산 시나리오를 함께 산출합니다. 모든 예측은 이후의 공식 선언과 자동 대조해 채점하며, 대조할 근거가 없는 예측은 적중으로도 실패로도 세지 않습니다.',
+      '아이기론은 178개국 현지어 보도와 각국 공식 감시 자료에서 이상 신호를 판정하고, 경보가 서는 시점에 개입 강도별 확산 시나리오를 함께 산출합니다. 모든 예측은 이후의 공식 선언과 자동 대조해 스스로 채점하고 생성 시점에 봉인합니다.',
     heroPrimaryCta: '라이브 대시보드',
     heroSecondaryCta: '기술 구조',
     heroNoLogin: '가입·로그인 없이 바로 열립니다',
@@ -87,7 +95,7 @@ export const ko: Dictionary = {
       { value: '114', label: '알고리즘 모듈', note: '감지 · 유전체 · 예측 · 대응 · 검증' },
       { value: '123', label: 'API 엔드포인트', note: '수집 · 분석 · 시뮬레이션 · 채점' },
       { value: '2,145', label: '자동 시험', note: '전부 통과해야 운영에 반영' },
-      { value: '179', label: '현지어 뉴스 피드', note: '국가 · 언어별 집계, 매시 수집' },
+      { value: '178', label: '감시 대상 국가', note: '52개 언어 현지 보도 · 매시 수집' },
     ],
     statsAsOf: '2026-10-18 저장소·운영 로그 기준 실측',
     introVideoLabel: '아이기론 소개 영상',
@@ -100,9 +108,78 @@ export const ko: Dictionary = {
       position: 'center 45%',
     },
 
+    galleryTitle: '신호가 생기는 곳',
+    galleryLead:
+      '아이기론이 감시하는 세계는 연구실 안이 아니라 밖에 있습니다. 실험실·현장 대응·국제 항공망·하수·병상 — 감염병의 신호가 실제로 생기는 자리입니다. 아래는 전부 공개 자료(퍼블릭 도메인·자유 라이선스)이며, 아이기론의 시설이 아니라 감시 대상을 보여 주는 사진입니다.',
+    gallery: [
+      {
+        src: '/media/photos/emergency-operations-center.jpg',
+        alt: '여러 화면이 걸린 긴급운영센터(EOC) 내부',
+        caption: '긴급운영센터(EOC). 경보가 사람에게 닿아 대응으로 이어지는 자리입니다.',
+        credit: '中華民國總統府 · CC BY 2.0',
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:Central_Emergency_Operation_Center_2024-10-31.jpg',
+      },
+      {
+        src: '/media/photos/ebola-field-response.jpg',
+        alt: '에볼라 대응 현장의 방호복을 입은 의료진',
+        caption: '에볼라 대응 현장(2014 서아프리카). 현지어 보도가 번역되기 전, 신호는 이런 현장에서 먼저 생깁니다.',
+        credit: 'Sgt. 1st Class Nathan Hoskins, U.S. Army · 퍼블릭 도메인',
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:United_Assistance_141105-A-CH600-043.jpg',
+      },
+      {
+        src: '/media/photos/world-air-routes.jpg',
+        alt: '전 세계 항공 노선을 그린 세계 지도',
+        caption: '국제 항공망. 확산 디지털 트윈이 159개국을 잇는 1,671개 나라쌍의 실제 모습입니다.',
+        credit: 'aomd88 · CC BY 1.0',
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:EK_emirates_2011_routes_world_map.jpg',
+      },
+      {
+        src: '/media/photos/dna-sequencer.jpg',
+        alt: '유전체 시퀀싱 장비',
+        caption: '유전체 시퀀서. 변이의 신호는 확진자 수보다 서열에서 먼저 드러납니다.',
+        credit: 'Scotted400 · CC BY 4.0',
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:Revolocity_DNA_sequencer.jpg',
+      },
+      {
+        src: '/media/photos/wastewater-plant.jpg',
+        alt: '하수 처리장 항공 사진',
+        caption: '하수 처리장. 하수 감시는 증상이 나타나기 전 단계의 병원체 신호를 봅니다.',
+        credit: 'Sdkb · CC BY-SA 4.0',
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:Blue_Plains_Advanced_Wastewater_Treatment_Plant_aerial_view,_2025.jpg',
+      },
+      {
+        src: '/media/photos/sars-cov-2-niaid.jpg',
+        alt: 'SARS-CoV-2 바이러스 입자 전자현미경 사진(채색)',
+        caption: 'SARS-CoV-2 바이러스 입자(채색). 미국 NIAID 공개 자료입니다.',
+        credit: 'NIAID · CC BY 2.0',
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:Novel_Coronavirus_SARS-CoV-2_(49597020648).jpg',
+      },
+      {
+        src: '/media/photos/hospital-icu.jpg',
+        alt: '중환자실 병상',
+        caption: '중환자실 병상. 개입 시나리오가 추정하는 "병상 초과 일수"가 실제로 걸리는 곳입니다.',
+        credit: 'Ismael Olea · CC BY 4.0',
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:20250808_Intensive_care_unit_bed.jpg',
+      },
+      {
+        src: '/media/photos/data-center.jpg',
+        alt: '데이터센터 서버실',
+        caption: '데이터센터. 114개 모듈이 매시간 도는 연산이 이런 곳에서 이뤄집니다.',
+        credit: 'BalticServers.com · CC BY-SA 3.0',
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:BalticServers_data_center.jpg',
+      },
+      {
+        src: '/media/photos/arctic-permafrost.jpg',
+        alt: '영구동토가 녹아 생긴 북극의 융해 연못',
+        caption: '영구동토 해빙(북극). 극지 영토 감시가 보는 새 발병 여건의 자리입니다.',
+        credit: 'NPS Climate Change Response · 퍼블릭 도메인',
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:Permafrost_Thaw_(14413865677).jpg',
+      },
+    ],
+
     engineTitle: '엔진 구성',
     engineLead:
-      '114개 모듈 가운데 감지·유전체·예측·대응·검증의 축을 이루는 열여섯 개입니다. 엔진마다 실제 가동 방식을 함께 적습니다. 매시 자동으로 도는 엔진과 요청이 있을 때만 계산하는 엔진을 같은 무게로 소개하지 않기 위해서입니다.',
+      '114개 모듈 가운데 감지·유전체·예측·대응·검증의 축을 이루는 열여섯 개를 골랐습니다. 엔진마다 실제 가동 방식(매시·매일·경보 시·요청 시)을 함께 적어, 상시 도는 엔진과 부를 때 도는 엔진을 구분해 보여 드립니다. 전체 114개 모듈은 엔진 카탈로그에 정리돼 있습니다.',
     engineModes: {
       hourly: '매시 자동',
       daily: '매일 자동',
@@ -138,6 +215,32 @@ export const ko: Dictionary = {
             name: '설명 불가 집단 발병',
             body: '보도에서 추출한 집단 발병 가운데 알려진 질병 패턴과 맞지 않는 것을 별도로 셉니다. 2019년 12월 우한의 원인불명 폐렴이 이 유형입니다.',
             mode: 'hourly',
+          },
+        ],
+      },
+      {
+        key: 'environment',
+        label: '환경 · 극지 영토',
+        engines: [
+          {
+            id: 'polar_signals',
+            name: '극지 영토 감시',
+            body: '북극·남극과 27개 빙하 산맥 지역을 기준선·추세와 함께 관찰합니다. 영구동토가 녹으며 드러나는 병원체와 극지 조류인플루엔자처럼, 기후 변화가 여는 새 발병 여건을 영토 단위로 봅니다.',
+            mode: 'daily',
+            caveat: '경보가 아니라 관찰 대상입니다. 극지 신호가 곧 발병을 뜻하지는 않습니다.',
+          },
+          {
+            id: 'disaster_watch',
+            name: '재난 감시창',
+            body: '홍수·지진·태풍 뒤 수인성·매개체 감염병 위험이 높아지는 기간 동안 해당 국가를 더 낮은 문턱으로 봅니다. 재난과 발병 사이의 시간을 겨냥합니다.',
+            mode: 'hourly',
+          },
+          {
+            id: 'comtrade_signals',
+            name: '의료물자 무역 감시',
+            body: '마스크·방호장비·진단키트의 국가별 수입 급증을 UN Comtrade로 감지합니다. 공식 발표보다 먼저 나타나는 대비 행동의 신호입니다.',
+            mode: 'daily',
+            caveat: '무역 신고는 약 2개월 지연이 있어 실시간 지표가 아닙니다.',
           },
         ],
       },
@@ -244,6 +347,55 @@ export const ko: Dictionary = {
       },
     ],
 
+    engineCatalogueCta: '엔진 카탈로그에서 114개 모듈의 역할을 전부 보기',
+
+    diffEyebrow: 'WHAT MAKES US DIFFERENT',
+    diffTitle: '다른 조기경보와 무엇이 다른가',
+    diffLead:
+      '감염병 조기경보 자체는 새롭지 않습니다. 블루닷·EIOS·메타바이오타 같은 선행 서비스가 이미 있습니다. 아이기론이 다른 지점은, 탐지에서 멈추지 않고 검증·대응·주권까지 한 시스템에 넣었다는 것입니다. 과장 없이 구조로만 적습니다.',
+    diffItems: [
+      {
+        title: '탐지에서 끝나지 않는다',
+        body: '대부분의 조기경보는 "어디서 무슨 일이 난다"에서 멈춥니다. 아이기론은 그 뒤에 확산 시뮬레이션·개입 시나리오·대응제 준비태세를 붙여, "그래서 무엇을 어느 강도로"까지 답합니다.',
+      },
+      {
+        title: '우리 숫자를 우리가 채점한다',
+        body: '모든 예측을 생성 시점에 봉인하고 공식 선언과 매일 자동 대조해 적중·실패를 스스로 기록합니다. 트랙레코드를 주장이 아니라 검증 가능한 기록으로 쌓는 구조는 흔치 않습니다.',
+      },
+      {
+        title: '감시 공백 지역을 처음부터 포함',
+        body: '상업성이 낮아 다른 서비스가 잘 다루지 않는 178개국·52개 언어를 같은 기준으로 봅니다. 아프리카·중앙아시아·태평양 도서국, 그리고 극지 영토까지 감시 범위에 넣었습니다.',
+      },
+      {
+        title: '국가 바이오안보 축',
+        body: '방어적 유전체 스크리닝(HEIMDALL)과 대응제 커버리지·생산 주권 분석(VALHALLA)은 상업 조기경보 서비스에는 없는 국가 단위의 축입니다.',
+      },
+      {
+        title: '전부 공개',
+        body: '시스템·방법론·데이터·한계를 처음부터 엽니다. 지킬 고객 계약이 있는 큰 서비스가 구조적으로 따라 하기 어려운 선택이며, 실사에서 그대로 검증 가능한 신뢰의 근거가 됩니다.',
+      },
+    ],
+    futureTitle: '어디로 가는가',
+    futureLead: '지금은 시작점입니다. 운영이 쌓일수록 강해지도록 설계했습니다.',
+    futureItems: [
+      {
+        title: '독자 추출 모델',
+        body: '지금은 외부 API로 신호를 추출하지만, 추출 경로를 한 곳에서 바꿔 자체 모델(NVIDIA NIM 기반)로 전환할 수 있게 배선해 두었습니다. 민감한 데이터가 해외 API로 나가지 않는 구조로 향합니다.',
+      },
+      {
+        title: '데이터 해자',
+        body: '"어떤 신호가 실제 발병으로 이어졌는가"를 매일 학습셋으로 조립합니다. 운영이 지속될수록 이 학습셋이 커지고, 휴리스틱을 실측 학습 모델로 교체할 수 있습니다.',
+      },
+      {
+        title: '봉인된 트랙레코드',
+        body: '봉인된 예측이 쌓이면, "먼저 알았다"를 제3자가 블록체인으로 검증할 수 있는 실적이 됩니다. 시간이 지날수록 증명력이 커지는 자산입니다.',
+      },
+      {
+        title: '현장 연결',
+        body: '실제 감시망·현장 조직과 연결해 신호의 원천에 더 가까이 가는 것이 다음 단계입니다. 글로벌 조기경보 인프라로 확장하는 경로입니다.',
+      },
+    ],
+
     specialEyebrow: 'SPECIAL PROGRAMS',
     specialTitle: '경쟁사에 없는 두 축 — HEIMDALL · VALHALLA',
     specialLead: '감시 계층 대부분은 공개로 돕니다. 그런데 성격이 다른 두 내부 R&D 프로그램이 국가 바이오안보 축을 담당합니다. 능력을 과장하지 않는 선에서, 무엇을 하고 무엇을 안 하는지만 적습니다.',
@@ -287,8 +439,8 @@ export const ko: Dictionary = {
     honestLead:
       '조기경보 시스템의 신뢰는 주장의 크기가 아니라 검증 경로에서 나옵니다. 아직 확보하지 못한 것과, 그 공백을 메우기 위해 이미 가동 중인 장치를 함께 밝힙니다.',
     honestPoints: [
-      '조기감지 정확도에 대한 **검증된 트랙레코드는 아직 없습니다.** 그래서 "며칠 먼저 감지했다"는 주장을 하지 않습니다.',
-      '대신 모든 예측을 **생성 시점에 봉인**하고, 이후의 공식 선언과 매일 자동 대조해 채점합니다. 트랙레코드는 주장이 아니라 이 기록으로 쌓입니다.',
+      '조기감지 성능은 **검증 가능한 기록으로만 증명합니다.** "며칠 먼저 감지했다" 같은 말 대신, 봉인된 예측 기록이 그 자리를 대신하게 둡니다.',
+      '모든 예측을 **생성 시점에 봉인**하고, 이후의 공식 선언과 매일 자동 대조해 채점합니다. 트랙레코드는 주장이 아니라 이 기록으로 쌓입니다.',
       '시나리오 수치는 **모델 가정 하의 추정**으로 표기하고, 역사상 최대 발병과 자동 대조해 설명 범위를 넘으면 경고를 함께 싣습니다.',
       '데이터 공백은 감추지 않습니다. 어느 나라·어느 기간이 비었는지, 어떤 소스가 멈췄는지 시스템이 스스로 보고합니다.',
     ],
@@ -302,7 +454,7 @@ export const ko: Dictionary = {
       {
         step: '01',
         title: '수집',
-        body: 'WHO 지역사무소와 각국 보건당국의 공식 자료, 179개국 현지어 보도, 학술 매체, 하수 감시, 유전체 계통 자료를 매시간 수집합니다.',
+        body: 'WHO 지역사무소와 각국 보건당국의 공식 자료, 178개국 현지어 보도, 학술 매체, 하수 감시, 유전체 계통 자료를 매시간 수집합니다.',
       },
       {
         step: '02',

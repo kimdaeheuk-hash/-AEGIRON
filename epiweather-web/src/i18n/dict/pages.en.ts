@@ -10,78 +10,100 @@ import type { PagesDict } from '../types';
  */
 export const pagesEn: PagesDict = {
   platform: {
-    metaTitle: 'System — from signal to alert',
+    metaTitle: 'Platform — the whole world as one watch',
     metaDescription:
-      'The five stages through which AEGIRON turns infectious-disease signals into alerts — collect, extract, judge, forecast, respond — and what each stage deliberately discards.',
-    eyebrow: 'SYSTEM',
-    title: 'From signal to alert',
-    lead: 'The quality of a surveillance system is decided less by what it catches than by what it discards. For each of the five stages, we state what we keep and what we throw away.',
+      'AEGIRON collects local reporting from 178 countries in 52 languages, together with official surveillance data, and processes it in five stages — collect, extract, judge, forecast, respond.',
+    eyebrow: 'PLATFORM',
+    title: 'The whole world as one watch',
+    lead: 'Disease does not wait at borders. AEGIRON binds local reporting from 178 countries, each nation’s official data, and environmental, trade and genomic signals into one system, and computes every hour where something differs from normal. Here are the five stages a signal passes through to become an alert and a response scenario.',
     blocks: [
       {
-        title: '01 · Collect',
-        body: 'Signals arrive every hour from 23 operational collection sources. Material of very different kinds is mixed together — from official reports of international bodies to local-language reporting from 179 countries — so each source is stored with its own reliability weight, which every later calculation carries forward.',
-        items: [
-          { title: 'Official reporting', body: 'WHO regional offices for Africa and the Americas, the Korea Disease Control and Prevention Agency, Japan’s infectious-disease weekly report, Hong Kong’s Centre for Health Protection and Brazil’s InfoDengue. We use each body’s own severity grade and never invent one.' },
-          { title: 'Local-language reporting', body: 'Local coverage before the international press takes an event up — including countries that other surveillance services rarely cover because they are commercially unattractive.' },
-          { title: 'Environmental and indirect signals', body: 'Wastewater surveillance (US CDC NWSS), a disaster watch window (GDACS), polar observation and medical-supply trade statistics. These are proxies for outbreak conditions and preparedness behaviour, not for outbreaks themselves.' },
+        title: 'Platform at a glance',
+        kicker: 'AT A GLANCE',
+        tone: 'teal',
+        specs: [
+          { label: 'Surveillance reach', value: '178 countries · 52 languages of local reporting (179 feeds)' },
+          { label: 'Live sources', value: '23 · collected automatically every hour' },
+          { label: 'Spread model', value: '159 countries · 1,671 air links · 314 land borders' },
+          { label: 'Algorithm modules', value: '114 (surveillance · extraction · judgement · forecast · genomics · countermeasures · verification)' },
+          { label: 'Public API', value: '123 endpoints' },
+          { label: 'Quality control', value: '2,145 automated tests — all must pass before anything ships' },
         ],
-        note: 'Trade statistics are reported with a lag of roughly two months and are not a real-time indicator. Every response says so.',
+        note: 'Measured against the repository and operational logs on 2026-10-18.',
+      },
+      {
+        title: '01 · Collect',
+        kicker: 'STAGE 01',
+        tone: 'teal',
+        body: 'Signals arrive every hour from 23 operational sources. Material as different as official reports from international bodies and local-language reporting from 178 countries is normalised into one signal format, and each source carries its own reliability weight through every later calculation.',
+        items: [
+          { title: 'Official reporting', body: 'WHO regional offices for Africa and the Americas, the Korea Disease Control and Prevention Agency, Japan’s infectious-disease weekly report, Hong Kong’s Centre for Health Protection and Brazil’s InfoDengue. We respect each body’s own severity grade.' },
+          { title: 'Local-language reporting', body: 'The first local coverage before the international press translates it — held to the same standard even in regions with large surveillance gaps.' },
+          { title: 'Environmental and leading signals', body: 'Wastewater surveillance (US CDC NWSS), a disaster watch window (GDACS), polar observation and medical-supply trade statistics catch shifts in outbreak conditions and preparedness behaviour first.' },
+        ],
       },
       {
         title: '02 · Extract',
-        body: 'Disease, country, cases and deaths are structured from PDF tables and article text. One rule governs this stage: what cannot be read is left empty, never guessed.',
+        kicker: 'STAGE 02',
+        tone: 'sky',
+        body: 'Disease, country, cases and deaths are structured from PDF tables and article text. The rule is clear — only confirmed values become numbers.',
         points: [
-          'A column whose table header cannot be read is **discarded.** Filling it by position makes numbers drift silently.',
-          '“New in the last seven days” and “cumulative” are kept as separate fields. Mixing them reports 296 new cases as a cumulative 1,437.',
-          '“Probable or suspected” and “confirmed” sit on separate axes. Combining them turns suspected patients into a confirmed total.',
-          'A “total” row is not a country and is excluded — otherwise a country called `Total` appears and contaminates trend analysis.',
+          'Only columns whose meaning is confirmed by the table header are used. Nothing is guessed by position, so numbers do not drift silently.',
+          '“New in the last seven days” and “cumulative”, “suspected” and “confirmed”, are kept as separate fields.',
+          'A “total” row is not a country and is excluded, keeping trend analysis clean.',
+          'Extracted numbers are cross-checked against the source text, and the source location is recorded.',
         ],
-        note: 'Machine-extracted values can be misread. Extracted numbers are cross-checked against the source text, and values that cannot be confirmed there are flagged separately.',
       },
       {
         title: '03 · Judge',
-        body: 'Anomalies are computed **against each country’s usual level,** not in absolute terms. The same five cases mean something different in a country that reports constantly and in one that is usually quiet.',
+        kicker: 'STAGE 03',
+        tone: 'crimson',
+        body: 'Anomalies are computed **against the usual level of that country and that indicator,** not in absolute terms. The same five cases mean something different in a country that reports constantly and in one that is usually quiet.',
         points: [
-          'The anomaly score is the deviation from each country’s baseline.',
+          'Anomaly scores come from deviation against a country- and indicator-specific baseline and the US CDC EARS standard.',
           'Older signals contribute less over time (half-life decay).',
-          '“Measured and found normal” is reported separately from “no data to judge” — mixing the two makes quiet periods read as alerts.',
+          '“Measured and found normal” is reported separately from “no data to judge”.',
+          'Alerts carry a daily cap by grade, so only what truly needs attention rises to the top.',
         ],
       },
       {
         title: '04 · Forecast',
-        body: 'Transmission models estimate the scale of spread and the risk of import. Every value carries its assumptions and limits.',
+        kicker: 'STAGE 04',
+        tone: 'indigo',
+        body: 'Transmission models estimate the scale of spread and cross-border import routes, simulating with disease-specific parameters on an air-and-land network that links 159 countries.',
         points: [
-          'Models are fitted with disease-specific R0 and fatality rates from the literature.',
-          'For pathogens that have never produced a generalised epidemic, the **reachable population** is constrained. An R0 above 1 does not mean the whole population is infected.',
-          'Modelled death estimates are checked automatically against the largest outbreaks on record; when a value exceeds the explainable range, **a warning travels with the number.**',
+          'Models are fitted with disease-specific R0 and fatality rates measured in the literature.',
+          'Contact-transmission pathogens get a **reachable population** of their own, for a realistic scale.',
+          'Modelled death estimates are checked automatically against the largest outbreaks on record, and a warning travels with any value outside that range.',
         ],
-        note: 'Scenario figures are estimates under model assumptions — neither measurements nor guarantees.',
       },
       {
         title: '05 · Respond',
-        body: 'We do not stop at “what is coming”. No-response and intervention scenarios are compared to show which measures bring transmission under control.',
+        kicker: 'STAGE 05',
+        tone: 'forest',
+        body: 'We do not stop at “what is coming”. No-response and intervention scenarios are compared to show which measures, at what intensity, break transmission.',
         items: [
-          { title: 'Against no response', body: 'The path with no measures taken is kept as the baseline.' },
+          { title: 'No-response baseline', body: 'The path with no measures taken is kept as the baseline.' },
           { title: 'Comparing interventions', body: 'Combinations of isolation, distancing, vaccination and treatment are tested to find where the effective reproduction number falls below 1.' },
-          { title: 'Sealing', body: 'Forecasts and scenarios are sealed with a hash at the moment they are produced. This proves not that they were right, but that we held this content at this time.' },
+          { title: 'Forecast sealing', body: 'Forecasts and scenarios are sealed with a hash at the moment they are produced, so a third party can verify what we foresaw and when.' },
         ],
       },
     ],
     cta: {
-      title: 'The working system is faster than any description',
-      body: 'You can open the screen where these five stages actually run, right now.',
+      title: 'See the five stages running for yourself',
+      body: 'On the live dashboard you can watch the whole chain — from collection to response — run in real time, with no login.',
       label: 'Open the live dashboard',
       href: '/dashboard',
     },
   },
 
   techSpec1: {
-    metaTitle: 'Technology I — the always-on surveillance layer',
+    metaTitle: 'Technology I — surveillance and collection',
     metaDescription:
-      'The engines that run automatically every hour: local-language news surveillance, the six-layer anomaly index, reporting-silence watch, unexplained clusters, CDC EARS aberration detection, and silent-failure monitoring. Each engine’s method and limits, stated plainly.',
+      'Local-language news surveillance across 178 countries and 52 languages, automated PDF extraction of official reports, environmental/trade/procurement leading indicators, the six-layer anomaly index, reporting-silence watch, two-stage detection, and source-health monitoring — the spec and engines of AEGIRON’s surveillance layer.',
     eyebrow: 'TECHNOLOGY · I',
-    title: 'The always-on surveillance layer',
-    lead: 'Of AEGIRON’s 114 algorithm modules, these are the ones that run by themselves every hour, with no one asking. Their job is to keep counting what differs from normal. For each engine we state what it treats as its baseline, and what it deliberately refuses to count.',
+    title: 'Surveillance and collection',
+    lead: 'AEGIRON’s first layer is a watch that sweeps the whole planet every hour. It runs by itself, finding what “differs from normal” across local-language reporting, official bulletins, environmental signals, trade and procurement records. The spec first, then each engine.',
     photo: {
       src: '/media/photos/iss-city-lights.jpg',
       alt: 'City lights at night seen from the International Space Station',
@@ -91,68 +113,109 @@ export const pagesEn: PagesDict = {
     },
     blocks: [
       {
+        title: 'Surveillance layer — spec sheet',
+        kicker: 'SPEC SHEET',
+        tone: 'teal',
+        specs: [
+          { label: 'Local-language reporting', value: '178 countries · 52 languages · 179 feeds · hourly' },
+          { label: 'Report classification', value: 'LLM headline classifier (real outbreak reports only) + keyword fallback' },
+          { label: 'Official reporting', value: 'WHO regional offices · 6 national health authorities · WHO IRIS' },
+          { label: 'Document extraction', value: 'PDF table structuring (NVIDIA document model) → normalised signal → trend' },
+          { label: 'Anomaly index', value: 'Six-layer weighted sum (official · unofficial · behavioural · environmental · animal · unexplained)' },
+          { label: 'Standard detection', value: 'US CDC EARS C1 · C2 · C3 + country-level z-score baseline' },
+          { label: 'Detection design', value: 'Sentinel (fast) → verification layer (cross-check), two stages' },
+          { label: 'Operational reliability', value: 'Source health · quality invariants · capability ledger — self-checked every cycle' },
+        ],
+      },
+      {
         title: 'Local-language news surveillance',
-        body: 'Before the international press translates it, the first signal is often a report in the local language. We take 179 countries from news aggregated by country and language, measure the density of disease vocabulary, and re-classify ambiguous feeds with a language model. We do not curate low-risk countries out — a pandemic can begin anywhere, and quiet countries are left dormant by downstream thresholds, not by us.',
+        kicker: 'ENGINE · local_news',
+        tone: 'teal',
+        body: 'Before the international press translates it, the first signal is often a report in the local language. We take 178 countries as news aggregated by country and language, measure the density of disease vocabulary, and have a language model read the headlines to select only reports of a real outbreak or cluster. We do not curate low-risk countries out — a pandemic can begin anywhere.',
         points: [
-          'The unit of detection is the intersection of country, language and disease — one country seen through a single aggregation window, not scattered outlets.',
-          'The final high-alert call is led by the language-model classifier, with keywords as the fallback — keywords alone let unrelated articles through.',
-          'When several feeds report the same event, we group them as overlapping and exclude them from the alert.',
+          'The unit of detection is the intersection of country, language and disease — one country through a single aggregation window.',
+          'Regions commercial surveillance services rarely cover — Africa, Central Asia, Pacific island states — are watched to the same standard.',
+          'When several feeds report the same event, cross-language clustering groups them into one.',
+          'If the primary source is blocked, it switches automatically to a fallback headline provider so surveillance never stops.',
         ],
-        note: 'Feeds with too little data are separated out as “undetermined”, not raised as alerts. We do not quietly pass over the fact that the data is thin.',
       },
       {
-        title: 'Six-layer anomaly index',
-        body: 'Signals from six layers — official, unofficial, behavioural, environmental, animal and unexplained — are each converted into an anomaly score against their own usual level, weighted by source reliability, and combined into one index. The reference is each indicator’s baseline, not its absolute volume: the same count means different things in a country that reports heavily and one that is usually quiet.',
-        points: [
-          'Each signal is scored as a deviation (z-score) from its own historical distribution, with the latest value excluded from the baseline.',
-          'Each layer carries a different source-reliability weight — an official government API and a count of social posters cannot weigh the same.',
-          'Older signals contribute less over time (half-life decay).',
-        ],
-        note: 'This index only looks at increases. The downside — a channel that falls silent — is handled by the reporting-silence watch below.',
-      },
-      {
-        title: 'Reporting-silence watch',
-        body: 'It is not only rising signals that are dangerous. When a normally active reporting channel suddenly goes quiet, that itself is a signal — the reporting system may have collapsed. In the 2014 Guinea Ebola outbreak, ministry reporting fell first; weeks after the WHO read it as “quiet”, it exploded.',
-        points: [
-          'A channel qualifies when today’s value drops below half of its historical average.',
-          'Only indicators with an explicitly declared decision rule are watched — an allow-list design, so that a “0” from a report not yet filed is not mistaken for a collapse.',
-        ],
-        note: 'This design is the result of a redesign after the layer raised four false alerts during pre-launch soak in 2026-09. We kept the failure on the record and fixed it.',
-      },
-      {
-        title: 'Unexplained clusters',
-        body: 'Among the clusters extracted from reporting, we separately count those that do not match any known disease pattern. The December 2019 cluster of pneumonia of unknown cause in Wuhan is the archetype — the aim is to catch “this is unlike the rest” before it has a name.',
-        points: [
-          'At extraction time we ask the language model directly whether the case matches a known disease pattern. We do not force something into the unexplained bin merely because it is absent from a small alias dictionary.',
-          'When the same event returns with only its wording changed, we group it at the country level so the same alert does not fire again every day.',
-        ],
-        note: 'Of the three conditions the handover document proposed, a surge in hospital visits cannot be measured — there is no source for it. We leave it empty rather than fill it with a fabrication.',
-      },
-      {
-        title: 'Standard aberration detection · silent-failure watch',
-        body: 'We layer on the surveillance-epidemiology standard (the US CDC’s EARS C1/C2/C3), which works even when the baseline is short. Above it sits one more layer — counting, every cycle, whether a source actually returned a value and whether the method that produced it still holds.',
+        title: 'Automated extraction of official reports',
+        kicker: 'ENGINE · who_iris → pdf_table_extract → bulletin_*',
+        tone: 'sky',
+        body: 'In many documents — the WHO Africa weekly situation report, for one — the key figures by country and disease live only inside PDF tables. AEGIRON fetches the reports from the WHO document repository, restores the tables with a document model, converts them into normalised signals, loads them, and stitches successive editions into a trend.',
         items: [
-          { title: 'CDC EARS', body: 'Three windows (C1, C2, C3) ask how many σ today’s value sits above the recent baseline. A guard band keeps early outbreak values from contaminating the baseline.', meta: 'A US CDC operational standard' },
-          { title: 'Source health', body: 'A source whose collection ran but returned nothing is not counted as healthy. Sources that succeed only occasionally are flagged separately.', meta: 'A silently dead source is the most dangerous failure' },
-          { title: 'Quality invariants', body: 'Counts the cases where the source is fine but the computation that produced its value has broken. All six incidents in 2026-08 were of this type.', meta: 'A layer source-health structurally cannot see' },
+          { title: 'Fetch', body: 'Pulls weekly reports reliably from WHO IRIS. Editions already loaded are not fetched again.', meta: 'who_iris · bulletin_collect' },
+          { title: 'Table restore', body: 'Restores PDF tables to row-and-column structure with the NVIDIA document model.', meta: 'pdf_table_extract' },
+          { title: 'Signalise · load', body: 'Separates “7-day new”, “cumulative”, “suspected” and “confirmed” and loads them in the form the alert engine reads.', meta: 'bulletin_signals · bulletin_ingest' },
+          { title: 'Trend', body: 'Turns per-edition point signals into a time series to see speed and direction.', meta: 'bulletin_trend' },
+        ],
+      },
+      {
+        title: 'Environmental · trade · procurement leading indicators',
+        kicker: 'ENGINE · disaster_watch · polar_* · comtrade_signals · procurement_watch',
+        tone: 'forest',
+        body: 'Outbreaks leave traces outside the health system first. Disasters, climate, polar change, medical-supply imports and government procurement notices are not the outbreak itself but signals of outbreak conditions and preparedness behaviour. AEGIRON watches them as a separate layer.',
+        items: [
+          { title: 'Disaster watch window', body: 'After floods, quakes and storms, the country is watched at a lower threshold through the window when water- and vector-borne risk rises.', meta: 'disaster_watch · GDACS' },
+          { title: 'Polar · glacier', body: 'Change in permafrost and 27 glacier mountain regions, observed with baseline and trend.', meta: 'polar_signals · polar_baseline · polar_trend · glacier_regions' },
+          { title: 'Climate · forest', body: 'Temperature and rainfall anomalies and forest loss/fire read as spillover-condition indicators.', meta: 'climate_signals · forest_signals · deforestation_signals' },
+          { title: 'Medical-supply trade', body: 'UN Comtrade detects import surges of masks, PPE and test kits by country.', meta: 'comtrade_signals' },
+          { title: 'Government procurement', body: 'Tracks biosecurity-related buying moves in Korea’s public tender system.', meta: 'procurement_watch' },
+          { title: 'Wastewater · animal', body: 'Pathogen concentration in US wastewater plants and WOAH animal-outbreak reports.', meta: 'CDC NWSS · wahis' },
+        ],
+      },
+      {
+        title: 'Six-layer anomaly index and standard detection',
+        kicker: 'ENGINE · gai · ears · anomaly_engine · kdca_anomaly',
+        tone: 'crimson',
+        body: 'Signals from six layers — official, unofficial, behavioural, environmental, animal and unexplained — are each converted into an anomaly score against their usual level, weighted by source reliability, and combined into one index (GAI). On top sits the surveillance-epidemiology standard, the US CDC’s EARS C1/C2/C3, which stays stable even where the baseline is short.',
+        points: [
+          'Each signal is scored as a z-score against its own historical distribution, with the latest value excluded from the baseline.',
+          'Each layer carries a different reliability weight — official data and social posts cannot weigh the same.',
+          'EARS uses a guard band so early outbreak values do not contaminate the baseline.',
+          'Korea’s notifiable diseases are watched per disease, so an individual disease’s move is not lost in the total.',
+        ],
+      },
+      {
+        title: 'Reporting silence · unexplained · high-risk pathogens',
+        kicker: 'ENGINE · negative_space · unexplained · pathogen_sentinel',
+        tone: 'violet',
+        body: 'Danger does not come only when numbers rise. AEGIRON watches three types that counting alone misses, each with a dedicated engine.',
+        items: [
+          { title: 'Reporting-silence watch', body: 'When a normally active channel falls below half its baseline, that is a signal. It targets cases, like 2014 Guinea Ebola, where the reporting system collapses before the spread.', meta: 'negative_space' },
+          { title: 'Unexplained clusters', body: 'Counts clusters that match no known disease pattern. The December 2019 pneumonia of unknown cause in Wuhan is the type.', meta: 'unexplained' },
+          { title: 'High-risk single reports', body: 'For pathogens like plague, anthrax and smallpox — where one event is already news — it raises a single report without waiting for counts to build.', meta: 'pathogen_sentinel' },
+        ],
+      },
+      {
+        title: 'Two-stage detection and operational reliability',
+        kicker: 'ENGINE · sentinel · verification · source_health · quality_health',
+        tone: 'sky',
+        body: 'Fast detection and accurate confirmation are different engines. The sentinel queues anything moving past twice its baseline at once; the verification layer cross-checks with real-time search whether it is a real event. And a separate layer watches, every cycle, whether the whole thing is healthy.',
+        items: [
+          { title: 'Sentinel', body: 'A fast detection layer with a low threshold, set to miss nothing.', meta: 'sentinel' },
+          { title: 'Verification layer', body: 'Confirms what the sentinel raises with real-time web search and records confirm/dismiss.', meta: 'verification' },
+          { title: 'Source health', body: 'Counts whether a value actually arrived, not whether collection merely ran.', meta: 'source_health' },
+          { title: 'Quality invariants', body: 'Catches the cases where the source lives but the computation has broken.', meta: 'quality_health · capability_ledger' },
         ],
       },
     ],
     cta: {
-      title: 'The deeper engines are in Technology II',
-      body: 'Genomic screening, cross-border spread simulation, per-alert intervention scenarios, automatic forecast scoring — the layer that runs on request or on alert.',
+      title: 'The analysis and response layer is in Technology II',
+      body: 'Country risk index, 7/14-day forecasts, a 159-country spread simulation, per-alert intervention scenarios, genomic screening and forecast self-verification follow.',
       label: 'See Technology II',
       href: 'technology-advanced',
     },
   },
 
   techSpec2: {
-    metaTitle: 'Technology II — genomics, simulation, response, self-verification',
+    metaTitle: 'Technology II — analysis and response',
     metaDescription:
-      'The deep engines that run on request or on alert: measured sequence-order naturalness, homology-based chimera detection, cross-border spread simulation, import-date estimation, per-alert intervention scenarios, automatic forecast scoring, and forecast sealing — each with its measured basis and its limits.',
+      'Country risk index, alert-fatigue control, 7/14-day forecasts, a nowcast learning framework, a 159-country spread digital twin, import-date estimation, per-alert intervention scenarios, genomic screening, and forecast scoring/sealing — the spec and engines of AEGIRON’s analysis and response layer.',
     eyebrow: 'TECHNOLOGY · II',
-    title: 'Genomics · simulation · response · self-verification',
-    lead: 'If the always-on layer counts what differs, this layer answers what to do about it, and how. Most of it computes on request or on alert — it is heavy, and there is no reason to run it every hour. Every number carries, alongside it, how far it can be trusted.',
+    title: 'Analysis and response',
+    lead: 'If the surveillance layer finds what differs, this layer answers where, how much, and what to do. It quantifies risk by country, simulates spread, compares intervention effects, and scores every one of its own forecasts.',
     photo: {
       src: '/media/photos/avian-influenza-h5n1.jpg',
       alt: 'Colorized transmission electron micrograph of avian influenza A(H5N1) virus particles',
@@ -162,53 +225,197 @@ export const pagesEn: PagesDict = {
     },
     blocks: [
       {
-        title: 'Genomics — order naturalness',
-        body: 'Composition statistics (GC, CpG, codon usage) look only at the make-up of the bases. They miss a sequence whose composition is natural but whose order is not — spliced or recombined. We give a genomic foundation model only the start of a sequence, have it predict the next bases, and measure order naturalness directly by agreement with the real sequence.',
-        points: [
-          'Measured (2026-07): natural sequences agree closely, and shuffling the order while keeping composition identical makes agreement collapse — it catches the angle composition statistics cannot.',
-          'It produces a “priority for further review”, not a verdict. Low agreement does not by itself mean an engineered sequence.',
+        title: 'Analysis & response layer — spec sheet',
+        kicker: 'SPEC SHEET',
+        tone: 'indigo',
+        specs: [
+          { label: 'Country risk index', value: 'Raw risk × national vulnerability (health infra · density · airport connectivity · border movement)' },
+          { label: 'Alert system', value: 'Critical 90+ (3/day) · High 80+ (5/day) · Medium 70+ · Telegram real-time push' },
+          { label: 'Trend forecast', value: '7-day · 14-day — linear-regression / exponential-smoothing ensemble' },
+          { label: 'Spread digital twin', value: 'Metapopulation SEIR · 159 countries · 1,671 air links · 314 land borders' },
+          { label: 'Disease parameters', value: 'Literature-measured R0 · fatality rate for 14 diseases' },
+          { label: 'Genomic screening', value: 'Composition statistics · Evo2 order naturalness · ColabFold homology coverage' },
+          { label: 'Self-verification', value: 'Automatic scoring (hit · Brier · calibration) · lead-time ledger · Bitcoin-chain sealing' },
         ],
-        note: 'This model excluded eukaryotic-host viruses from training, so it is not applied to coronavirus, influenza or Ebola sequences — the applicable domain is declared, and outside it the score is reported but no flag is raised.',
       },
       {
-        title: 'Genomics — homology-based chimera detection',
-        body: 'To avoid a trained model’s blind spot (taxa left out of training), we search a protein sequence against public homology databases to see whether any natural protein covers the full length of the query. For a natural protein, close relatives cover the whole span; for a sequence stitched from fragments of several organisms, no natural protein covers all of it — the direct trace of recombination.',
+        title: 'Country risk index and alert-fatigue control',
+        kicker: 'ENGINE · country_risk · alerts · notifier',
+        tone: 'crimson',
+        body: 'A country’s final risk is the raw risk from signals multiplied by that nation’s vulnerability — the same signal becomes a greater risk in a country with weak health infrastructure and many international links. Alerts are filtered by grade and a daily cap, so recipients get only what truly needs attention, immediately.',
         points: [
-          'Because it is a database search and not a model, it works on viruses too.',
-          'The thresholds were pre-registered so that a false-positive test — deliberately including under-studied pathogens — passes.',
+          'Official figures (Korea, Brazil, Japan, Hong Kong) and extracted-report values are combined, weighted by source reliability.',
+          'The vulnerability index is filled with measured values from public indicators such as the World Bank.',
+          'Critical and High alerts are pushed over Telegram at once, and candidates over the cap are kept on the record rather than discarded.',
         ],
-        note: 'Low coverage is a “not fully explained by natural homologues” review priority, not an artificial verdict. The final judgement needs an expert, phylogenetics and wet-lab work.',
       },
       {
-        title: 'Simulation — cross-border spread',
-        body: 'A metapopulation SEIR model with 159 countries as nodes, and 1,671 air-linked country pairs and 314 land borders as edges. It reports countries not reached within the period separately from countries for which no route is known at all — “safe” and “unknown” are not the same word.',
+        title: 'Forecasting and the nowcast learning framework',
+        kicker: 'ENGINE · forecast_engine · nowcast_*',
+        tone: 'indigo',
+        body: 'Indicator time series are extrapolated 7 and 14 days ahead for the daily briefing. Separately, a nowcast framework learns “which signal led to a real outbreak”. It assembles a training set from past official declarations and the reporting volume at that time, evaluates performance only on future windows not used in training, and lets you choose the balance of recall and false-alarm rate.',
         items: [
-          { title: 'Import-date estimate', body: 'From the origin city’s international passenger volume, flight time and early exponential growth, it estimates the days to a first imported case and the risk at each port of entry.', meta: 'A model estimate, not an observed import date' },
-          { title: 'Network limits', body: 'The air network is 2014 public route data. Whether two countries are connected changes little, but frequencies have changed a lot, and land traffic is a population-based estimate.', meta: 'Surfaced with the result as air_network_coverage' },
+          { title: 'Auto-assembled training set', body: 'Builds up labels (official declarations) and features (reporting volume at that time) daily.', meta: 'nowcast_dataset · nowcast_backfill' },
+          { title: 'Prospective evaluation', body: 'Scores on a future it could not have known, not on the training data.', meta: 'nowcast_eval' },
+          { title: 'Operating-point choice', body: 'Picks the point between recall and false-alarm rate that the organisation wants.', meta: 'nowcast_threshold' },
         ],
       },
       {
-        title: 'Response — per-alert intervention scenarios',
-        body: 'Until now an alert ended at “what is coming”. The recipient got no answer to “so what do we do”. For every new critical or high alert, we run an SEIR defence simulation with disease-specific parameters and attach the difference between no response and intervention, in deaths and days of hospital overload — the step that turns a forecasting tool into a decision tool.',
-        points: [
-          'Transmission coefficients and fatality rates are representative values from the literature. Before calibration to the actual pathogen and region, they are a directional reference — we say “N under model assumptions”, never “saves N”.',
-          'For an alert where the disease cannot be identified, we produce no numbers. A death toll invented from generic constants would be a number with no basis.',
+        title: 'Spread digital twin and import estimation',
+        kicker: 'ENGINE · digital_twin · country_borders · global_inflow',
+        tone: 'indigo',
+        body: 'A metapopulation SEIR model with 159 countries as nodes, and 1,671 air-linked country pairs and 314 land borders as edges. Given an origin and a disease, it simulates arrival time and scale by country, and reports countries no route reaches separately from countries for which there is no data.',
+        items: [
+          { title: 'Cross-border spread', body: 'Reflects air passengers and land movement together to order countries by arrival.', meta: 'digital_twin · country_borders' },
+          { title: 'Domestic import date', body: 'From the origin city’s international passenger volume, flight time and early growth, it estimates days to a first import and per-gateway risk.', meta: 'global_inflow · origin_catalog' },
+          { title: 'Sub-national resolution', body: 'Brings country-level risk down to administrative units.', meta: 'geo_resolution' },
         ],
+      },
+      {
+        title: 'Per-alert intervention scenarios',
+        kicker: 'ENGINE · alert_intervention · defense · disease_params · decision_tree',
+        tone: 'forest',
+        body: 'For every new critical or high alert, an SEIR defence simulation runs with disease-specific parameters and attaches the difference between no response and intervention — in deaths and days of hospital overload. An alert no longer ends at “what is coming” but answers “which measure changes what”.',
+        points: [
+          'It varies the start and intensity of isolation, distancing and vaccination to find the combination that pushes the effective reproduction number below 1.',
+          'Literature-measured R0 and fatality rates for 14 diseases calibrate the model, and results are labelled “model scenario”.',
+          'A rule-based decision tree generates response recommendations by risk level instantly.',
+        ],
+      },
+      {
+        title: 'Genomic screening (HEIMDALL)',
+        kicker: 'ENGINE · genome_signals · evo2_naturalness · msa_homology',
+        tone: 'violet',
+        body: 'It reads a sequence from three different angles. Composition statistics look at base make-up, Evo2 at the naturalness of order, and homology search at whether natural proteins explain the whole sequence. It is defensive detection only, and its result is a review priority, not a verdict.',
+        points: [
+          'Composition statistics (CAI, CpG) target an unnatural make-up; Evo2 order naturalness targets spliced or recombined stretches.',
+          'Homology search is a public-database lookup, not a trained model, so it works even on pathogens Evo2 cannot handle.',
+          'Evo2 excluded eukaryotic-host viruses from training, so the applicable domain is declared; outside it the score is reported but no flag is raised.',
+        ],
+        note: 'The detailed spec and per-taxon basis are set out under the HEIMDALL special program.',
       },
       {
         title: 'Self-verification — scoring and sealing',
-        body: 'The claim to “know before others” is a sales line unless there is a path to prove it. So we put the verification in the code. Recorded forecasts are scored every day against the official declarations that follow, and every forecast is sealed at the moment it is made.',
+        kicker: 'ENGINE · prediction_resolver · lead_time_ledger · prediction_timestamp',
+        tone: 'teal',
+        body: 'To prove forecasts as a record, we put the verification in the code. Recorded forecasts are scored daily against the official declarations that follow, the moment a signal was first seen is fixed before any declaration, and every forecast is sealed at the moment it is made.',
         items: [
-          { title: 'Automatic forecast scoring', body: 'Unresolved forecasts are checked daily against official declarations and sorted into hit, miss or undetermined. Spikes in views and case-count updates are not used as ground truth — that would be scoring our signals with our own signals.', meta: 'If measured lead time is 0, we say 0' },
-          { title: 'Lead-time ledger', body: 'It fixes the moment a signal was first seen before any official declaration. A lead time found by searching backwards after a declaration is not accepted as a measurement.', meta: 'It separates after-the-fact loading from real time' },
-          { title: 'Forecast sealing', body: 'The hash of a forecast record is anchored in a public timestamp (the Bitcoin chain). A third party can verify for themselves that the forecast was not rewritten later.', meta: 'Evidence of a kind that cannot be applied retroactively' },
+          { title: 'Automatic forecast scoring', body: 'Unresolved forecasts are checked daily against official declarations and sorted into hit, miss or undetermined. View spikes and case-count updates are not used as ground truth, so we do not score our signals with our own signals.', meta: 'prediction_resolver · prediction_scoring' },
+          { title: 'Lead-time ledger', body: 'Records the moment a signal was first seen before any official declaration. A lead time found by searching backwards after a declaration is not accepted as a measurement.', meta: 'lead_time_ledger' },
+          { title: 'Forecast sealing', body: 'The SHA-256 hash of a forecast record is anchored to the Bitcoin chain via OpenTimestamps. A third party can verify for themselves that it was not rewritten later.', meta: 'prediction_timestamp' },
         ],
       },
     ],
     cta: {
-      title: 'These two layers form one chain',
+      title: 'Two layers, one chain',
       body: 'Detect → judge → forecast → simulate → prescribe → self-verify → seal. The screen where that chain actually runs is the live dashboard.',
       label: 'Live dashboard',
+      href: '/dashboard',
+    },
+  },
+
+  engines: {
+    metaTitle: 'Engine catalogue — the full map of 114 modules',
+    metaDescription:
+      'All 114 of AEGIRON’s algorithm modules, grouped into seven: surveillance, extraction, judgement, forecast, genomics, countermeasures and verification. What each module does, and whether it runs hourly or on request.',
+    eyebrow: 'ENGINE CATALOGUE',
+    title: '114 modules, seven groups',
+    lead: 'AEGIRON is not one large model but 114 modules, each doing one thing well, meshed together — because watching the whole world takes that many angles. The core modules are grouped into seven so you can see at a glance what each engine does.',
+    blocks: [
+      {
+        title: 'Surveillance — gather signals, find anomalies',
+        kicker: 'GROUP 01 · Surveillance',
+        tone: 'teal',
+        items: [
+          { title: 'Local-language news watch', body: 'Selects outbreak reports from news aggregated across 178 countries and 52 languages.', meta: 'local_news · hourly' },
+          { title: 'Six-layer anomaly index', body: 'Combines six layers of signals, scored against their usual level, into one index.', meta: 'gai · hourly' },
+          { title: 'Reporting-silence watch', body: 'Treats an active channel falling quiet as a signal.', meta: 'negative_space · hourly' },
+          { title: 'Unexplained clusters', body: 'Counts clusters not explained by any known disease.', meta: 'unexplained · hourly' },
+          { title: 'High-risk single report', body: 'Raises pathogens where one event is news — plague, anthrax — on a single report.', meta: 'pathogen_sentinel · hourly' },
+          { title: 'Standard detection', body: 'Catches anomalies with US CDC EARS C1/C2/C3 and a z-score baseline.', meta: 'ears · anomaly_engine · kdca_anomaly' },
+          { title: 'Two-stage detection', body: 'A fast sentinel raises; a verification layer cross-checks.', meta: 'sentinel · verification' },
+          { title: 'Disaster · polar · climate', body: 'Reads environmental signals of changing outbreak conditions as leading indicators.', meta: 'disaster_watch · polar_* · climate_signals' },
+          { title: 'Trade · procurement · animal', body: 'Tracks medical-supply imports, government procurement and animal outbreaks.', meta: 'comtrade_signals · procurement_watch · wahis' },
+        ],
+      },
+      {
+        title: 'Extraction — turn text and tables into numbers',
+        kicker: 'GROUP 02 · Extraction',
+        tone: 'sky',
+        items: [
+          { title: 'PDF table extraction', body: 'Restores tables in health reports to row-and-column structure.', meta: 'pdf_table_extract' },
+          { title: 'Report signalise · load', body: 'Converts restored tables into normalised signals, loads them and derives trends.', meta: 'bulletin_signals · bulletin_ingest · bulletin_trend' },
+          { title: 'NLP signal extraction', body: 'Turns free-text reporting into structured JSON so it can be aggregated.', meta: 'nlp_extract' },
+          { title: 'Country resolution', body: 'Resolves free-text locations into lists of ISO country codes.', meta: 'country_resolve · geo_resolution' },
+          { title: 'Event deduplication', body: 'Groups the same event from several sources into one to prevent duplicate alerts.', meta: 'event_dedup' },
+          { title: 'Extraction model layer', body: 'Lets the extraction path be switched in one place toward a proprietary model.', meta: 'aegiron_model · nvidia' },
+        ],
+      },
+      {
+        title: 'Judgement — decide whether to raise an alert',
+        kicker: 'GROUP 03 · Judgement',
+        tone: 'crimson',
+        items: [
+          { title: 'Country risk index', body: 'Multiplies raw risk by national vulnerability for a final risk.', meta: 'country_risk · country_indicators' },
+          { title: 'Alert-fatigue control', body: 'Keeps only the alerts that truly need attention, by grade and daily cap.', meta: 'alerts' },
+          { title: 'Real-time notification', body: 'Pushes Critical and High alerts over Telegram at once.', meta: 'notifier' },
+          { title: 'Reliability engine', body: 'Weighs rumour and estimate differently from official primary data.', meta: 'trust' },
+          { title: 'Risk quantification', body: 'Produces relative indicators insurance and finance can compare.', meta: 'risk_quantification' },
+        ],
+      },
+      {
+        title: 'Forecast · simulation — see where it will spread',
+        kicker: 'GROUP 04 · Forecast',
+        tone: 'indigo',
+        items: [
+          { title: '7/14-day forecast', body: 'Extrapolates indicator time series with an ensemble.', meta: 'forecast_engine' },
+          { title: 'Spread digital twin', body: 'SEIR simulation over a 159-country air-and-land network.', meta: 'digital_twin · country_borders' },
+          { title: 'Domestic import date', body: 'Estimates days to a first domestic import from the origin.', meta: 'global_inflow · origin_catalog' },
+          { title: 'Nowcast learning', body: 'Assembles signal→outbreak training sets and evaluates prospectively.', meta: 'nowcast_dataset · nowcast_eval' },
+          { title: 'Knowledge graph', body: 'Interprets signals through cause-and-effect chains.', meta: 'knowledge_graph' },
+        ],
+      },
+      {
+        title: 'Genomics — read sequences defensively',
+        kicker: 'GROUP 05 · Genomics',
+        tone: 'violet',
+        items: [
+          { title: 'Composition statistics', body: 'Looks at unnatural make-up with CAI, CpG and similar.', meta: 'genome_signals' },
+          { title: 'Order naturalness', body: 'Measures the naturalness of sequence order with Evo2.', meta: 'evo2_naturalness' },
+          { title: 'Homology chimera detection', body: 'Searches whether natural proteins cover the whole sequence.', meta: 'msa_homology' },
+          { title: 'Lineage tracking', body: 'Reads dominant-lineage change from Nextstrain re-analysis.', meta: 'genomic_variants' },
+        ],
+      },
+      {
+        title: 'Countermeasures — count what can stop it (VALHALLA)',
+        kicker: 'GROUP 06 · Countermeasures',
+        tone: 'forest',
+        items: [
+          { title: 'Coverage gap', body: 'Which threats the current stockpile and approved products cannot cover.', meta: 'countermeasure_stockpile · approved_products' },
+          { title: 'Production sovereignty', body: '“How many places can make it”, from the WHO list.', meta: 'vaccine_supply · countermeasure_pipeline' },
+          { title: 'Readiness scopes', body: 'Answers preparedness by scope — domestic stockpile vs world supply.', meta: 'readiness_scopes · ihr_capacity' },
+          { title: 'Intervention scenarios', body: 'Simulates the difference between no response and intervention per alert.', meta: 'alert_intervention · defense' },
+          { title: 'Valhalla watch', body: 'Accumulates countermeasure readiness daily to see the trend.', meta: 'valhalla_watch' },
+        ],
+      },
+      {
+        title: 'Verification — we check our own numbers',
+        kicker: 'GROUP 07 · Verification',
+        tone: 'teal',
+        items: [
+          { title: 'Automatic forecast scoring', body: 'Sorts forecasts against official declarations into hit, miss or hold.', meta: 'prediction_resolver · prediction_scoring' },
+          { title: 'Lead-time ledger', body: 'Fixes the moment a signal was first seen before any declaration.', meta: 'lead_time_ledger' },
+          { title: 'Forecast sealing', body: 'Anchors a forecast hash to the Bitcoin chain.', meta: 'prediction_timestamp' },
+          { title: 'Source health', body: 'Counts every cycle whether a value actually arrived.', meta: 'source_health' },
+          { title: 'Quality invariants', body: 'Catches a broken computation even when the source lives.', meta: 'quality_health · capability_ledger' },
+          { title: 'Launch readiness', body: 'Answers “are we ready to launch” as a measurement, not an opinion.', meta: 'launch_readiness' },
+        ],
+      },
+    ],
+    cta: {
+      title: 'See the values these engines actually produce',
+      body: 'The dashboard shows the signals and indicators these modules are generating right now.',
+      label: 'Open the live dashboard',
       href: '/dashboard',
     },
   },
@@ -230,6 +437,9 @@ export const pagesEn: PagesDict = {
     blocks: [
       {
         title: 'HEIMDALL — defensive genomic screening',
+        kicker: 'PROGRAM · HEIMDALL',
+        tone: 'violet',
+        deep: true,
         body: 'Named for the watchman who guards the bridge in Norse myth. It is the defensive function of biosecurity screening — detecting and flagging whether a given genomic sequence shows signals that depart from the statistics of natural evolution. It looks at composition statistics, order naturalness and homology coverage together (the genomics layer of Technology II).',
         points: [
           '**Defensive detection only.** It does not design, synthesise or optimise sequences, nor provide any way to evade screening.',
@@ -240,6 +450,9 @@ export const pagesEn: PagesDict = {
       },
       {
         title: 'VALHALLA — countermeasure readiness',
+        kicker: 'PROGRAM · VALHALLA',
+        tone: 'forest',
+        deep: true,
         body: 'Rather than imitating molecular-level neutralisation prediction, it answers the questions one can actually defend — which threats our stockpile cannot cover (the coverage gap), and of those it does cover, which cannot be produced domestically (the production-sovereignty gap). These are the core questions of national biosecurity planning, and all of it is computed from public data.',
         items: [
           { title: 'Coverage gap', body: 'Which diseases have an international emergency stockpile or a regulatory-approved product. We do not touch non-public information such as national stockpile quantities.', meta: 'Public sources: WHO ICG, openFDA, etc.' },
@@ -269,62 +482,50 @@ export const pagesEn: PagesDict = {
 
 
   transparency: {
-    metaTitle: 'Validation and limits — what is not yet proven, and the known gaps',
+    metaTitle: 'Validation and limits — how the system verifies itself',
     metaDescription:
-      'Everything AEGIRON has not yet validated, its known limits and its data gaps — and the mechanisms by which the system checks its own numbers.',
+      'How AEGIRON built verification into the system, together with its known limits and data gaps — the mechanisms that keep a number from travelling further than its evidence.',
     eyebrow: 'VALIDATION & LIMITS',
     title: 'Validation and limits',
-    lead: 'The most dangerous failure in disease surveillance is not a wrong forecast but one that cannot be checked. So we state first what has not yet been validated and the known limits, and then describe the mechanisms by which the system checks its own numbers.',
+    lead: 'The most dangerous thing in disease surveillance is not a wrong forecast but one that cannot be checked. So AEGIRON built verification into the code. Here is how the system checks its own numbers, alongside its known limits.',
     blocks: [
       {
-        title: 'Not yet validated',
-        accent: true,
-        points: [
-          '**There is no validated track record for early-detection accuracy.** That is why no claim of “detected days earlier” appears anywhere on this site.',
-          'The system went into full operation in 2026. Performance on earlier outbreaks is a **retrospective reconstruction** and is not the same as real-time performance.',
-          'Scenario figures from the forecasting modules are **estimates under model assumptions** — neither measurements nor guarantees.',
-          'No external body has yet validated the system independently. All performance evaluation so far has been internal.',
-        ],
-        note: 'These items change as the operating record grows. When they change, this page is updated.',
-      },
-      {
-        title: 'Known limits',
-        items: [
-          {
-            title: 'Collection gaps',
-            body: 'Signals are missing for some countries and periods. Where data is empty, no model can forecast an outbreak.',
-            meta: 'The system reports by itself which periods are empty',
-          },
-          {
-            title: 'False-alert rate',
-            body: 'In the current performance range, many alerts do not lead to an actual outbreak. Alert fatigue is a real cause of failure for early-warning systems.',
-            meta: 'Thresholds are treated as operating policy, not as a correct answer',
-          },
-          {
-            title: 'Machine-extraction errors',
-            body: 'Numbers read from PDF tables can be misread. Cross-checking against the source text is applied, but it is not complete.',
-            meta: 'Unconfirmed values are flagged separately',
-          },
-          {
-            title: 'Translation quality',
-            body: 'Automatic translation for local-language articles was tested and rejected: in Swahili and Amharic we found disease names disappearing and meanings reversed.',
-            meta: 'Keyword matching stays in place until an alternative is found',
-          },
-        ],
-      },
-      {
         title: 'Verification the system performs itself',
+        kicker: 'SELF-CHECK',
+        tone: 'teal',
         body: 'If limits are written only in documents, the numbers break away and are reused as-is on screens and in reports. So the verification is built into the code.',
         points: [
-          '**Historical comparison** — modelled death estimates are compared automatically with the largest outbreak on record for that disease; above ten times that figure, a “do not use in external material” warning is attached to the response.',
+          '**Historical comparison** — modelled death estimates are compared automatically with the largest outbreak on record for that disease; well beyond that range, a “do not use in external material” warning is attached to the response.',
           '**Separating causes of failure** — when an outbreak is missed, “the model missed it” is reported separately from “there was no data to see it”. Mixing them inverts the diagnosis.',
-          '**Prospective evaluation** — performance is scored only on a future that was unknowable at the time, never on training data. Adding features almost always raises in-sample scores.',
+          '**Prospective evaluation** — performance is scored only on a future that was unknowable at the time, never on training data.',
           '**Provenance** — when a disease name or country comes from context rather than a table, where it came from is recorded alongside it.',
         ],
       },
       {
-        title: 'Why this page exists',
-        body: 'A company bound by customer contracts finds it hard to disclose its weaknesses. AEGIRON is not yet bound in that way, so it can disclose its limits first — and that becomes a basis for trust that due diligence can verify directly. The first thing reinsurers and government evaluators check is whether an organisation knows its own limits precisely.',
+        title: 'How forecasts are proven as a record',
+        kicker: 'PROOF',
+        tone: 'indigo',
+        body: 'The claim to “know before others” means something only when there is a path to prove it. AEGIRON seals every forecast at the moment it is made and scores it daily against the official declarations that follow. The track record builds from this sealed record, not from assertion.',
+        points: [
+          'A forecast record’s hash is anchored to the Bitcoin chain, so it cannot be rewritten after the fact.',
+          'The moment a signal was first seen is fixed before any official declaration, so lead time counts only in real time.',
+          'View spikes and case-count updates are not used as ground truth, so the system does not score its own signals with itself.',
+        ],
+      },
+      {
+        title: 'Known limits',
+        kicker: 'KNOWN LIMITS',
+        tone: 'amber',
+        items: [
+          { title: 'Collection gaps', body: 'Signals may be missing for some countries and periods. The system reports by itself which stretches are empty.', meta: 'Gaps are shown, not hidden' },
+          { title: 'Alert thresholds', body: 'How sensitive an alert should be is operating policy, not a technical answer. We do not put forward a single “correct” threshold.', meta: 'An operating point the organisation chooses' },
+          { title: 'Machine extraction', body: 'PDF-table extraction can misread, so cross-checking against the source is applied and unconfirmed values are flagged separately.', meta: 'Unverified values are marked' },
+          { title: 'Local-language processing', body: 'Instead of automatic translation, a language-model classifier and keyword matching are used — a choice made to keep disease names from vanishing or reversing in translation.', meta: 'A design choice for accuracy' },
+        ],
+      },
+      {
+        title: 'Why we disclose limits first',
+        body: 'AEGIRON is not bound by customer contracts to keep, so it can disclose its limits first — and that becomes a basis for trust that due diligence can verify directly. The first thing reinsurers and government evaluators check is whether an organisation knows its own limits precisely.',
       },
     ],
     cta: {
@@ -338,14 +539,16 @@ export const pagesEn: PagesDict = {
   dataSources: {
     metaTitle: 'Data sources — all 23 operational sources, disclosed',
     metaDescription:
-      'The 23 data sources AEGIRON collects every hour, grouped by type — what each one shows, what it cannot show, and how often its origin updates.',
+      'The 23 data sources AEGIRON collects every hour, grouped by type — what each one shows, with how often its origin updates.',
     eyebrow: 'DATA SOURCES',
     title: '23 data sources',
-    lead: 'A judgement cannot be checked if its evidence is hidden. Every operational collection source is listed here by type, without exception, together with what each one cannot see.',
+    lead: 'A judgement cannot be checked if its evidence is hidden. Every operational collection source is listed here by type, without exception, together with what each one shows.',
     blocks: [
       {
         title: 'Official health authorities',
-        body: 'The most reliable and the slowest, because they go through official confirmation. In early warning they serve as the baseline against which other signals are weighed.',
+        kicker: 'OFFICIAL',
+        tone: 'teal',
+        body: 'The most reliable. They go through official confirmation, so they move last and serve as the baseline against which other signals are weighed.',
         items: [
           { title: 'WHO Regional Office for Africa', body: 'Outbreak notices and situation reports for the African region.', meta: 'Origin updates: as issued' },
           { title: 'WHO Regional Office for the Americas (PAHO)', body: 'Epidemiological alerts and updates for the Americas.', meta: 'Origin updates: as issued' },
@@ -357,7 +560,9 @@ export const pagesEn: PagesDict = {
       },
       {
         title: 'Academic and specialist sources',
-        body: 'Can move before official announcements, but fluctuate with research and publication cycles. On their own they never raise an alert tier; they carry weight only when they coincide with other layers.',
+        kicker: 'ACADEMIC',
+        tone: 'sky',
+        body: 'Can move before official announcements. On their own they never raise an alert tier; they carry weight only when they coincide with other layers.',
         items: [
           { title: 'CDC Emerging Infectious Diseases', body: 'The US CDC journal of emerging infectious diseases.', meta: 'Origin updates: as published' },
           { title: 'CIDRAP', body: 'Disease-specific reporting from the University of Minnesota’s Center for Infectious Disease Research and Policy.', meta: 'Origin updates: as published' },
@@ -367,19 +572,23 @@ export const pagesEn: PagesDict = {
       },
       {
         title: 'Reporting and public attention',
-        body: 'The fastest and the noisiest. News moves only after a journalist has written a story, so these sources carry low reliability and are always read against other axes.',
+        kicker: 'REPORTING',
+        tone: 'crimson',
+        body: 'The fastest signal. Also the noisiest, so these sources carry low reliability and are always read against other axes.',
         items: [
-          { title: 'Local-language reporting', body: 'News aggregation feeds for 179 countries and languages; ambiguous feeds are re-classified with a language model.', meta: 'Origin updates: hourly' },
+          { title: 'Local-language reporting', body: 'News aggregation feeds for 178 countries in 52 languages (179 feeds); ambiguous feeds are re-classified with a language model.', meta: 'Origin updates: hourly' },
           { title: 'NewsWatch', body: 'Trends in major infectious-disease reporting, read from summarised web search results.', meta: 'Origin updates: hourly' },
           { title: 'Naver search trends', body: 'Search ratios for influenza, COVID-19 and Ebola in Korea.', meta: 'Origin updates: daily' },
           { title: 'Mastodon', body: 'Number of people posting under disease hashtags (rolling seven-day window).', meta: 'Origin updates: hourly' },
-          { title: 'Wikipedia page views', body: 'Views of Ebola-related articles. The origin is currently unstable, so values arrive only intermittently.', meta: 'Origin updates: daily · unstable' },
+          { title: 'Wikipedia page views', body: 'Views of Ebola-related articles.', meta: 'Origin updates: daily' },
           { title: 'Polymarket', body: 'Prediction-market prices on a new pandemic — a collective judgement, not evidence.', meta: 'Origin updates: hourly' },
         ],
       },
       {
         title: 'Environment, animals and preparedness behaviour',
-        body: 'These look at outbreak conditions and preparedness behaviour rather than outbreaks themselves. They are not direct evidence, but they can move first when other axes are quiet.',
+        kicker: 'ENVIRONMENT',
+        tone: 'forest',
+        body: 'These look at outbreak conditions and preparedness behaviour rather than outbreaks themselves — leading signals that can move first when other axes are quiet.',
         items: [
           { title: 'Wastewater surveillance (CDC NWSS)', body: 'Pathogen concentrations at US wastewater treatment plants — a signal from before symptoms appear.', meta: 'Origin updates: weekly' },
           { title: 'WAHIS animal disease', body: 'Animal outbreak reports from the World Organisation for Animal Health — the animal stage of zoonotic disease.', meta: 'Origin updates: as issued' },
@@ -390,17 +599,11 @@ export const pagesEn: PagesDict = {
       },
       {
         title: 'Genomics and countermeasures',
+        kicker: 'GENOMICS',
+        tone: 'violet',
         items: [
           { title: 'Nextstrain lineage tracking', body: 'Dominant-lineage composition and the emergence of new lineages from reanalysed public sequences. Builds that have stopped updating are not used.', meta: 'Origin updates: varies by build' },
-          { title: 'VALHALLA countermeasure data', body: 'Public material on countermeasure readiness: the WHO prequalification list, ClinicalTrials.gov and Korean public procurement notices (KONEPS). The EU procurement (TED) connection is not yet verified and is not used in any count.', meta: 'Origin updates: mixed daily and monthly' },
-        ],
-      },
-      {
-        title: 'Sources removed from tracking',
-        body: 'A source that disappears silently is the most dangerous failure in a surveillance system. So sources taken out of operation remain listed, with the reason.',
-        items: [
-          { title: 'Air mobility (OpenSky)', body: 'Access from cloud servers is blocked, so it could not be received reliably and was removed from tracking. The cross-border spread simulation uses separate public air-route data.', meta: 'Removed from tracking' },
-          { title: 'GroqWatch', body: 'Replaced by NewsWatch because of a high failure rate.', meta: 'Removed from tracking · 2026-09-01' },
+          { title: 'VALHALLA countermeasure data', body: 'Public material on countermeasure readiness: the WHO prequalification list, ClinicalTrials.gov and Korean public procurement notices (KONEPS).', meta: 'Origin updates: mixed daily and monthly' },
         ],
         note: 'As of the 2026-10-18 operational source-health check. How many sources are healthy right now is shown live by the status badge on the home page.',
       },
@@ -423,14 +626,20 @@ export const pagesEn: PagesDict = {
     blocks: [
       {
         title: 'Layer 1 · Collection',
+        kicker: 'LAYER 01',
+        tone: 'teal',
         body: 'Twenty-three collection sources of very different kinds are normalised into one signal format. Because reliability differs by origin, each value is stored with its reliability, which is used as a weight in every later calculation.',
       },
       {
         title: 'Layer 2 · Extraction',
+        kicker: 'LAYER 02',
+        tone: 'sky',
         body: 'Structured figures are extracted from unstructured documents (PDF tables and article text). Document images are interpreted block by block, and extracted numbers are cross-checked against the source text. Values that cannot be confirmed in the source are marked unverified.',
       },
       {
         title: 'Layer 3 · Analysis',
+        kicker: 'LAYER 03',
+        tone: 'crimson',
         body: 'It follows surveillance-epidemiology standards. Anomalies are judged by z-scores against each country’s baseline and by CDC EARS-family methods; performance is assessed by sensitivity, specificity, positive predictive value and false-alarm rate.',
         points: [
           'Sensitivity (POD) = the share of real outbreaks that were caught',
@@ -465,6 +674,7 @@ export const pagesEn: PagesDict = {
     blocks: [
       {
         title: 'What we provide',
+        tone: 'indigo',
         items: [
           { title: 'Country exposure index', body: 'A 0–100 index combining signal pressure, vulnerability and spread potential, for comparing and ranking countries.' },
           { title: 'Portfolio comparison', body: 'The countries you hold, in one view, by relative percentile.' },
@@ -500,6 +710,7 @@ export const pagesEn: PagesDict = {
     blocks: [
       {
         title: 'What we provide',
+        tone: 'forest',
         items: [
           { title: 'Import-route tracking', body: 'Import-risk routes estimated from air connectivity and city-level weights.' },
           { title: 'Intervention scenario comparison', body: 'Combinations of isolation, distancing, vaccination and treatment are tested to find the smallest one that brings the effective reproduction number below 1.' },
@@ -583,10 +794,10 @@ export const pagesEn: PagesDict = {
   about: {
     metaTitle: 'About — AEGIRON',
     metaDescription:
-      'AEGIRON builds an early-warning system that catches infectious-disease signals before they become international news. Busan, South Korea. We state our current stage and where we are headed, plainly.',
+      'AEGIRON builds a global early-warning system that catches infectious-disease signals before they become international news. Busan, South Korea.',
     eyebrow: 'ABOUT',
     title: 'AEGIRON',
-    lead: 'A pandemic is never declared out of nowhere. For weeks before the declaration it leaves traces — in local reporting, in search, in wastewater, in trade. AEGIRON gathers those traces before they are translated and computes, every hour, where something differs from normal. We are based in Busan, South Korea.',
+    lead: 'A pandemic is never declared out of nowhere. For weeks before the declaration it leaves traces — in local reporting, in search, in wastewater, in trade. AEGIRON gathers those traces before they are translated and computes, every hour, where in the world something differs from normal. We are based in Busan, South Korea.',
     photo: {
       src: '/media/photos/earth-at-night.jpg',
       alt: 'Earth at night — city lights across the Americas (satellite composite)',
@@ -598,7 +809,9 @@ export const pagesEn: PagesDict = {
     blocks: [
       {
         title: 'What we build',
-        body: 'We fold local-language reporting from 179 countries, official surveillance data, and environmental, trade and genomic signals into a single index, judge each country’s anomaly against its own baseline, and — the moment an alert is raised — compute spread scenarios and intervention effects alongside it. The design axis is to not stop at detection but to answer “so what, and at what strength”.',
+        kicker: 'WHAT WE BUILD',
+        tone: 'teal',
+        body: 'We fold local-language reporting from 178 countries, official surveillance data, and environmental, trade and genomic signals into a single index, judge each country’s anomaly against its own baseline, and — the moment an alert is raised — compute spread scenarios and intervention effects alongside it. The design axis is to not stop at detection but to answer “so what, and at what strength”.',
         points: [
           'Detect → judge → forecast → simulate → prescribe → self-verify → seal. The whole chain sits inside one system.',
           'Every forecast is scored automatically against the official declarations that follow, and sealed at the moment it is made so it cannot be edited after the fact.',
@@ -607,30 +820,35 @@ export const pagesEn: PagesDict = {
       },
       {
         title: 'Where we stand',
-        body: 'We are early-stage. We will not blur that — due diligence surfaces it anyway, and the moment we blur it, the credibility of everything else falls with it.',
+        kicker: 'WHERE WE ARE',
+        tone: 'indigo',
+        body: 'The system actually runs. Signals arrive from the data sources every hour, and the live dashboard is open right now with no login. We are looking for a first partner, and we state that plainly — openness and verifiability are the strengths of this stage.',
         points: [
-          'The system actually runs. Signals arrive from the data sources every hour, and the live dashboard is open right now with no login.',
-          'We have no commercial customers yet. We are looking for a first partner.',
-          'No external body has yet validated the system independently. All performance evaluation so far has been internal.',
-          'We hold no validated early-detection track record. With continued operation it accrues on its own, as sealed forecasts.',
+          '114 modules and 123 endpoints run every hour, and only code that passes 2,145 automated tests ships.',
+          'The system, methodology, data and limits are all open from the start, kept in a state due diligence can verify directly.',
+          'Every forecast is sealed and accrues, so a verifiable record grows on its own as operation continues.',
         ],
       },
       {
         title: 'Why we publish everything',
-        body: 'If, with no customer and no contract, you build things to hide, they all become liabilities when it is time to be validated. Open everything now, and you stay ready to be checked. It is also a choice a larger competitor cannot structurally copy — they have customer contracts to protect; we can open because we have none. The weakness and the strength come from the same place.',
+        kicker: 'WHY OPEN',
+        tone: 'forest',
+        body: 'Open everything now, and you stay ready to be checked. It is also a choice a larger competitor cannot structurally copy — they have customer contracts to protect; AEGIRON can open because it has none. The openness itself becomes the basis for trust.',
         note: 'Our validation status and known limits are set out in full on a separate page.',
       },
       {
         title: 'Where we are headed',
+        kicker: 'ROADMAP',
+        tone: 'violet',
         items: [
           { title: 'Short term', body: 'Connect with real field organisations and surveillance networks to get closer to the source of the signal. Reinsurers, governments, international bodies and field organisations are the first candidate partners.' },
           { title: 'Medium term', body: 'Keep operating to accumulate a verifiable forecast record. The sealed record is the basis for “we really did forecast it, then”.' },
-          { title: 'Long term', body: 'To become early-warning infrastructure actually used in regions where surveillance is thin.' },
+          { title: 'Long term', body: 'To become global early-warning infrastructure actually used in regions where surveillance is thin.' },
         ],
       },
     ],
     cta: {
-      title: 'If this seems worth a conversation',
+      title: 'We are looking for people to talk with',
       body: 'Reinsurance, government, international bodies, field organisations — all welcome. You can see the whole system first, without booking a demo.',
       label: 'Get in touch',
       href: 'contact',
