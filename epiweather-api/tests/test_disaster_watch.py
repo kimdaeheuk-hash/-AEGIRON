@@ -430,7 +430,11 @@ def test_cycle_payload_does_not_repeat_static_text_every_hour():
     하루 1MB 가까이 불어난다. 상세는 `/api/disaster-watch` 가 맡는다.
     """
     dw.record_events(dw.parse_gdacs(_rss(_item())), today=dt.date(2026, 8, 25))
-    with patch.object(dw, "fetch_gdacs_events", return_value=[]):
+    # 시계를 고정한다 — 이벤트 날짜가 2026-08-25 로 박혀 있는데 `collect_disaster_watch` 는 실제 오늘을 쓴다.
+    # 창이 닫힐 만큼 달력이 흐르면(2026-10 중순) 이 시험이 코드와 무관하게 빨개진다(달력 시한폭탄).
+    real_report = dw.disaster_watch_report
+    with patch.object(dw, "fetch_gdacs_events", return_value=[]), \
+         patch.object(dw, "disaster_watch_report", lambda today=None: real_report(dt.date(2026, 9, 14))):
         payload = dw.collect_disaster_watch()
 
     blob = json.dumps(payload, ensure_ascii=False)

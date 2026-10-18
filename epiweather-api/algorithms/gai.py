@@ -72,6 +72,24 @@ def _baseline_mean(series: list[float | None]) -> float | None:
     return round(statistics.mean(cleaned[:-1]), 4)
 
 
+def _previous_distinct(series: list[float | None]) -> float | None:
+    """최신값과 **다른** 가장 최근 관측값. 없으면 None.
+
+    ★ 왜 필요한가 ★ (2026-10-18, PR #83 자기검토) 주간 원천(CDC NWSS)은 같은 값을 매시간 다시 기록한다. 그래서
+    `_baseline_mean` 은 새 값이 들어온 뒤 시간마다 그 값 쪽으로 끌려간다(10-16~10-18 평소 약 87,690 → 108,705,
+    시간당 약 650). '평소 대비 몇 배' 만 보면 같은 주 안에서 배수가 저절로 줄어 판정이 바뀐다 — 값은 그대로인데.
+    직전의 다른 값(= 지난 창의 값)은 그 오염을 안 받는다. 점수·지수에는 영향이 없다(승격 자리만 쓴다).
+    """
+    cleaned = [v for v in series if v is not None]
+    if not cleaned:
+        return None
+    latest = cleaned[-1]
+    for v in reversed(cleaned[:-1]):
+        if v != latest:
+            return v
+    return None
+
+
 def _tier(gai: float | None) -> str | None:
     if gai is None:
         return None
@@ -108,6 +126,9 @@ def compute_gai() -> dict:
                 # 점수를 만든 과거의 평균. 경보 승격 자리의 카운트 유의도(signal_metrics.
                 # meets_count_significance)가 쓴다. 점수·지수에는 영향이 없다.
                 "baseline_mean": _baseline_mean(series),
+                # 최신값과 다른 가장 최근 값 — 같은 주간 값이 매시간 다시 쌓여 평균이 끌려가도 흔들리지 않는 비교점.
+                # 경보 승격 자리의 비현실적 점프 판정(signal_metrics.implausible_jump)이 쓴다. 점수에는 영향이 없다.
+                "previous_distinct": _previous_distinct(series),
                 "raw_score": raw_score,
                 "trust": trust,
                 "trusted_score": round(raw_score * trust, 1),

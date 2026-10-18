@@ -6,6 +6,7 @@ gai.py(①GAI 점수)와 negative_space.py(⑤부정적 공간 감시)가 같은
 층 배정 근거는 gai.py 모듈 docstring 참고.
 """
 from __future__ import annotations
+import datetime as dt
 import json
 from pathlib import Path
 
@@ -129,7 +130,7 @@ def meets_alert_minimum(metric_id: str, latest: float | None) -> bool:
 # 적용 대상: `social_*` 전부. 같은 함수(`_social_count`)가 같은 모양(7일 게시자 수)으로
 # 만드는 카운트라 함께 넣었다(ALERT_MIN_COUNT 의 genomic 셋과 같은 이유). 다른 지표를
 # 늘릴 땐 '평소 N 인데 작은 변화에 최대 이상도가 났다'는 관측을 먼저 확인해라.
-COUNT_NOISE_PREFIXES: tuple[str, ...] = ("social_",)
+COUNT_NOISE_PREFIXES: tuple[str, ...] = ("social_", "medrxiv_")
 COUNT_MIN_SIGMA = 2.0   # 2σ — anomaly_engine.ANOMALY_Z_THRESHOLD 와 같은 관례
 
 
@@ -151,7 +152,26 @@ COUNT_NOISE_ALERT_CAP = 79.0
 # 관측값이 **무엇의 값인지**. 경보 본문에 `관측값 12` 만 나가면 환자 12명으로 읽힌다 — 실제로는
 # Mastodon 에서 최근 7일에 해당 해시태그로 글을 쓴 서로 다른 게시자 수다(collector 로그의
 # `Mastodon #dengue(뎅기열): 최근7일 12명(원문 14건)`). 단위를 모르는 지표는 안 적는다(지어내지 않는다).
-METRIC_UNITS: dict[str, str] = {"social_": "Mastodon 7일 게시자 수"}
+METRIC_UNITS: dict[str, str] = {
+    "social_": "Mastodon 7일 게시자 수",
+    # 환자 수가 아니라 논문(프리프린트) 편수다 — `관측값 6` 만 나가면 6명으로 읽힌다(2026-10-16).
+    "medrxiv_": "medRxiv 감염병 프리프린트 편수",
+}
+
+# 점수를 깎았을 때 근거에 붙이는 이유 — 지표 계열마다 '왜 단독으로는 high 에 못 닿는가'가 다르다.
+# 한 문장을 모두에게 쓰면 틀린 이유가 나간다(게시자 수의 '7일 겹치는 창'은 프리프린트와 무관하다).
+COUNT_NOISE_REASONS: dict[str, str] = {
+    "social_": "단독 사회 신호 — 게시자 수는 7일 겹치는 창이라 다른 층과 겹칠 때 등급이 올라감",
+    "medrxiv_": "프리프린트 편수는 게재 주기·휴일에 따라 출렁이고 선행 효과가 측정된 적 없음 — "
+                "다른 층과 겹칠 때 등급이 올라감",
+}
+
+
+def count_noise_reason(metric_id: str) -> str:
+    for prefix, reason in COUNT_NOISE_REASONS.items():
+        if metric_id.startswith(prefix):
+            return reason
+    return "단독 카운트 신호"
 
 
 def approx_baseline(value: float) -> str:
@@ -165,6 +185,46 @@ def metric_unit(metric_id: str) -> str | None:
         if metric_id.startswith(prefix):
             return unit
     return None
+
+
+# ── 한 주 사이 비현실적 점프의 경보 상한 (2026-10-17, 소킹 일지 10-16) ────────────────
+#
+# ★ 실측 사고 (2026-10-16 16:01 UTC) ★ 폰에 critical 이 나갔다:
+#
+#     환경신호 · cdc_nwss_concentration 95.0점(관측값 1,680,229.8 · 평소 약 87,690)
+#
+# 수집 로그: 직전 윈도 `2026-09-30~2026-10-06 757개 · 평균 63,488.7` → 새 윈도 `2026-10-07~2026-10-13
+# 656개 · 평균 1,680,229.8` — 26.5배, 그런데 행은 101개 **줄었다**. 이 값은 원시 표본 행의
+# `pcr_target_avg_conc` **단순 평균**(이상치에 지배되는 통계)이고, 갓 닫힌 주라 부분 채움일 수 있다.
+# 하수 농도의 주간 평균이 26배 뛰는 것은 역학적으로 흔치 않아 측정 구성 변화일 가능성이 크지만,
+# **이 샌드박스는 data.cdc.gov 에 못 나가 분포를 못 봤다 — 인공물은 가설이다.**
+#
+# ★ 그래서 지우지도, 폰으로도 안 보낸다 ★ 이상도(지수)는 측정값이라 그대로 두고, **경보 점수만**
+# 79(medium) 로 제한한다 — 무역·사회 카운트와 같은 원칙("다른 층과 겹칠 때 비로소 등급이 올라가야
+# 정직하다"). 진짜 급증이면 공식·뉴스 층이 같이 올라 종합(gai:overall)이 말한다. 화면에는 남고, 왜 깎았는지
+# 근거에 적힌다. 문턱 10배는 관측 한 건(26.5배)에서 나온 판단 상수다 — 되돌리려면 표에서 한 줄 뺀다.
+IMPLAUSIBLE_JUMP_RATIO: dict[str, float] = {"cdc_nwss_concentration": 10.0}
+IMPLAUSIBLE_JUMP_CAP = 79.0
+
+
+def implausible_jump(metric_id: str, latest: float | None, baseline_mean: float | None,
+                     previous: float | None = None) -> float | None:
+    """관측값이 평소(또는 직전의 다른 값)의 몇 배인가 — 대상 지표에서 문턱을 넘었을 때만 배수를 돌려준다. 아니면 None.
+
+    비교점은 둘이고 **더 큰 배수**를 쓴다(어느 쪽으로 봐도 비현실적이면 비현실적이다):
+    - `baseline_mean`: 과거 평균. 값이 오래 높게 머무는 새 수준(단위 변경 등)에서도 한동안 문턱 위에 남는다.
+    - `previous`: 최신값과 다른 가장 최근 값(지난 창). 같은 주간 값을 매시간 다시 기록해 평균이 끌려 올라가도
+      흔들리지 않는다 — 평균만 보면 같은 주 안에서 배수가 저절로 줄어 상한이 풀리고 폰이 다시 울린다(10-18 자기검토).
+
+    관측값을 못 봤거나 쓸 비교점(양수)이 없으면 None — 이 함수는 점수를 *깎는* 쪽이라 모를 때는 깎지 않는다."""
+    limit = IMPLAUSIBLE_JUMP_RATIO.get(metric_id)
+    if limit is None or latest is None:
+        return None
+    refs = [r for r in (baseline_mean, previous) if r is not None and r > 0]
+    if not refs:
+        return None
+    ratio = latest / min(refs)
+    return ratio if ratio > limit else None
 
 
 def cap_count_noise_score(metric_id: str, score: float) -> float:
@@ -237,7 +297,15 @@ def _kdca_latest_total(rec: dict) -> float | None:
     # 이제 kdca_weekly엔 전 법정감염병이 들어온다. 총합에 상재성 질병(수두·결핵 등)을
     # 다 넣으면 신종 신호가 파묻히므로, 집계는 '위험군만' 합산한다(kdca_anomaly).
     from .kdca_anomaly import notable_latest_total
-    return notable_latest_total(rec.get("kdca_weekly"))
+    # 기록 시각 기준으로 '새 주가 덜 찼나'를 본다(옛 기록을 지금 시각으로 재면 틀린다). 시각이 없으면 보지 않는다.
+    as_of = None
+    ts = rec.get("timestamp")
+    if ts:
+        try:
+            as_of = dt.datetime.fromisoformat(str(ts)).date()
+        except ValueError:
+            as_of = None
+    return notable_latest_total(rec.get("kdca_weekly"), as_of=as_of)
 
 
 def _kdca_max_disease_spike(rec: dict) -> float | None:

@@ -19,6 +19,8 @@
 """
 from __future__ import annotations
 
+import datetime as dt
+
 # 위험군(고위험·대유행 잠재 + 국내 집단발병 실적) — '집계 총합'에 넣는 대상.
 # 그 밖의 법정감염병은 전부 수집하되 개별 급증으로만 감시(총합 오염 방지).
 KDCA_NOTABLE = [
@@ -112,7 +114,56 @@ def week_is_reported(kdca_weekly: dict | None, week) -> bool:
     return any((wm.get(week) or 0) > 0 for wm in (kdca_weekly or {}).values())
 
 
-def notable_latest_total(kdca_weekly: dict | None, notable: set | None = None) -> float | None:
+# ── 덜 찬 새 주 (2026-10-17) ────────────────────────────────────────────────────────────
+#
+# ★ 실측 (2026-10-12 월 20:03 UTC → 10-13 02:01 UTC, 약 6시간) ★ `kdca_weekly_total 보고 급감 65.0점
+# (최신값 74.0, 과거 평균 214.48의 0.35배)` 이 medium 으로 떠 있다가 새벽에 저절로 사라졌다.
+# 새 역학주간의 신고가 **일부만** 올라온 값이다 — `week_is_reported` 는 '전 질병이 0' 인 주만 막고(09-21),
+# 0 이 아닌 부분 채움(평소의 35%)은 통과시켰다. 같은 계열의 두 번째 모양이다.
+#
+# 가른다: 그 주 **전 질병 합계**가 직전 주들 중앙값의 `PARTIAL_WEEK_RATIO` 미만이고, 그 주가 시작된 지
+# `PARTIAL_WEEK_GRACE_DAYS` 일이 안 됐으면 '아직 덜 찬 주'다 — 판정하지 않는다(None).
+# ★ 대가 ★ 새 주 첫 사흘 안에 진짜 보고 붕괴(<60%)가 나도 '덜 찬 주'로 읽혀 그 사흘 동안은 못 잡는다.
+# 사흘이 지나도 낮으면 그때부터 급감으로 읽힌다. 두 경우를 이 데이터만으로 가를 수 없어 판정을 보류한다
+# (`week_is_reported` 가 이미 적은 한계와 같다). 60%·3일은 관측 한 건(35%, 월요일 저녁)에서 나온 판단 상수다.
+PARTIAL_WEEK_RATIO = 0.6
+PARTIAL_WEEK_GRACE_DAYS = 3
+
+
+def _week_start(label) -> "dt.date | None":
+    """`2026년 42주` → 그 ISO 주의 월요일. 못 읽으면 None(추측하지 않는다)."""
+    import re
+    m = re.match(r"\s*(\d{4})\s*년\s*(\d{1,2})\s*주", str(label))
+    if not m:
+        return None
+    try:
+        return dt.date.fromisocalendar(int(m.group(1)), int(m.group(2)), 1)
+    except ValueError:
+        return None
+
+
+def latest_week_is_partial(kdca_weekly: dict | None, as_of: "dt.date | None") -> bool:
+    """최신 주가 아직 덜 채워진 새 주인가. `as_of` 를 모르면 False(옛 동작 — 나이를 모르는데 보류하지 않는다)."""
+    if not kdca_weekly or as_of is None:
+        return False
+    weeks = sorted({w for wm in kdca_weekly.values() for w in wm})
+    if len(weeks) < 3:
+        return False                      # 직전 주가 둘 미만이면 '평소'를 못 정한다 → 보류하지 않음
+    latest = weeks[-1]
+    start = _week_start(latest)
+    if start is None or (as_of - start).days >= PARTIAL_WEEK_GRACE_DAYS:
+        return False
+    totals = sorted(sum((wm.get(w) or 0) for wm in kdca_weekly.values()) for w in weeks[:-1])
+    mid = len(totals) // 2
+    median = totals[mid] if len(totals) % 2 else (totals[mid - 1] + totals[mid]) / 2
+    if median <= 0:
+        return False
+    latest_total = sum((wm.get(latest) or 0) for wm in kdca_weekly.values())
+    return latest_total < PARTIAL_WEEK_RATIO * median
+
+
+def notable_latest_total(kdca_weekly: dict | None, notable: set | None = None,
+                         as_of: "dt.date | None" = None) -> float | None:
     """집계 총합 — 위험군(KDCA_NOTABLE)만 최근 주 합산. 상재성 질병이 총합을
     오염시키지 않게 한다(기존 kdca_weekly_total 기준선을 지킴).
 
@@ -128,6 +179,8 @@ def notable_latest_total(kdca_weekly: dict | None, notable: set | None = None) -
     latest = max(weeks)
     if not week_is_reported(kdca_weekly, latest):
         return None
+    if latest_week_is_partial(kdca_weekly, as_of):
+        return None                       # 덜 찬 새 주 — 낮은 값이 아니라 '아직 모름'이다
     return float(sum(wm.get(latest, 0) for d, wm in kdca_weekly.items() if d in notable))
 
 
