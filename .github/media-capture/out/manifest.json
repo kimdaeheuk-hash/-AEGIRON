@@ -1,5 +1,5 @@
 {
-  "captured_at": "2026-10-18T05:11:51.457Z",
+  "captured_at": "2026-10-18T05:20:56.595Z",
   "site": "https://epiweather-web.vercel.app",
   "screens": [
     {
@@ -8,7 +8,7 @@
       "viewport": "desk",
       "file": "screens/desk-stage0.png",
       "url": "https://epiweather-web.vercel.app/dashboard",
-      "at": "2026-10-18T05:14:33.736Z"
+      "at": "2026-10-18T05:22:23.574Z"
     },
     {
       "stage": 1,
@@ -16,7 +16,7 @@
       "viewport": "desk",
       "file": "screens/desk-stage1.png",
       "url": "https://epiweather-web.vercel.app/dashboard",
-      "at": "2026-10-18T05:14:40.703Z"
+      "at": "2026-10-18T05:22:30.866Z"
     },
     {
       "stage": 2,
@@ -24,7 +24,7 @@
       "viewport": "desk",
       "file": "screens/desk-stage2.png",
       "url": "https://epiweather-web.vercel.app/dashboard",
-      "at": "2026-10-18T05:14:47.632Z"
+      "at": "2026-10-18T05:22:38.190Z"
     },
     {
       "stage": 3,
@@ -32,7 +32,7 @@
       "viewport": "desk",
       "file": "screens/desk-stage3.png",
       "url": "https://epiweather-web.vercel.app/dashboard",
-      "at": "2026-10-18T05:14:54.520Z"
+      "at": "2026-10-18T05:22:45.374Z"
     },
     {
       "stage": 4,
@@ -40,7 +40,7 @@
       "viewport": "desk",
       "file": "screens/desk-stage4.png",
       "url": "https://epiweather-web.vercel.app/dashboard",
-      "at": "2026-10-18T05:15:01.423Z"
+      "at": "2026-10-18T05:22:52.637Z"
     },
     {
       "stage": 5,
@@ -48,7 +48,7 @@
       "viewport": "desk",
       "file": "screens/desk-stage5.png",
       "url": "https://epiweather-web.vercel.app/dashboard",
-      "at": "2026-10-18T05:15:08.362Z"
+      "at": "2026-10-18T05:22:59.842Z"
     },
     {
       "stage": 6,
@@ -56,7 +56,7 @@
       "viewport": "desk",
       "file": "screens/desk-stage6.png",
       "url": "https://epiweather-web.vercel.app/dashboard",
-      "at": "2026-10-18T05:15:15.355Z"
+      "at": "2026-10-18T05:23:07.157Z"
     },
     {
       "stage": 7,
@@ -64,7 +64,7 @@
       "viewport": "desk",
       "file": "screens/desk-stage7.png",
       "url": "https://epiweather-web.vercel.app/dashboard",
-      "at": "2026-10-18T05:15:22.254Z"
+      "at": "2026-10-18T05:23:14.292Z"
     },
     {
       "stage": 8,
@@ -72,7 +72,7 @@
       "viewport": "desk",
       "file": "screens/desk-stage8.png",
       "url": "https://epiweather-web.vercel.app/dashboard",
-      "at": "2026-10-18T05:15:28.957Z"
+      "at": "2026-10-18T05:23:21.238Z"
     },
     {
       "stage": 9,
@@ -80,7 +80,7 @@
       "viewport": "desk",
       "file": "screens/desk-stage9.png",
       "url": "https://epiweather-web.vercel.app/dashboard",
-      "at": "2026-10-18T05:15:35.806Z"
+      "at": "2026-10-18T05:24:12.751Z"
     },
     {
       "stage": 3,
@@ -88,7 +88,7 @@
       "viewport": "mobile",
       "file": "screens/mobile-stage3.png",
       "url": "https://epiweather-web.vercel.app/dashboard",
-      "at": "2026-10-18T05:16:30.797Z"
+      "at": "2026-10-18T05:24:25.375Z"
     },
     {
       "stage": 5,
@@ -96,7 +96,7 @@
       "viewport": "mobile",
       "file": "screens/mobile-stage5.png",
       "url": "https://epiweather-web.vercel.app/dashboard",
-      "at": "2026-10-18T05:16:37.121Z"
+      "at": "2026-10-18T05:24:31.803Z"
     },
     {
       "stage": 6,
@@ -104,7 +104,7 @@
       "viewport": "mobile",
       "file": "screens/mobile-stage6.png",
       "url": "https://epiweather-web.vercel.app/dashboard",
-      "at": "2026-10-18T05:16:43.393Z"
+      "at": "2026-10-18T05:24:38.200Z"
     },
     {
       "stage": 8,
@@ -112,7 +112,7 @@
       "viewport": "mobile",
       "file": "screens/mobile-stage8.png",
       "url": "https://epiweather-web.vercel.app/dashboard",
-      "at": "2026-10-18T05:16:49.707Z"
+      "at": "2026-10-18T05:24:44.632Z"
     },
     {
       "stage": 9,
@@ -120,7 +120,7 @@
       "viewport": "mobile",
       "file": "screens/mobile-stage9.png",
       "url": "https://epiweather-web.vercel.app/dashboard",
-      "at": "2026-10-18T05:16:56.009Z"
+      "at": "2026-10-18T05:25:34.607Z"
     }
   ],
   "api": [
@@ -323,19 +323,6 @@
     {
       "file": "photos/14.jpg",
       "query": "Mpox virus electron micrograph",
-      "title": "File:Mpox Virus - 2.jpg",
-      "page": "https://commons.wikimedia.org/wiki/File:Mpox_Virus_-_2.jpg",
-      "license": "CC BY 2.0",
-      "license_url": "https://creativecommons.org/licenses/by/2.0",
-      "artist": "NIAID",
-      "credit": "https://www.flickr.com/photos/54591706@N02/53687086478/",
-      "description": "Colorized transmission electron micrograph of two mature mpox virus particles (yellow) attached to the surface of an infected VERO E6 cell (purple/pink). Image captured at the NIAID Integrated Research Facility in Fort Detrick, Maryland. Credit: NIAID",
-      "width": 1920,
-      "height": 1486
-    },
-    {
-      "file": "photos/15.jpg",
-      "query": "Mpox virus electron micrograph",
       "title": "File:Mpox Virus - 3.jpg",
       "page": "https://commons.wikimedia.org/wiki/File:Mpox_Virus_-_3.jpg",
       "license": "CC BY 2.0",
@@ -347,15 +334,28 @@
       "height": 1486
     },
     {
-      "file": "photos/16.jpg",
+      "file": "photos/15.jpg",
       "query": "Mpox virus electron micrograph",
-      "title": "File:Mpox Virus - 4.jpg",
-      "page": "https://commons.wikimedia.org/wiki/File:Mpox_Virus_-_4.jpg",
+      "title": "File:Colorized transmission electron micrograph of mpox virus particles (red) found within VERO E6 cells - 11.jpg",
+      "page": "https://commons.wikimedia.org/wiki/File:Colorized_transmission_electron_micrograph_of_mpox_virus_particles_(red)_found_within_VERO_E6_cells_-_11.jpg",
       "license": "CC BY 2.0",
       "license_url": "https://creativecommons.org/licenses/by/2.0",
       "artist": "NIAID",
-      "credit": "https://www.flickr.com/photos/54591706@N02/53686866661/",
-      "description": "Colorized transmission electron micrograph of two mature mpox virus particles (pink) attached to the surface of an infected VERO E6 cell (blue/teal). Image captured at the NIAID Integrated Research Facility in Fort Detrick, Maryland. Credit: NIAID See related April 27, 2024 news release, \"Lower Dose of Mpox Vaccine Is Safe and Generates Six-Week Antibody Response Equivalent to Standard Regimen,\" a",
+      "credit": "https://www.flickr.com/photos/54591706@N02/54140158381/",
+      "description": "Colorized transmission electron micrograph of mpox virus particles (red) found within VERO E6 cells (blue). The virus particles are in various stages of maturity, which accounts for differences in shape. In this image virus particles are located in a center space known as a virus factory (lighter blue), which is an inclusion within infected cells where virus replication, maturation, and assembly o",
+      "width": 1920,
+      "height": 1486
+    },
+    {
+      "file": "photos/16.jpg",
+      "query": "Mpox virus electron micrograph",
+      "title": "File:Colorized transmission electron micrograph of mpox virus particles (red) found within VERO E6 cells - 22.jpg",
+      "page": "https://commons.wikimedia.org/wiki/File:Colorized_transmission_electron_micrograph_of_mpox_virus_particles_(red)_found_within_VERO_E6_cells_-_22.jpg",
+      "license": "CC BY 2.0",
+      "license_url": "https://creativecommons.org/licenses/by/2.0",
+      "artist": "NIAID",
+      "credit": "https://www.flickr.com/photos/54591706@N02/54140483954/",
+      "description": "Colorized transmission electron micrograph of mpox virus particles (blue) found within VERO E6 cells (green). The virus particles are in various stages of maturity, which accounts for differences in shape. In this image virus particles are located in a center space known as a virus factory (lighter green), which is an inclusion within infected cells where virus replication, maturation, and assembl",
       "width": 1920,
       "height": 1486
     },
@@ -596,15 +596,15 @@
     {
       "file": "photos/35.jpg",
       "query": "Aedes aegypti mosquito CDC",
-      "title": "File:Aedes aegypti CDC9177.tif",
-      "page": "https://commons.wikimedia.org/wiki/File:Aedes_aegypti_CDC9177.tif",
+      "title": "File:Aedes aegypti CDC9179.tif",
+      "page": "https://commons.wikimedia.org/wiki/File:Aedes_aegypti_CDC9179.tif",
       "license": "Public domain",
       "license_url": "",
       "artist": "James Gathany",
-      "credit": "https://phil.cdc.gov/phil/details.asp?pid=9177",
-      "description": "This 2006 image depicted a female Aedes aegypti mosquito as she was obtaining a blood-meal from a human host through her fascicle, which had penetrated the host skin, was reddening in color, reflecting the blood’s coloration through this tubular structure. In this case, what would normally be an unsuspecting host was actually the CDC’s biomedical photographer’s own hand, which he’d offered to the ",
+      "credit": "https://phil.cdc.gov/phil/details.asp?pid=9179",
+      "description": "This 2006 image depicted a female Aedes aegypti mosquito as she was completing the activity of obtaining a blood-meal from a human host through her fascicle, here red in color due to the blood contained therein, which she’d begun to resheath in her labium. Both structures are part of her feeding organ known as the proboscis. In this case, what would normally be an unsuspecting host was actually th",
       "width": 1920,
-      "height": 1291
+      "height": 2899
     },
     {
       "file": "photos/36.jpg",
@@ -672,5 +672,53 @@
       "height": 1446
     }
   ],
-  "failures": []
+  "failures": [],
+  "network": [
+    {
+      "url": "https://epiweather-api-production.up.railway.app/api/patient-zero/origins",
+      "method": "GET",
+      "status": 200,
+      "ms": 154
+    },
+    {
+      "url": "https://epiweather-api-production.up.railway.app/api/patient-zero/local-signal?origin_id=WUH",
+      "method": "GET",
+      "status": 200,
+      "ms": 96
+    },
+    {
+      "url": "https://epiweather-api-production.up.railway.app/api/patient-zero/ebola-backtest-evidence",
+      "method": "GET",
+      "status": 404,
+      "ms": 103
+    },
+    {
+      "url": "https://epiweather-api-production.up.railway.app/api/synthetic-threat/who",
+      "method": "GET",
+      "status": 200,
+      "ms": 214
+    },
+    {
+      "url": "http://localhost:8000/api/civic-fusion/backtest-evidence",
+      "method": "GET",
+      "failed": "net::ERR_CONNECTION_REFUSED",
+      "ms": 5
+    },
+    {
+      "url": "https://epiweather-api-production.up.railway.app/api/biodefense/stockpile",
+      "method": "GET",
+      "status": 200,
+      "ms": 34
+    },
+    {
+      "url": "https://epiweather-api-production.up.railway.app/api/biodefense/readiness",
+      "method": "POST",
+      "status": 200,
+      "ms": 67
+    }
+  ],
+  "console": [
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: net::ERR_CONNECTION_REFUSED"
+  ]
 }
