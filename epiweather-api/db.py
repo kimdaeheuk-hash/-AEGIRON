@@ -267,6 +267,27 @@ def create_prediction(
         return get_prediction(cur.lastrowid)
 
 
+def list_unsealed_predictions(limit: int = 10) -> list[dict]:
+    """존재증명(Phase 44)이 아직 붙지 않은 예측 — 오래된 것부터.
+
+    자동 예측(country_risk)은 생성 경로에서 봉인을 거치지 않았다(2026-10-18 발견:
+    운영 36건 전부 미봉인). 매시 주기의 봉인 단계가 이 목록을 따라잡는다."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM predictions WHERE ots_proof_hex IS NULL "
+            "ORDER BY predicted_at ASC, id ASC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        return [_row_to_dict(r) for r in rows]
+
+
+def count_unsealed_predictions() -> int:
+    with get_connection() as conn:
+        return conn.execute(
+            "SELECT COUNT(*) FROM predictions WHERE ots_proof_hex IS NULL"
+        ).fetchone()[0]
+
+
 def set_prediction_timestamp(prediction_id: int, content_hash: str, ots_proof_hex: str) -> dict | None:
     """예측에 존재증명(Phase 44)을 부착. 예측 생성 자체와 분리된 별도 호출로
     두어, 캘린더 서버 제출이 느리거나 실패해도 예측 저장 자체는 막지 않는다."""

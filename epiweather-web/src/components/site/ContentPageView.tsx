@@ -42,31 +42,34 @@ export function ContentPageView({ page, locale }: { page: ContentPage; locale: L
         ),
       )}
 
-      {page.cta && (
-        <div className="band-deep">
-          <Section pad="sm">
-            <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', padding: 'clamp(10px,2vw,22px) 0' }}>
-              <div style={{ maxWidth: 620 }}>
-                <h2 style={{ fontFamily: 'var(--disp)', fontWeight: 800, fontSize: 'clamp(20px,2.3vw,28px)', letterSpacing: '-.02em' }}>
-                  {page.cta.title}
-                </h2>
-                <p style={{ color: 'var(--muted)', fontSize: 14.5, lineHeight: 1.7, marginTop: 11 }}>
-                  {page.cta.body}
-                </p>
-              </div>
-              <Link
-                href={page.cta.href.startsWith('/') ? page.cta.href : localePath(locale, page.cta.href)}
-                style={{
-                  fontFamily: 'var(--mono)', fontSize: 13, textDecoration: 'none', fontWeight: 600,
-                  background: 'var(--accent)', color: 'var(--on-accent)', borderRadius: 10, padding: '13px 22px',
-                }}
-              >
-                {page.cta.label} →
-              </Link>
-            </div>
-          </Section>
+      {page.cta && <CtaBand cta={page.cta} locale={locale} />}
+    </div>
+  );
+}
+
+/** 페이지 하단 행동 유도 띠 — 실가동·원장처럼 사전 블록이 아닌 페이지도 같은 모양을 쓴다. */
+export function CtaBand({ cta, locale }: { cta: NonNullable<ContentPage['cta']>; locale: Locale }) {
+  return (
+    <div className="band-deep">
+      <Section pad="sm">
+        <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', padding: 'clamp(10px,2vw,22px) 0', wordBreak: 'keep-all' }}>
+          <div style={{ maxWidth: 620 }}>
+            <h2 style={{ fontFamily: 'var(--disp)', fontWeight: 800, fontSize: 'clamp(20px,2.3vw,28px)', letterSpacing: '-.02em' }}>
+              {cta.title}
+            </h2>
+            <p style={{ color: 'var(--muted)', fontSize: 14.5, lineHeight: 1.7, marginTop: 11 }}>{cta.body}</p>
+          </div>
+          <Link
+            href={cta.href.startsWith('/') ? cta.href : localePath(locale, cta.href)}
+            style={{
+              fontFamily: 'var(--mono)', fontSize: 13, textDecoration: 'none', fontWeight: 600,
+              background: 'var(--accent)', color: 'var(--on-accent)', borderRadius: 10, padding: '13px 22px',
+            }}
+          >
+            {cta.label} →
+          </Link>
         </div>
-      )}
+      </Section>
     </div>
   );
 }

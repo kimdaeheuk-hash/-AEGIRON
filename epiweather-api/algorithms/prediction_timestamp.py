@@ -101,3 +101,48 @@ def check_timestamp(digest_hex: str, proof_hex: str,
         "note": "아직 비트코인 블록 확정 대기 중(정상 — 보통 몇 시간~하루 소요). "
                 "제출 자체는 완료된 상태.",
     }
+
+
+# ── 매시 주기 봉인 (2026-10-18) ─────────────────────────────────────────
+# ★ 왜 생겼나 ★ 봉인은 수동 API(POST /api/predictions)에만 붙어 있었다. 운영에서
+# 예측을 실제로 만드는 쪽은 매시 수집 주기의 country_risk 자동 기록인데, 그 경로는
+# db.create_prediction 을 바로 부른다 — 그래서 운영 예측 36건이 **전부 미봉인**이었다
+# (계열 2: 만들어만 두고 아무도 안 부른다). 사이트는 "모든 예측을 봉인한다"고 적고
+# 있었다. 생성 경로를 하나하나 고치는 대신, 주기마다 미봉인 예측을 따라잡는다 —
+# 다음에 생성 경로가 하나 더 생겨도 빠지지 않는다.
+#
+# 봉인 시각(ots_submitted_at)은 그대로 '지금'이다. 늦게 봉인된 예측을 생성 시각에
+# 봉인된 것처럼 보이게 하지 않는다 — 원장은 두 시각을 모두 보여 준다.
+SEAL_BATCH = 10
+
+
+def seal_pending_predictions(limit: int = SEAL_BATCH) -> dict:
+    """미봉인 예측을 오래된 순으로 최대 limit 건 봉인한다.
+
+    캘린더 서버가 전부 응답하지 않으면(submit_timestamp → None) 거기서 멈춘다 —
+    나머지도 같은 이유로 실패할 것이고, 건마다 서버 4곳 × 15초를 기다리면 수집
+    주기가 몇 분씩 밀린다. 남은 건 다음 주기가 다시 시도한다."""
+    import db
+
+    sealed = 0
+    failed = 0
+    for pred in db.list_unsealed_predictions(limit):
+        digest = canonical_hash(pred)
+        proof = submit_timestamp(digest)
+        if not proof:
+            failed += 1
+            break
+        db.set_prediction_timestamp(pred["id"], digest, proof)
+        sealed += 1
+    return {"sealed": sealed, "failed": failed, "remaining": db.count_unsealed_predictions()}
+
+
+def seal_line(result: dict) -> str:
+    """수집 로그 한 줄. 남은 미봉인 수를 늘 함께 낸다 — 0이 아니면 그만큼은 아직
+    '봉인된 기록'이라고 부를 수 없다."""
+    if not result["sealed"] and not result["failed"] and not result["remaining"]:
+        return "예측 봉인: 미봉인 예측 없음"
+    line = f"예측 봉인: {result['sealed']}건 제출 · 남은 미봉인 {result['remaining']}건"
+    if result["failed"]:
+        line += " — 캘린더 서버 무응답, 다음 주기 재시도"
+    return line
