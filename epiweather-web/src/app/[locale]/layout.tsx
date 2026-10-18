@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { notFound } from 'next/navigation';
 import '../globals.css';
 import {
@@ -38,6 +38,9 @@ export function generateStaticParams() {
  * 페이지에서 치명적이라 실측으로 확인하고 제거했다. 자식에서 true로 덮어써도
  * 되돌아오지 않는다.
  */
+
+/** 휴대폰 브라우저 주소창 색 — 배색 C 바탕과 맞춘다. */
+export const viewport: Viewport = { themeColor: '#faf7f0', colorScheme: 'light' };
 
 export async function generateMetadata(props: {
   params: Promise<{ locale: string }>;

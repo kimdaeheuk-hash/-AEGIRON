@@ -23,7 +23,7 @@ export const en: Dictionary = {
     error: 'The briefings could not be loaded. The system itself is still running.',
     backToList: 'All briefings',
     summary: 'Summary',
-    segments: 'Segments',
+    segments: 'Sections',
     ticker: 'Ticker',
     disclosure: 'Disclosure',
     notFound: 'There is no briefing for that date.',
@@ -255,77 +255,76 @@ export const en: Dictionary = {
     ],
     specialCta: 'See the special programs',
 
-    openTitle: 'What we publish',
+    openTitle: 'Open, so it can be checked',
     openLead:
-      'The most common failure in disease surveillance is not a wrong forecast — it is a forecast nobody can check. So we publish everything needed to check ours.',
+      'The most common failure in disease surveillance is not a wrong forecast but one nobody can check. So the system, the methodology, the data and the limits behind every judgement are open from the start.',
     openItems: [
       {
         title: 'The live system',
-        body: 'The same dashboard we run. Not a demo reel — the operational system currently ingesting signals.',
+        body: 'The dashboard shows operational collection and alert data as it runs. In the simulation console, assumed and modelled values are labelled as such on screen.',
         href: '/dashboard',
-        linkLabel: 'Open dashboard',
+        linkLabel: 'Open the dashboard',
       },
       {
-        title: 'The full methodology',
-        body: 'How signals are gathered, how anomalies are judged, and how forecasts are produced — set out in four layers.',
+        title: 'Methodology',
+        body: 'How signals are collected, how anomalies are judged and how forecasts are made, set out in four layers — with the standard each layer follows.',
         href: '/methodology',
         linkLabel: 'Read the methodology',
       },
       {
-        title: 'Every data source',
-        body: 'All 21 sources listed, with nothing hidden — including which ones are healthy and which are currently blocked.',
+        title: 'Data sources',
+        body: 'Every operational source, listed without exception, with what each one cannot see and whether it is healthy right now.',
         href: '/data-sources',
         linkLabel: 'See the sources',
       },
       {
-        title: 'What we don’t know',
-        body: 'Unvalidated areas, known limits, and the collection gaps we have not closed. You will not find this page on a competitor’s site.',
+        title: 'Validation and limits',
+        body: 'What has not yet been validated, the known limits and data gaps, and how the system checks its own numbers.',
         href: '/transparency',
-        linkLabel: 'Read the limits',
+        linkLabel: 'See validation status',
       },
     ],
 
-    honestTitle: 'What has not been validated',
+    honestTitle: 'We check our own numbers first',
     honestLead:
-      'Few companies put this section on a homepage. But if we do not say it first, due diligence says it for us.',
+      'Trust in an early-warning system comes from its verification path, not from the size of its claims. Here is what we do not yet have — and the mechanisms already running to close that gap.',
     honestPoints: [
-      'We have **no validated track record** for early-detection accuracy. That is why no claim of the form “detected N days earlier” appears anywhere on this site.',
-      'The system entered full operation in 2026. Results for earlier outbreaks are retrospective reconstructions and are not equivalent to live performance.',
-      'Scenario figures from the forecasting modules are **estimates under model assumptions** — neither measurements nor guarantees.',
-      'There are gaps in our data collection. The system reports which countries and which periods are missing.',
+      'There is **no validated track record yet** for early-detection accuracy. That is why we make no “detected days earlier” claims.',
+      'Instead, every forecast is **sealed at the moment it is made** and scored daily against the official declarations that follow. The track record accrues from this record, not from assertion.',
+      'Scenario figures are labelled as **model estimates under stated assumptions**, and are checked automatically against the largest outbreaks on record — a warning travels with any value outside that range.',
+      'Data gaps are never hidden. The system reports which countries and periods are empty, and which sources have stopped.',
     ],
     honestClose:
-      'Here is what we do instead. Model outputs are automatically compared against the largest outbreak on record, and when a number exceeds a defensible range the system **attaches its own warning** before the figure leaves the API. When an outbreak is missed, we separate “the model failed to catch it” from “we had no data to catch it with”.',
-    honestCta: 'Read the full list of limits',
+      'When an outbreak is missed, we report “the model missed it” separately from “there was no data to see it”. Mixing the two turns the diagnosis upside down.',
+    honestCta: 'See the full validation status',
 
     pipelineTitle: 'From signal to alert',
-    pipelineLead:
-      'Five stages. What each stage discards matters as much as what it keeps.',
+    pipelineLead: 'Five stages. At each one, what we discard matters as much as what we keep.',
     pipelineSteps: [
       {
         step: '01',
         title: 'Collect',
-        body: 'WHO situation reports, CDC travel notices, local-language news across 179 countries, climate, satellite and trade statistics.',
+        body: 'Official data from WHO regional offices and national health authorities, local-language reporting from 179 countries, academic sources, wastewater surveillance and genomic lineage data — every hour.',
       },
       {
         step: '02',
         title: 'Extract',
-        body: 'Disease, country, cases and deaths are structured out of PDF tables and article text. Anything unrecognised is left empty rather than guessed.',
+        body: 'Disease, country, cases and deaths are structured from PDF tables and article text. Anything that cannot be read is left empty, never filled by guesswork.',
       },
       {
         step: '03',
         title: 'Judge',
-        body: 'Anomaly is scored against each country’s own baseline, not against an absolute threshold — five signals mean different things in different places.',
+        body: 'Anomalies are measured against each indicator’s usual level, not in absolute terms — the same five cases mean different things in different countries.',
       },
       {
         step: '04',
         title: 'Forecast',
-        body: 'Transmission models estimate spread and importation risk. Every value carries its assumptions and limits with it.',
+        body: 'Transmission models estimate spread paths and import risk, and every value carries its assumptions and limits.',
       },
       {
         step: '05',
         title: 'Respond',
-        body: 'No-action and intervention scenarios are compared, so the output answers “what should be done”, not only “what is coming”.',
+        body: 'No-response and intervention scenarios are compared to show which measures, at what intensity, break transmission.',
       },
     ],
 
@@ -355,9 +354,9 @@ export const en: Dictionary = {
       },
     ],
 
-    ctaTitle: 'Look first. Talk to us after.',
+    ctaTitle: 'Everything needed for an evaluation is already open',
     ctaBody:
-      'You can see the entire system without booking a demo. If questions come up once you have, that is a good time to get in touch.',
+      'You can review the whole system without booking a demo. For pilots and partnerships, please reach us through the contact page.',
     ctaButton: 'Get in touch',
   },
 };

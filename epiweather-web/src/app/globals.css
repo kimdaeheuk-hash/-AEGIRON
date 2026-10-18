@@ -144,3 +144,9 @@ body[data-theme="lab"] {
 }
 body[data-theme="clinical"]::before,
 body[data-theme="lab"]::before { opacity: 0; }
+
+/* 배색 C: body 바깥(html)까지 같은 상아색으로 — 안 그러면 휴대폰에서 화면을 끝까지 당길 때나
+   짧은 페이지 아래에 기본(검정) 바탕이 비친다. color-scheme 로 스크롤바·입력창도 밝은 테마로 맞춘다. */
+html:has(> body[data-theme="lab"]) { background: #faf7f0; color-scheme: light; }
+body[data-theme="lab"] { color-scheme: light; }
+body[data-theme="lab"] ::selection { background: color-mix(in srgb, var(--accent) 18%, transparent); }

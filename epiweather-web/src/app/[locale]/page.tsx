@@ -243,7 +243,7 @@ export default async function HomePage(props: { params: Promise<{ locale: string
                 textTransform: 'uppercase', color: 'var(--accent)', marginBottom: 12,
               }}
             >
-              NOT YET VALIDATED
+              VALIDATION
             </p>
             <h2
               style={{
