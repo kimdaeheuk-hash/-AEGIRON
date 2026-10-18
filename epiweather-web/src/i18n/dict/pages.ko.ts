@@ -85,6 +85,13 @@ export const pagesKo: PagesDict = {
     eyebrow: 'TECHNOLOGY · I',
     title: '상시 감시 계층',
     lead: '아이기론의 114개 알고리즘 모듈 가운데, 사람이 부르지 않아도 매시간 스스로 도는 엔진들입니다. 이 계층의 일은 “무엇이 평소와 다른가”를 끊임없이 세는 것입니다. 각 엔진이 무엇을 기준으로 삼고, 무엇을 일부러 세지 않는지 함께 적습니다.',
+    photo: {
+      src: '/media/photos/iss-city-lights.jpg',
+      alt: '국제우주정거장에서 내려다본 밤의 도시 불빛',
+      caption: '국제우주정거장에서 본 튀르키예의 밤. 사람과 물자가 오가는 연결망은 그대로 감염병의 확산 경로가 됩니다.',
+      credit: 'NASA JSC · 퍼블릭 도메인',
+      sourceUrl: 'https://commons.wikimedia.org/wiki/File:The_city_lights_of_T%C3%BCrkiye_sparkle_below_the_International_Space_Station_(iss074e0225549).jpg',
+    },
     blocks: [
       {
         title: '현지어 보도 감시',
@@ -149,6 +156,13 @@ export const pagesKo: PagesDict = {
     eyebrow: 'TECHNOLOGY · II',
     title: '유전체 · 시뮬레이션 · 대응 · 자기검증',
     lead: '상시 감시가 “무엇이 다른가”를 세는 층이라면, 이 계층은 “그래서 무엇을, 어떻게”에 답합니다. 대부분 요청이나 경보가 있을 때 계산합니다 — 무겁고, 매시간 돌릴 이유가 없기 때문입니다. 숫자마다 그것을 어디까지 믿어도 되는지 함께 싣습니다.',
+    photo: {
+      src: '/media/photos/avian-influenza-h5n1.jpg',
+      alt: '조류인플루엔자 A(H5N1) 바이러스 입자의 투과전자현미경 사진(채색)',
+      caption: '조류인플루엔자 A(H5N1) 바이러스 입자, 투과전자현미경(채색). 미국 CDC 공개 자료입니다.',
+      credit: 'CDC / Cynthia Goldsmith · 퍼블릭 도메인',
+      sourceUrl: 'https://commons.wikimedia.org/wiki/File:Colorized_transmission_electron_micrograph_of_Avian_influenza_A_H5N1_viruses.jpg',
+    },
     blocks: [
       {
         title: '유전체 — 순서의 자연성',
@@ -209,6 +223,13 @@ export const pagesKo: PagesDict = {
     eyebrow: 'SPECIAL PROGRAMS',
     title: 'HEIMDALL · VALHALLA',
     lead: '감시 계층 대부분은 공개로 운영합니다. 그런데 성격이 다른 두 축이 있습니다 — 생물학적 위협의 유전체 스크리닝과 국가 대응제 준비태세입니다. 민감도가 높아 담당·접근을 분리해 다루고, 이 페이지에는 능력을 과장하지 않는 선에서 무엇을 하고 무엇을 하지 않는지만 적습니다.',
+    photo: {
+      src: '/media/photos/ebola-virion.jpg',
+      alt: '에볼라 바이러스 입자의 투과전자현미경 사진(채색)',
+      caption: '에볼라 바이러스 입자, 투과전자현미경(채색). 미국 CDC 공개 자료이며 아이기론의 실험 자료가 아닙니다.',
+      credit: 'CDC / Cynthia Goldsmith · 퍼블릭 도메인',
+      sourceUrl: 'https://commons.wikimedia.org/wiki/File:Ebola_virus_virion.jpg',
+    },
     blocks: [
       {
         title: 'HEIMDALL — 방어적 유전체 스크리닝',
@@ -556,6 +577,14 @@ export const pagesKo: PagesDict = {
     eyebrow: 'ABOUT',
     title: '아이기론',
     lead: '팬데믹은 어느 날 갑자기 선언되지 않습니다. 선언 몇 주 전부터 현지 보도·검색·하수·무역에 흔적을 남깁니다. 아이기론은 그 흔적을 번역되기 전에 모아, 어디서 무엇이 평소와 다른지를 매시간 계산하는 감염병 조기경보 시스템입니다. 대한민국 부산에 있습니다.',
+    photo: {
+      src: '/media/photos/earth-at-night.jpg',
+      alt: '밤의 지구 — 아메리카 대륙의 도시 불빛(위성 합성 영상)',
+      caption: '밤의 지구(Black Marble). 위성 관측을 합성한 영상입니다.',
+      credit: 'NASA Earth Observatory · 퍼블릭 도메인',
+      sourceUrl: 'https://commons.wikimedia.org/wiki/File:Black_Marble_Americas.jpg',
+      position: 'center 40%',
+    },
     blocks: [
       {
         title: '무엇을 만드는가',

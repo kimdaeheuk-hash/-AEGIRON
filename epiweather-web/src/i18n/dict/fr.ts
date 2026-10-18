@@ -95,6 +95,14 @@ export const fr: Dictionary = {
     ],
     statsAsOf: 'Mesuré le 2026-10-18 à partir du dépôt et des journaux de production',
     introVideoLabel: 'AEGIRON — présentation',
+    photo: {
+      src: '/media/photos/earth-eastern-hemisphere.jpg',
+      alt: 'Hémisphère oriental de la Terre — Afrique, Europe et Asie (composite satellitaire)',
+      caption: 'Hémisphère oriental de la Terre (Blue Marble). Un composite d’observations satellitaires.',
+      credit: 'NASA · Domaine public',
+      sourceUrl: 'https://commons.wikimedia.org/wiki/File:Blue_Marble_Eastern_Hemisphere.jpg',
+      position: 'center 45%',
+    },
 
     engineTitle: 'Les moteurs',
     engineLead:

@@ -93,6 +93,14 @@ export const en: Dictionary = {
     ],
     statsAsOf: 'Measured 2026-10-18 from the repository and production logs',
     introVideoLabel: 'AEGIRON — introduction',
+    photo: {
+      src: '/media/photos/earth-eastern-hemisphere.jpg',
+      alt: 'Earth’s Eastern Hemisphere — Africa, Europe and Asia (satellite composite)',
+      caption: 'Earth’s Eastern Hemisphere (Blue Marble). A composite of satellite observations.',
+      credit: 'NASA · Public domain',
+      sourceUrl: 'https://commons.wikimedia.org/wiki/File:Blue_Marble_Eastern_Hemisphere.jpg',
+      position: 'center 45%',
+    },
 
     engineTitle: 'The engines',
     engineLead:

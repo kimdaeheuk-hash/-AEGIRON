@@ -4,6 +4,7 @@ import type { EngineDict, EngineMode } from '@/i18n/types';
 import { Section, SectionHeading, Card, Grid } from '@/components/site/Section';
 import { HeroBackdrop } from '@/components/site/HeroBackdrop';
 import { IntroVideo } from '@/components/site/IntroVideo';
+import { PhotoFigure } from '@/components/site/PhotoFigure';
 import { getSourceHealth, type SourceHealthSummary } from '@/lib/status';
 import { introVideo } from '@/lib/video';
 
@@ -133,6 +134,11 @@ export default async function HomePage(props: { params: Promise<{ locale: string
         <p style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)', marginTop: 10 }}>
           {t.statsAsOf}
         </p>
+      </Section>
+
+      {/* ── 사진(퍼블릭 도메인, 출처 표기) ─────────────────── */}
+      <Section pad="sm">
+        <PhotoFigure photo={t.photo} />
       </Section>
 
       {/* ── 엔진 구성 ──────────────────────────────────────── */}

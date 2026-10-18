@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { ContentPage } from '@/i18n/types';
 import { localePath, type Locale } from '@/i18n/config';
 import { Section, SectionHeading, Card, Grid } from './Section';
+import { PhotoFigure } from './PhotoFigure';
 
 /**
  * 콘텐츠 페이지 하나를 그리는 단일 렌더러.
@@ -13,9 +14,15 @@ import { Section, SectionHeading, Card, Grid } from './Section';
  */
 export function ContentPageView({ page, locale }: { page: ContentPage; locale: Locale }) {
   return (
-    <>
+    // keep-all: 한국어가 줄 끝에서 낱말 중간('스/크리닝')에 끊기지 않게 한다(홈과 같은 규칙).
+    <div style={{ wordBreak: 'keep-all' }}>
       <Section>
         <SectionHeading as="h1" eyebrow={page.eyebrow} title={page.title} lead={page.lead} />
+        {page.photo && (
+          <div style={{ marginTop: 8 }}>
+            <PhotoFigure photo={page.photo} priority />
+          </div>
+        )}
       </Section>
 
       {page.blocks.map((block, i) => (
@@ -129,7 +136,7 @@ export function ContentPageView({ page, locale }: { page: ContentPage; locale: L
           </Card>
         </Section>
       )}
-    </>
+    </div>
   );
 }
 

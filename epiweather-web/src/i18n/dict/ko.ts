@@ -91,6 +91,14 @@ export const ko: Dictionary = {
     ],
     statsAsOf: '2026-10-18 저장소·운영 로그 기준 실측',
     introVideoLabel: '아이기론 소개 영상',
+    photo: {
+      src: '/media/photos/earth-eastern-hemisphere.jpg',
+      alt: '지구 동반구 — 아프리카·유럽·아시아(위성 합성 영상)',
+      caption: '지구 동반구(Blue Marble). 위성 관측을 합성한 영상입니다.',
+      credit: 'NASA · 퍼블릭 도메인',
+      sourceUrl: 'https://commons.wikimedia.org/wiki/File:Blue_Marble_Eastern_Hemisphere.jpg',
+      position: 'center 45%',
+    },
 
     engineTitle: '엔진 구성',
     engineLead:

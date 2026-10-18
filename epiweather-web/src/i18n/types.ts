@@ -84,6 +84,9 @@ export type HomeDict = {
   /** 홈 메인 소개 영상 라벨. 영상 자체는 환경변수(NEXT_PUBLIC_INTRO_VIDEO_URL)로 켜진다. */
   introVideoLabel: string;
 
+  /** 수치 띠 아래 사진 한 장(퍼블릭 도메인, 출처 표기). */
+  photo: PhotoDict;
+
   engineTitle: string;
   engineLead: string;
   engineModes: Record<EngineMode, string>;
@@ -163,12 +166,30 @@ export type PageBlock = {
   accent?: boolean;
 };
 
+/**
+ * 사진 한 장. 전부 퍼블릭 도메인이지만 저작자·원본 링크를 캡션에 남긴다.
+ * src·credit·sourceUrl 은 언어와 무관하고, alt·caption 만 언어별로 쓴다.
+ */
+export type PhotoDict = {
+  src: string;
+  alt: string;
+  /** 무엇을 찍은 사진인지 — 우리 시설·장비로 오해되지 않게 쓴다. */
+  caption: string;
+  /** 예: "NASA · 퍼블릭 도메인" */
+  credit: string;
+  sourceUrl: string;
+  /** object-position. 피사체가 가장자리에 있을 때만 지정. */
+  position?: string;
+};
+
 export type ContentPage = {
   metaTitle: string;
   metaDescription: string;
   eyebrow: string;
   title: string;
   lead: string;
+  /** 제목 아래 사진(선택). */
+  photo?: PhotoDict;
   blocks: PageBlock[];
   /** 페이지 하단 행동 유도. 생략 가능. */
   cta?: { title: string; body: string; label: string; href: string };

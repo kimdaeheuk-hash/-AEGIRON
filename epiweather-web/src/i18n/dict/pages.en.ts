@@ -83,6 +83,13 @@ export const pagesEn: PagesDict = {
     eyebrow: 'TECHNOLOGY · I',
     title: 'The always-on surveillance layer',
     lead: 'Of AEGIRON’s 114 algorithm modules, these are the ones that run by themselves every hour, with no one asking. Their job is to keep counting what differs from normal. For each engine we state what it treats as its baseline, and what it deliberately refuses to count.',
+    photo: {
+      src: '/media/photos/iss-city-lights.jpg',
+      alt: 'City lights at night seen from the International Space Station',
+      caption: 'Türkiye at night, seen from the International Space Station. The networks that move people and goods are the same routes an outbreak travels.',
+      credit: 'NASA JSC · Public domain',
+      sourceUrl: 'https://commons.wikimedia.org/wiki/File:The_city_lights_of_T%C3%BCrkiye_sparkle_below_the_International_Space_Station_(iss074e0225549).jpg',
+    },
     blocks: [
       {
         title: 'Local-language news surveillance',
@@ -147,6 +154,13 @@ export const pagesEn: PagesDict = {
     eyebrow: 'TECHNOLOGY · II',
     title: 'Genomics · simulation · response · self-verification',
     lead: 'If the always-on layer counts what differs, this layer answers what to do about it, and how. Most of it computes on request or on alert — it is heavy, and there is no reason to run it every hour. Every number carries, alongside it, how far it can be trusted.',
+    photo: {
+      src: '/media/photos/avian-influenza-h5n1.jpg',
+      alt: 'Colorized transmission electron micrograph of avian influenza A(H5N1) virus particles',
+      caption: 'Avian influenza A(H5N1) virus particles, colorized transmission electron micrograph. Public material from the US CDC.',
+      credit: 'CDC / Cynthia Goldsmith · Public domain',
+      sourceUrl: 'https://commons.wikimedia.org/wiki/File:Colorized_transmission_electron_micrograph_of_Avian_influenza_A_H5N1_viruses.jpg',
+    },
     blocks: [
       {
         title: 'Genomics — order naturalness',
@@ -207,6 +221,13 @@ export const pagesEn: PagesDict = {
     eyebrow: 'SPECIAL PROGRAMS',
     title: 'HEIMDALL · VALHALLA',
     lead: 'Most of the surveillance layers run in the open. But two axes are different in kind — genomic screening of biological threats, and national countermeasure readiness. Because they are sensitive, we handle ownership and access separately; this page states only what they do and do not do, without overstating any of it.',
+    photo: {
+      src: '/media/photos/ebola-virion.jpg',
+      alt: 'Colorized transmission electron micrograph of an Ebola virus particle',
+      caption: 'Ebola virus particle, colorized transmission electron micrograph. Public material from the US CDC — not AEGIRON laboratory data.',
+      credit: 'CDC / Cynthia Goldsmith · Public domain',
+      sourceUrl: 'https://commons.wikimedia.org/wiki/File:Ebola_virus_virion.jpg',
+    },
     blocks: [
       {
         title: 'HEIMDALL — defensive genomic screening',
@@ -549,6 +570,14 @@ export const pagesEn: PagesDict = {
     eyebrow: 'ABOUT',
     title: 'AEGIRON',
     lead: 'A pandemic is never declared out of nowhere. For weeks before the declaration it leaves traces — in local reporting, in search, in wastewater, in trade. AEGIRON gathers those traces before they are translated and computes, every hour, where something differs from normal. We are based in Busan, South Korea.',
+    photo: {
+      src: '/media/photos/earth-at-night.jpg',
+      alt: 'Earth at night — city lights across the Americas (satellite composite)',
+      caption: 'Earth at night (Black Marble). A composite of satellite observations.',
+      credit: 'NASA Earth Observatory · Public domain',
+      sourceUrl: 'https://commons.wikimedia.org/wiki/File:Black_Marble_Americas.jpg',
+      position: 'center 40%',
+    },
     blocks: [
       {
         title: 'What we build',

@@ -84,6 +84,13 @@ export const pagesFr: PagesDict = {
     eyebrow: 'TECHNOLOGY · I',
     title: 'La couche de veille permanente',
     lead: 'Parmi les 114 modules algorithmiques d’AEGIRON, voici ceux qui tournent d’eux-mêmes chaque heure, sans qu’on le demande. Leur rôle : compter sans cesse ce qui s’écarte de la normale. Pour chaque moteur, nous indiquons ce qu’il prend comme référence et ce qu’il refuse délibérément de compter.',
+    photo: {
+      src: '/media/photos/iss-city-lights.jpg',
+      alt: 'Lumières urbaines de nuit vues depuis la Station spatiale internationale',
+      caption: 'La Türkiye de nuit, vue depuis la Station spatiale internationale. Les réseaux qui font circuler personnes et marchandises sont aussi les voies d’une épidémie.',
+      credit: 'NASA JSC · Domaine public',
+      sourceUrl: 'https://commons.wikimedia.org/wiki/File:The_city_lights_of_T%C3%BCrkiye_sparkle_below_the_International_Space_Station_(iss074e0225549).jpg',
+    },
     blocks: [
       {
         title: 'Veille de la presse en langue locale',
@@ -148,6 +155,13 @@ export const pagesFr: PagesDict = {
     eyebrow: 'TECHNOLOGY · II',
     title: 'Génomique · simulation · réponse · auto-vérification',
     lead: 'Si la couche permanente compte ce qui diffère, cette couche répond à quoi faire, et comment. L’essentiel se calcule à la demande ou sur alerte — c’est lourd, et rien ne justifie de le faire chaque heure. Chaque nombre porte, à côté de lui, jusqu’où on peut lui faire confiance.',
+    photo: {
+      src: '/media/photos/avian-influenza-h5n1.jpg',
+      alt: 'Micrographie électronique en transmission colorisée de particules du virus de la grippe aviaire A(H5N1)',
+      caption: 'Particules du virus de la grippe aviaire A(H5N1), micrographie électronique en transmission colorisée. Document public des CDC américains.',
+      credit: 'CDC / Cynthia Goldsmith · Domaine public',
+      sourceUrl: 'https://commons.wikimedia.org/wiki/File:Colorized_transmission_electron_micrograph_of_Avian_influenza_A_H5N1_viruses.jpg',
+    },
     blocks: [
       {
         title: 'Génomique — naturel de l’ordre',
@@ -208,6 +222,13 @@ export const pagesFr: PagesDict = {
     eyebrow: 'SPECIAL PROGRAMS',
     title: 'HEIMDALL · VALHALLA',
     lead: 'La plupart des couches de veille opèrent à découvert. Mais deux axes sont d’une nature différente — le criblage génomique des menaces biologiques et la préparation nationale en contre-mesures. Parce qu’ils sont sensibles, nous en gérons la responsabilité et l’accès à part ; cette page énonce seulement ce qu’ils font et ne font pas, sans rien surévaluer.',
+    photo: {
+      src: '/media/photos/ebola-virion.jpg',
+      alt: 'Micrographie électronique en transmission colorisée d’une particule du virus Ebola',
+      caption: 'Particule du virus Ebola, micrographie électronique en transmission colorisée. Document public des CDC américains — non des données de laboratoire d’AEGIRON.',
+      credit: 'CDC / Cynthia Goldsmith · Domaine public',
+      sourceUrl: 'https://commons.wikimedia.org/wiki/File:Ebola_virus_virion.jpg',
+    },
     blocks: [
       {
         title: 'HEIMDALL — criblage génomique défensif',
@@ -550,6 +571,14 @@ export const pagesFr: PagesDict = {
     eyebrow: 'ABOUT',
     title: 'AEGIRON',
     lead: 'Une pandémie n’est jamais déclarée de nulle part. Des semaines avant la déclaration, elle laisse des traces — dans la presse locale, les recherches, les eaux usées, le commerce. AEGIRON rassemble ces traces avant leur traduction et calcule, chaque heure, où quelque chose s’écarte de la normale. Nous sommes établis à Busan, en Corée du Sud.',
+    photo: {
+      src: '/media/photos/earth-at-night.jpg',
+      alt: 'La Terre de nuit — lumières urbaines des Amériques (composite satellitaire)',
+      caption: 'La Terre de nuit (Black Marble). Un composite d’observations satellitaires.',
+      credit: 'NASA Earth Observatory · Domaine public',
+      sourceUrl: 'https://commons.wikimedia.org/wiki/File:Black_Marble_Americas.jpg',
+      position: 'center 40%',
+    },
     blocks: [
       {
         title: 'Ce que nous construisons',
