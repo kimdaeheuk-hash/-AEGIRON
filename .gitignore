@@ -32,3 +32,4 @@ epiweather-api/data/
 # misc
 .DS_Store
 *.pem
+.github/media-capture/out/
