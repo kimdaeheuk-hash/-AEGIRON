@@ -48,7 +48,10 @@ LOOKBACK_DAYS = 400
 _TITLE_KEYS = ("Title", "title")
 _DATE_KEYS = ("PublicationDate", "PublicationDateAndTime", "publicationDate", "DateCreated")
 _ID_KEYS = ("DonId", "donId", "UrlName", "Id")
-_SEPARATOR = re.compile(r"\s+[–—-]\s+")
+# 구분자: ` – `(양쪽 공백) 또는 `질병- 국가`(앞 공백 없음, 뒤 공백 있음). 프로덕션 21:00 슬롯 샘플에서 못 읽은 제목 18건의
+# 주된 모양이 후자였다(`Marburg virus disease- Ethiopia`, `Avian Influenza A(H5N5)- United States of America`).
+# 뒤에 공백이 없는 하이픈(`Multi-locations`, `MERS-CoV`)은 구분자가 아니다.
+_SEPARATOR = re.compile(r"\s+[–—-]\s+|(?<=\S)[–—-]\s+")
 
 
 class DonError(RuntimeError):

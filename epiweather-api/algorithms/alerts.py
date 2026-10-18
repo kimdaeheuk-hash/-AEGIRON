@@ -21,9 +21,9 @@ import db
 from .gai import compute_gai
 from .negative_space import scan_negative_space
 from .unexplained import scan_unexplained
-from .signal_metrics import (ALERT_MIN_COUNT, COUNT_MIN_SIGMA, cap_count_noise_score,
-                             approx_baseline, count_significance, metric_unit,
-                             is_count_noise_metric, meets_alert_minimum,
+from .signal_metrics import (ALERT_MIN_COUNT, COUNT_MIN_SIGMA, IMPLAUSIBLE_JUMP_CAP, cap_count_noise_score,
+                             approx_baseline, count_noise_reason, count_significance, implausible_jump,
+                             metric_unit, is_count_noise_metric, meets_alert_minimum,
                              meets_count_significance)
 from .notifier import notify_new_alerts, telegram_configured
 
@@ -43,6 +43,20 @@ DASHBOARD_TOP_N = 5
 TIER_RANK = {"low": 0, "medium": 1, "high": 2, "critical": 3}
 # comtrade_signals.trade_alert_candidates 가 붙이는 source 접두 — 스캔 실패 때 이 계열만 '판정 안 함'으로 둔다.
 TRADE_SOURCE_PREFIX = "trade_surge:"
+
+# ── 설명불가 경보 ─────────────────────────────────────────────────────────────────────
+UNEXPLAINED_PREFIX = "unexplained:"
+# 위치를 못 읽은 설명불가 후보의 경보 점수 상한. 2026-10-17 22:02 UTC `설명불가 신호 · 지역불명 (질병불명) 100.0점
+# (위치: 불명)` 이 critical 로 폰까지 갔다 — 어디서 무엇이 일어났는지 하나도 알 수 없는 문장이었다.
+# 무역·사회 카운트와 같은 원칙으로 79(medium) 에 둔다: 화면에는 남고(지우지 않는다), 폰은 안 울린다.
+# 위치를 읽은 후보는 예전 그대로 100 이다.
+UNLOCATED_UNEXPLAINED_CAP = 79.0
+_UNKNOWN_LOCATION = {"", "불명", "지역불명", "미상", "알 수 없음", "unknown", "n/a", "na", "none", "null", "-", "—"}
+# 설명불가 경보를 '이미 알렸다'로 이어받는 거슬러 올라가는 일수. 감시가 하루 눈이 멀면(10-09) 행이 끊겨 같은 사건이
+# 새 소식이 되어 폰이 다시 울렸다(10-13, 마지막 전송 10-08 → 닷새 뒤). 어제 한정이던 이어받기를 며칠로 넓힌다.
+# ★ 대가 ★ 키가 나라 단위라, 같은 나라의 **다른** 설명불가 사건이 이 기간 안에 새로 나오면 이미 알린 등급과 같을 때
+# 폰이 안 울린다(화면에는 계속 뜬다). 그래서 날수를 짧게 둔다 — 5일. 등급이 오르면 여전히 나간다.
+UNEXPLAINED_INHERIT_DAYS = 5
 
 # collect_candidate_alerts 가 '이 계열은 이번 주기에 판정하지 못했다'를 refresh_alerts 로 알리는 통로.
 # 반환형·시그니처를 바꾸지 않으려고(기존 호출부·시험 스텁이 그대로 동작) 컨텍스트 변수로 둔다 —
@@ -478,9 +492,19 @@ def collect_candidate_alerts(today: str, negative_space: dict | None = None) -> 
                    "(과거 대비 z-score 환산)")
             if capped:
                 # 헤드라인(제한된 점수)과 `= 84.2점` 이 다르다 — 이유가 폰에서 잘리는 뒷줄에 있으면
-                # 두 숫자가 어긋나 보인다. 같은 줄에 둔다.
-                how += (f" → 경보 점수 {score}점으로 제한(단독 사회 신호 — 게시자 수는 7일 겹치는 창이라 "
-                        "다른 층과 겹칠 때 등급이 올라감)")
+                # 두 숫자가 어긋나 보인다. 같은 줄에 둔다. 이유는 지표 계열마다 다르다(count_noise_reason).
+                how += f" → 경보 점수 {score}점으로 제한({count_noise_reason(m['metric'])})"
+            # ★ 한 주 사이 비현실적 점프는 경보 점수만 79 로 ★ (2026-10-17) NWSS 평균 26배 → critical 이 폰까지 갔다.
+            # 지수(GAI)는 안 건드린다(측정값). 깎은 사실은 로그와 같은 줄 근거에 남긴다.
+            jump = implausible_jump(m["metric"], m.get("latest"), m.get("baseline_mean"))
+            if jump is not None and score > IMPLAUSIBLE_JUMP_CAP:
+                capped_to = IMPLAUSIBLE_JUMP_CAP
+                print(f"  🧢 [alerts] {m['metric']} — 관측값이 평소의 {jump:.1f}배(문턱 초과) — 이상도 {score}점을 "
+                      f"경보 점수 {capped_to}점으로 제한(표본 구성 변화·이상치 가능성, 확인 전, 지수에는 그대로 반영됨)",
+                      flush=True)
+                how += (f" → 경보 점수 {capped_to}점으로 제한(평소의 {jump:.1f}배 — 표본 평균은 구성 변화·이상치에 "
+                        "민감해 확인 전엔 단독으로 high 에 못 닿음. 진짜 급증이면 다른 층이 같이 올라 종합이 말함)")
+                score = capped_to
             evidence = [obs, how, f"{layer['label']} 계층 가중치 {layer['weight']}"]
             candidates.append({
                 "source": f"gai:{layer_key}.{m['metric']}",
@@ -515,15 +539,26 @@ def collect_candidate_alerts(today: str, negative_space: dict | None = None) -> 
         if (a["extracted_at"] or "")[:10] != today:
             continue
         key = unexplained_key(a)
+        evidence = [
+            f"위치: {a['location'] or '불명'}",
+            f"모델이 추출한 원문 질병명: {a['raw_disease_text'] or '불명'} — 기존 알려진 패턴과 불일치 판정",
+            f"원문 발췌: {(a['raw_text'] or '')[:120]}",
+        ]
+        score = 100.0
+        # ★ 위치를 못 읽은 후보는 폰에 보낼 정보가 못 된다 ★ (2026-10-17) 어디서 무엇이 일어났는지 알 수 없는 critical 은
+        # 받는 사람이 행동할 수 없다. 지우지 않는다(후보 자체는 사실) — 점수만 79 로 제한하고 이유를 근거 맨 앞에 둔다.
+        if is_unlocated(a.get("location")):
+            print(f"  🧢 [alerts] 설명불가 후보(위치 불명) — 이상도 {score}점을 경보 점수 "
+                  f"{UNLOCATED_UNEXPLAINED_CAP}점으로 제한(어디서 일어났는지 알 수 없어 폰에 보낼 정보가 못 됨, 화면에는 남김)",
+                  flush=True)
+            score = UNLOCATED_UNEXPLAINED_CAP
+            evidence.insert(0, f"위치를 읽지 못한 후보 — 경보 점수를 100 → {UNLOCATED_UNEXPLAINED_CAP:g}점으로 제한"
+                               "(어디서 일어났는지 알 수 없어 폰에 보낼 정보가 못 됨, 화면에는 남김)")
         candidates.append({
-            "source": f"unexplained:{key}",
-            "evidence": [
-                f"위치: {a['location'] or '불명'}",
-                f"모델이 추출한 원문 질병명: {a['raw_disease_text'] or '불명'} — 기존 알려진 패턴과 불일치 판정",
-                f"원문 발췌: {(a['raw_text'] or '')[:120]}",
-            ],
+            "source": f"{UNEXPLAINED_PREFIX}{key}",
+            "evidence": evidence,
             "label": f"설명불가 신호 · {a['location'] or '지역불명'} ({a['raw_disease_text'] or '질병불명'})",
-            "score": 100.0,
+            "score": score,
         })
 
     # 무역 선행지표(Phase 42) — 의료물자 수입이 여러 품목 동시에 급증한 국가.
@@ -577,6 +612,11 @@ def collect_candidate_alerts(today: str, negative_space: dict | None = None) -> 
     return candidates
 
 
+def is_unlocated(location: str | None) -> bool:
+    """위치 문구가 없거나 '불명' 류인가. 비어 있지 않은데 나라로 안 읽히는 문구(예: 지방 이름)는 아니다 — 정보가 있다."""
+    return (location or "").strip().lower() in _UNKNOWN_LOCATION
+
+
 def unexplained_key(a: dict) -> str:
     """설명불가 경보의 식별 키. 위치가 **한 나라**로 읽히면 그 나라의 ISO3, 아니면 예전처럼 원문 위치.
 
@@ -627,8 +667,15 @@ def refresh_alerts(today: str | None = None) -> dict:
     today_rows = db.list_alerts(today)
     channel = telegram_configured()
     yesterday_rows = db.list_alerts(yesterday)
-    seen_rank = baseline_rank(today_rows, yesterday_rows, channel)
+    # 설명불가 경보만 며칠 더 거슬러 올라가 '이미 알렸다'를 잇는다(UNEXPLAINED_INHERIT_DAYS). 그 밖의 계열은 어제까지만.
+    older_rows: list[dict] = []
+    for back in range(2, UNEXPLAINED_INHERIT_DAYS + 1):
+        day = (dt.date.fromisoformat(today) - dt.timedelta(days=back)).isoformat()
+        older_rows += [r for r in db.list_alerts(day) if r["source"].startswith(UNEXPLAINED_PREFIX)]
+    prior_rows = yesterday_rows + older_rows
+    seen_rank = baseline_rank(today_rows, prior_rows, channel)
     seen_today_only = baseline_rank(today_rows, [], channel)   # 오늘 안에서 이미 알린 것(출처 구분용)
+    seen_yesterday = baseline_rank([], yesterday_rows, channel)   # 어제에서 온 기준선(더 이전과 구분용)
 
     negative_space = scan_negative_space()
     live_sources: set[str] = set()
@@ -719,7 +766,8 @@ def refresh_alerts(today: str | None = None) -> dict:
     already_notified = [
         {"label": r["label"], "tier": r["tier"], "score": r["score"], "source": r["source"],
          "origin": ("오늘" if seen_today_only.get(r["source"], -1) >= TIER_RANK[r["tier"]]
-                    else "어제 이월")}
+                    else "어제 이월" if seen_yesterday.get(r["source"], -1) >= TIER_RANK[r["tier"]]
+                    else "이전 이월")}
         for r in visible_rows
         if r["tier"] in ("critical", "high") and not escalated(r["source"], r["tier"], seen_rank)
     ]
@@ -742,7 +790,7 @@ def refresh_alerts(today: str | None = None) -> dict:
     # 사건이 화면에 이어지는 동안은 다시 안 울리고, 하루라도 끊기면(행이 사라지면) 이어짐이 끝난다.
     if channel:
         inherited = [(a["source"], seen_rank[a["source"]]) for a in already_notified
-                     if a["origin"] == "어제 이월" and a["source"] in seen_rank]
+                     if a["origin"] in ("어제 이월", "이전 이월") and a["source"] in seen_rank]
         if inherited:
             db.mark_alerts_notified(today, inherited)
 

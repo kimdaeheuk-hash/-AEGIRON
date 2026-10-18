@@ -82,14 +82,16 @@ def test_the_record_is_carried_onto_each_days_row(isolated_db, monkeypatch):
     assert row["notified_rank"] == 3                   # 오늘 보낸 것이 아니라 이어받은 기록
 
 
-def test_a_gap_day_ends_the_chain_and_a_return_is_news_again(isolated_db, monkeypatch):
-    sent = _stub(monkeypatch, ["unexplained:RUS"])
+def test_a_gap_day_ends_the_chain_for_sources_that_are_not_unexplained(isolated_db, monkeypatch):
+    """설명불가가 아닌 계열은 여전히 '어제까지만' 잇는다 — 하루 빈 뒤의 복귀는 새 소식이다.
+    (설명불가는 2026-10-17 부터 며칠을 거슬러 올라간다: test_unexplained_inherit_days_2026_10_17.py)"""
+    sent = _stub(monkeypatch, ["gai:behavioral.x"])
     refresh_alerts("2026-10-07")
     _stub(monkeypatch, [])
     refresh_alerts("2026-10-08")                       # 하루 비었다 — 행이 없다
-    sent3 = _stub(monkeypatch, ["unexplained:RUS"])
+    sent3 = _stub(monkeypatch, ["gai:behavioral.x"])
     refresh_alerts("2026-10-09")
-    assert sent3 == [["unexplained:RUS"]]
+    assert sent3 == [["gai:behavioral.x"]]
 
 
 def test_a_different_country_is_still_news(isolated_db, monkeypatch):

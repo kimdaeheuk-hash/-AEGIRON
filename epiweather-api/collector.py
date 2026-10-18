@@ -104,6 +104,7 @@ def append_signal(record: dict) -> None:
 # 상재성 고volume 질병(수두·결핵 등)이 총합을 오염시켜 신종 신호를 파묻지 않게.
 # 위험군 밖 질병도 전부 수집돼 개별 급증으로 감시된다(레지오넬라처럼 놓치지 않음).
 # baseline_collector·기존 참조 호환을 위해 KDCA_WATCH_DISEASES 이름을 유지(=위험군).
+from algorithms.common import safe_float
 from algorithms.kdca_anomaly import KDCA_NOTABLE, disease_spikes, parse_kdca_count
 KDCA_WATCH_DISEASES = KDCA_NOTABLE
 
@@ -411,6 +412,83 @@ FREE_SOURCE_HEALTH_KEYS = {
 }
 
 
+WIKI_EBOLA_TITLE = "2026_Central_Africa_Ebola_epidemic"
+# 위키미디어 페이지뷰 집계는 보통 전날치가 다음날 정오(UTC) 전후까지 늦게 올라온다 — 그 안의 404 만 '정상 지연'이다.
+WIKI_LAG_UNTIL_UTC_HOUR = 12
+
+
+def wiki_404_is_lag(utc_hour: int) -> bool:
+    """이 시각(UTC)의 404 를 '집계 지연'으로 봐도 되는가. 정오 이전만 True."""
+    return utc_hour < WIKI_LAG_UNTIL_UTC_HOUR
+
+
+def wiki_article_status(title: str) -> str:
+    """문서가 아직 그 이름으로 있는지 한 줄로. 이동·삭제인지 집계 정체인지를 가르는 진단용 — 실패해도 수집은 계속.
+
+    리다이렉트는 따라가지 않는다(따라가면 이동 사실이 가려진다). 상태 코드와 Location 만 적는다."""
+    try:
+        r = requests.get(f"https://en.wikipedia.org/api/rest_v1/page/summary/{title}",
+                         headers=USER_AGENT, timeout=10, allow_redirects=False)
+        loc = r.headers.get("Location")
+        return f"[문서 확인: HTTP {r.status_code}" + (f" → {loc}" if loc else "") + "]"
+    except Exception as e:
+        return f"[문서 확인 실패: {type(e).__name__}]"
+
+
+def fetch_cdc_nwss() -> dict:
+    """CDC 하수감시 최근 7일 창의 표본 수·평균 농도(·최댓값).
+
+    원래 쓰려던 percentile 지표 데이터셋(2ew6-ywp6)은 2025-09-12 보관 처리되어 더 안 올라옴 — CDC가 안내한 대체
+    원시샘플 데이터셋(j9g8-acpt)으로 서버단 집계한다.
+
+    sample_collect_date는 "채집일"이라 실험실 처리 지연으로 최신 며칠은 극소수 사이트만 먼저 들어오고 나머지는 이후
+    며칠에 걸쳐 채워짐 — 그래서 "가장 최근 날짜" 단일일자만 집계하면 site_count=1, mean_concentration이 그 한 사이트
+    값(종종 0)으로 왜곡됨(실측: 2026-06-25 단일일자 1개 사이트 평균 0.0 vs 같은 날 포함 7일 창 181개 사이트 평균
+    8494.5). 최신 날짜를 기준으로 7일 창으로 집계해 보고 지연을 흡수한다.
+
+    ★ 이 평균은 이상치에 지배된다 ★ (2026-10-16 16:00 UTC 관측) 창이 한 주 굴러 평균이 63,488.7 → 1,680,229.8 (26.5배,
+    행은 757 → 656 으로 오히려 줄었다)이 됐고 critical 이 폰까지 갔다. 그래서 같은 창의 **최댓값**을 함께 남긴다 —
+    평균 × 표본 수 대비 최댓값이 압도적이면 한 표본이 평균을 만든 것이다. 최댓값 조회가 실패해도 평균은 살린다
+    (진단용 보조 값이라 본 수집을 막으면 안 된다).
+    """
+    latest = requests.get(
+        "https://data.cdc.gov/resource/j9g8-acpt.json",
+        params={"$select": "sample_collect_date", "$order": "sample_collect_date DESC", "$limit": 1},
+        headers=USER_AGENT, timeout=15,
+    )
+    latest.raise_for_status()
+    latest_date = dt.date.fromisoformat(latest.json()[0]["sample_collect_date"][:10])
+    window_start = latest_date - dt.timedelta(days=6)
+    where = f"sample_collect_date >= '{window_start}' and sample_collect_date <= '{latest_date}'"
+
+    agg = requests.get(
+        "https://data.cdc.gov/resource/j9g8-acpt.json",
+        params={"$select": "count(*) as n, avg(pcr_target_avg_conc) as avg_conc", "$where": where},
+        headers=USER_AGENT, timeout=15,
+    )
+    agg.raise_for_status()
+    row = agg.json()[0]
+
+    max_conc = None
+    try:
+        mx = requests.get(
+            "https://data.cdc.gov/resource/j9g8-acpt.json",
+            params={"$select": "max(pcr_target_avg_conc) as mx", "$where": where},
+            headers=USER_AGENT, timeout=15,
+        )
+        mx.raise_for_status()
+        max_conc = safe_float((mx.json() or [{}])[0].get("mx"))
+    except Exception as e:
+        log(f"  CDC NWSS 최댓값 조회 실패(평균은 유지): {type(e).__name__}: {str(e)[:120]}")
+
+    return {
+        "date": f"{window_start}~{latest_date}",
+        "site_count": int(row["n"]),
+        "mean_concentration": round(float(row["avg_conc"]), 1) if row.get("avg_conc") else None,
+        "max_concentration": round(max_conc, 1) if max_conc is not None else None,
+    }
+
+
 def collect_free_sources() -> dict:
     log("=== 무료 소스 수집 시작 ===")
     result = {"type": "free_sources", "timestamp": dt.datetime.now().isoformat()}
@@ -499,40 +577,12 @@ def collect_free_sources() -> dict:
         log_error("WHO_PAHO", e)
 
     try:
-        # 원래 쓰려던 percentile 지표 데이터셋(2ew6-ywp6)은 2025-09-12 보관 처리되어
-        # 더 안 올라옴 — CDC가 안내한 대체 원시샘플 데이터셋(j9g8-acpt)으로 서버단
-        # 집계(최근 보고 사이트 수·평균 SARS-CoV-2 농도) 조회.
-        #
-        # sample_collect_date는 "채집일"이라 실험실 처리 지연으로 최신 며칠은
-        # 극소수 사이트만 먼저 들어오고 나머지는 이후 며칠에 걸쳐 채워짐 — 그래서
-        # "가장 최근 날짜" 단일일자만 집계하면 site_count=1, mean_concentration이
-        # 그 한 사이트 값(종종 0)으로 왜곡됨(실측: 2026-06-25 단일일자 1개 사이트
-        # 평균 0.0 vs 같은 날 포함 7일 창 181개 사이트 평균 8494.5). 최신 날짜를
-        # 기준으로 7일 창으로 집계해 보고 지연을 흡수한다.
-        latest = requests.get(
-            "https://data.cdc.gov/resource/j9g8-acpt.json",
-            params={"$select": "sample_collect_date", "$order": "sample_collect_date DESC", "$limit": 1},
-            headers=USER_AGENT, timeout=15,
-        )
-        latest.raise_for_status()
-        latest_date = dt.date.fromisoformat(latest.json()[0]["sample_collect_date"][:10])
-        window_start = latest_date - dt.timedelta(days=6)
-
-        agg = requests.get(
-            "https://data.cdc.gov/resource/j9g8-acpt.json",
-            params={"$select": "count(*) as n, avg(pcr_target_avg_conc) as avg_conc",
-                    "$where": f"sample_collect_date >= '{window_start}' and sample_collect_date <= '{latest_date}'"},
-            headers=USER_AGENT, timeout=15,
-        )
-        agg.raise_for_status()
-        row = agg.json()[0]
-        result["cdc_nwss"] = {
-            "date": f"{window_start}~{latest_date}",
-            "site_count": int(row["n"]),
-            "mean_concentration": round(float(row["avg_conc"]), 1) if row.get("avg_conc") else None,
-        }
-        log(f"  CDC NWSS(하수): {window_start}~{latest_date} 기준 {result['cdc_nwss']['site_count']}개 사이트, "
-            f"평균농도 {result['cdc_nwss']['mean_concentration']}")
+        result["cdc_nwss"] = fetch_cdc_nwss()
+        nw = result["cdc_nwss"]
+        # ★ `site_count` 는 사이트 수가 아니라 **표본 행 수**다(`count(*)`) ★ 키 이름은 기록 호환 때문에 두고
+        # 로그·사람에게 나가는 말은 정확히 쓴다. 최댓값을 같이 남겨, 평균이 한 표본에 지배되는지 다음 점검에 값으로 읽힌다.
+        log(f"  CDC NWSS(하수): {nw['date']} 기준 표본 {nw['site_count']}건, 평균농도 {nw['mean_concentration']}"
+            + (f", 최댓값 {nw['max_concentration']}" if nw.get("max_concentration") is not None else ""))
     except Exception as e:
         result["cdc_nwss"] = None
         log_error("CDC_NWSS", e)
@@ -592,10 +642,18 @@ def collect_free_sources() -> dict:
         start_s = (dt.date.today() - dt.timedelta(days=1)).strftime("%Y%m%d00")
         r = requests.get(
             "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/"
-            f"en.wikipedia/all-access/all-agents/2026_Central_Africa_Ebola_epidemic/daily/{start_s}/{end_s}",
+            f"en.wikipedia/all-access/all-agents/{WIKI_EBOLA_TITLE}/daily/{start_s}/{end_s}",
             headers=USER_AGENT, timeout=15,
         )
-        if r.status_code == 404:
+        if r.status_code == 404 and not wiki_404_is_lag(dt.datetime.now(dt.timezone.utc).hour):
+            # ★ 지연이 아니다 ★ (2026-10-17) 정오(UTC)를 넘겨 하루 종일 404 가 이어졌는데(24주기 연속) 로그는 매시간
+            # `정상 지연` 이라고 적었다 — 상태 문구가 관측보다 많이 주장했다. 정오 이후의 404 는 문서 이동·삭제나 집계
+            # 정체 가능성이라 실패로 센다. 사유에 문서 존재 확인 결과를 같이 남긴다(원인을 추측으로 단정하지 않는다).
+            result["wiki_ebola_daily"] = None
+            log_error("Wikipedia_Ebola", Exception(
+                f"페이지뷰 404 가 정오(UTC) 이후에도 계속 — 집계 지연이 아닐 가능성(문서 이동·삭제 또는 집계 정체). "
+                f"{wiki_article_status(WIKI_EBOLA_TITLE)}"))
+        elif r.status_code == 404:
             # 위키미디어 페이지뷰 집계는 보통 전날치가 다음날 정오 전후까지 늦게
             # 올라옴 — 그 전까지의 404는 정상적인 지연이라 에러로 기록하지 않음.
             # 소스헬스에도 '실패'가 아니라 '값 없음'으로 넘긴다. 예전엔 여기서 None만
