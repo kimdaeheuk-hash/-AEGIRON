@@ -207,15 +207,23 @@ IMPLAUSIBLE_JUMP_RATIO: dict[str, float] = {"cdc_nwss_concentration": 10.0}
 IMPLAUSIBLE_JUMP_CAP = 79.0
 
 
-def implausible_jump(metric_id: str, latest: float | None, baseline_mean: float | None) -> float | None:
-    """관측값이 평소의 몇 배인가 — 대상 지표에서 문턱을 넘었을 때만 배수를 돌려준다. 아니면 None.
+def implausible_jump(metric_id: str, latest: float | None, baseline_mean: float | None,
+                     previous: float | None = None) -> float | None:
+    """관측값이 평소(또는 직전의 다른 값)의 몇 배인가 — 대상 지표에서 문턱을 넘었을 때만 배수를 돌려준다. 아니면 None.
 
-    평균·관측값을 못 봤거나 평균이 0 이하면 None(모르는 것을 '정상 범위'로도 '비정상'으로도 세지 않는다 —
-    이 함수는 점수를 *깎는* 쪽이라 모를 때는 깎지 않는다)."""
+    비교점은 둘이고 **더 큰 배수**를 쓴다(어느 쪽으로 봐도 비현실적이면 비현실적이다):
+    - `baseline_mean`: 과거 평균. 값이 오래 높게 머무는 새 수준(단위 변경 등)에서도 한동안 문턱 위에 남는다.
+    - `previous`: 최신값과 다른 가장 최근 값(지난 창). 같은 주간 값을 매시간 다시 기록해 평균이 끌려 올라가도
+      흔들리지 않는다 — 평균만 보면 같은 주 안에서 배수가 저절로 줄어 상한이 풀리고 폰이 다시 울린다(10-18 자기검토).
+
+    관측값을 못 봤거나 쓸 비교점(양수)이 없으면 None — 이 함수는 점수를 *깎는* 쪽이라 모를 때는 깎지 않는다."""
     limit = IMPLAUSIBLE_JUMP_RATIO.get(metric_id)
-    if limit is None or latest is None or baseline_mean is None or baseline_mean <= 0:
+    if limit is None or latest is None:
         return None
-    ratio = latest / baseline_mean
+    refs = [r for r in (baseline_mean, previous) if r is not None and r > 0]
+    if not refs:
+        return None
+    ratio = latest / min(refs)
     return ratio if ratio > limit else None
 
 

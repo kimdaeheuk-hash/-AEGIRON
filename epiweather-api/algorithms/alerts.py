@@ -496,13 +496,13 @@ def collect_candidate_alerts(today: str, negative_space: dict | None = None) -> 
                 how += f" → 경보 점수 {score}점으로 제한({count_noise_reason(m['metric'])})"
             # ★ 한 주 사이 비현실적 점프는 경보 점수만 79 로 ★ (2026-10-17) NWSS 평균 26배 → critical 이 폰까지 갔다.
             # 지수(GAI)는 안 건드린다(측정값). 깎은 사실은 로그와 같은 줄 근거에 남긴다.
-            jump = implausible_jump(m["metric"], m.get("latest"), m.get("baseline_mean"))
+            jump = implausible_jump(m["metric"], m.get("latest"), m.get("baseline_mean"), m.get("previous_distinct"))
             if jump is not None and score > IMPLAUSIBLE_JUMP_CAP:
                 capped_to = IMPLAUSIBLE_JUMP_CAP
-                print(f"  🧢 [alerts] {m['metric']} — 관측값이 평소의 {jump:.1f}배(문턱 초과) — 이상도 {score}점을 "
+                print(f"  🧢 [alerts] {m['metric']} — 관측값이 평소·직전 값의 {jump:.1f}배(문턱 초과) — 이상도 {score}점을 "
                       f"경보 점수 {capped_to}점으로 제한(표본 구성 변화·이상치 가능성, 확인 전, 지수에는 그대로 반영됨)",
                       flush=True)
-                how += (f" → 경보 점수 {capped_to}점으로 제한(평소의 {jump:.1f}배 — 표본 평균은 구성 변화·이상치에 "
+                how += (f" → 경보 점수 {capped_to}점으로 제한(평소·직전 값의 {jump:.1f}배 — 표본 평균은 구성 변화·이상치에 "
                         "민감해 확인 전엔 단독으로 high 에 못 닿음. 진짜 급증이면 다른 층이 같이 올라 종합이 말함)")
                 score = capped_to
             evidence = [obs, how, f"{layer['label']} 계층 가중치 {layer['weight']}"]
@@ -787,7 +787,8 @@ def refresh_alerts(today: str | None = None) -> dict:
     # ★ 어제 알린 등급이 오늘도 이어지는 행은 오늘 행에도 그 기록을 잇는다 ★ (2026-10-09)
     # 기록이 없으면 이어지는 critical 이 '이틀에 한 번' 다시 울린다: 1일차 전송(기록) → 2일차 이월로 조용
     # (기록 없음) → 3일차 기준선에 어제 기록이 없어 다시 전송. 이월로 조용했던 날에도 기록을 이어 두면
-    # 사건이 화면에 이어지는 동안은 다시 안 울리고, 하루라도 끊기면(행이 사라지면) 이어짐이 끝난다.
+    # 사건이 화면에 이어지는 동안은 다시 안 울리고, 하루라도 끊기면(행이 사라지면) 이어짐이 끝난다 — 단 설명불가 계열은
+    # UNEXPLAINED_INHERIT_DAYS 일 안의 공백을 넘어 잇는다(2026-10-17, `이전 이월`).
     if channel:
         inherited = [(a["source"], seen_rank[a["source"]]) for a in already_notified
                      if a["origin"] in ("어제 이월", "이전 이월") and a["source"] in seen_rank]

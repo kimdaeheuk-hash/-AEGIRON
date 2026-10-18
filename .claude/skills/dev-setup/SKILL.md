@@ -19,7 +19,7 @@ description: 아이기론 로컬 개발 환경 — 백엔드(FastAPI)·웹(Next.
 ```bash
 cd epiweather-api
 pip install -r requirements.txt            # pytest 포함
-python3 -m pytest -q                        # 전체 — 마지막 기준 2,141건, 약 1분
+python3 -m pytest -q                        # 전체 — 마지막 기준 2,145건, 약 1분
 python3 -m pytest tests/test_alerts.py -q   # 하나만
 EPIWEATHER_SCHEDULER=off uvicorn main:app --port 8000   # 로컬 서버 (프로덕션: Procfile 참고)
 ```

@@ -147,6 +147,46 @@ def test_nwss_1016_replay_is_capped_to_medium_with_the_reason_on_the_second_line
     assert "관측값 1680229.8" in c["evidence"][0] and "평소 약 63,489" in c["evidence"][0]
 
 
+def test_the_cap_does_not_wear_off_as_the_same_weekly_value_drags_the_mean_up(monkeypatch):
+    """★ PR #83 자기검토에서 찾은 구멍 ★ 주간 값이 매시간 다시 기록돼 평균이 시간당 약 650 씩 끌려 올라간다
+    (10-16 평소 약 87,690 → 10-18 108,705). 평균만 보면 ~10-21 에 배수가 10 밑으로 떨어져 상한이 풀리고,
+    같은 값(1,680,229.8)이 critical 로 되살아나 폰이 다시 울린다. 직전의 다른 값(지난 창 63,488.7)과의 배수는
+    그 오염을 안 받는다 — 같은 주 안에서는 판정이 바뀌지 않아야 한다."""
+    drifted_mean = 170_000.0                                           # 1,680,229.8 / 170,000 = 9.9배
+    assert implausible_jump("cdc_nwss_concentration", 1680229.8, drifted_mean) is None          # 평균만 보면 풀린다
+    assert implausible_jump("cdc_nwss_concentration", 1680229.8, drifted_mean, 63488.7) == pytest.approx(26.47, abs=0.01)
+    gai = _gai("environmental", "환경신호", "cdc_nwss_concentration", 1680229.8, drifted_mean, 100.0, 95.0, 0.95)
+    gai["layers"]["environmental"]["metrics"][0]["previous_distinct"] = 63488.7
+    c = [c for c in _collect(monkeypatch, gai) if c["source"].endswith("cdc_nwss_concentration")][0]
+    assert c["score"] == 79.0
+
+
+def test_a_normal_window_after_the_jump_is_not_capped(monkeypatch):
+    """창이 굴러 평소 수준(60,000)으로 돌아오면 직전 값(1.68M)보다 훨씬 낮다 — 깎을 일이 없다."""
+    assert implausible_jump("cdc_nwss_concentration", 60000.0, 170_000.0, 1680229.8) is None
+
+
+def test_previous_distinct_is_the_last_value_that_differs_from_the_latest():
+    from algorithms.gai import _previous_distinct
+    assert _previous_distinct([63488.7] * 3 + [1680229.8] * 40) == 63488.7    # 같은 주간 값이 몇 번 반복돼도
+    assert _previous_distinct([1.0, None, 2.0, None, 2.0]) == 1.0             # None 은 건너뛴다(점수와 같은 규칙)
+    assert _previous_distinct([5.0, 5.0, 5.0]) is None                         # 다른 값이 없으면 모른다
+    assert _previous_distinct([]) is None and _previous_distinct([None]) is None
+
+
+def test_compute_gai_exports_previous_distinct_for_every_metric(monkeypatch):
+    """만들어만 두고 안 내보내는 값을 막는다 — 실제 compute_gai 출력에 들어가야 승격 자리가 읽는다."""
+    from algorithms import gai as gai_mod
+    weekly = [60000.0, 61000.0, 62000.0, 63488.7] + [63488.7] * 5 + [1680229.8] * 20
+    recs = [{"type": "free_sources", "cdc_nwss": {"mean_concentration": v}} for v in weekly]
+    monkeypatch.setattr(gai_mod, "load_records", lambda: recs)
+    out = gai_mod.compute_gai()
+    m = [m for layer in out["layers"].values() for m in layer["metrics"]
+         if m["metric"] == "cdc_nwss_concentration"][0]
+    assert m["latest"] == 1680229.8 and m["previous_distinct"] == 63488.7
+    assert m["baseline_mean"] > 63488.7                                         # 평균은 반복된 새 값에 끌려 올라가 있다
+
+
 def test_nwss_ordinary_variation_is_untouched(monkeypatch):
     """평소의 3배(문턱 아래)는 옛 동작 그대로 95점이다 — 진짜 신호를 죽이지 않는다."""
     gai = _gai("environmental", "환경신호", "cdc_nwss_concentration", 190000.0, 63488.7, 100.0, 95.0, 0.95)
