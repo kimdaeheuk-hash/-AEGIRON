@@ -6,8 +6,8 @@ export const extraPagesEn: ExtraDict['pages'] = {
     metaTitle: 'Live operations — what AEGIRON is doing right now',
     metaDescription: 'Screens captured from AEGIRON’s running dashboard and live operational figures — what it is collecting, where it is looking and what it has raised as an alert.',
     eyebrow: 'LIVE OPERATIONS',
-    title: 'This is AEGIRON, running',
-    lead: 'Not a description — the operational screens and the operational numbers. The figures and lists below are re-read from the production server every few minutes, and the images are captured from the dashboard as it runs.',
+    title: 'Right now, AEGIRON is watching the world',
+    lead: 'Not a brochure, but the actual state of operations. The figures and lists below refresh from the production server every few minutes, and the screens are captured directly from the running dashboard.',
     blocks: [],
     cta: {
       title: 'Open the same screen yourself',

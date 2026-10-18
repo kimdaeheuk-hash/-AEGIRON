@@ -6,8 +6,8 @@ export const extraPagesFr: ExtraDict['pages'] = {
     metaTitle: 'En exploitation — ce que fait AEGIRON en ce moment',
     metaDescription: 'Captures du tableau de bord d’AEGIRON en fonctionnement et chiffres d’exploitation en direct : ce qu’il collecte, où il regarde et ce qu’il a élevé en alerte.',
     eyebrow: 'LIVE OPERATIONS',
-    title: 'Voici AEGIRON, en fonctionnement',
-    lead: 'Pas une description : les écrans et les chiffres d’exploitation. Les chiffres et listes ci-dessous sont relus sur le serveur de production toutes les quelques minutes, et les images sont capturées sur le tableau de bord en fonctionnement.',
+    title: 'En ce moment même, AEGIRON veille sur le monde',
+    lead: 'Non pas une plaquette, mais l’état réel de l’exploitation. Les chiffres et listes ci-dessous sont actualisés depuis le serveur de production toutes les quelques minutes, et les écrans sont capturés directement sur le tableau de bord en fonctionnement.',
     blocks: [],
     cta: {
       title: 'Ouvrez vous-même le même écran',
