@@ -90,6 +90,7 @@ export const ko: Dictionary = {
       { value: '179', label: '현지어 뉴스 피드', note: '국가 · 언어별 집계, 매시 수집' },
     ],
     statsAsOf: '2026-10-18 저장소·운영 로그 기준 실측',
+    introVideoLabel: '아이기론 소개 영상',
 
     engineTitle: '엔진 구성',
     engineLead:

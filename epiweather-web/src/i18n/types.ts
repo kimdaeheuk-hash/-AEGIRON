@@ -81,6 +81,9 @@ export type HomeDict = {
   /** 수치는 세는 날 바뀐다 — 언제 센 값인지를 수치 옆에 둔다. */
   statsAsOf: string;
 
+  /** 홈 메인 소개 영상 라벨. 영상 자체는 환경변수(NEXT_PUBLIC_INTRO_VIDEO_URL)로 켜진다. */
+  introVideoLabel: string;
+
   engineTitle: string;
   engineLead: string;
   engineModes: Record<EngineMode, string>;

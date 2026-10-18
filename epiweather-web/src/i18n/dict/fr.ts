@@ -94,6 +94,7 @@ export const fr: Dictionary = {
       { value: '179', label: 'Flux d’actualité en langue locale', note: 'Agrégés par pays et par langue, collectés toutes les heures' },
     ],
     statsAsOf: 'Mesuré le 2026-10-18 à partir du dépôt et des journaux de production',
+    introVideoLabel: 'AEGIRON — présentation',
 
     engineTitle: 'Les moteurs',
     engineLead:

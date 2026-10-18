@@ -92,6 +92,7 @@ export const en: Dictionary = {
       { value: '179', label: 'Local-language news feeds', note: 'Aggregated by country and language, collected hourly' },
     ],
     statsAsOf: 'Measured 2026-10-18 from the repository and production logs',
+    introVideoLabel: 'AEGIRON — introduction',
 
     engineTitle: 'The engines',
     engineLead:

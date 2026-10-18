@@ -3,7 +3,9 @@ import { getDictionary, localePath, isLocale, type Locale } from '@/i18n';
 import type { EngineDict, EngineMode } from '@/i18n/types';
 import { Section, SectionHeading, Card, Grid } from '@/components/site/Section';
 import { HeroBackdrop } from '@/components/site/HeroBackdrop';
+import { IntroVideo } from '@/components/site/IntroVideo';
 import { getSourceHealth, type SourceHealthSummary } from '@/lib/status';
+import { introVideo } from '@/lib/video';
 
 /**
  * 홈.
@@ -29,6 +31,7 @@ export default async function HomePage(props: { params: Promise<{ locale: string
   const dict = getDictionary(locale);
   const t = dict.home;
   const health = await getSourceHealth();
+  const video = introVideo();
 
   return (
     <>
@@ -93,6 +96,13 @@ export default async function HomePage(props: { params: Promise<{ locale: string
         </div>
       </section>
       </div>
+
+      {/* ── 메인 소개 영상(환경변수로 켜짐 · 없으면 아무것도 안 그림) ── */}
+      {video && (
+        <Section pad="sm">
+          <IntroVideo video={video} label={t.introVideoLabel} />
+        </Section>
+      )}
 
       {/* ── 실측 수치 ──────────────────────────────────────── */}
       <Section pad="sm">
