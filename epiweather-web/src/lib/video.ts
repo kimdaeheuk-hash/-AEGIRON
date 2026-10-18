@@ -32,8 +32,14 @@ function vimeoId(url: string): string | null {
   return m ? m[1] : null;
 }
 
+/**
+ * 기본 소개 영상(2026-10-18 캡틴 업로드, YouTube). 환경변수가 있으면 그쪽이 이긴다 —
+ * 영상을 바꿀 때 코드 수정 없이 Vercel 환경변수만 바꾸면 된다. 공개 YouTube 주소라 비밀이 아니다.
+ */
+const DEFAULT_INTRO_VIDEO_URL = 'https://youtu.be/2Uzl-5JgLjs';
+
 export function introVideo(): IntroVideo {
-  const url = process.env.NEXT_PUBLIC_INTRO_VIDEO_URL?.trim();
+  const url = (process.env.NEXT_PUBLIC_INTRO_VIDEO_URL?.trim() || DEFAULT_INTRO_VIDEO_URL).trim();
   if (!url) return null;
   const poster = process.env.NEXT_PUBLIC_INTRO_VIDEO_POSTER?.trim() || undefined;
 

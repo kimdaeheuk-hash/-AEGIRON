@@ -1,39 +1,25 @@
 'use client';
-import { useEffect, useState } from 'react';
 import { useStore } from '@/lib/store';
 import { CIVIC } from '@/lib/algorithms';
 
-const API = 'http://localhost:8000';
-
-interface BacktestEvidence {
-  best_lead_days: number;
-  best_keyword_group: string;
-  benchmark: string;
-  case_data_source: string;
-  search_data_source: string;
-}
+// ★ 2026-10-18 ★ 예전엔 여기서 localhost:8000(하드코딩)의 '2020 COVID 백테스트'를 불러
+// "✅ 실측 검증 — 검색이 대구 집단감염보다 28일 먼저" 를 띄웠다. 운영에선 늘 연결 거부였고,
+// 설령 열렸어도 그 결과는 선행 근거가 아니다 — 검색 급증일(2020-01-20)이 국내 첫 확진 발표일과
+// 같아 '첫 확진 대비 선행 0일'이다(마스크는 -7일). 뉴스를 따라간 것이지 앞선 게 아니다.
+// 그래서 호출과 카드를 지우고, 아래 선행일수가 가정값이라는 것을 상시로 적는다.
 
 export default function Stage2Civic() {
   const { civicOn, toggleCivic } = useStore();
   const active = CIVIC.filter(s => civicOn[s.id]);
   const lead = active.length ? Math.max(...active.map(s => s.lead)) : 0;
 
-  const [evidence, setEvidence] = useState<BacktestEvidence | null>(null);
-  const [evidenceErr, setEvidenceErr] = useState(false);
-  useEffect(() => {
-    fetch(`${API}/api/civic-fusion/backtest-evidence`)
-      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
-      .then(setEvidence)
-      .catch(() => setEvidenceErr(true));
-  }, []);
-
   return (
     <div style={{ animation: 'fade .25s' }}>
       <div className="ptitle">민간 우선 신호망</div>
       <div className="psub">
-        코로나의 교훈 — 정부 발표는 너무 늦었다. 검색 신호 1종은{' '}
-        <em style={{ color: 'var(--violet)', fontStyle: 'normal', fontWeight: 600 }}>2020년 실제 데이터로 검증</em>됨(아래 박스).
-        나머지 4종(하수·OTC·키트·검사소)은 데이터 파트너십 전까지 모델 가정값입니다.
+        코로나의 교훈 — 정부 발표는 늦었다. 아래 다섯 가지 민간 신호(자가증상·하수·OTC·키트·검사소)가 그 공백을 메울 수 있는지를
+        보는 시나리오입니다. 신호별 선행일수는 데이터 파트너십 전까지의{' '}
+        <em style={{ color: 'var(--amber)', fontStyle: 'normal', fontWeight: 600 }}>가정값</em>이며, 아직 실측으로 검증된 신호는 없습니다.
       </div>
       <div className="card">
         {/* 히어로 배너 */}
@@ -49,29 +35,15 @@ export default function Stage2Civic() {
           </div>
           <div style={{ fontFamily: 'var(--mono)', fontWeight: 700, fontSize: 34, color: 'var(--violet)', textAlign: 'right' }}>
             +{lead}일
-            <small style={{ display: 'block', fontSize: 9.5, color: 'var(--muted)', letterSpacing: '.14em', marginTop: 2 }}>정부 대비 선행</small>
+            <small style={{ display: 'block', fontSize: 9.5, color: 'var(--muted)', letterSpacing: '.14em', marginTop: 2 }}>정부 대비 선행 · 가정값</small>
           </div>
         </div>
 
-        {/* 실측 검증 근거 */}
-        {evidence && (
-          <div style={{
-            marginTop: 12, padding: '11px 13px', borderRadius: 11,
-            background: 'rgba(52,211,153,.07)', border: '1px solid rgba(52,211,153,.3)',
-            fontFamily: 'var(--mono)', fontSize: 10.5, lineHeight: 1.7,
-          }}>
-            <b style={{ color: 'var(--ok)' }}>✅ 실측 검증</b> — &apos;{evidence.best_keyword_group}&apos; 검색 관심이{' '}
-            {evidence.benchmark}보다 <b style={{ color: 'var(--ok)' }}>{evidence.best_lead_days}일</b> 먼저 반응 (2020 COVID-19 백테스트)
-            <div style={{ color: 'var(--muted2)', fontSize: 9, marginTop: 3 }}>
-              검색: {evidence.search_data_source} · 확진자: {evidence.case_data_source}
-            </div>
-          </div>
-        )}
-        {evidenceErr && (
-          <div style={{ marginTop: 12, padding: '9px 13px', borderRadius: 11, background: 'rgba(255,255,255,.025)', border: '1px solid var(--line)', fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted2)' }}>
-            실측 백테스트 데이터를 불러오지 못했습니다 (백엔드 서버 확인 필요) — 아래는 가정 기반 시뮬레이션 값입니다.
-          </div>
-        )}
+        {/* 상시 고지 — 선행일수는 가정값 */}
+        <div style={{ marginTop: 12, padding: '9px 13px', borderRadius: 11, background: 'rgba(251,191,36,.06)', border: '1px solid rgba(251,191,36,.3)', fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted)', lineHeight: 1.6 }}>
+          ⚠ 아래 신호별 선행일수(D−14 등)는 <b style={{ color: 'var(--amber)' }}>시나리오 가정값</b>이며 실측이 아닙니다.
+          민간 신호가 정부 발표보다 앞선다는 것을 검증한 기록은 아직 없습니다.
+        </div>
 
         {/* 신호 목록 */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 14 }}>

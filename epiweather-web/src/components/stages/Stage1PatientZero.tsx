@@ -31,15 +31,10 @@ export default function Stage1PatientZero() {
       .catch(() => setLocal(null));
   }, [origin]);
 
-  interface EbolaEvidence { best_lead_days: number; best_label: string; who_pheic_date: string; data_source: string; caveat: string }
-  const [ebola, setEbola] = useState<EbolaEvidence | null>(null);
-  const [ebolaErr, setEbolaErr] = useState(false);
-  useEffect(() => {
-    fetch(`${API}/api/patient-zero/ebola-backtest-evidence`)
-      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
-      .then(setEbola)
-      .catch(() => setEbolaErr(true));
-  }, []);
+  // ★ 2026-10-18 ★ 예전엔 여기서 '2026 에볼라 PHEIC 백테스트'를 불러 "✅ 실측 검증 — 위키 조회수가
+  // WHO 선언보다 5일 먼저" 를 띄웠다. 운영에선 결과 파일이 이미지에 없어 늘 404 였고, 설령 열렸어도
+  // 그건 선행 근거가 아니다 — 발병 공개 보도(2026-05-01)가 조회수 급증(05-11)보다 앞섰다. 뉴스에 반응한
+  // 조회수를 '선언보다 빠른 신호'로 쓰면 이 사이트가 금지한 선행일수 주장이 된다. 호출과 카드를 지운다.
 
   if (!pz) return null;
 
@@ -73,7 +68,8 @@ export default function Stage1PatientZero() {
         {/* 히트맵 */}
         <div className="card">
           <div className="card-h">
-            <span className="lbl">격자 후방확률 · 10×10</span>
+            {/* 이 격자는 숨긴 정답을 합성 신호로 되맞히는 방법론 시연이다(patient_zero.py) — 화면에도 그렇게 쓴다. */}
+            <span className="lbl">격자 후방확률 · 10×10 · <b style={{ color: 'var(--amber)' }}>합성 데이터 시연</b></span>
             <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)' }}>
               최고확률 {(pz.top.prob * 100).toFixed(1)}% · 6채널 결합
             </span>
@@ -229,25 +225,6 @@ export default function Stage1PatientZero() {
           </>
         )}
       </div>
-
-      {/* 실측 검증: 진행중인 2026 에볼라 PHEIC으로 위 방법론을 백테스트 */}
-      {ebola && (
-        <div className="card" style={{ marginTop: 14, background: 'rgba(52,211,153,.07)', borderColor: 'rgba(52,211,153,.3)' }}>
-          <div className="card-h"><span className="lbl">✅ 실측 검증 — 2026 에볼라 PHEIC 백테스트</span></div>
-          <div style={{ fontFamily: 'var(--mono)', fontSize: 10.5, lineHeight: 1.7 }}>
-            <b style={{ color: 'var(--ok)' }}>{ebola.best_label}</b>이 WHO PHEIC 선언({ebola.who_pheic_date})보다{' '}
-            <b style={{ color: 'var(--ok)' }}>{ebola.best_lead_days}일</b> 먼저 반응 (현재 진행 중인 실제 사건)
-          </div>
-          <div style={{ color: 'var(--muted2)', fontSize: 9, marginTop: 6, lineHeight: 1.5 }}>
-            {ebola.data_source}<br />⚠ {ebola.caveat}
-          </div>
-        </div>
-      )}
-      {ebolaErr && (
-        <div style={{ marginTop: 12, padding: '9px 13px', borderRadius: 11, background: 'rgba(255,255,255,.025)', border: '1px solid var(--line)', fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted2)' }}>
-          에볼라 백테스트 데이터를 불러오지 못했습니다.
-        </div>
-      )}
 
       {/* 실제 WHO 발생 동향 — 위 격자는 방법론 시연용 시뮬레이션, 아래는 실데이터 */}
       <div className="card" style={{ marginTop: 14 }}>

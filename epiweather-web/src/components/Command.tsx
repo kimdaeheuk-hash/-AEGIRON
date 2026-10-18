@@ -168,7 +168,8 @@ export default function Command() {
 
         <div style={{ marginLeft: 'auto', textAlign: 'right', fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted)' }}>
           <b style={{ color: 'var(--ok)', fontSize: 14, display: 'block' }}>{savedLives.toLocaleString()}명</b>
-          구한 생명
+          {/* 이 숫자는 위 시나리오(발원지·위협·대응)를 넣은 SEIR 모델 값이다 — 실제로 구한 생명이 아니다. */}
+          구한 생명 · <span style={{ color: 'var(--amber)' }}>모델 시나리오</span>
         </div>
       </div>
 
@@ -212,7 +213,7 @@ export default function Command() {
               </div>
               <div style={{ fontFamily: 'var(--mono)', fontSize: 10, marginLeft: 'auto', flexShrink: 0, textAlign: 'right', whiteSpace: 'nowrap' }}>
                 <b style={{ display: 'block', fontSize: 12, color: 'var(--ok)' }}>{stageStats[s.id]}</b>
-                {s.id === 1 ? '확률' : s.id === 2 ? '선행' : s.id === 3 ? '유입' : s.id === 6 ? '살림' : ''}
+                {s.id === 1 ? '시연' : s.id === 2 ? '가정' : s.id === 3 ? '추정' : s.id === 6 ? '모델' : ''}
               </div>
             </button>
           ))}
@@ -220,7 +221,7 @@ export default function Command() {
           <div style={{ marginTop: 6, padding: 12, background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 12, fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted2)', lineHeight: 1.6 }}>
             <b style={{ color: 'var(--ok)' }}>통합 시나리오</b><br />
             {city.nm}발 {THREAT[threat].nm}<br />
-            구한 생명 <b style={{ color: 'var(--ok)' }}>{savedLives.toLocaleString()}명</b>
+            구한 생명 <b style={{ color: 'var(--ok)' }}>{savedLives.toLocaleString()}명</b> <span style={{ color: 'var(--amber)' }}>(모델)</span>
           </div>
         </div>
 
