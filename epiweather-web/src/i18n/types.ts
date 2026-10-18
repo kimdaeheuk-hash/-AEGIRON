@@ -8,6 +8,8 @@
 
 export type NavDict = {
   platform: string;
+  technology: string;
+  programs: string;
   methodology: string;
   transparency: string;
   dataSources: string;
@@ -40,16 +42,63 @@ export type StatDict = {
   note: string;
 };
 
+/**
+ * 엔진이 **언제 도는가.** 상시 가동하는 것과 부를 때만 도는 것을 같은 무게로
+ * 적으면 그 자체로 과장이 된다 — 그래서 엔진마다 이 값을 반드시 단다.
+ */
+export type EngineMode = 'hourly' | 'daily' | 'onAlert' | 'onRequest';
+
+export type EngineDict = {
+  /** 백엔드 모듈 파일명 그대로(algorithms/{id}.py) — 실재하는 코드를 가리킨다. */
+  id: string;
+  name: string;
+  body: string;
+  mode: EngineMode;
+  /** 이 엔진의 숫자를 어디까지 믿어도 되는지. 있으면 반드시 그린다. */
+  caveat?: string;
+};
+
+export type EngineGroupDict = {
+  key: string;
+  label: string;
+  engines: EngineDict[];
+};
+
 export type HomeDict = {
   metaTitle: string;
   metaDescription: string;
-  heroEyebrow: string;
+  /** '{ok}' '{total}' 자리에 /api/status 의 실측값이 들어간다. */
+  heroLiveOk: string;
+  /** API 를 못 읽었을 때 — 초록 불을 켜지 않는다. */
+  heroLiveUnknown: string;
+  /** [[ ]] 로 감싼 낱말은 강조색으로 그린다. 줄바꿈은 \n. */
   heroTitle: string;
   heroLead: string;
   heroPrimaryCta: string;
   heroSecondaryCta: string;
   heroNoLogin: string;
   stats: StatDict[];
+  /** 수치는 세는 날 바뀐다 — 언제 센 값인지를 수치 옆에 둔다. */
+  statsAsOf: string;
+
+  /** 홈 메인 소개 영상 라벨. 영상 자체는 환경변수(NEXT_PUBLIC_INTRO_VIDEO_URL)로 켜진다. */
+  introVideoLabel: string;
+
+  /** 수치 띠 아래 사진 한 장(퍼블릭 도메인, 출처 표기). */
+  photo: PhotoDict;
+
+  engineTitle: string;
+  engineLead: string;
+  engineModes: Record<EngineMode, string>;
+  engineCaveatLabel: string;
+  engineGroups: EngineGroupDict[];
+
+  /** 스페셜 프로그램(헤임달·발할라) 강조 띠 — 홈에서 /programs 로 보낸다. */
+  specialEyebrow: string;
+  specialTitle: string;
+  specialLead: string;
+  specialCards: { code: string; name: string; body: string }[];
+  specialCta: string;
 
   openTitle: string;
   openLead: string;
@@ -117,12 +166,30 @@ export type PageBlock = {
   accent?: boolean;
 };
 
+/**
+ * 사진 한 장. 전부 퍼블릭 도메인이지만 저작자·원본 링크를 캡션에 남긴다.
+ * src·credit·sourceUrl 은 언어와 무관하고, alt·caption 만 언어별로 쓴다.
+ */
+export type PhotoDict = {
+  src: string;
+  alt: string;
+  /** 무엇을 찍은 사진인지 — 우리 시설·장비로 오해되지 않게 쓴다. */
+  caption: string;
+  /** 예: "NASA · 퍼블릭 도메인" */
+  credit: string;
+  sourceUrl: string;
+  /** object-position. 피사체가 가장자리에 있을 때만 지정. */
+  position?: string;
+};
+
 export type ContentPage = {
   metaTitle: string;
   metaDescription: string;
   eyebrow: string;
   title: string;
   lead: string;
+  /** 제목 아래 사진(선택). */
+  photo?: PhotoDict;
   blocks: PageBlock[];
   /** 페이지 하단 행동 유도. 생략 가능. */
   cta?: { title: string; body: string; label: string; href: string };
@@ -150,6 +217,9 @@ export type BriefingsDict = {
 
 export type PagesDict = {
   platform: ContentPage;
+  techSpec1: ContentPage;
+  techSpec2: ContentPage;
+  programs: ContentPage;
   transparency: ContentPage;
   dataSources: ContentPage;
   methodology: ContentPage;

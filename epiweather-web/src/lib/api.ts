@@ -49,6 +49,16 @@ export interface StreamEvent {
   confidence?: number;
   layer?: string;
   timestamp?: string;
+  // ── 사건 묶음(cluster) 형식 — 백엔드가 이벤트 스트림을 이 모양으로 바꿨다 ──
+  // 예전 화면은 title/text 만 알아서, 이 형식이 오면 JSON 원문을 그대로 찍었다(2026-10-18 운영 캡처).
+  tier?: string;
+  disease?: string | null;
+  countries?: string[];
+  merged_score?: number;
+  source_count?: number;
+  sources?: string[];
+  representative?: { source?: string; disease?: string | null; location?: string | null; signal_date?: string | null };
+  latest_signal_date?: string | null;
   [key: string]: unknown;
 }
 

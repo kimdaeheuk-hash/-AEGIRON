@@ -23,7 +23,7 @@ export const en: Dictionary = {
     error: 'The briefings could not be loaded. The system itself is still running.',
     backToList: 'All briefings',
     summary: 'Summary',
-    segments: 'Segments',
+    segments: 'Sections',
     ticker: 'Ticker',
     disclosure: 'Disclosure',
     notFound: 'There is no briefing for that date.',
@@ -43,8 +43,10 @@ export const en: Dictionary = {
 
   nav: {
     platform: 'System',
+    technology: 'Technology',
+    programs: 'Special programs',
     methodology: 'Methodology',
-    transparency: 'What we don’t know',
+    transparency: 'Validation & limits',
     dataSources: 'Data sources',
     solutions: 'Use cases',
     briefings: 'Briefings',
@@ -70,96 +72,259 @@ export const en: Dictionary = {
   },
 
   home: {
-    metaTitle: 'AEGIRON — Infectious disease early warning, shown as it actually runs',
+    metaTitle: 'AEGIRON — Infectious disease early warning, forecasting and spread simulation',
     metaDescription:
-      'An early-warning system monitoring 21 live data sources for infectious disease signals. The live dashboard, the full methodology and every data source are open without a login — and so are the things we have not yet validated.',
+      'An infectious disease intelligence system that detects anomalies in local-language reporting from 179 countries and in official surveillance data, attaches intervention scenarios to every alert, and scores each of its forecasts against the official declarations that follow.',
 
-    heroEyebrow: 'Fully open · No login',
-    heroTitle: 'See the system\nexactly as it runs today',
+    heroLiveOk: 'Data sources: {ok}/{total} reporting normally',
+    heroLiveUnknown: 'Collection status could not be checked just now',
+    heroTitle: 'Beyond alerts —\n[[forecasting]] and [[simulation]]',
     heroLead:
-      'Most infectious disease intelligence sits behind a sales call. AEGIRON publishes the live system, the methodology, every data source, and the parts we have not yet validated. Look first, then judge.',
-    heroPrimaryCta: 'Open the live dashboard',
-    heroSecondaryCta: 'See how it works',
+      'AEGIRON detects anomalies in local-language reporting from 179 countries and in official surveillance data, and the moment an alert is raised it computes spread scenarios for each level of intervention. Every forecast is scored automatically against the official declarations that follow; a forecast with nothing to score it against is counted neither as a hit nor as a miss.',
+    heroPrimaryCta: 'Live dashboard',
+    heroSecondaryCta: 'Engine architecture',
     heroNoLogin: 'Opens immediately — no signup, no login',
 
     stats: [
-      { value: '21', label: 'Live data sources', note: 'WHO · CDC · local-language news · climate · satellite' },
-      { value: '106', label: 'API endpoints', note: 'Collection · analysis · forecasting · simulation' },
-      { value: '217', label: 'Country reference set', note: 'Vulnerability index built on World Bank data' },
-      { value: '740', label: 'Automated tests', note: 'All passing · re-run on every change' },
+      { value: '114', label: 'Algorithm modules', note: 'Detection · genomics · forecasting · response · verification' },
+      { value: '123', label: 'API endpoints', note: 'Collection · analysis · simulation · scoring' },
+      { value: '2,145', label: 'Automated tests', note: 'All must pass before anything reaches production' },
+      { value: '179', label: 'Local-language news feeds', note: 'Aggregated by country and language, collected hourly' },
+    ],
+    statsAsOf: 'Measured 2026-10-18 from the repository and production logs',
+    introVideoLabel: 'AEGIRON — introduction',
+    photo: {
+      src: '/media/photos/earth-eastern-hemisphere.jpg',
+      alt: 'Earth’s Eastern Hemisphere — Africa, Europe and Asia (satellite composite)',
+      caption: 'Earth’s Eastern Hemisphere (Blue Marble). A composite of satellite observations.',
+      credit: 'NASA · Public domain',
+      sourceUrl: 'https://commons.wikimedia.org/wiki/File:Blue_Marble_Eastern_Hemisphere.jpg',
+      position: 'center 45%',
+    },
+
+    engineTitle: 'The engines',
+    engineLead:
+      'Sixteen of the 114 modules form the backbone of detection, genomics, forecasting, response and verification. Each one is labelled with how it actually runs, so that an engine that runs every hour is never presented with the same weight as one that computes only when asked.',
+    engineModes: {
+      hourly: 'Runs hourly',
+      daily: 'Runs daily',
+      onAlert: 'Runs on alert',
+      onRequest: 'On request',
+    },
+    engineCaveatLabel: 'Limits',
+    engineGroups: [
+      {
+        key: 'detect',
+        label: 'Detection',
+        engines: [
+          {
+            id: 'local_news',
+            name: 'Local-language news surveillance',
+            body: 'Measures the density of disease vocabulary in news aggregated by country and language, and re-classifies ambiguous feeds with a language model. The target is the first local report, before any English-language coverage exists.',
+            mode: 'hourly',
+          },
+          {
+            id: 'gai',
+            name: 'Six-layer anomaly index',
+            body: 'Converts signals from six layers — official, unofficial, behavioural, environmental, animal and unexplained — into anomaly scores against each signal’s own baseline, weights them by source reliability and combines them into one index. The reference is each indicator’s usual level, not its absolute volume.',
+            mode: 'hourly',
+          },
+          {
+            id: 'negative_space',
+            name: 'Reporting-silence watch',
+            body: 'Tracks reporting channels that fall below half their baseline. It targets cases such as Ebola in Guinea in 2014, where the collapse of reporting came before the spread, and judges only indicators with a declared decision rule.',
+            mode: 'hourly',
+          },
+          {
+            id: 'unexplained',
+            name: 'Unexplained clusters',
+            body: 'Counts, as a separate class, clusters extracted from reporting that do not match any known disease pattern. The pneumonia of unknown cause in Wuhan in December 2019 is the archetype.',
+            mode: 'hourly',
+          },
+        ],
+      },
+      {
+        key: 'genomics',
+        label: 'Genomics',
+        engines: [
+          {
+            id: 'genomic_variants',
+            name: 'Clade composition tracking',
+            body: 'Reads shifts in dominant-clade share and the emergence of new clades from Nextstrain’s reanalysis of public sequences — changes in transmissibility or immune escape that move before case counts do. Builds that have stopped updating are not used as signals.',
+            mode: 'hourly',
+          },
+          {
+            id: 'evo2_naturalness',
+            name: 'Measured sequence-order naturalness',
+            body: 'Gives the genomic foundation model Evo2 only the first part of a sequence, asks it to predict the next bases, and measures agreement with the real sequence. It targets spliced or recombined segments that composition statistics cannot reveal.',
+            mode: 'onRequest',
+            caveat: 'Evo2 excluded eukaryotic-host viruses from training, so it is not applied to coronavirus, influenza or Ebola sequences.',
+          },
+          {
+            id: 'msa_homology',
+            name: 'Homology-based chimera detection',
+            body: 'Searches public homology databases to see whether any natural protein covers the full length of the query. Because it is a search rather than a trained model, it also works for pathogens Evo2 cannot handle.',
+            mode: 'onRequest',
+          },
+        ],
+      },
+      {
+        key: 'simulate',
+        label: 'Forecasting · Simulation',
+        engines: [
+          {
+            id: 'forecast_engine',
+            name: '7- and 14-day trend outlook',
+            body: 'Extrapolates each indicator’s time series 7 and 14 days ahead with an ensemble of linear regression and exponential smoothing, and publishes the result in the daily briefing.',
+            mode: 'daily',
+            caveat: 'An extrapolation of signal time series, not a measured case count.',
+          },
+          {
+            id: 'digital_twin',
+            name: 'Cross-border spread simulation',
+            body: 'A metapopulation SEIR model with 159 countries as nodes and 1,671 air-linked country pairs and 314 land borders as edges. It reports countries not reached within the period separately from countries for which no route is known.',
+            mode: 'onRequest',
+            caveat: 'The air network uses 2014 route data; land traffic is a population-based estimate.',
+          },
+          {
+            id: 'global_inflow',
+            name: 'Import-date estimate',
+            body: 'Estimates the days until a first imported case reaches Korea, and the risk at each port of entry, from the origin city’s international passenger volume, flight time and early exponential growth.',
+            mode: 'onRequest',
+            caveat: 'A model estimate, not an observed import date.',
+          },
+        ],
+      },
+      {
+        key: 'respond',
+        label: 'Response',
+        engines: [
+          {
+            id: 'alert_intervention',
+            name: 'Intervention scenarios per alert',
+            body: 'For every new critical or high alert, runs an SEIR defence simulation with disease-specific parameters and attaches the difference between no response and intervention. The alert no longer stops at “what is coming”; it also answers “which measures change what”.',
+            mode: 'onAlert',
+            caveat: 'A model scenario built on literature parameters, not a forecast. No figures are produced for alerts where the disease cannot be identified.',
+          },
+          {
+            id: 'defense',
+            name: 'Time-varying intervention comparison',
+            body: 'Varies the start date and intensity of isolation, distancing and vaccination to compare how the effective reproduction number and days of hospital overload change.',
+            mode: 'onRequest',
+          },
+        ],
+      },
+      {
+        key: 'verify',
+        label: 'Self-verification',
+        engines: [
+          {
+            id: 'prediction_resolver',
+            name: 'Automatic forecast scoring',
+            body: 'Checks recorded forecasts every day against the official declarations that follow and sorts them into hit, miss or undetermined. Spikes in page views and case-count updates are never used as ground truth — that would be scoring our signals with our own signals.',
+            mode: 'daily',
+          },
+          {
+            id: 'lead_time_ledger',
+            name: 'Lead-time ledger',
+            body: 'Records the moment a signal was first seen before any official declaration. A lead time found by searching backwards after a declaration is not accepted as a measurement.',
+            mode: 'hourly',
+          },
+          {
+            id: 'prediction_timestamp',
+            name: 'Forecast sealing',
+            body: 'Anchors the SHA-256 hash of a forecast record in the Bitcoin blockchain through OpenTimestamps, so that a third party can verify for themselves that the forecast was not rewritten after the fact.',
+            mode: 'onRequest',
+          },
+          {
+            id: 'source_health',
+            name: 'Silent-failure watch',
+            body: 'Counts separately, every cycle, whether each source actually delivered values and whether the method that produced them still holds. A source whose collection ran but returned nothing is not counted as healthy.',
+            mode: 'hourly',
+          },
+        ],
+      },
     ],
 
-    openTitle: 'What we publish',
+    specialEyebrow: 'SPECIAL PROGRAMS',
+    specialTitle: 'Two axes no competitor has — HEIMDALL · VALHALLA',
+    specialLead: 'Most surveillance layers run in the open. But two internal R&D programs, different in kind, carry the national-biosecurity axis. We state only what they do and do not do, without overstating any of it.',
+    specialCards: [
+      { code: 'HEIMDALL', name: 'Defensive genomic screening', body: 'Detects and flags whether a sequence departs from the statistics of natural evolution. No design or synthesis function — a review priority, not a verdict.' },
+      { code: 'VALHALLA', name: 'Countermeasure readiness', body: 'Instead of imitating molecular prediction, it aggregates stockpile-coverage and production-sovereignty gaps from public data. It does not touch non-public information such as national stockpile quantities.' },
+    ],
+    specialCta: 'See the special programs',
+
+    openTitle: 'Open, so it can be checked',
     openLead:
-      'The most common failure in disease surveillance is not a wrong forecast — it is a forecast nobody can check. So we publish everything needed to check ours.',
+      'The most common failure in disease surveillance is not a wrong forecast but one nobody can check. So the system, the methodology, the data and the limits behind every judgement are open from the start.',
     openItems: [
       {
         title: 'The live system',
-        body: 'The same dashboard we run. Not a demo reel — the operational system currently ingesting signals.',
+        body: 'The dashboard shows operational collection and alert data as it runs. In the simulation console, assumed and modelled values are labelled as such on screen.',
         href: '/dashboard',
-        linkLabel: 'Open dashboard',
+        linkLabel: 'Open the dashboard',
       },
       {
-        title: 'The full methodology',
-        body: 'How signals are gathered, how anomalies are judged, and how forecasts are produced — set out in four layers.',
+        title: 'Methodology',
+        body: 'How signals are collected, how anomalies are judged and how forecasts are made, set out in four layers — with the standard each layer follows.',
         href: '/methodology',
         linkLabel: 'Read the methodology',
       },
       {
-        title: 'Every data source',
-        body: 'All 21 sources listed, with nothing hidden — including which ones are healthy and which are currently blocked.',
+        title: 'Data sources',
+        body: 'Every operational source, listed without exception, with what each one cannot see and whether it is healthy right now.',
         href: '/data-sources',
         linkLabel: 'See the sources',
       },
       {
-        title: 'What we don’t know',
-        body: 'Unvalidated areas, known limits, and the collection gaps we have not closed. You will not find this page on a competitor’s site.',
+        title: 'Validation and limits',
+        body: 'What has not yet been validated, the known limits and data gaps, and how the system checks its own numbers.',
         href: '/transparency',
-        linkLabel: 'Read the limits',
+        linkLabel: 'See validation status',
       },
     ],
 
-    honestTitle: 'What has not been validated',
+    honestTitle: 'We check our own numbers first',
     honestLead:
-      'Few companies put this section on a homepage. But if we do not say it first, due diligence says it for us.',
+      'Trust in an early-warning system comes from its verification path, not from the size of its claims. Here is what we do not yet have — and the mechanisms already running to close that gap.',
     honestPoints: [
-      'We have **no validated track record** for early-detection accuracy. That is why no claim of the form “detected N days earlier” appears anywhere on this site.',
-      'The system entered full operation in 2026. Results for earlier outbreaks are retrospective reconstructions and are not equivalent to live performance.',
-      'Scenario figures from the forecasting modules are **estimates under model assumptions** — neither measurements nor guarantees.',
-      'There are gaps in our data collection. The system reports which countries and which periods are missing.',
+      'There is **no validated track record yet** for early-detection accuracy. That is why we make no “detected days earlier” claims.',
+      'Instead, every forecast is **sealed at the moment it is made** and scored daily against the official declarations that follow. The track record accrues from this record, not from assertion.',
+      'Scenario figures are labelled as **model estimates under stated assumptions**, and are checked automatically against the largest outbreaks on record — a warning travels with any value outside that range.',
+      'Data gaps are never hidden. The system reports which countries and periods are empty, and which sources have stopped.',
     ],
     honestClose:
-      'Here is what we do instead. Model outputs are automatically compared against the largest outbreak on record, and when a number exceeds a defensible range the system **attaches its own warning** before the figure leaves the API. When an outbreak is missed, we separate “the model failed to catch it” from “we had no data to catch it with”.',
-    honestCta: 'Read the full list of limits',
+      'When an outbreak is missed, we report “the model missed it” separately from “there was no data to see it”. Mixing the two turns the diagnosis upside down.',
+    honestCta: 'See the full validation status',
 
     pipelineTitle: 'From signal to alert',
-    pipelineLead:
-      'Five stages. What each stage discards matters as much as what it keeps.',
+    pipelineLead: 'Five stages. At each one, what we discard matters as much as what we keep.',
     pipelineSteps: [
       {
         step: '01',
         title: 'Collect',
-        body: 'WHO situation reports, CDC travel notices, local-language news across 179 countries, climate, satellite and trade statistics.',
+        body: 'Official data from WHO regional offices and national health authorities, local-language reporting from 179 countries, academic sources, wastewater surveillance and genomic lineage data — every hour.',
       },
       {
         step: '02',
         title: 'Extract',
-        body: 'Disease, country, cases and deaths are structured out of PDF tables and article text. Anything unrecognised is left empty rather than guessed.',
+        body: 'Disease, country, cases and deaths are structured from PDF tables and article text. Anything that cannot be read is left empty, never filled by guesswork.',
       },
       {
         step: '03',
         title: 'Judge',
-        body: 'Anomaly is scored against each country’s own baseline, not against an absolute threshold — five signals mean different things in different places.',
+        body: 'Anomalies are measured against each indicator’s usual level, not in absolute terms — the same five cases mean different things in different countries.',
       },
       {
         step: '04',
         title: 'Forecast',
-        body: 'Transmission models estimate spread and importation risk. Every value carries its assumptions and limits with it.',
+        body: 'Transmission models estimate spread paths and import risk, and every value carries its assumptions and limits.',
       },
       {
         step: '05',
         title: 'Respond',
-        body: 'No-action and intervention scenarios are compared, so the output answers “what should be done”, not only “what is coming”.',
+        body: 'No-response and intervention scenarios are compared to show which measures, at what intensity, break transmission.',
       },
     ],
 
@@ -189,9 +354,9 @@ export const en: Dictionary = {
       },
     ],
 
-    ctaTitle: 'Look first. Talk to us after.',
+    ctaTitle: 'Everything needed for an evaluation is already open',
     ctaBody:
-      'You can see the entire system without booking a demo. If questions come up once you have, that is a good time to get in touch.',
+      'You can review the whole system without booking a demo. For pilots and partnerships, please reach us through the contact page.',
     ctaButton: 'Get in touch',
   },
 };

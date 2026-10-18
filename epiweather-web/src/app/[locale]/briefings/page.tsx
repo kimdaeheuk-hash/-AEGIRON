@@ -125,7 +125,7 @@ export default async function BriefingsPage(props: { params: Promise<{ locale: s
                       <span
                         style={{
                           fontFamily: 'var(--mono)', fontSize: 10.5, color: 'var(--ok)',
-                          border: '1px solid rgba(52,211,153,.3)', borderRadius: 999, padding: '3px 8px',
+                          border: '1px solid color-mix(in srgb, var(--ok) 35%, transparent)', borderRadius: 999, padding: '3px 8px',
                         }}
                       >
                         {t.quietDay}
@@ -159,7 +159,7 @@ export default async function BriefingsPage(props: { params: Promise<{ locale: s
                 href={page.cta.href}
                 style={{
                   fontFamily: 'var(--mono)', fontSize: 13, textDecoration: 'none',
-                  background: 'var(--accent)', color: '#fff', borderRadius: 10, padding: '13px 22px',
+                  background: 'var(--accent)', color: 'var(--on-accent)', borderRadius: 10, padding: '13px 22px',
                 }}
               >
                 {page.cta.label} →

@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { notFound } from 'next/navigation';
 import '../globals.css';
 import {
@@ -38,6 +38,9 @@ export function generateStaticParams() {
  * 페이지에서 치명적이라 실측으로 확인하고 제거했다. 자식에서 true로 덮어써도
  * 되돌아오지 않는다.
  */
+
+/** 휴대폰 브라우저 주소창 색 — 배색 C 바탕과 맞춘다. */
+export const viewport: Viewport = { themeColor: '#faf7f0', colorScheme: 'light' };
 
 export async function generateMetadata(props: {
   params: Promise<{ locale: string }>;
@@ -121,7 +124,9 @@ export default async function LocaleLayout(props: {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
         />
       </head>
-      <body>
+      {/* data-theme="lab": 상아색 바탕·먹색 글자·진홍/숲녹 강조(캡틴 선택 2026-10-18).
+          라이브 대시보드((live) 레이아웃)에는 이 속성이 없어 운영 화면 배색은 그대로다. */}
+      <body data-theme="lab">
         <SiteNav locale={locale as Locale} dict={dict} />
         <main>{props.children}</main>
         <SiteFooter locale={locale as Locale} dict={dict} />

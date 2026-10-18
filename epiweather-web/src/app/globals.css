@@ -66,3 +66,87 @@ body::before {
   white-space: nowrap;
   border: 0;
 }
+
+/* ───────────────────────────────────────────────────────────────
+ * 사이트 배색 (2026-10-18 캡틴 지시: "검은색에 흰 글자 말고 다른 색상으로도")
+ *
+ * 공개 사이트(/[locale])의 <body data-theme="…"> 에만 걸린다. 라이브 대시보드
+ * ((live) 레이아웃)는 data-theme 이 없어서 위의 기본(어두운) 토큰을 그대로 쓴다 —
+ * 운영 화면의 배색은 이 작업과 무관하게 둔다.
+ *
+ * --hero-* 는 첫 화면 띠(.hero-band)에만 쓰는 값이다. 밝은 배색에서도 첫 화면은
+ * 관제실처럼 어두운 띠로 남길 수 있게 따로 뺐다.
+ * ─────────────────────────────────────────────────────────────── */
+:root {
+  --on-accent:   #fff;
+  --accent-soft: color-mix(in srgb, var(--accent) 6%, transparent);
+  --accent-line: color-mix(in srgb, var(--accent) 32%, transparent);
+  --nav-bg:      rgba(5,8,16,.72);
+  --code-bg:     rgba(10,16,24,.5);
+  --hero-glow:   #f43f5e;
+}
+
+/* 띠를 실제로 쓰는 배색만 토큰을 갈아 끼운다 — 나머지는 본문 토큰 그대로. */
+body[data-theme="clinical"] .hero-band {
+  background: var(--hero-bg);
+  color: var(--hero-txt);
+  --txt: var(--hero-txt);
+  --muted: var(--hero-muted);
+  --muted2: var(--hero-muted2);
+  --panel: var(--hero-panel);
+  --line2: var(--hero-line2);
+  /* 어두운 띠 위에서는 본문용 진한 강조색이 묻힌다 — 밝은 짝으로 바꾼다. */
+  --accent: #2dd4bf; --cyan: #8fb4ff; --on-accent: #052a2e;
+  --ok: #34d399; --amber: #fbbf24;
+}
+
+/* A. 기관 보고서 — 밝은 바탕, 남색 글자, 청록 강조. 첫 화면만 깊은 남색 띠. */
+body[data-theme="clinical"] {
+  --bg: #f4f7fb; --bg2: #eaf0f7;
+  --panel: #ffffff; --panel2: #f0f4f9;
+  --line: rgba(14,35,66,.10); --line2: rgba(14,35,66,.20);
+  --txt: #0d1f38; --muted: #46566e; --muted2: #6a7a91;
+  --accent: #0b7a86; --cyan: #2f5bd3; --ok: #0a8a5f; --amber: #b45d09; --violet: #6d4fd1;
+  --nav-bg: rgba(244,247,251,.86); --code-bg: #eef3f9;
+  --hero-bg: linear-gradient(160deg, #0b1f3a 0%, #0f2a4d 60%, #123a5c 100%);
+  --hero-txt: #eef4fc; --hero-muted: #a9bad2; --hero-muted2: #7f93b0;
+  --hero-panel: rgba(255,255,255,.06); --hero-line2: rgba(190,210,240,.28);
+  --hero-glow: #2dd4bf;
+  background: var(--bg);
+}
+
+/* B. 심해 — 검정 대신 깊은 남색, 청록·황금 강조. 어두운 톤은 유지하되 단조롭지 않게. */
+body[data-theme="ocean"] {
+  --bg: #0a1a30; --bg2: #0e2240;
+  --panel: rgba(20,44,78,.72); --panel2: #13294a;
+  --line: rgba(150,185,230,.15); --line2: rgba(150,185,230,.30);
+  --txt: #eaf1fb; --muted: #a2b5cf; --muted2: #7189aa;
+  --accent: #2dd4bf; --cyan: #f5b342; --ok: #4ade80; --amber: #fbbf24; --violet: #a78bfa;
+  --on-accent: #062a2a;
+  --nav-bg: rgba(10,26,48,.82); --code-bg: rgba(8,22,42,.6);
+  --hero-glow: #2dd4bf;
+  background:
+    radial-gradient(1200px 700px at 80% -10%, rgba(45,212,191,.12), transparent 60%),
+    radial-gradient(900px 600px at 0% 110%, rgba(245,179,66,.08), transparent 55%),
+    var(--bg);
+}
+
+/* C. 연구소 — 상아색 바탕, 먹색 글자, 진홍·숲녹 강조. 처음부터 끝까지 밝다. */
+body[data-theme="lab"] {
+  --bg: #faf7f0; --bg2: #f3eee3;
+  --panel: #ffffff; --panel2: #f6f2e9;
+  --line: rgba(40,36,28,.11); --line2: rgba(40,36,28,.22);
+  --txt: #1d2420; --muted: #525c56; --muted2: #77807a;
+  --accent: #b42318; --cyan: #1f6f5c; --ok: #1f7a4d; --amber: #a15c07; --violet: #5b4bb5;
+  --nav-bg: rgba(250,247,240,.88); --code-bg: #f3eee3;
+  --hero-glow: #b42318;
+  background: var(--bg);
+}
+body[data-theme="clinical"]::before,
+body[data-theme="lab"]::before { opacity: 0; }
+
+/* 배색 C: body 바깥(html)까지 같은 상아색으로 — 안 그러면 휴대폰에서 화면을 끝까지 당길 때나
+   짧은 페이지 아래에 기본(검정) 바탕이 비친다. color-scheme 로 스크롤바·입력창도 밝은 테마로 맞춘다. */
+html:has(> body[data-theme="lab"]) { background: #faf7f0; color-scheme: light; }
+body[data-theme="lab"] { color-scheme: light; }
+body[data-theme="lab"] ::selection { background: color-mix(in srgb, var(--accent) 18%, transparent); }

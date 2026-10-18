@@ -15,8 +15,8 @@ export default async function Image({ params }: { params: Promise<{ locale: stri
   const { locale } = await params;
   const dict = getDictionary(isLocale(locale) ? locale : 'ko');
 
-  // 히어로 제목은 줄바꿈이 들어 있어 한 줄로 편다.
-  const title = clampTitle(dict.home.heroTitle.replace(/\n/g, ' '));
+  // 히어로 제목은 줄바꿈과 강조 표기([[ ]])가 들어 있어 한 줄 평문으로 편다.
+  const title = clampTitle(dict.home.heroTitle.replace(/\n/g, ' ').replace(/\[\[(.+?)\]\]/g, '$1'));
   const eyebrow = dict.common.siteTagline;
   // 공유 카드에도 정직성 문구를 남긴다 — 링크만 보고 판단하는 사람이 있다.
   const footnote = clampTitle(dict.footer.disclaimer, 96);

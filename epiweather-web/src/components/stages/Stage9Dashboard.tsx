@@ -2,6 +2,10 @@
 import dynamic from 'next/dynamic';
 import { useDashboard } from '@/lib/useDashboard';
 import type { Country, StreamEvent, Outbreak, ChainWarning, AlertItem, AlertDashboard, TierSummaryEntry, PredictionAccuracy, VerifiedPrediction } from '@/lib/api';
+import { API_BASE } from '@/lib/api';
+
+// 로딩 문구에 '실제로' 부르는 호스트를 쓴다(예전엔 localhost:8000 이 박혀 있어 운영에서도 그렇게 보였다).
+const API_HOST = API_BASE.replace(/^https?:\/\//, '');
 
 // Leaflet은 window에 의존해 SSR에서 깨지므로 클라이언트에서만 로드.
 const GlobalRiskMap = dynamic(() => import('@/components/GlobalRiskMap'), {
@@ -69,6 +73,36 @@ function Screen1Banner({ gai, tier, countries }: { gai: number; tier: string; co
   );
 }
 
+/**
+ * 이벤트 한 건을 사람이 읽는 두 줄로.
+ *
+ * 백엔드 스트림이 사건 묶음(cluster) 형식으로 바뀌었는데 화면은 옛 title/text 만 알아서,
+ * 묶음이 오면 `{"disease":null,"countries":[],...}` 같은 JSON 원문을 그대로 찍었다.
+ * 값이 없는 칸은 비워 두지 않고 '질병 미상'·'위치 미상'으로 쓴다 — 모른다는 것도 정보다.
+ * 어느 형식에도 안 맞으면 원문 대신 '형식을 알 수 없는 이벤트'라고만 쓴다.
+ */
+function describeEvent(ev: StreamEvent): { title: string; meta: string } {
+  if (ev.title || ev.text) {
+    return {
+      title: String(ev.title ?? ev.text),
+      meta: `${ev.source ?? ev.layer ?? '—'}${ev.timestamp ? ` · ${String(ev.timestamp).slice(0, 16)}` : ''}`,
+    };
+  }
+  if (ev.tier !== undefined || ev.representative || ev.sources) {
+    const disease = ev.disease ?? ev.representative?.disease ?? '질병 미상';
+    const where = ev.representative?.location || (ev.countries?.length ? ev.countries.join(', ') : '위치 미상');
+    const srcs = ev.sources?.length ? ev.sources.join(', ') : (ev.representative?.source ?? '—');
+    const parts = [
+      srcs,
+      typeof ev.source_count === 'number' ? `출처 ${ev.source_count}곳` : null,
+      typeof ev.merged_score === 'number' ? `점수 ${Math.round(ev.merged_score)}` : null,
+      ev.latest_signal_date ? String(ev.latest_signal_date).slice(0, 10) : null,
+    ].filter(Boolean);
+    return { title: `${ev.tier ? `${ev.tier} · ` : ''}${disease} · ${where}`, meta: parts.join(' · ') };
+  }
+  return { title: '형식을 알 수 없는 이벤트', meta: ev.source ?? ev.layer ?? '—' };
+}
+
 // ── 화면 2: 이벤트 스트림 ─────────────────────────────────────
 function Screen2Events({ events, total }: { events: StreamEvent[]; total: number }) {
   return (
@@ -86,11 +120,10 @@ function Screen2Events({ events, total }: { events: StreamEvent[]; total: number
             <div key={i} style={{ padding: '8px 0', borderBottom: '1px solid var(--line)', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontFamily: 'var(--kr)', fontSize: 12, color: 'var(--txt)', lineHeight: 1.4 }}>
-                  {ev.title ?? ev.text ?? JSON.stringify(ev).slice(0, 80)}
+                  {describeEvent(ev).title}
                 </div>
                 <div style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted2)', marginTop: 3 }}>
-                  {ev.source ?? ev.layer ?? '—'}
-                  {ev.timestamp ? ` · ${String(ev.timestamp).slice(0, 16)}` : ''}
+                  {describeEvent(ev).meta}
                 </div>
               </div>
               {conf != null && (
@@ -338,7 +371,7 @@ export default function Stage9Dashboard() {
           padding: 20, fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--muted)',
         }}>
           <span style={{ animation: 'sp 1.2s linear infinite', display: 'inline-block' }}>⟳</span>
-          서버 연결 중 — localhost:8000
+          서버 연결 중 — {API_HOST}
         </div>
       </div>
     );

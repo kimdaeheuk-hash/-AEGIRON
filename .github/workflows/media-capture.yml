@@ -1,0 +1,68 @@
+name: Media capture
+
+# 홈페이지용 실가동 화면·공공 사진 후보를 받아 같은 브랜치에 커밋한다.
+# (.github/media-capture/capture.mjs 참고 — 개발 샌드박스는 외부 접속이 막혀 있어
+#  러너에서 받는다.)
+#
+# 언제 도나:
+#   · 수동 실행(Actions 탭의 Run workflow)
+#   · claude/** 브랜치에서 수집 스크립트·워크플로를 바꿔 푸시할 때
+on:
+  workflow_dispatch:
+    inputs:
+      photos:
+        description: "공공 사진 후보도 다시 받기(용량이 큼)"
+        type: boolean
+        default: false
+  push:
+    branches: ["claude/**"]
+    paths:
+      - ".github/media-capture/capture.mjs"
+      - ".github/workflows/media-capture.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: media-capture-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Playwright
+        working-directory: .github/media-capture
+        run: |
+          npm init -y > /dev/null
+          npm install playwright@1.60.0 --no-audit --no-fund
+          npx playwright install --with-deps chromium
+
+      - name: Capture
+        working-directory: .github/media-capture
+        run: |
+          rm -rf out
+          CAPTURE_PHOTOS=${{ inputs.photos && '1' || '0' }} node capture.mjs out
+
+      - name: Commit results
+        run: |
+          git config user.name "aegiron-media-bot"
+          git config user.email "actions@users.noreply.github.com"
+          # 사진 후보는 용량이 커서(첫 수집 100MB+) 수동으로 켰을 때만 커밋한다.
+          git add -f .github/media-capture/out/manifest.json .github/media-capture/out/screens .github/media-capture/out/api
+          if [ "${{ inputs.photos }}" = "true" ]; then git add -f .github/media-capture/out/photos; fi
+          # ★ PR 브랜치가 아니라 별도 브랜치(media-capture/results)에 강제 푸시한다 ★
+          # Vercel Hobby 팀은 팀원이 아닌 작성자(@actions)의 커밋 배포를 막는다(2026-10-18 실측:
+          # "Git author actions must have access"). 봇 커밋이 PR head 가 되면 PR 이 빨갛게 된다.
+          # 결과는 git checkout origin/media-capture/results -- <경로> 로 골라 가져간다.
+          git commit -m "미디어 후보 수집 결과 (자동, from ${{ github.ref_name }})" || { echo "수집 결과 없음"; exit 0; }
+          git push --force origin HEAD:refs/heads/media-capture/results

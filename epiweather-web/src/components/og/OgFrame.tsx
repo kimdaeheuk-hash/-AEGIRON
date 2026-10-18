@@ -15,21 +15,25 @@
 export const OG_SIZE = { width: 1200, height: 630 };
 export const OG_CONTENT_TYPE = 'image/png';
 
-const BG = '#050810';
-const ACCENT = '#f43f5e';
-const TEXT = '#e9eef5';
-const MUTED = '#7c8aa0';
-const LINE = 'rgba(120,140,170,.22)';
+// 공유 카드 배색. 공개 사이트는 배색 C(연구소 — 상아·먹·진홍), 라이브 대시보드는 운영 화면과
+// 같은 어두운 배색을 쓴다 — 링크를 연 사람이 보게 될 화면과 카드 색이 같아야 한다.
+const PALETTES = {
+  lab:  { BG: '#faf7f0', ACCENT: '#b42318', TEXT: '#1d2420', MUTED: '#525c56', LINE: 'rgba(40,36,28,.16)', GLOW: 'rgba(180,35,24,.10)' },
+  dark: { BG: '#050810', ACCENT: '#f43f5e', TEXT: '#e9eef5', MUTED: '#7c8aa0', LINE: 'rgba(120,140,170,.22)', GLOW: 'rgba(244,63,94,.18)' },
+} as const;
 
 export function OgFrame({
   eyebrow,
   title,
   footnote,
+  palette = 'lab',
 }: {
   eyebrow: string;
   title: string;
   footnote: string;
+  palette?: keyof typeof PALETTES;
 }) {
+  const { BG, ACCENT, TEXT, MUTED, LINE, GLOW } = PALETTES[palette];
   return (
     <div
       style={{
@@ -42,7 +46,7 @@ export function OgFrame({
         padding: 72,
         // Satori에는 CSS 변수가 없으므로 그라디언트를 직접 적는다.
         backgroundImage:
-          'radial-gradient(900px 500px at 85% -10%, rgba(244,63,94,.18), transparent 60%)',
+          `radial-gradient(900px 500px at 85% -10%, ${GLOW}, transparent 60%)`,
       }}
     >
       {/* 상단 — 브랜드 */}
