@@ -82,8 +82,8 @@ export function Card({
   return (
     <div
       style={{
-        border: `1px solid ${accent ? 'rgba(244,63,94,.32)' : 'var(--line)'}`,
-        background: accent ? 'rgba(244,63,94,.05)' : 'var(--panel)',
+        border: `1px solid ${accent ? 'var(--accent-line)' : 'var(--line)'}`,
+        background: accent ? 'var(--accent-soft)' : 'var(--panel)',
         borderRadius: 14,
         padding: 'clamp(18px,2vw,26px)',
         height: '100%',

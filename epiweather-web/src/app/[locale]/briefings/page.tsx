@@ -159,7 +159,7 @@ export default async function BriefingsPage(props: { params: Promise<{ locale: s
                 href={page.cta.href}
                 style={{
                   fontFamily: 'var(--mono)', fontSize: 13, textDecoration: 'none',
-                  background: 'var(--accent)', color: '#fff', borderRadius: 10, padding: '13px 22px',
+                  background: 'var(--accent)', color: 'var(--on-accent)', borderRadius: 10, padding: '13px 22px',
                 }}
               >
                 {page.cta.label} →

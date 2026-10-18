@@ -35,8 +35,8 @@ export function LanguageNotice({
   return (
     <aside
       style={{
-        border: `1px solid ${mismatched ? 'rgba(244,63,94,.32)' : 'var(--line2)'}`,
-        background: mismatched ? 'rgba(244,63,94,.05)' : 'var(--panel)',
+        border: `1px solid ${mismatched ? 'var(--accent-line)' : 'var(--line2)'}`,
+        background: mismatched ? 'var(--accent-soft)' : 'var(--panel)',
         borderRadius: 12,
         padding: '15px 18px',
         marginTop: 24,

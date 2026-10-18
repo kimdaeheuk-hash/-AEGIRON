@@ -19,8 +19,8 @@ export function HeroBackdrop() {
       <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice" style={{ width: '100%', height: '100%' }}>
         <defs>
           <radialGradient id="hero-fade" cx="50%" cy="30%" r="70%">
-            <stop offset="0%" stopColor="#f43f5e" stopOpacity=".5" />
-            <stop offset="100%" stopColor="#f43f5e" stopOpacity="0" />
+            <stop offset="0%" style={{ stopColor: 'var(--hero-glow)', stopOpacity: 0.5 }} />
+            <stop offset="100%" style={{ stopColor: 'var(--hero-glow)', stopOpacity: 0 }} />
           </radialGradient>
         </defs>
         {DOTS.map(([x, y], i) =>

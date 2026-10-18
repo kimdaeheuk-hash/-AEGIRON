@@ -33,6 +33,8 @@ export default async function HomePage(props: { params: Promise<{ locale: string
   return (
     <>
       {/* ── 히어로 ─────────────────────────────────────────── */}
+      {/* hero-band: 밝은 배색에서도 첫 화면만 어두운 띠로 둘 수 있게 토큰을 갈아 끼운다(globals.css). */}
+      <div className="hero-band">
       <section
         style={{
           position: 'relative', maxWidth: 1320, margin: '0 auto', overflow: 'hidden',
@@ -68,8 +70,8 @@ export default async function HomePage(props: { params: Promise<{ locale: string
               href="/dashboard"
               style={{
                 fontFamily: 'var(--mono)', fontSize: 13, textDecoration: 'none', fontWeight: 500,
-                background: 'linear-gradient(135deg, var(--accent), #d61f52)', color: '#fff',
-                borderRadius: 10, padding: '13px 22px', boxShadow: '0 8px 30px rgba(244,63,94,.28)',
+                background: 'linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 78%, #000))', color: 'var(--on-accent)',
+                borderRadius: 10, padding: '13px 22px', boxShadow: '0 8px 30px color-mix(in srgb, var(--accent) 28%, transparent)',
               }}
             >
               {t.heroPrimaryCta} →
@@ -90,6 +92,7 @@ export default async function HomePage(props: { params: Promise<{ locale: string
           </div>
         </div>
       </section>
+      </div>
 
       {/* ── 실측 수치 ──────────────────────────────────────── */}
       <Section pad="sm">
@@ -305,7 +308,7 @@ export default async function HomePage(props: { params: Promise<{ locale: string
               href={localePath(locale, 'contact')}
               style={{
                 fontFamily: 'var(--mono)', fontSize: 13, textDecoration: 'none',
-                background: 'var(--accent)', color: '#fff', borderRadius: 10, padding: '13px 22px',
+                background: 'var(--accent)', color: 'var(--on-accent)', borderRadius: 10, padding: '13px 22px',
               }}
             >
               {t.ctaButton} →

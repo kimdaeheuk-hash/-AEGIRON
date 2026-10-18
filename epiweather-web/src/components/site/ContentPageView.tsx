@@ -68,7 +68,7 @@ export function ContentPageView({ page, locale }: { page: ContentPage; locale: L
                         key={item.title}
                         style={{
                           border: '1px solid var(--line)', borderRadius: 11,
-                          padding: 17, background: 'rgba(10,16,24,.5)',
+                          padding: 17, background: 'var(--code-bg)',
                         }}
                       >
                         <h3 style={{ fontSize: 14.5, fontWeight: 700, marginBottom: 8 }}>{item.title}</h3>
@@ -120,7 +120,7 @@ export function ContentPageView({ page, locale }: { page: ContentPage; locale: L
                 href={page.cta.href.startsWith('/') ? page.cta.href : localePath(locale, page.cta.href)}
                 style={{
                   fontFamily: 'var(--mono)', fontSize: 13, textDecoration: 'none',
-                  background: 'var(--accent)', color: '#fff', borderRadius: 10, padding: '13px 22px',
+                  background: 'var(--accent)', color: 'var(--on-accent)', borderRadius: 10, padding: '13px 22px',
                 }}
               >
                 {page.cta.label} →

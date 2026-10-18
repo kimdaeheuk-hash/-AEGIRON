@@ -23,7 +23,7 @@ const LINKS: { key: keyof Dictionary['nav']; path: string }[] = [
 
 export function SiteNav({ locale, dict }: { locale: Locale; dict: Dictionary }) {
   return (
-    <header style={{ borderBottom: '1px solid var(--line)', position: 'sticky', top: 0, zIndex: 40, backdropFilter: 'blur(10px)', background: 'rgba(5,8,16,.72)' }}>
+    <header style={{ borderBottom: '1px solid var(--line)', position: 'sticky', top: 0, zIndex: 40, backdropFilter: 'blur(10px)', background: 'var(--nav-bg)' }}>
       <nav
         aria-label={dict.common.siteName}
         style={{
