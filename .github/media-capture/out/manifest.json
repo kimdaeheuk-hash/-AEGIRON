@@ -1,0 +1,228 @@
+{
+  "captured_at": "2026-10-18T18:24:23.936Z",
+  "site": "https://epiweather-web.vercel.app",
+  "screens": [
+    {
+      "stage": 0,
+      "name": "합성위협 탐지",
+      "viewport": "desk",
+      "file": "screens/desk-stage0.jpg",
+      "url": "https://epiweather-web.vercel.app/dashboard",
+      "at": "2026-10-18T18:27:30.947Z"
+    },
+    {
+      "stage": 1,
+      "name": "발원지 추적",
+      "viewport": "desk",
+      "file": "screens/desk-stage1.jpg",
+      "url": "https://epiweather-web.vercel.app/dashboard",
+      "at": "2026-10-18T18:27:37.522Z"
+    },
+    {
+      "stage": 2,
+      "name": "민간 신호",
+      "viewport": "desk",
+      "file": "screens/desk-stage2.jpg",
+      "url": "https://epiweather-web.vercel.app/dashboard",
+      "at": "2026-10-18T18:27:44.100Z"
+    },
+    {
+      "stage": 3,
+      "name": "글로벌 유입",
+      "viewport": "desk",
+      "file": "screens/desk-stage3.jpg",
+      "url": "https://epiweather-web.vercel.app/dashboard",
+      "at": "2026-10-18T18:27:50.588Z"
+    },
+    {
+      "stage": 4,
+      "name": "국내 확산",
+      "viewport": "desk",
+      "file": "screens/desk-stage4.jpg",
+      "url": "https://epiweather-web.vercel.app/dashboard",
+      "at": "2026-10-18T18:27:57.160Z"
+    },
+    {
+      "stage": 5,
+      "name": "도착 예측",
+      "viewport": "desk",
+      "file": "screens/desk-stage5.jpg",
+      "url": "https://epiweather-web.vercel.app/dashboard",
+      "at": "2026-10-18T18:28:03.708Z"
+    },
+    {
+      "stage": 6,
+      "name": "방어 대응",
+      "viewport": "desk",
+      "file": "screens/desk-stage6.jpg",
+      "url": "https://epiweather-web.vercel.app/dashboard",
+      "at": "2026-10-18T18:28:10.252Z"
+    },
+    {
+      "stage": 7,
+      "name": "AI 추론",
+      "viewport": "desk",
+      "file": "screens/desk-stage7.jpg",
+      "url": "https://epiweather-web.vercel.app/dashboard",
+      "at": "2026-10-18T18:28:16.700Z"
+    },
+    {
+      "stage": 8,
+      "name": "전략 비축",
+      "viewport": "desk",
+      "file": "screens/desk-stage8.jpg",
+      "url": "https://epiweather-web.vercel.app/dashboard",
+      "at": "2026-10-18T18:28:23.156Z"
+    },
+    {
+      "stage": 9,
+      "name": "실시간 대시보드",
+      "viewport": "desk",
+      "file": "screens/desk-stage9.jpg",
+      "url": "https://epiweather-web.vercel.app/dashboard",
+      "at": "2026-10-18T18:29:13.851Z"
+    },
+    {
+      "stage": 3,
+      "name": "글로벌 유입",
+      "viewport": "mobile",
+      "file": "screens/mobile-stage3.jpg",
+      "url": "https://epiweather-web.vercel.app/dashboard",
+      "at": "2026-10-18T18:29:26.299Z"
+    },
+    {
+      "stage": 5,
+      "name": "도착 예측",
+      "viewport": "mobile",
+      "file": "screens/mobile-stage5.jpg",
+      "url": "https://epiweather-web.vercel.app/dashboard",
+      "at": "2026-10-18T18:29:32.482Z"
+    },
+    {
+      "stage": 6,
+      "name": "방어 대응",
+      "viewport": "mobile",
+      "file": "screens/mobile-stage6.jpg",
+      "url": "https://epiweather-web.vercel.app/dashboard",
+      "at": "2026-10-18T18:29:38.616Z"
+    },
+    {
+      "stage": 8,
+      "name": "전략 비축",
+      "viewport": "mobile",
+      "file": "screens/mobile-stage8.jpg",
+      "url": "https://epiweather-web.vercel.app/dashboard",
+      "at": "2026-10-18T18:29:44.811Z"
+    },
+    {
+      "stage": 9,
+      "name": "실시간 대시보드",
+      "viewport": "mobile",
+      "file": "screens/mobile-stage9.jpg",
+      "url": "https://epiweather-web.vercel.app/dashboard",
+      "at": "2026-10-18T18:30:35.051Z"
+    }
+  ],
+  "api": [
+    {
+      "path": "/api/status",
+      "status": 200,
+      "file": "api/status.json"
+    },
+    {
+      "path": "/api/dashboard",
+      "status": 200,
+      "file": "api/dashboard.json"
+    },
+    {
+      "path": "/api/daily-brief?lang=ko",
+      "status": 200,
+      "file": "api/daily-brief_lang_ko.json"
+    },
+    {
+      "path": "/api/biodefense/readiness",
+      "status": 405,
+      "file": "api/biodefense_readiness.json"
+    },
+    {
+      "path": "/api/risk-quantification",
+      "status": 200,
+      "file": "api/risk-quantification.json"
+    },
+    {
+      "path": "/api/predictions",
+      "status": 200,
+      "file": "api/predictions.json"
+    },
+    {
+      "path": "/api/predictions/scorecard",
+      "status": 200,
+      "file": "api/predictions_scorecard.json"
+    },
+    {
+      "path": "/api/lead-time-ledger?limit=50",
+      "status": 200,
+      "file": "api/lead-time-ledger_limit_50.json"
+    },
+    {
+      "path": "/api/alerts",
+      "status": 200,
+      "file": "api/alerts.json"
+    },
+    {
+      "path": "/api/risk-index",
+      "status": 200,
+      "file": "api/risk-index.json"
+    },
+    {
+      "path": "/api/launch-readiness",
+      "status": 200,
+      "file": "api/launch-readiness.json"
+    },
+    {
+      "path": "/api/extracted-signals?limit=30",
+      "status": 200,
+      "file": "api/extracted-signals_limit_30.json"
+    },
+    {
+      "path": "/api/unexplained-signals",
+      "status": 200,
+      "file": "api/unexplained-signals.json"
+    }
+  ],
+  "photos": [],
+  "failures": [],
+  "network": [
+    {
+      "url": "https://epiweather-api-production.up.railway.app/api/patient-zero/origins",
+      "method": "GET",
+      "status": 200,
+      "ms": 231
+    },
+    {
+      "url": "https://epiweather-api-production.up.railway.app/api/patient-zero/local-signal?origin_id=WUH",
+      "method": "GET",
+      "status": 200,
+      "ms": 177
+    },
+    {
+      "url": "https://epiweather-api-production.up.railway.app/api/synthetic-threat/who",
+      "method": "GET",
+      "status": 200,
+      "ms": 300
+    },
+    {
+      "url": "https://epiweather-api-production.up.railway.app/api/biodefense/stockpile",
+      "method": "GET",
+      "status": 200,
+      "ms": 86
+    },
+    {
+      "url": "https://epiweather-api-production.up.railway.app/api/biodefense/readiness",
+      "method": "POST",
+      "status": 200,
+      "ms": 250
+    }
+  ],
+  "console": []
+}
