@@ -1,5 +1,6 @@
 import type { Dictionary } from '../types';
 import { pagesEn } from './pages.en';
+import { extraEn } from './extra.en';
 
 /**
  * English dictionary — the language our primary buyers actually read
@@ -13,6 +14,7 @@ import { pagesEn } from './pages.en';
  */
 export const en: Dictionary = {
   pages: pagesEn,
+  extra: extraEn,
 
   briefings: {
     archiveTitle: 'Past briefings',
@@ -42,6 +44,14 @@ export const en: Dictionary = {
   },
 
   nav: {
+    live: 'Live operations',
+    record: 'Public forecast ledger',
+    korea: 'For Korea',
+    security: 'Security & governance',
+    press: 'Media kit',
+    pilot: 'How to engage',
+    developers: 'Developers · API',
+    diseases: 'Disease watch',
     solNgo: 'International & humanitarian',
     solReinsurance: 'Reinsurance & insurance',
     solGovernment: 'Government & public health',

@@ -1,5 +1,6 @@
 import type { Dictionary } from '../types';
 import { pagesFr } from './pages.fr';
+import { extraFr } from './extra.fr';
 
 /**
  * Dictionnaire français — choisi parce que les régions que le système couvre
@@ -15,6 +16,7 @@ import { pagesFr } from './pages.fr';
  */
 export const fr: Dictionary = {
   pages: pagesFr,
+  extra: extraFr,
 
   briefings: {
     archiveTitle: 'Bulletins précédents',
@@ -44,6 +46,14 @@ export const fr: Dictionary = {
   },
 
   nav: {
+    live: 'En exploitation',
+    record: 'Registre des prévisions',
+    korea: 'Pour la Corée',
+    security: 'Sécurité et gouvernance',
+    press: 'Kit média',
+    pilot: 'Modalités',
+    developers: 'Développeurs · API',
+    diseases: 'Veille par maladie',
     solNgo: 'Organisations internationales et humanitaires',
     solReinsurance: 'Réassurance et assurance',
     solGovernment: 'Gouvernements et santé publique',

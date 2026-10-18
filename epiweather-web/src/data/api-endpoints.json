@@ -1,0 +1,740 @@
+[
+ {
+  "method": "GET",
+  "path": "/health",
+  "tag": "시스템",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/status",
+  "tag": "시스템",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/lead-time-ledger",
+  "tag": "후향 검증",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/launch-readiness",
+  "tag": "시스템",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/lead-time",
+  "tag": "시스템",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/admin/api-key-usage",
+  "tag": "시스템",
+  "auth": true
+ },
+ {
+  "method": "GET",
+  "path": "/api/admin/db-backup",
+  "tag": "시스템",
+  "auth": true
+ },
+ {
+  "method": "GET",
+  "path": "/api/signals",
+  "tag": "시스템",
+  "auth": false
+ },
+ {
+  "method": "POST",
+  "path": "/api/patient-zero/grid",
+  "tag": "Stage 0: 발원지",
+  "auth": true
+ },
+ {
+  "method": "GET",
+  "path": "/api/patient-zero/local-signal",
+  "tag": "Stage 0: 발원지",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/patient-zero/origins",
+  "tag": "Stage 0: 발원지",
+  "auth": false
+ },
+ {
+  "method": "POST",
+  "path": "/api/civic-fusion",
+  "tag": "Stage 1: 민간 신호",
+  "auth": true
+ },
+ {
+  "method": "GET",
+  "path": "/api/civic-fusion/backtest-evidence",
+  "tag": "Stage 1: 민간 신호",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/patient-zero/ebola-backtest-evidence",
+  "tag": "Stage 0: 발원지",
+  "auth": false
+ },
+ {
+  "method": "POST",
+  "path": "/api/import-day",
+  "tag": "Stage 2: 글로벌 유입",
+  "auth": true
+ },
+ {
+  "method": "POST",
+  "path": "/api/seir-simulate",
+  "tag": "Stage 5: 방어 시뮬레이션",
+  "auth": true
+ },
+ {
+  "method": "POST",
+  "path": "/api/alerts/intervention-brief",
+  "tag": "Stage 5: 방어 시뮬레이션",
+  "auth": true
+ },
+ {
+  "method": "POST",
+  "path": "/api/backtest",
+  "tag": "후향 검증",
+  "auth": true
+ },
+ {
+  "method": "GET",
+  "path": "/api/backtest/historical",
+  "tag": "후향 검증",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/backtest/historical/{event_id}",
+  "tag": "후향 검증",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/backtest/gdelt",
+  "tag": "후향 검증",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/anomaly-score",
+  "tag": "GAI",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/negative-space",
+  "tag": "GAI",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/alerts",
+  "tag": "GAI",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/extracted-signals",
+  "tag": "GAI",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/ai/provider-status",
+  "tag": "AI",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/ai/extract-compare",
+  "tag": "AI",
+  "auth": true
+ },
+ {
+  "method": "GET",
+  "path": "/api/ai/training-data/stats",
+  "tag": "AI",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/ai/training-data/export",
+  "tag": "AI",
+  "auth": true
+ },
+ {
+  "method": "GET",
+  "path": "/api/ai/nowcast/readiness",
+  "tag": "AI",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/ai/nowcast/threshold",
+  "tag": "AI",
+  "auth": true
+ },
+ {
+  "method": "GET",
+  "path": "/api/ai/nowcast/evaluate",
+  "tag": "AI",
+  "auth": true
+ },
+ {
+  "method": "GET",
+  "path": "/api/ai/nowcast/feature-ablation",
+  "tag": "AI",
+  "auth": true
+ },
+ {
+  "method": "GET",
+  "path": "/api/ai/nowcast/train",
+  "tag": "AI",
+  "auth": true
+ },
+ {
+  "method": "POST",
+  "path": "/api/ai/nowcast/backfill-train",
+  "tag": "AI",
+  "auth": true
+ },
+ {
+  "method": "GET",
+  "path": "/api/risk-index",
+  "tag": "GAI",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/risk-index/{country}",
+  "tag": "GAI",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/risk-quantification",
+  "tag": "GAI",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/risk-quantification/{country}",
+  "tag": "GAI",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/pipeline-stages",
+  "tag": "시스템",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/disaster-watch",
+  "tag": "GAI",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/disaster-watch/{country}",
+  "tag": "GAI",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/climate-signals",
+  "tag": "GAI",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/climate-signals/{country}",
+  "tag": "GAI",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/land-signals",
+  "tag": "GAI",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/land-signals/{country}",
+  "tag": "GAI",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/deforestation-signals",
+  "tag": "GAI",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/deforestation-signals/{country}",
+  "tag": "GAI",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/trade-signals",
+  "tag": "GAI",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/trade-signals/{country}",
+  "tag": "GAI",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/travel-notices",
+  "tag": "GAI",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/countermeasure-gap",
+  "tag": "Stage 8: 바이오방어",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/biodefense/valhalla",
+  "tag": "Stage 8: 바이오방어",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/biodefense/vaccine-supply",
+  "tag": "Stage 8: 바이오방어",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/biodefense/capacity/{iso3}",
+  "tag": "Stage 8: 바이오방어",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/biodefense/capacity-gap",
+  "tag": "Stage 8: 바이오방어",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/biodefense/procurement",
+  "tag": "Stage 8: 바이오방어",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/biodefense/posture",
+  "tag": "Stage 8: 바이오방어",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/polar-watch",
+  "tag": "GAI",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/threats",
+  "tag": "GAI",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/threats/semantic",
+  "tag": "GAI",
+  "auth": true
+ },
+ {
+  "method": "GET",
+  "path": "/api/daily-brief",
+  "tag": "GAI",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/daily-brief/archive",
+  "tag": "GAI",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/daily-brief/archive/{brief_date}",
+  "tag": "GAI",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/unexplained-signals",
+  "tag": "GAI",
+  "auth": false
+ },
+ {
+  "method": "POST",
+  "path": "/api/predictions",
+  "tag": "예측 검증",
+  "auth": true
+ },
+ {
+  "method": "GET",
+  "path": "/api/predictions",
+  "tag": "예측 검증",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/predictions/scorecard",
+  "tag": "예측 검증",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/predictions/{prediction_id}/timestamp-proof",
+  "tag": "예측 검증",
+  "auth": false
+ },
+ {
+  "method": "POST",
+  "path": "/api/predictions/{prediction_id}/verify",
+  "tag": "예측 검증",
+  "auth": true
+ },
+ {
+  "method": "POST",
+  "path": "/api/ai/infer",
+  "tag": "Stage 6: AI 추론",
+  "auth": true
+ },
+ {
+  "method": "GET",
+  "path": "/api/synthetic-threat/biorxiv",
+  "tag": "Stage 0: 합성위협 탐지",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/synthetic-threat/who",
+  "tag": "Stage 0: 합성위협 탐지",
+  "auth": false
+ },
+ {
+  "method": "POST",
+  "path": "/api/synthetic-threat/genome-screen",
+  "tag": "Stage 0: 합성위협 탐지",
+  "auth": true
+ },
+ {
+  "method": "POST",
+  "path": "/api/bulletin/extract-tables",
+  "tag": "데이터 수집",
+  "auth": true
+ },
+ {
+  "method": "POST",
+  "path": "/api/bulletin/ingest",
+  "tag": "데이터 수집",
+  "auth": true
+ },
+ {
+  "method": "POST",
+  "path": "/api/bulletin/collect",
+  "tag": "데이터 수집",
+  "auth": true
+ },
+ {
+  "method": "GET",
+  "path": "/api/bulletin/trend",
+  "tag": "데이터 수집",
+  "auth": false
+ },
+ {
+  "method": "POST",
+  "path": "/api/biodefense/readiness",
+  "tag": "Stage 8: 바이오방어",
+  "auth": true
+ },
+ {
+  "method": "GET",
+  "path": "/api/biodefense/stockpile",
+  "tag": "Stage 8: 바이오방어",
+  "auth": false
+ },
+ {
+  "method": "POST",
+  "path": "/api/biodefense/stockpile",
+  "tag": "Stage 8: 바이오방어",
+  "auth": true
+ },
+ {
+  "method": "DELETE",
+  "path": "/api/biodefense/stockpile/{item_id}",
+  "tag": "Stage 8: 바이오방어",
+  "auth": true
+ },
+ {
+  "method": "POST",
+  "path": "/api/synthetic-threat/analyze",
+  "tag": "Stage 0: 합성위협 탐지",
+  "auth": true
+ },
+ {
+  "method": "GET",
+  "path": "/api/global-watch",
+  "tag": "Stage 6: AI 추론",
+  "auth": true
+ },
+ {
+  "method": "POST",
+  "path": "/api/baseline/collect",
+  "tag": "기준선",
+  "auth": true
+ },
+ {
+  "method": "POST",
+  "path": "/api/country-indicators/refresh",
+  "tag": "기준선",
+  "auth": true
+ },
+ {
+  "method": "GET",
+  "path": "/api/country-indicators/status",
+  "tag": "기준선",
+  "auth": false
+ },
+ {
+  "method": "POST",
+  "path": "/api/world-countries/refresh",
+  "tag": "기준선",
+  "auth": true
+ },
+ {
+  "method": "GET",
+  "path": "/api/world-countries/status",
+  "tag": "기준선",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/timeline",
+  "tag": "타임라인",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/timeline/current",
+  "tag": "타임라인",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/timeline/{event_id}",
+  "tag": "타임라인",
+  "auth": false
+ },
+ {
+  "method": "POST",
+  "path": "/api/timeline",
+  "tag": "타임라인",
+  "auth": true
+ },
+ {
+  "method": "GET",
+  "path": "/api/dashboard",
+  "tag": "대시보드",
+  "auth": false
+ },
+ {
+  "method": "POST",
+  "path": "/api/digital-twin/simulate",
+  "tag": "Phase3",
+  "auth": true
+ },
+ {
+  "method": "GET",
+  "path": "/api/cities",
+  "tag": "Phase3",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/cities/{city}/inflow",
+  "tag": "Phase3",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/profiles",
+  "tag": "Phase3",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/profiles/{profile_id}/risk",
+  "tag": "Phase3",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/forecast",
+  "tag": "Phase3",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/forecast/detail",
+  "tag": "Phase3",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/knowledge-graph",
+  "tag": "Phase3",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/knowledge-graph/{disease}",
+  "tag": "Phase3",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/knowledge-graph/{disease}/verify",
+  "tag": "Phase3",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/knowledge-graph-active",
+  "tag": "Phase3",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/behavioral",
+  "tag": "Phase3",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/anomaly-engine",
+  "tag": "Phase2",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/extra-sources",
+  "tag": "Phase2",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/mobility",
+  "tag": "Phase2",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/supply-chain",
+  "tag": "Phase2",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/local-news",
+  "tag": "Phase2",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/animal-signals",
+  "tag": "Phase2",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/genomic-variants",
+  "tag": "Phase2",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/social-signal",
+  "tag": "Phase2",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/groq-pulse",
+  "tag": "Phase2",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/news-pulse",
+  "tag": "Phase2",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/baseline/status",
+  "tag": "기준선",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/sentinel/status",
+  "tag": "Sentinel",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/sentinel/reliability",
+  "tag": "Sentinel",
+  "auth": false
+ },
+ {
+  "method": "POST",
+  "path": "/api/sentinel/scan",
+  "tag": "Sentinel",
+  "auth": true
+ },
+ {
+  "method": "POST",
+  "path": "/api/sentinel/verify",
+  "tag": "Sentinel",
+  "auth": true
+ },
+ {
+  "method": "POST",
+  "path": "/api/sentinel/{sentinel_id}/verify",
+  "tag": "Sentinel",
+  "auth": true
+ },
+ {
+  "method": "POST",
+  "path": "/api/ai/triage",
+  "tag": "Stage 6: AI 추론",
+  "auth": true
+ }
+]

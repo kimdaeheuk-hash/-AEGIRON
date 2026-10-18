@@ -10,6 +10,14 @@ export type NavDict = {
   /** 묶음 제목 — 회사 · 기술 · 활용 분야 · 검증·데이터 */
   company: string;
   trust: string;
+  live: string;
+  record: string;
+  korea: string;
+  security: string;
+  press: string;
+  pilot: string;
+  developers: string;
+  diseases: string;
   techSpec1: string;
   techSpec2: string;
   engines: string;
@@ -155,11 +163,105 @@ export type HomeDict = {
   ctaButton: string;
 };
 
+/**
+ * 실가동·검증·국가사업 페이지 묶음 (2026-10-18 캡틴 지시: "전부 실행해 — 진짜 아이기론이
+ * 뭘 하고 있는지 실가동되는 걸 보여줘야 해"). 기존 사전 파일이 이미 커서 따로 둔다.
+ */
+export type LiveScreen = {
+  /** public/media/live/ 아래 파일명 */
+  file: string;
+  title: string;
+  caption: string;
+  /** live = 운영 실데이터 화면 · model = 모델 시나리오가 섞인 화면(그렇게 표기) */
+  kind: 'live' | 'model';
+};
+
+export type DiseaseEntry = {
+  slug: string;
+  /** disease_params.DISEASE_PARAMS 의 키 — R0·CFR 은 거기서 가져온다 */
+  paramKey: string;
+  name: string;
+  summary: string;
+  watch: string[];
+};
+
+export type ExtraDict = {
+  pages: {
+    live: ContentPage;
+    record: ContentPage;
+    korea: ContentPage;
+    security: ContentPage;
+    press: ContentPage;
+    pilot: ContentPage;
+    developers: ContentPage;
+    diseases: ContentPage;
+  };
+  live: {
+    countersTitle: string;
+    countersLead: string;
+    counters: { predictions: string; alerts: string; extracted: string; sentinel: string; declarations: string; sources: string };
+    countersNote: string;
+    riskTitle: string;
+    riskLead: string;
+    riskUnavailable: string;
+    riskOpen: string;
+    screensTitle: string;
+    screensLead: string;
+    screens: LiveScreen[];
+    kindLive: string;
+    kindModel: string;
+    sourcesTitle: string;
+    sourcesLead: string;
+    sourceOk: string;
+    sourceIssue: string;
+    sourceStale: string;
+    updated: string;
+    unavailable: string;
+    alertsTitle: string;
+    alertsLead: string;
+    alertsEmpty: string;
+    seeLive: string;
+    seeRecord: string;
+  };
+  record: {
+    scoreTitle: string;
+    scoreLead: string;
+    scoreLabels: { total: string; resolved: string; hit: string; miss: string; open: string; overdue: string; brier: string; legacy: string };
+    scoreNote: string;
+    listTitle: string;
+    listLead: string;
+    colMade: string;
+    colTarget: string;
+    colClaim: string;
+    colStatus: string;
+    colProof: string;
+    statusHit: string;
+    statusMiss: string;
+    statusOpen: string;
+    statusOther: string;
+    proofSealed: string;
+    proofNone: string;
+    ledgerTitle: string;
+    ledgerLead: string;
+    ledgerEmpty: string;
+    anatomyTitle: string;
+    anatomyLead: string;
+    anatomyFields: { level: string; score: string; source: string; country: string; disease: string; reason: string; time: string };
+    anatomyEmpty: string;
+    empty: string;
+  };
+  apiTags: Record<string, string>;
+  api: { colMethod: string; colPath: string; colAuth: string; authYes: string; authNo: string; tableTitle: string; tableLead: string };
+  diseases: DiseaseEntry[];
+  disease: { r0: string; cfr: string; paramSource: string; paramNote: string; watchTitle: string; back: string; openDashboard: string };
+};
+
 export type Dictionary = {
   nav: NavDict;
   footer: FooterDict;
   home: HomeDict;
   pages: PagesDict;
+  extra: ExtraDict;
   briefings: BriefingsDict;
   common: {
     siteName: string;

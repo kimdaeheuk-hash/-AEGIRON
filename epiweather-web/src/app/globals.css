@@ -259,3 +259,10 @@ body[data-theme="lab"]::before { opacity: 0; }
 html:has(> body[data-theme="lab"]) { background: #faf7f0; color-scheme: light; }
 body[data-theme="lab"] { color-scheme: light; }
 body[data-theme="lab"] ::selection { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+
+/* 공개 예측 원장 행 — 좁은 화면에서는 두 줄로 접는다. */
+.record-row::-webkit-details-marker { display: none; }
+@media (max-width: 760px) {
+  .record-row { grid-template-columns: 52px 1fr !important; }
+  .record-row > span:nth-child(n+3) { grid-column: 2; }
+}

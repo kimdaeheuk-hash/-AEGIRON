@@ -7,6 +7,9 @@ import { IntroVideo } from '@/components/site/IntroVideo';
 import { PhotoFigure } from '@/components/site/PhotoFigure';
 import { getSourceHealth, type SourceHealthSummary } from '@/lib/status';
 import { introVideo } from '@/lib/video';
+import { getOpsStatus, getRiskTop } from '@/lib/live';
+import { listBriefings } from '@/lib/briefings';
+import { OpsCounters, RiskTop, ScreenGallery } from '@/components/live/LiveWidgets';
 
 /**
  * 홈.
@@ -31,8 +34,12 @@ export default async function HomePage(props: { params: Promise<{ locale: string
   const locale = (isLocale(raw) ? raw : 'ko') as Locale;
   const dict = getDictionary(locale);
   const t = dict.home;
-  const health = await getSourceHealth();
+  const [health, ops, risk, briefs] = await Promise.all([
+    getSourceHealth(), getOpsStatus(), getRiskTop(6), listBriefings(locale),
+  ]);
   const video = introVideo();
+  const live = dict.extra.live;
+  const latestBrief = briefs?.[0] ?? null;
 
   return (
     <>
@@ -135,6 +142,53 @@ export default async function HomePage(props: { params: Promise<{ locale: string
           {t.statsAsOf}
         </p>
       </Section>
+
+      {/* ── 실가동 — 운영 API 실측 + 운영 화면 캡처 (2026-10-18 캡틴: "실가동되는 걸 보여줘야 해") ── */}
+      <div className="band-deep">
+        <Section>
+          <SectionHeading eyebrow="LIVE OPERATIONS" title={dict.extra.pages.live.title} lead={dict.extra.pages.live.lead} />
+          <OpsCounters ops={ops} labels={live} />
+          <div style={{ display: 'grid', gap: 36, marginTop: 40, gridTemplateColumns: 'repeat(auto-fit, minmax(min(420px, 100%), 1fr))', wordBreak: 'keep-all' }}>
+            <div>
+              <h3 style={{ fontFamily: 'var(--disp)', fontWeight: 800, fontSize: 19 }}>{live.riskTitle}</h3>
+              <p style={{ color: 'var(--muted)', fontSize: 13.5, lineHeight: 1.7, margin: '8px 0 18px' }}>{live.riskLead}</p>
+              <RiskTop rows={risk} labels={live} />
+            </div>
+            <div>
+              <h3 style={{ fontFamily: 'var(--disp)', fontWeight: 800, fontSize: 19 }}>{t.briefTitle}</h3>
+              <p style={{ color: 'var(--muted)', fontSize: 13.5, lineHeight: 1.7, margin: '8px 0 18px' }}>{t.briefLead}</p>
+              {latestBrief ? (
+                <Link
+                  href={localePath(locale, `briefings/${latestBrief.date}`)}
+                  style={{ display: 'block', textDecoration: 'none', color: 'var(--txt)', border: '1px solid var(--line2)', borderRadius: 13, padding: 18, background: 'var(--panel)' }}
+                >
+                  <span style={{ fontFamily: 'var(--mono)', fontSize: 11.5, color: 'var(--cyan)' }}>{latestBrief.date}</span>
+                  <strong style={{ display: 'block', fontSize: 16.5, lineHeight: 1.45, marginTop: 8 }}>{latestBrief.headline}</strong>
+                  <span style={{ display: 'inline-block', marginTop: 14, fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--accent)', fontWeight: 700 }}>
+                    {dict.common.readMore} →
+                  </span>
+                </Link>
+              ) : (
+                <p style={{ color: 'var(--muted)', fontSize: 13.5 }}>{briefs === null ? t.briefError : t.briefEmpty}</p>
+              )}
+              <Link href={localePath(locale, 'briefings')} style={{ display: 'inline-block', marginTop: 12, fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--muted)', textDecoration: 'none' }}>
+                {t.briefCta} →
+              </Link>
+            </div>
+          </div>
+          <h3 style={{ fontFamily: 'var(--disp)', fontWeight: 800, fontSize: 19, margin: '44px 0 8px' }}>{live.screensTitle}</h3>
+          <p style={{ color: 'var(--muted)', fontSize: 13.5, lineHeight: 1.7, marginBottom: 18, maxWidth: 780 }}>{live.screensLead}</p>
+          <ScreenGallery labels={live} limit={3} />
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 26 }}>
+            <Link href={localePath(locale, 'live')} style={{ fontFamily: 'var(--mono)', fontSize: 13, textDecoration: 'none', fontWeight: 600, background: 'var(--accent)', color: 'var(--on-accent)', borderRadius: 10, padding: '12px 20px' }}>
+              {live.seeLive} →
+            </Link>
+            <Link href={localePath(locale, 'record')} style={{ fontFamily: 'var(--mono)', fontSize: 13, textDecoration: 'none', border: '1px solid var(--line2)', color: 'var(--txt)', borderRadius: 10, padding: '12px 20px' }}>
+              {live.seeRecord} →
+            </Link>
+          </div>
+        </Section>
+      </div>
 
       {/* ── 사진(퍼블릭 도메인, 출처 표기) ─────────────────── */}
       <Section pad="sm">

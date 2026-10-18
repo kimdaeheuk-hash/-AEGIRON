@@ -1,5 +1,6 @@
 import type { Dictionary } from '../types';
 import { pagesKo } from './pages.ko';
+import { extraKo } from './extra.ko';
 
 /**
  * 한국어 사전 — 기준 언어. 문구를 추가할 때는 여기부터 쓰고 en·fr에 옮긴다.
@@ -11,6 +12,7 @@ import { pagesKo } from './pages.ko';
  */
 export const ko: Dictionary = {
   pages: pagesKo,
+  extra: extraKo,
 
   briefings: {
     archiveTitle: '지난 브리핑',
@@ -40,6 +42,14 @@ export const ko: Dictionary = {
   },
 
   nav: {
+    live: '실가동',
+    record: '공개 예측 원장',
+    korea: '대한민국 관점',
+    security: '보안 · 데이터 거버넌스',
+    press: '미디어 키트',
+    pilot: '도입 방식',
+    developers: '개발자 · API',
+    diseases: '질병별 감시',
     solNgo: '국제기구 · 인도지원',
     solReinsurance: '재보험 · 보험',
     solGovernment: '정부 · 공공보건',
