@@ -105,56 +105,91 @@ try {
 }
 
 // ── 3. 공공 사진 후보 (퍼블릭 도메인 · CC0 · CC BY(-SA) 만) ───────────
-// 첫 수집(2026-10-18)에서 후보 40장이 100MB 를 넘었다. 사진은 이미 골라 public/media 로
-// 옮겼으므로 기본은 건너뛴다. 다시 받을 때만 CAPTURE_PHOTOS=1 로 켠다.
+// 첫 수집(2026-10-18)에서 후보 40장이 100MB 를 넘었다. 다시 받을 때만 CAPTURE_PHOTOS=1 로 켠다.
+// 2차(2026-10-18 오후): 네오 오션스 site/fetch_assets.py 방식을 따른다 — 주제(슬롯)마다
+// 검색어 두세 개로 후보를 모으고, JPEG · 원본 폭 1400px 이상 · 허용 라이선스만 슬롯당 take 장 받는다.
+// 파일 이름이 슬롯 이름이라(lab-1.jpg) 고를 때 무엇인지 바로 보인다.
 const WANT_PHOTOS = process.env.CAPTURE_PHOTOS === '1';
-const QUERIES = !WANT_PHOTOS ? [] : [
-  'Ebola virus transmission electron micrograph CDC',
-  'SARS-CoV-2 scanning electron micrograph NIAID',
-  'Influenza virus transmission electron micrograph CDC',
-  'Mpox virus electron micrograph',
-  'Earth at night Black Marble NASA',
-  'Blue Marble Earth NASA',
-  'Earth city lights from International Space Station',
-  'Biosafety level 4 laboratory',
-  'Aedes aegypti mosquito CDC',
-  'Wastewater treatment plant aerial',
-];
+const SLOTS = !WANT_PHOTOS ? {} : {
+  lab: { take: 3, queries: ['biosafety level 4 laboratory', 'CDC laboratory scientist biosafety cabinet', 'virology laboratory researcher'] },
+  sequencing: { take: 3, queries: ['DNA sequencing laboratory sequencer', 'genome sequencing machine laboratory', 'pathogen genomics laboratory'] },
+  virus: { take: 3, queries: ['SARS-CoV-2 electron micrograph NIAID colorized', 'influenza virus electron micrograph CDC', 'Mpox virus electron micrograph NIAID'] },
+  field: { take: 3, queries: ['Ebola outbreak response health workers', 'epidemiologist field investigation outbreak', 'disease surveillance health workers Africa'] },
+  airport: { take: 2, queries: ['airport terminal passengers departure hall', 'Incheon International Airport terminal'] },
+  flights: { take: 2, queries: ['world airline routes map', 'air traffic world map flight paths'] },
+  earth: { take: 3, queries: ['Earth at night Black Marble NASA', 'Blue Marble Earth NASA', 'Earth from International Space Station'] },
+  satellite: { take: 2, queries: ['Earth observation satellite in orbit', 'Sentinel-2 satellite ESA'] },
+  wastewater: { take: 2, queries: ['wastewater treatment plant aerial', 'wastewater sampling'] },
+  poultry: { take: 2, queries: ['poultry farm chickens barn', 'avian influenza poultry surveillance'] },
+  mosquito: { take: 2, queries: ['Aedes aegypti mosquito CDC', 'Anopheles mosquito CDC'] },
+  forest: { take: 2, queries: ['Amazon deforestation aerial', 'tropical rainforest aerial'] },
+  arctic: { take: 2, queries: ['Arctic permafrost thaw', 'glacier aerial'] },
+  datacenter: { take: 2, queries: ['data center server room', 'supercomputer server racks'] },
+  operations: { take: 2, queries: ['emergency operations center screens', 'CDC Emergency Operations Center'] },
+  hospital: { take: 2, queries: ['hospital intensive care unit', 'hospital corridor medical staff'] },
+  vaccine: { take: 2, queries: ['vaccine vials production line', 'vaccine vials'] },
+  port: { take: 2, queries: ['container port aerial', 'container terminal cranes'] },
+};
 const ALLOWED = /^(public domain|pd|cc0|cc[- ]?by([- ]?sa)?[- ]?\d)/i;
 const strip = (s) => String(s ?? '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
-let n = 0;
-for (const q of QUERIES) {
-  try {
-    const url = new URL('https://commons.wikimedia.org/w/api.php');
-    Object.entries({
-      action: 'query', format: 'json', generator: 'search', gsrsearch: `${q} filetype:bitmap`,
-      gsrnamespace: '6', gsrlimit: '4', prop: 'imageinfo', iiprop: 'url|extmetadata|size|mime', iiurlwidth: '1920',
-    }).forEach(([k, v]) => url.searchParams.set(k, v));
-    const data = await (await fetch(url, { headers: { 'user-agent': UA } })).json();
-    const pages = Object.values(data?.query?.pages ?? {});
-    for (const pg of pages) {
-      const ii = pg.imageinfo?.[0];
-      if (!ii) continue;
-      const md = ii.extmetadata ?? {};
-      const license = strip(md.LicenseShortName?.value);
-      if (!ALLOWED.test(license)) { manifest.failures.push({ what: `skip ${pg.title}`, error: `license: ${license}` }); continue; }
-      const src = ii.thumburl ?? ii.url;
-      const res = await fetch(src, { headers: { 'user-agent': UA } });
-      if (!res.ok) { manifest.failures.push({ what: pg.title, error: `HTTP ${res.status}` }); continue; }
-      const ext = (ii.mime ?? '').includes('png') ? 'png' : 'jpg';
-      const rel = `photos/${String(++n).padStart(2, '0')}.${ext}`;
+for (const [slot, spec] of Object.entries(SLOTS)) {
+  const found = [];
+  const seen = new Set();
+  for (const q of spec.queries) {
+    try {
+      const url = new URL('https://commons.wikimedia.org/w/api.php');
+      Object.entries({
+        action: 'query', format: 'json', generator: 'search', gsrsearch: `filetype:bitmap ${q}`,
+        gsrnamespace: '6', gsrlimit: '12', prop: 'imageinfo', iiprop: 'url|extmetadata|size|mime', iiurlwidth: '1600',
+      }).forEach(([k, v]) => url.searchParams.set(k, v));
+      const data = await (await fetch(url, { headers: { 'user-agent': UA } })).json();
+      const pages = Object.values(data?.query?.pages ?? {}).sort((x, y) => (x.index ?? 0) - (y.index ?? 0));
+      for (const pg of pages) {
+        const ii = pg.imageinfo?.[0];
+        if (!ii || seen.has(pg.title)) continue;
+        const md = ii.extmetadata ?? {};
+        const license = strip(md.LicenseShortName?.value);
+        if (ii.mime !== 'image/jpeg' || (ii.width ?? 0) < 1400 || !ALLOWED.test(license)) continue;
+        seen.add(pg.title);
+        found.push({ pg, ii, md, license, q });
+      }
+    } catch (e) {
+      manifest.failures.push({ what: `query ${q}`, error: String(e).slice(0, 300) });
+    }
+    await new Promise((r) => setTimeout(r, 800));
+  }
+  for (const [i, c] of found.slice(0, spec.take).entries()) {
+    try {
+      const res = await fetch(c.ii.thumburl ?? c.ii.url, { headers: { 'user-agent': UA } });
+      if (!res.ok) { manifest.failures.push({ what: c.pg.title, error: `HTTP ${res.status}` }); continue; }
+      const rel = `photos/${slot}-${i + 1}.jpg`;
       await save(rel, Buffer.from(await res.arrayBuffer()));
       manifest.photos.push({
-        file: rel, query: q, title: pg.title, page: ii.descriptionurl,
-        license, license_url: strip(md.LicenseUrl?.value),
-        artist: strip(md.Artist?.value), credit: strip(md.Credit?.value),
-        description: strip(md.ImageDescription?.value).slice(0, 400),
-        width: ii.thumbwidth ?? ii.width, height: ii.thumbheight ?? ii.height,
+        file: rel, slot, query: c.q, title: c.pg.title, page: c.ii.descriptionurl,
+        license: c.license, license_url: strip(c.md.LicenseUrl?.value),
+        artist: strip(c.md.Artist?.value).slice(0, 160), credit: strip(c.md.Credit?.value).slice(0, 200),
+        description: strip(c.md.ImageDescription?.value).slice(0, 400),
+        width: c.ii.thumbwidth ?? c.ii.width, height: c.ii.thumbheight ?? c.ii.height,
       });
+    } catch (e) {
+      manifest.failures.push({ what: c.pg.title, error: String(e).slice(0, 300) });
     }
-  } catch (e) {
-    manifest.failures.push({ what: `query ${q}`, error: String(e).slice(0, 300) });
   }
+}
+
+// ── 4. 소개 영상 메타데이터 — 유튜브가 영상 위에 띄우는 제목·채널명이 무엇인지 확인 ──
+// 캡틴 지시(2026-10-18): "유튜브 동영상 화면에 내 이름 빼". 임베드 상단 막대에 채널명이 뜨므로
+// 실제로 무엇이 뜨는지(oEmbed 의 title · author_name)와 썸네일을 받아 둔다.
+try {
+  const vid = '2Uzl-5JgLjs';
+  const oe = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${vid}&format=json`, { headers: { 'user-agent': UA } });
+  await save('api/youtube_oembed.json', JSON.stringify({ status: oe.status, body: oe.ok ? await oe.json() : await oe.text() }, null, 2));
+  for (const name of ['maxresdefault', 'hqdefault']) {
+    const th = await fetch(`https://i.ytimg.com/vi/${vid}/${name}.jpg`, { headers: { 'user-agent': UA } });
+    if (th.ok) { await save(`api/youtube_${name}.jpg`, Buffer.from(await th.arrayBuffer())); break; }
+  }
+} catch (e) {
+  manifest.failures.push({ what: 'youtube oembed', error: String(e).slice(0, 300) });
 }
 
 await save('manifest.json', JSON.stringify(manifest, null, 2));
