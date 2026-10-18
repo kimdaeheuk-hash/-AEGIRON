@@ -12,8 +12,10 @@ import { LocaleSwitcher } from './LocaleSwitcher';
  * ①제품 ②근거 ③활용처 ④회사 ⑤행동유도(CTA)를 둔다 — 그 골격을 따르되,
  * 우리에게만 있는 '우리가 모르는 것'을 최상위에 노출한다.
  */
-const LINKS: { key: keyof Dictionary['nav']; path: string }[] = [
+const LINKS: { key: keyof Dictionary['nav']; path: string; emphasis?: boolean }[] = [
   { key: 'platform', path: 'platform' },
+  { key: 'technology', path: 'technology' },
+  { key: 'programs', path: 'programs', emphasis: true },
   { key: 'methodology', path: 'methodology' },
   { key: 'transparency', path: 'transparency' },
   { key: 'dataSources', path: 'data-sources' },
@@ -61,11 +63,17 @@ export function SiteNav({ locale, dict }: { locale: Locale; dict: Dictionary }) 
             WebkitOverflowScrolling: 'touch',
           }}
         >
-          {LINKS.map(({ key, path }) => (
+          {LINKS.map(({ key, path, emphasis }) => (
             <li key={key} style={{ flexShrink: 0 }}>
               <Link
                 href={localePath(locale, path)}
-                style={{ color: 'var(--muted)', textDecoration: 'none', whiteSpace: 'nowrap' }}
+                style={{
+                  // 스페셜 프로그램(헤임달·발할라)은 다른 항목과 구별되게 강조색으로 둔다 —
+                  // 캡틴이 "스페셜 부분을 강조해라"라고 지목한 항목이다.
+                  color: emphasis ? 'var(--accent)' : 'var(--muted)',
+                  fontWeight: emphasis ? 700 : undefined,
+                  textDecoration: 'none', whiteSpace: 'nowrap',
+                }}
               >
                 {dict.nav[key]}
               </Link>

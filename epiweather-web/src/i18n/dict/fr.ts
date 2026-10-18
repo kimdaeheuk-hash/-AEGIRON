@@ -45,8 +45,10 @@ export const fr: Dictionary = {
 
   nav: {
     platform: 'Système',
+    technology: 'Technologie',
+    programs: 'Programmes spéciaux',
     methodology: 'Méthodologie',
-    transparency: 'Ce que nous ignorons',
+    transparency: 'Validation et limites',
     dataSources: 'Sources de données',
     solutions: 'Cas d’usage',
     briefings: 'Bulletins',
@@ -236,6 +238,15 @@ export const fr: Dictionary = {
         ],
       },
     ],
+
+    specialEyebrow: 'SPECIAL PROGRAMS',
+    specialTitle: 'Deux axes qu’aucun concurrent n’a — HEIMDALL · VALHALLA',
+    specialLead: 'La plupart des couches de veille opèrent à découvert. Mais deux programmes de R&D internes, de nature différente, portent l’axe de biosécurité nationale. Nous énonçons seulement ce qu’ils font et ne font pas, sans rien surévaluer.',
+    specialCards: [
+      { code: 'HEIMDALL', name: 'Criblage génomique défensif', body: 'Détecte et signale si une séquence s’écarte des statistiques de l’évolution naturelle. Aucune fonction de conception ou de synthèse — une priorité d’examen, non un verdict.' },
+      { code: 'VALHALLA', name: 'Préparation en contre-mesures', body: 'Au lieu d’imiter une prédiction moléculaire, il agrège les écarts de couverture des stocks et de souveraineté de production à partir de données publiques. Il ne touche pas aux informations non publiques comme les quantités des stocks nationaux.' },
+    ],
+    specialCta: 'Voir les programmes spéciaux',
 
     openTitle: 'Ce que nous publions',
     openLead:

@@ -41,8 +41,10 @@ export const ko: Dictionary = {
 
   nav: {
     platform: '시스템',
+    technology: '기술 스펙',
+    programs: '스페셜 프로그램',
     methodology: '방법론',
-    transparency: '우리가 모르는 것',
+    transparency: '검증과 한계',
     dataSources: '데이터 소스',
     solutions: '활용',
     briefings: '브리핑',
@@ -232,6 +234,15 @@ export const ko: Dictionary = {
         ],
       },
     ],
+
+    specialEyebrow: 'SPECIAL PROGRAMS',
+    specialTitle: '경쟁사에 없는 두 축 — HEIMDALL · VALHALLA',
+    specialLead: '감시 계층 대부분은 공개로 돕니다. 그런데 성격이 다른 두 내부 R&D 프로그램이 국가 바이오안보 축을 담당합니다. 능력을 과장하지 않는 선에서, 무엇을 하고 무엇을 안 하는지만 적습니다.',
+    specialCards: [
+      { code: 'HEIMDALL', name: '방어적 유전체 스크리닝', body: '서열이 자연 진화 통계에서 벗어나는지 탐지·플래그합니다. 설계·합성 기능은 없고, 판정이 아니라 검토 우선순위만 냅니다.' },
+      { code: 'VALHALLA', name: '대응제 준비태세', body: '분자 예측을 흉내 내지 않고, 공개 자료로 비축 커버리지 격차와 생산 주권 격차를 집계합니다. 국가 비축량 같은 비공개 정보는 다루지 않습니다.' },
+    ],
+    specialCta: '스페셜 프로그램 보기',
 
     openTitle: '우리가 공개하는 것',
     openLead:

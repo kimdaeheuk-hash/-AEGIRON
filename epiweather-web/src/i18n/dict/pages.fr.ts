@@ -77,12 +77,184 @@ export const pagesFr: PagesDict = {
     },
   },
 
+  techSpec1: {
+    metaTitle: 'Technologie I — la couche de veille permanente',
+    metaDescription:
+      'Les moteurs qui tournent automatiquement chaque heure : veille de la presse en langue locale, indice d’anomalie à six couches, veille des silences de déclaration, foyers inexpliqués, détection d’aberration CDC EARS et veille des défaillances silencieuses. La méthode et les limites de chaque moteur, énoncées clairement.',
+    eyebrow: 'TECHNOLOGY · I',
+    title: 'La couche de veille permanente',
+    lead: 'Parmi les 114 modules algorithmiques d’AEGIRON, voici ceux qui tournent d’eux-mêmes chaque heure, sans qu’on le demande. Leur rôle : compter sans cesse ce qui s’écarte de la normale. Pour chaque moteur, nous indiquons ce qu’il prend comme référence et ce qu’il refuse délibérément de compter.',
+    blocks: [
+      {
+        title: 'Veille de la presse en langue locale',
+        body: 'Avant que la presse internationale ne le traduise, le premier signal est souvent un article en langue locale. Nous prenons 179 pays dans l’actualité agrégée par pays et par langue, mesurons la densité du vocabulaire épidémiologique et reclassons les flux ambigus avec un modèle de langage. Nous n’écartons pas les pays à faible risque par curation — une pandémie peut commencer n’importe où, et les pays calmes sont laissés dormants par les seuils en aval, pas par nous.',
+        points: [
+          'L’unité de détection est le croisement pays × langue × maladie — un pays vu dans une seule fenêtre d’agrégation, non dispersé entre médias.',
+          'La décision finale de haute alerte est menée par le classifieur à modèle de langage, les mots-clés servant de repli — les mots-clés seuls laissent passer des articles sans rapport.',
+          'Quand plusieurs flux rapportent le même événement, nous les regroupons comme redondants et les excluons de l’alerte.',
+        ],
+        note: 'Les flux à données trop rares sont mis à part comme « indéterminés », non élevés en alertes. Nous ne passons pas en silence sur le fait que les données sont minces.',
+      },
+      {
+        title: 'Indice d’anomalie à six couches',
+        body: 'Les signaux de six couches — officielle, officieuse, comportementale, environnementale, animale et inexpliquée — sont convertis en scores d’anomalie par rapport à leur niveau habituel, pondérés par la fiabilité de la source, puis combinés en un seul indice. La référence est la ligne de base de chaque indicateur, non son volume absolu : un même décompte n’a pas le même sens dans un pays qui déclare beaucoup et dans un pays habituellement silencieux.',
+        points: [
+          'Chaque signal est scoré comme un écart (z-score) à sa propre distribution historique, la dernière valeur étant exclue de la ligne de base.',
+          'Chaque couche porte une pondération de fiabilité différente — une API gouvernementale officielle et un décompte de publications sociales ne peuvent peser pareil.',
+          'Les signaux anciens contribuent de moins en moins avec le temps (décroissance à demi-vie).',
+        ],
+        note: 'Cet indice ne regarde que les hausses. La baisse — un canal qui se tait — est traitée par la veille des silences ci-dessous.',
+      },
+      {
+        title: 'Veille des silences de déclaration',
+        body: 'Les signaux qui montent ne sont pas les seuls dangereux. Quand un canal de déclaration habituellement actif se tait soudain, c’est en soi un signal — le système de déclaration a pu s’effondrer. Lors d’Ebola en Guinée en 2014, les déclarations du ministère ont chuté d’abord ; des semaines après que l’OMS l’eut lu comme « calme », l’épidémie a explosé.',
+        points: [
+          'Un canal est retenu quand la valeur du jour tombe sous la moitié de sa moyenne historique.',
+          'Seuls les indicateurs dotés d’une règle de décision explicitement déclarée sont surveillés — une conception par liste d’autorisation, pour qu’un « 0 » issu d’un rapport non encore déposé ne soit pas pris pour un effondrement.',
+        ],
+        note: 'Cette conception résulte d’une refonte après que la couche eut émis quatre fausses alertes lors du rodage d’avant-lancement en 2026-09. Nous avons gardé l’échec au dossier et l’avons corrigé.',
+      },
+      {
+        title: 'Foyers inexpliqués',
+        body: 'Parmi les foyers extraits de la presse, nous comptons à part ceux qui ne correspondent à aucun profil de maladie connu. Le foyer de pneumonie d’origine inconnue de Wuhan, en décembre 2019, en est l’archétype — l’objectif est de saisir « ceci ne ressemble pas au reste » avant que cela n’ait un nom.',
+        points: [
+          'Au moment de l’extraction, nous demandons directement au modèle de langage si le cas correspond à un profil de maladie connu. Nous ne forçons pas un cas dans la catégorie « inexpliqué » au seul motif qu’il manque à un petit dictionnaire d’alias.',
+          'Quand le même événement revient avec seulement sa formulation changée, nous le regroupons au niveau du pays pour que la même alerte ne se déclenche pas chaque jour.',
+        ],
+        note: 'Des trois conditions proposées par le document de transmission, une flambée des visites hospitalières ne peut être mesurée — il n’en existe pas de source. Nous la laissons vide plutôt que de la combler par une fabrication.',
+      },
+      {
+        title: 'Détection d’aberration standard · veille des défaillances silencieuses',
+        body: 'Nous ajoutons le standard de la surveillance épidémiologique (les CDC américains, EARS C1/C2/C3), qui fonctionne même avec une ligne de base courte. Au-dessus se tient une couche de plus — compter, à chaque cycle, si une source a réellement renvoyé une valeur et si la méthode qui l’a produite tient toujours.',
+        items: [
+          { title: 'CDC EARS', body: 'Trois fenêtres (C1, C2, C3) demandent de combien de σ la valeur du jour dépasse la ligne de base récente. Une bande de garde empêche les valeurs de début d’épidémie de contaminer la ligne de base.', meta: 'Un standard opérationnel des CDC américains' },
+          { title: 'Santé des sources', body: 'Une source dont la collecte a tourné sans rien renvoyer n’est pas comptée comme saine. Les sources qui ne réussissent qu’occasionnellement sont signalées à part.', meta: 'Une source morte en silence est la défaillance la plus dangereuse' },
+          { title: 'Invariants de qualité', body: 'Compte les cas où la source est saine mais le calcul qui a produit sa valeur est cassé. Les six incidents de 2026-08 étaient tous de ce type.', meta: 'Une couche que la santé des sources ne peut structurellement voir' },
+        ],
+      },
+    ],
+    cta: {
+      title: 'Les moteurs plus profonds sont dans Technologie II',
+      body: 'Criblage génomique, simulation de propagation entre pays, scénarios d’intervention par alerte, évaluation automatique des prévisions — la couche qui tourne à la demande ou sur alerte.',
+      label: 'Voir Technologie II',
+      href: 'technology-advanced',
+    },
+  },
+
+  techSpec2: {
+    metaTitle: 'Technologie II — génomique, simulation, réponse, auto-vérification',
+    metaDescription:
+      'Les moteurs profonds qui tournent à la demande ou sur alerte : naturel de l’ordre des séquences mesuré, détection de chimères par homologie, simulation de propagation entre pays, estimation de la date d’importation, scénarios d’intervention par alerte, évaluation automatique des prévisions et scellement des prévisions — chacun avec sa base mesurée et ses limites.',
+    eyebrow: 'TECHNOLOGY · II',
+    title: 'Génomique · simulation · réponse · auto-vérification',
+    lead: 'Si la couche permanente compte ce qui diffère, cette couche répond à quoi faire, et comment. L’essentiel se calcule à la demande ou sur alerte — c’est lourd, et rien ne justifie de le faire chaque heure. Chaque nombre porte, à côté de lui, jusqu’où on peut lui faire confiance.',
+    blocks: [
+      {
+        title: 'Génomique — naturel de l’ordre',
+        body: 'Les statistiques de composition (GC, CpG, usage des codons) ne regardent que la composition des bases. Elles manquent une séquence dont la composition est naturelle mais dont l’ordre ne l’est pas — assemblée ou recombinée. Nous donnons à un modèle génomique de fondation seulement le début d’une séquence, lui faisons prédire les bases suivantes, et mesurons le naturel de l’ordre directement par la concordance avec la séquence réelle.',
+        points: [
+          'Mesuré (2026-07) : les séquences naturelles concordent étroitement, et mélanger l’ordre à composition identique fait chuter la concordance — cela saisit l’angle que les statistiques de composition ne peuvent voir.',
+          'Il produit une « priorité d’examen complémentaire », non un verdict. Une faible concordance ne signifie pas à elle seule une séquence conçue.',
+        ],
+        note: 'Ce modèle a exclu de son entraînement les virus à hôte eucaryote ; il n’est donc pas appliqué aux séquences de coronavirus, de grippe ou d’Ebola — le domaine applicable est déclaré, et hors de celui-ci le score est rapporté sans qu’aucun signalement ne soit levé.',
+      },
+      {
+        title: 'Génomique — détection de chimères par homologie',
+        body: 'Pour éviter l’angle mort d’un modèle entraîné (les taxons laissés hors de l’entraînement), nous recherchons une séquence protéique dans des bases d’homologie publiques pour voir si une protéine naturelle couvre toute la longueur de la requête. Pour une protéine naturelle, des proches couvrent toute l’étendue ; pour une séquence assemblée à partir de fragments de plusieurs organismes, aucune protéine naturelle ne la couvre entièrement — la trace directe d’une recombinaison.',
+        points: [
+          'Comme il s’agit d’une recherche en base et non d’un modèle, elle fonctionne aussi sur les virus.',
+          'Les seuils ont été pré-enregistrés pour qu’un test de faux positifs — incluant délibérément des pathogènes peu étudiés — soit passé.',
+        ],
+        note: 'Une faible couverture est une priorité d’examen « non entièrement expliqué par des homologues naturels », non un verdict d’artificialité. Le jugement final requiert un expert, de la phylogénie et un travail de paillasse.',
+      },
+      {
+        title: 'Simulation — propagation entre pays',
+        body: 'Un modèle SEIR métapopulationnel avec 159 pays comme nœuds, et 1 671 paires de pays reliées par avion et 314 frontières terrestres comme arêtes. Il rapporte les pays non atteints pendant la période séparément des pays pour lesquels aucune voie n’est connue — « sûr » et « inconnu » ne sont pas le même mot.',
+        items: [
+          { title: 'Estimation de la date d’importation', body: 'À partir du trafic international de la ville d’origine, de la durée de vol et de la croissance exponentielle initiale, il estime les jours jusqu’à un premier cas importé et le risque par point d’entrée.', meta: 'Une estimation de modèle, non une date d’importation observée' },
+          { title: 'Limites du réseau', body: 'Le réseau aérien repose sur des données de liaisons de 2014. La connexion entre deux pays change peu, mais les fréquences ont beaucoup changé, et le trafic terrestre est une estimation fondée sur la population.', meta: 'Exposé avec le résultat sous air_network_coverage' },
+        ],
+      },
+      {
+        title: 'Réponse — scénarios d’intervention par alerte',
+        body: 'Jusqu’ici une alerte s’arrêtait à « ce qui arrive ». Le destinataire n’obtenait aucune réponse à « que faire ». Pour chaque nouvelle alerte critique ou élevée, nous exécutons une simulation SEIR de défense avec des paramètres propres à la maladie et joignons l’écart entre absence de réponse et intervention, en décès et en jours de saturation hospitalière — l’étape qui transforme un outil de prévision en outil de décision.',
+        points: [
+          'Les coefficients de transmission et les taux de létalité sont des valeurs représentatives de la littérature. Avant calibration au pathogène et à la région réels, ils sont une référence directionnelle — nous disons « N sous hypothèses de modèle », jamais « sauve N ».',
+          'Pour une alerte où la maladie ne peut être identifiée, nous ne produisons aucun nombre. Un bilan inventé à partir de constantes génériques serait un nombre sans fondement.',
+        ],
+      },
+      {
+        title: 'Auto-vérification — évaluation et scellement',
+        body: 'La prétention de « savoir avant les autres » n’est qu’un argument commercial s’il n’existe aucun moyen de la prouver. Nous avons donc mis la vérification dans le code. Les prévisions enregistrées sont évaluées chaque jour au regard des déclarations officielles qui suivent, et chaque prévision est scellée au moment où elle est faite.',
+        items: [
+          { title: 'Évaluation automatique des prévisions', body: 'Les prévisions non résolues sont confrontées chaque jour aux déclarations officielles et classées en succès, échec ou indéterminé. Les pics de consultation et les mises à jour du nombre de cas ne servent pas de vérité terrain — ce serait évaluer nos signaux avec nos propres signaux.', meta: 'Si l’antériorité mesurée est 0, nous disons 0' },
+          { title: 'Registre d’antériorité', body: 'Il fixe le moment où un signal a été vu pour la première fois, avant toute déclaration officielle. Une antériorité reconstituée après coup n’est pas acceptée comme mesure.', meta: 'Il sépare le chargement a posteriori du temps réel' },
+          { title: 'Scellement des prévisions', body: 'L’empreinte d’une prévision est ancrée dans un horodatage public (la chaîne Bitcoin). Un tiers peut vérifier lui-même que la prévision n’a pas été réécrite ensuite.', meta: 'Une preuve qu’on ne peut appliquer rétroactivement' },
+        ],
+      },
+    ],
+    cta: {
+      title: 'Ces deux couches forment une seule chaîne',
+      body: 'Détecter → juger → prévoir → simuler → prescrire → auto-vérifier → sceller. L’écran où cette chaîne tourne réellement est le tableau de bord en direct.',
+      label: 'Tableau de bord en direct',
+      href: '/dashboard',
+    },
+  },
+
+  programs: {
+    metaTitle: 'Programmes spéciaux — HEIMDALL · VALHALLA',
+    metaDescription:
+      'Les deux programmes de R&D internes d’AEGIRON. HEIMDALL traite le criblage génomique défensif ; VALHALLA, la préparation en contre-mesures. Tous deux opèrent dans une limite d’honnêteté énoncée, sans surévaluer leurs capacités.',
+    eyebrow: 'SPECIAL PROGRAMS',
+    title: 'HEIMDALL · VALHALLA',
+    lead: 'La plupart des couches de veille opèrent à découvert. Mais deux axes sont d’une nature différente — le criblage génomique des menaces biologiques et la préparation nationale en contre-mesures. Parce qu’ils sont sensibles, nous en gérons la responsabilité et l’accès à part ; cette page énonce seulement ce qu’ils font et ne font pas, sans rien surévaluer.',
+    blocks: [
+      {
+        title: 'HEIMDALL — criblage génomique défensif',
+        body: 'Nommé d’après le gardien qui veille sur le pont dans la mythologie nordique. C’est la fonction défensive du criblage de biosécurité — détecter et signaler si une séquence génomique donnée présente des signaux s’écartant des statistiques de l’évolution naturelle. Il examine ensemble les statistiques de composition, le naturel de l’ordre et la couverture d’homologie (la couche génomique de Technologie II).',
+        points: [
+          '**Détection défensive uniquement.** Il ne conçoit, ne synthétise ni n’optimise de séquences, et ne fournit aucun moyen de contourner le criblage.',
+          'Le résultat est une « priorité d’examen approfondi », non un verdict. Un jugement final requiert un expert et un travail de paillasse (is_screening_only).',
+          'Bactéries, archées, génomes eucaryotes et phages sont dans le domaine applicable. Les virus à hôte eucaryote en sortent par une limite de modèle, et ce fait est indiqué dans la réponse.',
+        ],
+        note: 'Le point d’accès exige une authentification et chaque accès est consigné dans un journal d’audit. Relever le niveau de sécurité ne relève pas les affirmations — classifié signifie contrôle d’accès, non traiter le non validé comme validé.',
+      },
+      {
+        title: 'VALHALLA — préparation en contre-mesures',
+        body: 'Plutôt que d’imiter une prédiction de neutralisation au niveau moléculaire, il répond aux questions que l’on peut réellement défendre — quelles menaces notre stock ne peut couvrir (l’écart de couverture) et, parmi celles qu’il couvre, lesquelles ne peuvent être produites sur le territoire (l’écart de souveraineté de production). Ce sont les questions centrales de la planification nationale de biosécurité, et tout est calculé à partir de données publiques.',
+        items: [
+          { title: 'Écart de couverture', body: 'Quelles maladies disposent d’un stock d’urgence international ou d’un produit approuvé par la réglementation. Nous ne touchons pas aux informations non publiques comme les quantités des stocks nationaux.', meta: 'Sources publiques : OMS ICG, openFDA, etc.' },
+          { title: 'Souveraineté de production', body: 'À partir de la liste de préqualification de l’OMS, combien de lieux dans le monde peuvent fabriquer un produit donné. Sur 56 produits, 17 n’ont qu’un seul fabricant — un goulot d’étranglement que cela met au jour.', meta: 'Un point unique d’approvisionnement = le risque qu’un stock ne puisse être reconstitué' },
+          { title: 'Stade de développement', body: 'Via ClinicalTrials.gov, il décompose « encore en développement » jusqu’à la phase d’essai, séparant les états regroupés sous « pas de stock » (phase 3 en cours vs aucune phase indiquée).', meta: 'La distinction qui fixe la priorité de préparation' },
+        ],
+      },
+      {
+        title: 'La limite d’honnêteté',
+        accent: true,
+        body: 'Les deux programmes prennent pour règle de fonctionnement de ne pas surévaluer leurs capacités. La limite est fixée dans les commentaires du code, et la réponse la transporte avec elle.',
+        points: [
+          'HEIMDALL reste une **priorité de criblage, non un verdict.**',
+          'L’efficacité de VALHALLA est un **agrégat de l’efficacité déclarée (étiquette) de chaque contre-mesure**, non une prédiction de neutralisation moléculaire.',
+          'Là où les données manquent, il ne les invente pas et laisse prudemment la couverture « inconnue ».',
+        ],
+        note: 'Les noms de code des programmes et la structure organisationnelle sont des définitions internes propres à AEGIRON, non une affiliation à un organisme gouvernemental ni une classification de sécurité officielle.',
+      },
+    ],
+    cta: {
+      title: 'La base mesurée des moteurs profonds',
+      body: 'Les mesures par taxon de la couche génomique et les limites de réseau de la simulation sont exposées dans Technologie II.',
+      label: 'Voir Technologie II',
+      href: 'technology-advanced',
+    },
+  },
+
+
   transparency: {
-    metaTitle: 'Ce que nous ignorons — points non validés et limites connues',
+    metaTitle: 'Validation et limites — ce qui n’est pas encore prouvé et les lacunes connues',
     metaDescription:
       'Tout ce qu’AEGIRON n’a pas encore validé, ses limites connues et ses lacunes de données — ainsi que la façon dont le système vérifie ses propres chiffres.',
-    eyebrow: 'CE QUE NOUS IGNORONS',
-    title: 'Ce que nous ignorons',
+    eyebrow: 'VALIDATION & LIMITS',
+    title: 'Validation et limites',
     lead: 'En veille épidémiologique, l’échec le plus dangereux n’est pas une prévision fausse mais une prévision invérifiable. Nous commençons donc par ce dont nous ne sommes pas sûrs. Si nous ne le disons pas, la due diligence le dira à notre place.',
     blocks: [
       {
@@ -372,39 +544,49 @@ export const pagesFr: PagesDict = {
   },
 
   about: {
-    metaTitle: 'À propos',
+    metaTitle: 'À propos — AEGIRON',
     metaDescription:
-      'AEGIRON développe des systèmes d’alerte précoce des maladies infectieuses depuis Busan, en Corée du Sud. Voici exactement où nous en sommes.',
-    eyebrow: 'À PROPOS',
+      'AEGIRON construit un système d’alerte précoce qui saisit les signaux des maladies infectieuses avant qu’ils ne deviennent une actualité internationale. Busan, Corée du Sud. Nous énonçons clairement notre stade actuel et notre direction.',
+    eyebrow: 'ABOUT',
     title: 'AEGIRON',
-    lead: 'Nous construisons un système qui capte les signaux de maladies infectieuses avant qu’ils ne deviennent une actualité internationale. Nous sommes basés à Busan, en Corée du Sud.',
+    lead: 'Une pandémie n’est jamais déclarée de nulle part. Des semaines avant la déclaration, elle laisse des traces — dans la presse locale, les recherches, les eaux usées, le commerce. AEGIRON rassemble ces traces avant leur traduction et calcule, chaque heure, où quelque chose s’écarte de la normale. Nous sommes établis à Busan, en Corée du Sud.',
     blocks: [
       {
-        title: 'Où nous en sommes',
-        body: 'Stade précoce. Nous ne l’édulcorerons pas : la due diligence le révélerait de toute façon, et l’édulcorer coûterait la crédibilité de tout le reste.',
+        title: 'Ce que nous construisons',
+        body: 'Nous réunissons la presse en langue locale de 179 pays, les données officielles de surveillance et les signaux environnementaux, commerciaux et génomiques en un seul indice, jugeons l’anomalie de chaque pays au regard de sa propre ligne de base et — dès qu’une alerte est émise — calculons à côté les scénarios de propagation et les effets d’intervention. L’axe de conception est de ne pas s’arrêter à la détection mais de répondre à « et alors, et à quelle intensité ».',
         points: [
-          'Le système fonctionne réellement. Les signaux arrivent chaque heure de 21 sources et le tableau de bord est ouvert en ce moment.',
-          'Nous n’avons pas encore de client commercial. Nous cherchons un premier partenaire.',
-          'Aucun organisme externe n’a évalué le système de façon indépendante.',
-          'Il n’existe pas d’historique de prévision validé. La poursuite de l’exploitation en constitue un d’elle-même.',
+          'Détecter → juger → prévoir → simuler → prescrire → auto-vérifier → sceller. Toute la chaîne tient dans un seul système.',
+          'Chaque prévision est évaluée automatiquement au regard des déclarations officielles qui suivent, et scellée au moment où elle est faite pour ne pouvoir être modifiée après coup.',
+          'Deux programmes de R&D internes — criblage génomique défensif (HEIMDALL) et préparation en contre-mesures (VALHALLA) — portent l’axe de biosécurité nationale.',
         ],
       },
       {
-        title: 'Pourquoi tout publier',
-        body: 'Se créer des choses à cacher à un stade sans client ni contrat devient une dette dès que quelqu’un vérifie. Tout ouvrir maintenant nous laisse vérifiables. C’est aussi un choix que des concurrents plus grands peuvent difficilement copier : ils ont des contrats à protéger.',
+        title: 'Où nous en sommes',
+        body: 'Nous sommes à un stade précoce. Nous ne l’estomperons pas — la due diligence le fait apparaître de toute façon, et dès qu’on l’estompe, la crédibilité de tout le reste tombe avec.',
+        points: [
+          'Le système tourne réellement. Les signaux arrivent des sources de données chaque heure, et le tableau de bord en direct est ouvert en ce moment, sans authentification.',
+          'Nous n’avons pas encore de clients commerciaux. Nous cherchons un premier partenaire.',
+          'Aucun organisme externe ne nous a validés de façon indépendante. À ce jour, les seules personnes à avoir évalué ce système sont celles qui l’ont construit.',
+          'Nous ne détenons aucun historique validé de détection précoce. Avec une exploitation continue, il s’accumule de lui-même, sous forme de prévisions scellées.',
+        ],
       },
       {
-        title: 'Où cela va',
+        title: 'Pourquoi nous publions tout',
+        body: 'Si, sans client ni contrat, on construit des choses à cacher, elles deviennent toutes des passifs au moment d’être validé. Tout ouvrir maintenant, c’est rester prêt à être vérifié. C’est aussi un choix qu’un concurrent de grande taille ne peut structurellement copier — il a des contrats clients à protéger ; nous pouvons ouvrir parce que nous n’en avons aucun. La faiblesse et la force viennent du même endroit.',
+        note: 'Notre état de validation et nos limites connues sont exposés intégralement sur une page dédiée.',
+      },
+      {
+        title: 'Où nous allons',
         items: [
-          { title: 'Court terme', body: 'Nous relier à des organisations de terrain et à des réseaux de surveillance pour nous rapprocher de la source des signaux.' },
-          { title: 'Moyen terme', body: 'Poursuivre l’exploitation pour accumuler un historique de prévision vérifiable, les enregistrements scellés en faisant foi.' },
-          { title: 'Long terme', body: 'Devenir un système réellement utilisé là où les lacunes de surveillance sont les plus grandes.' },
+          { title: 'Court terme', body: 'Nous connecter à des organisations de terrain et des réseaux de surveillance réels pour nous rapprocher de la source du signal. Réassureurs, gouvernements, organismes internationaux et organisations de terrain sont les premiers partenaires candidats.' },
+          { title: 'Moyen terme', body: 'Poursuivre l’exploitation pour accumuler un historique de prévisions vérifiable. Le registre scellé est le fondement du « nous l’avions bien prévu, alors ».' },
+          { title: 'Long terme', body: 'Devenir une infrastructure d’alerte précoce réellement utilisée dans les régions où la surveillance est mince.' },
         ],
       },
     ],
     cta: {
-      title: 'Si cela vous semble mériter une conversation',
-      body: 'Réassurance, gouvernement, organisation internationale ou acteur de terrain — tous bienvenus.',
+      title: 'Si cela vous semble valoir une conversation',
+      body: 'Réassurance, gouvernement, organismes internationaux, organisations de terrain — tous bienvenus. Vous pouvez d’abord voir le système entier, sans réserver de démonstration.',
       label: 'Nous contacter',
       href: 'contact',
     },

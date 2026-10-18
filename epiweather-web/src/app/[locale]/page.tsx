@@ -160,6 +160,38 @@ export default async function HomePage(props: { params: Promise<{ locale: string
         </Section>
       </div>
 
+      {/* ── 스페셜 프로그램 강조(헤임달·발할라) ─────────────── */}
+      <Section>
+        <Card accent>
+          <div style={{ wordBreak: 'keep-all' }}>
+            <SectionHeading eyebrow={t.specialEyebrow} title={t.specialTitle} lead={t.specialLead} />
+            <Grid min={300}>
+              {t.specialCards.map((c) => (
+                <div
+                  key={c.code}
+                  style={{ border: '1px solid var(--line)', borderRadius: 12, padding: 20, background: 'var(--panel)' }}
+                >
+                  <div style={{ fontFamily: 'var(--mono)', fontSize: 12, letterSpacing: '.12em', color: 'var(--accent)', fontWeight: 700 }}>
+                    {c.code}
+                  </div>
+                  <h3 style={{ fontFamily: 'var(--disp)', fontWeight: 800, fontSize: 16, margin: '8px 0 10px' }}>{c.name}</h3>
+                  <p style={{ color: 'var(--muted)', fontSize: 13.5, lineHeight: 1.72 }}>{c.body}</p>
+                </div>
+              ))}
+            </Grid>
+            <Link
+              href={localePath(locale, 'programs')}
+              style={{
+                display: 'inline-block', marginTop: 20,
+                fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--accent)', textDecoration: 'none', fontWeight: 700,
+              }}
+            >
+              {t.specialCta} →
+            </Link>
+          </div>
+        </Card>
+      </Section>
+
       {/* ── 우리가 공개하는 것 ─────────────────────────────── */}
       <Section>
         <SectionHeading eyebrow="OPEN BY DEFAULT" title={t.openTitle} lead={t.openLead} />

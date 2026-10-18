@@ -43,8 +43,10 @@ export const en: Dictionary = {
 
   nav: {
     platform: 'System',
+    technology: 'Technology',
+    programs: 'Special programs',
     methodology: 'Methodology',
-    transparency: 'What we don’t know',
+    transparency: 'Validation & limits',
     dataSources: 'Data sources',
     solutions: 'Use cases',
     briefings: 'Briefings',
@@ -234,6 +236,15 @@ export const en: Dictionary = {
         ],
       },
     ],
+
+    specialEyebrow: 'SPECIAL PROGRAMS',
+    specialTitle: 'Two axes no competitor has — HEIMDALL · VALHALLA',
+    specialLead: 'Most surveillance layers run in the open. But two internal R&D programs, different in kind, carry the national-biosecurity axis. We state only what they do and do not do, without overstating any of it.',
+    specialCards: [
+      { code: 'HEIMDALL', name: 'Defensive genomic screening', body: 'Detects and flags whether a sequence departs from the statistics of natural evolution. No design or synthesis function — a review priority, not a verdict.' },
+      { code: 'VALHALLA', name: 'Countermeasure readiness', body: 'Instead of imitating molecular prediction, it aggregates stockpile-coverage and production-sovereignty gaps from public data. It does not touch non-public information such as national stockpile quantities.' },
+    ],
+    specialCta: 'See the special programs',
 
     openTitle: 'What we publish',
     openLead:

@@ -8,6 +8,8 @@
 
 export type NavDict = {
   platform: string;
+  technology: string;
+  programs: string;
   methodology: string;
   transparency: string;
   dataSources: string;
@@ -84,6 +86,13 @@ export type HomeDict = {
   engineModes: Record<EngineMode, string>;
   engineCaveatLabel: string;
   engineGroups: EngineGroupDict[];
+
+  /** 스페셜 프로그램(헤임달·발할라) 강조 띠 — 홈에서 /programs 로 보낸다. */
+  specialEyebrow: string;
+  specialTitle: string;
+  specialLead: string;
+  specialCards: { code: string; name: string; body: string }[];
+  specialCta: string;
 
   openTitle: string;
   openLead: string;
@@ -184,6 +193,9 @@ export type BriefingsDict = {
 
 export type PagesDict = {
   platform: ContentPage;
+  techSpec1: ContentPage;
+  techSpec2: ContentPage;
+  programs: ContentPage;
   transparency: ContentPage;
   dataSources: ContentPage;
   methodology: ContentPage;
