@@ -121,7 +121,9 @@ export default async function LocaleLayout(props: {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
         />
       </head>
-      <body>
+      {/* data-theme="lab": 상아색 바탕·먹색 글자·진홍/숲녹 강조(캡틴 선택 2026-10-18).
+          라이브 대시보드((live) 레이아웃)에는 이 속성이 없어 운영 화면 배색은 그대로다. */}
+      <body data-theme="lab">
         <SiteNav locale={locale as Locale} dict={dict} />
         <main>{props.children}</main>
         <SiteFooter locale={locale as Locale} dict={dict} />
