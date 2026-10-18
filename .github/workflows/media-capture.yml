@@ -58,8 +58,8 @@ jobs:
           git config user.name "aegiron-media-bot"
           git config user.email "actions@users.noreply.github.com"
           # 사진 후보는 용량이 커서(첫 수집 100MB+) 수동으로 켰을 때만 커밋한다.
-          git add .github/media-capture/out/manifest.json .github/media-capture/out/screens .github/media-capture/out/api
-          if [ "${{ inputs.photos }}" = "true" ]; then git add .github/media-capture/out/photos; fi
+          git add -f .github/media-capture/out/manifest.json .github/media-capture/out/screens .github/media-capture/out/api
+          if [ "${{ inputs.photos }}" = "true" ]; then git add -f .github/media-capture/out/photos; fi
           # ★ PR 브랜치가 아니라 별도 브랜치(media-capture/results)에 강제 푸시한다 ★
           # Vercel Hobby 팀은 팀원이 아닌 작성자(@actions)의 커밋 배포를 막는다(2026-10-18 실측:
           # "Git author actions must have access"). 봇 커밋이 PR head 가 되면 PR 이 빨갛게 된다.
