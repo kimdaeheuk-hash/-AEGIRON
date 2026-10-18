@@ -19,7 +19,7 @@ const SITE = process.env.SITE_URL ?? 'https://epiweather-web.vercel.app';
 const API = process.env.API_URL ?? 'https://epiweather-api-production.up.railway.app';
 const UA = 'AEGIRON-media-capture/1.0 (+https://github.com/kimdaeheuk-hash/-AEGIRON)';
 
-const manifest = { captured_at: new Date().toISOString(), site: SITE, screens: [], api: [], photos: [], failures: [] };
+const manifest = { captured_at: new Date().toISOString(), site: SITE, screens: [], api: [], photos: [], failures: [], network: [], console: [] };
 
 async function save(rel, buf) {
   const file = path.join(OUT, rel);
@@ -47,6 +47,22 @@ const browser = await chromium.launch();
 try {
   for (const [tag, viewport] of [['desk', { width: 1440, height: 900 }], ['mobile', { width: 390, height: 844 }]]) {
     const page = await browser.newPage({ viewport, deviceScaleFactor: 2 });
+    // ★ 진단(2026-10-18) ★ 첫 수집에서 9단계(실시간 대시보드)가 60초 넘게 "서버 연결 중"에
+    // 머물렀다. 대시보드가 **어느 호스트**를 부르고 응답이 얼마나 걸리는지 남긴다.
+    if (tag === 'desk') {
+      const started = new Map();
+      page.on('request', (r) => { if (/\/api\//.test(r.url())) started.set(r, Date.now()); });
+      page.on('requestfinished', async (r) => {
+        if (!started.has(r)) return;
+        const res = await r.response().catch(() => null);
+        manifest.network.push({ url: r.url(), method: r.method(), status: res?.status() ?? null, ms: Date.now() - started.get(r) });
+      });
+      page.on('requestfailed', (r) => {
+        if (!started.has(r)) return;
+        manifest.network.push({ url: r.url(), method: r.method(), failed: r.failure()?.errorText ?? 'failed', ms: Date.now() - started.get(r) });
+      });
+      page.on('console', (m) => { if (m.type() === 'error') manifest.console.push(m.text().slice(0, 300)); });
+    }
     try {
       await page.goto(`${SITE}/dashboard`, { waitUntil: 'networkidle', timeout: 90_000 });
       await page.waitForTimeout(5000);
@@ -56,6 +72,11 @@ try {
           await page.locator('button', { hasText: name }).first().click({ timeout: 10_000 });
           await page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {});
           await page.waitForTimeout(6000);
+          if (i === 9) {
+            // 실시간 단계는 로딩 문구가 사라질 때까지 최대 90초 더 기다린다. 끝내 안 사라지면 그 사실을 남긴다.
+            const loaded = await page.getByText('서버 연결 중').waitFor({ state: 'detached', timeout: 90_000 }).then(() => true, () => false);
+            if (!loaded) manifest.failures.push({ what: `stage 9 ${tag}`, error: 'still loading after 90s+ (서버 연결 중)' });
+          }
           const rel = `screens/${tag}-stage${i}.png`;
           await save(rel, await page.screenshot({ fullPage: false }));
           manifest.screens.push({ stage: i, name, viewport: tag, file: rel, url: `${SITE}/dashboard`, at: new Date().toISOString() });
