@@ -1119,6 +1119,17 @@ def collect_free_sources() -> dict:
     except Exception as e:
         log_error("PredictionLog", e)
 
+    # ── 예측 봉인 (2026-10-18 편입) ───────────────────────────────────────
+    # 봉인은 수동 API 에만 붙어 있었고 이 자동 예측은 한 건도 봉인되지 않았다.
+    # 예측을 남긴 바로 그 주기에서 미봉인분을 따라잡는다(prediction_timestamp 참고).
+    try:
+        from algorithms.prediction_timestamp import seal_pending_predictions, seal_line
+        import db
+        db.init_db()
+        log(f"  🔏 {seal_line(seal_pending_predictions())}")
+    except Exception as e:
+        log_error("PredictionSeal", e)
+
     # ── 선행성 원장 (2026-09-03 편입) ─────────────────────────────────────
     # ★ 왜 여기서 쓰는가 ★ 지금까지는 **선언이 난 뒤에** extracted_signals 를
     # 거꾸로 뒤져 "그때 갖고 있었나" 를 따졌다. 그러다 에볼라 DRC 2026 에서
