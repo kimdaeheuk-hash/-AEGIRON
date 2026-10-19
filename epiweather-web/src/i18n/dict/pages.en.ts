@@ -797,7 +797,8 @@ export const pagesEn: PagesDict = {
       'AEGIRON builds a global early-warning system that catches infectious-disease signals before they become international news. Busan, South Korea.',
     eyebrow: 'ABOUT',
     title: 'AEGIRON',
-    lead: 'A pandemic is never declared out of nowhere. For weeks before the declaration it leaves traces — in local reporting, in search, in wastewater, in trade. AEGIRON gathers those traces before they are translated and computes, every hour, where in the world something differs from normal. We are based in Busan, South Korea.',
+    lead:
+      'On 31 December 2019, health authorities in Wuhan, China, reported a cluster of pneumonia cases of unknown cause. The World Health Organization declared a public health emergency of international concern a month later. It was not that there were no signals during that month. They were there — in local languages, in places international surveillance rarely looks.\n\nAEGIRON was started to close that gap. It gathers, in the original language, the traces that move before official announcements — local-language news, search volume, wastewater, trade, animal-disease signals — and computes every hour where in the world something departs from normal. Every forecast we make is sealed the moment it is created and then published, so anyone can check whether it was right or wrong.',
     photo: {
       src: '/media/photos/earth-at-night.jpg',
       alt: 'Earth at night — city lights across the Americas (satellite composite)',

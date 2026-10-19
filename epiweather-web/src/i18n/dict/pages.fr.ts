@@ -801,7 +801,8 @@ export const pagesFr: PagesDict = {
       'AEGIRON construit un système d’alerte précoce qui saisit les signaux des maladies infectieuses avant qu’ils ne deviennent une actualité internationale. Busan, Corée du Sud. Nous énonçons clairement notre stade actuel et notre direction.',
     eyebrow: 'ABOUT',
     title: 'AEGIRON',
-    lead: 'Une pandémie n’est jamais déclarée de nulle part. Des semaines avant la déclaration, elle laisse des traces — dans la presse locale, les recherches, les eaux usées, le commerce. AEGIRON rassemble ces traces avant leur traduction et calcule, chaque heure, où quelque chose s’écarte de la normale. Nous sommes établis à Busan, en Corée du Sud.',
+    lead:
+      'Le 31 décembre 2019, les autorités sanitaires de Wuhan, en Chine, signalaient des cas de pneumonie de cause inconnue. L’Organisation mondiale de la santé a déclaré une urgence de santé publique de portée internationale un mois plus tard. Les signaux ne manquaient pas pendant ce mois. Ils existaient — dans les langues locales, là où la veille internationale regarde rarement.\n\nAEGIRON est né pour réduire cet écart. Il recueille, dans leur langue d’origine, les traces qui bougent avant les annonces officielles — presse en langue locale, volumes de recherche, eaux usées, commerce, signaux de maladies animales — et calcule chaque heure où, dans le monde, quelque chose s’écarte de la normale. Chacune de nos prévisions est scellée au moment même où elle est produite, puis publiée, afin que chacun puisse vérifier si elle était juste ou non.',
     photo: {
       src: '/media/photos/earth-at-night.jpg',
       alt: 'La Terre de nuit — lumières urbaines des Amériques (composite satellitaire)',
