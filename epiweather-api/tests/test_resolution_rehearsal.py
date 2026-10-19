@@ -47,7 +47,7 @@ def test_rehearsal_runs_on_a_copy_and_reports_blind_not_incorrect(isolated_db):
     assert rep["deadline_mismatches"] == []
     assert rep["scorecard_after"]["resolved"] == 0
     md = rr.to_markdown(rep)
-    assert "판정 보류 사유" in md and "성적이 아님" in md
+    assert "마지막 실행일 기준 판정 보류 2건" in md and "성적이 아님" in md
 
 
 def test_deadline_mismatch_fails_the_rehearsal(isolated_db, capsys):
@@ -61,3 +61,21 @@ def test_no_open_predictions_is_reported_not_crashed(isolated_db):
     rep = rr.rehearse(isolated_db.DB_PATH)
     assert rep["days"] == [] and rep["first_deadline"] is None
     assert "첫 판정 기한 없음" in rr.to_markdown(rep)
+
+
+def test_blind_count_is_end_state_not_summed_across_days(isolated_db):
+    """★ 운영 관측(10-19 첫 텔레그램) ★ 판정 보류는 실행일마다 누적 상태로 다시 센다 —
+    날짜별로 더하면 같은 예측을 여러 번 센다(실제 9건이 '30건'으로 나갔다)."""
+    for made in ("2026-07-17T00:00:00+00:00", "2026-08-17T00:00:00+00:00", "2026-08-18T00:00:00+00:00"):
+        _pred(isolated_db, made, None)
+    rep = rr.rehearse(isolated_db.DB_PATH)
+    assert [d["blind"] for d in rep["days"]] == [1, 2, 3]
+    assert rep["blind_at_end"] == 3 and rep["closed_total"] == 0
+    md = rr.to_markdown(rep)
+    assert "마지막 실행일 기준 판정 보류 3건" in md
+    assert ": 3건" in md and ": 6건" not in md, "사유별 건수도 끝 시점 기준"
+
+
+def test_workflow_notice_uses_end_state_counts():
+    wf = (ROOT.parent / ".github" / "workflows" / "restore-drill.yml").read_text(encoding="utf-8")
+    assert "blind_at_end" in wf and 'sum(d["blind"]' not in wf

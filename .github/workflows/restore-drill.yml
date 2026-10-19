@@ -97,10 +97,10 @@ jobs:
           rep = pathlib.Path("rehearsal.json")
           if rep.exists():
               r = json.loads(rep.read_text(encoding="utf-8"))
-              blind = sum(d["blind"] for d in r["days"])
-              closed = sum(sum(d["resolved"].values()) for d in r["days"])
+              # 판정 보류는 누적 상태라 끝 시점 값(blind_at_end)만 쓴다 — 날짜별로 더하면 중복으로 센다.
               lines.append(f"· 첫 판정 기한 {r['first_deadline'] or '없음'} · 앞쪽 {len(r['days'])}개 기한 모의: "
-                           f"닫힘 {closed}건 · 판정 보류 {blind}건 · 기한 불일치 {len(r['deadline_mismatches'])}건")
+                           f"닫힘 {r['closed_total']}건 · 판정 보류 {r['blind_at_end']}건 · "
+                           f"기한 불일치 {len(r['deadline_mismatches'])}건")
           lines += ["", f"<i>운영 DB 는 건드리지 않음 · 모의 결과이며 성적이 아님</i>",
                     html.escape(os.environ["RUN_URL"], quote=False)]
           lc.send("\n".join(lines))

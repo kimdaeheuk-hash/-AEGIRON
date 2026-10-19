@@ -105,8 +105,15 @@ def _rehearse_on_copy(db, max_days: int) -> dict:
     final_day = (dt.date.fromisoformat(days[-1]["run_day"]) if days else dt.date.today())
     card = score(db.list_predictions() or [], today=final_day)
 
+    # ★ 판정 보류는 실행일마다 '그때까지 보류 중인 전부'를 다시 센다(누적 상태) — 날짜별 값을 더하면
+    # 같은 예측을 여러 번 센다(2026-10-19 첫 텔레그램이 9건을 30건으로 보냈다). 끝 시점 값만 쓴다.
+    # 닫힘은 실행마다 새로 닫힌 것만 나오므로(이미 닫힌 건 건너뜀) 더하는 게 맞다.
+    last = days[-1] if days else {"blind": 0, "blind_reasons": {}}
     return {
         "horizon_days": horizon,
+        "closed_total": sum(sum(d["resolved"].values()) for d in days),
+        "blind_at_end": last["blind"],
+        "blind_reasons_at_end": last["blind_reasons"],
         "predictions": len(preds),
         "open_before": len(open_preds),
         "first_deadline": min(due).isoformat() if due else None,
@@ -125,18 +132,17 @@ def to_markdown(rep: dict) -> str:
         f" · 첫 판정 기한 {rep['first_deadline'] or '없음'}",
         f"- 기한 불일치(공개 문구 resolves_by ≠ 채점기 기한): {len(rep['deadline_mismatches'])}건",
         "",
-        "| 실행일 | 기한 도래 | 적중 | 오답 | 질병 불일치 | 판정 보류 | 미결 |",
+        "| 실행일 | 기한 도래 | 새로 닫힘: 적중 | 오답 | 질병 불일치 | 그날 판정 보류(누적) | 미결 |",
         "|---|---|---|---|---|---|---|",
     ]
     for d in rep["days"]:
         r = d["resolved"]
         lines.append(f"| {d['run_day']} | {d['due_on_deadline']} | {r.get('적중', 0)} | {r.get('오답', 0)} | "
                      f"{r.get('질병 불일치', 0)} | {d['blind']} | {d['still_open']} |")
-    reasons = collections.Counter()
-    for d in rep["days"]:
-        reasons.update(d["blind_reasons"])
+    reasons = collections.Counter(rep["blind_reasons_at_end"])
     if reasons:
-        lines += ["", "판정 보류 사유(정답 경로가 그 기간을 못 봄 — 오답으로 닫지 않음):"]
+        lines += ["", f"마지막 실행일 기준 판정 보류 {rep['blind_at_end']}건 — 사유(정답 경로가 그 기간을 못 봄, "
+                      "오답으로 닫지 않음):"]
         lines += [f"- {k}: {v}건" for k, v in reasons.most_common()]
     if rep["deadline_mismatches"]:
         lines += ["", "기한 불일치 예(최대 10건):"]
