@@ -151,7 +151,7 @@ export default async function HomePage(props: { params: Promise<{ locale: string
 
       {/* ── ★ 대표 시스템 — 엔진 → YGGDRASIL → BAIKAL MOB ★ (2026-10-19 캡틴: "아이기론을 대표하는
            시스템으로 명명하고 기록해") — 상태 카드는 운영 서버가 매시간 기록한 스냅숏 그대로다. ── */}
-      <div id="flagship" style={{ scrollMarginTop: 80, wordBreak: 'keep-all' }}>
+      <div id="flagship" style={{ scrollMarginTop: 80, wordBreak: 'keep-all', overflowWrap: 'anywhere' }}>
         <Section>
           <Card accent>
             <SectionHeading eyebrow={bx.flagshipEyebrow} title={bx.flagshipTitle} lead={bx.flagshipLead} />
@@ -240,7 +240,7 @@ export default async function HomePage(props: { params: Promise<{ locale: string
       </Section>
 
       {/* ── 엔진 구성 ──────────────────────────────────────── */}
-      <div id="engines" style={{ scrollMarginTop: 80, wordBreak: 'keep-all' }}>
+      <div id="engines" style={{ scrollMarginTop: 80, wordBreak: 'keep-all', overflowWrap: 'anywhere' }}>
         <Section>
           <SectionHeading eyebrow="ENGINE SYSTEMS" title={t.engineTitle} lead={t.engineLead.replace('{n}', String(engineCount))} />
           <ModeLegend modes={t.engineModes} />

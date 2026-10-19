@@ -59,7 +59,7 @@ export const baikalKo: BaikalDict = {
       code: 'LAYER 1 · ENGINES',
       name: '7개 엔진 시스템',
       role: '감시 → 검증',
-      body: '114개 엔진 모듈을 7개 시스템(HUGINN·MIMIR·FORSETI·SKULD·HEIMDALL·VALHALLA·VAR)으로 편성함. 엔진마다 실제 가동 방식(매시·매일·경보 시·요청 시)을 표기함.',
+      body: '114개 엔진 모듈을 7개 시스템(HUGINN · MIMIR · FORSETI · SKULD · HEIMDALL · VALHALLA · VAR)으로 편성함. 엔진마다 실제 가동 방식(매시·매일·경보 시·요청 시)을 표기함.',
     },
     {
       code: 'LAYER 2 · ONTOLOGY',

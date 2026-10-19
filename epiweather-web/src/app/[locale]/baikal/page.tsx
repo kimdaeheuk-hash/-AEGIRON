@@ -35,7 +35,9 @@ export default async function BaikalPage(props: { params: Promise<{ locale: stri
   const data = await getBaikal();
 
   return (
-    <div style={{ wordBreak: 'keep-all' }}>
+    // overflowWrap: keep-all 은 공백 없는 긴 나열('A·B·C·…')을 한 낱말로 봐 휴대폰 화면 밖으로
+    // 밀어낸다(2026-10-19 캡틴 휴대폰 캡처). 화면보다 긴 낱말만 예외로 끊게 한다.
+    <div style={{ wordBreak: 'keep-all', overflowWrap: 'anywhere' }}>
       <Section>
         <SectionHeading as="h1" eyebrow={page.eyebrow} title={page.title} lead={page.lead} />
         <LayerDiagram labels={B} />

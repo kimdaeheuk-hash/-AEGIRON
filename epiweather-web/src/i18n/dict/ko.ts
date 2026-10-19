@@ -190,7 +190,7 @@ export const ko: Dictionary = {
 
     engineTitle: '7개 엔진 시스템 — 엔진 구성',
     engineLead:
-      '114개 모듈 중 핵심 {n}개를 7개 시스템(HUGINN·MIMIR·FORSETI·SKULD·HEIMDALL·VALHALLA·VAR)으로 편성해 표시함 · 엔진마다 실제 가동 방식(매시·매일·경보 시·요청 시)을 병기해 상시 가동과 호출 가동을 구분함 · 전체 114개 모듈은 엔진 카탈로그에 정리함',
+      '114개 모듈 중 핵심 {n}개를 7개 시스템(HUGINN · MIMIR · FORSETI · SKULD · HEIMDALL · VALHALLA · VAR)으로 편성해 표시함 · 엔진마다 실제 가동 방식(매시·매일·경보 시·요청 시)을 병기해 상시 가동과 호출 가동을 구분함 · 전체 114개 모듈은 엔진 카탈로그에 정리함',
     engineModes: {
       hourly: '매시 자동',
       daily: '매일 자동',
