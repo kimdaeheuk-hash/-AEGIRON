@@ -305,3 +305,13 @@ def fetch_approved_products() -> dict:
             "없는 것은 아니다.",
         ],
     }
+
+
+# ══════════════════════════════════════════════
+# 한국 국제선 국가별 운송 실적(공공데이터포털 파일 데이터) — 2026-10-19 ⑦
+# ══════════════════════════════════════════════
+
+def fetch_kor_route_stats() -> dict:
+    """세부 경로·열 고르기는 kor_route_stats 모듈에 있다(확인 못 한 부분과 실패 사유 포함)."""
+    from .kor_route_stats import fetch_snapshot
+    return fetch_snapshot()

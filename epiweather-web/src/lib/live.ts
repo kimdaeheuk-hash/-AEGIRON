@@ -281,6 +281,8 @@ export type ImportRow = {
   raw_score: number;
   dominant_disease: string | null;
   direct_routes_to_kor: number;
+  /** 인천공항 국제선 여객(연결 기준이 passengers 일 때만) */
+  kor_passengers?: number | null;
   exposure_index?: number;
 };
 
@@ -299,6 +301,8 @@ export type KoreaImportReport = {
     last_scored: { target_week: string; prob_up: number; outcome: string } | null;
   }[];
   routes_error: string | null;
+  /** 연결을 무엇으로 쟀나(2026-10-19~). 옛 보고서에는 없다 — 그때는 노선 수 기준. */
+  connectivity?: { basis: 'passengers' | 'routes'; period?: string[] | null };
   is_probability: false;
   available_weeks: string[];
 };

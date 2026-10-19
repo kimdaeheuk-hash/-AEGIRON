@@ -372,6 +372,9 @@ export type ExtraDict = {
       colScore: string;
       colDisease: string;
       colRoutes: string;
+      colPassengers: string;
+      basisRoutes: string;
+      basisPassengers: string;
       colIndex: string;
       noRouteTitle: string;
       noRouteEmpty: string;

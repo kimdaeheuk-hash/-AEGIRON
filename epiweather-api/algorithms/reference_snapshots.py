@@ -52,6 +52,10 @@ def _approved_count(payload: dict) -> int:
     return len(payload.get("by_threat") or {})
 
 
+def _kor_route_count(payload: dict) -> int:
+    return len(payload.get("by_country") or {})
+
+
 # 스냅샷 등록부. max_age_days는 '원본이 얼마나 자주 바뀌는가'에 맞춘다.
 SNAPSHOTS: dict[str, dict] = {
     "vaccine_supply": {
@@ -62,6 +66,7 @@ SNAPSHOTS: dict[str, dict] = {
         "min_records": 100,
         "count": _vaccine_count,
         "fetch": "fetch_vaccine_supply",
+        "owner": "VALHALLA",
     },
     "ihr_capacity": {
         "label": "WHO IHR 국가 역량(SPAR)",
@@ -72,6 +77,7 @@ SNAPSHOTS: dict[str, dict] = {
         "min_records": 150,
         "count": _ihr_count,
         "fetch": "fetch_ihr_capacity",
+        "owner": "VALHALLA",
     },
     "approved_products": {
         "label": "규제 승인 제품(openFDA)",
@@ -84,6 +90,20 @@ SNAPSHOTS: dict[str, dict] = {
         "min_records": 3,
         "count": _approved_count,
         "fetch": "fetch_approved_products",
+        "owner": "VALHALLA",
+    },
+    "kor_route_stats": {
+        "label": "한국 국제선 국가별 운송 실적(공공데이터포털 파일)",
+        "filename": "kor_route_stats.json",
+        # 원본이 반기(1월 20일 무렵·7월 초) 갱신이다. 첫 스냅샷(10-19, 캡틴이 받아 준 7월 등록본)에서
+        # 100일 뒤면 1월 등록 직후라, 그 주의 주간작업이 처음으로 자동 내려받기를 시도한다.
+        "max_age_days": 100,
+        # 인천 취항국은 수십 개국이다. 이보다 적으면 열·국가 매핑이 깨진 것으로 본다.
+        "min_records": 30,
+        "count": _kor_route_count,
+        "fetch": "fetch_kor_route_stats",
+        # 유입 보고서·확산 모델(SKULD)이 쓴다 — 발할라 대응제 축이 아니다. 발할라 로그에 섞이지 않게.
+        "owner": "SKULD",
     },
 }
 
@@ -147,12 +167,14 @@ def snapshot_status(name: str, now=None) -> dict:
     }
 
 
-def report(now=None) -> dict:
+def report(now=None, owner: str | None = None) -> dict:
     """전 스냅샷의 신선도 — /api/status가 노출.
 
     stale_snapshots가 비어 있지 않으면 '조용히 굳은 기준 데이터'가 눈에 보이는 것.
-    발할라의 백신 공급·국가 역량 축이 여기에 달려 있다."""
-    rows = [snapshot_status(n, now) for n in sorted(SNAPSHOTS)]
+    발할라의 백신 공급·국가 역량 축이 여기에 달려 있다. owner 를 주면 그 시스템 몫만
+    (발할라 관찰이 유입 보고서용 노선 실적까지 '발할라 스냅샷 묵음'으로 찍지 않게)."""
+    rows = [snapshot_status(n, now) for n in sorted(SNAPSHOTS)
+            if owner is None or SNAPSHOTS[n].get("owner") == owner]
     return {
         "snapshots": rows,
         "stale_snapshots": [r["name"] for r in rows if r["stale"]],

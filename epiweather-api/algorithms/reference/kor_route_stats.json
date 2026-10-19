@@ -1,0 +1,355 @@
+{
+ "snapshot_date": "2026-10-19",
+ "fetched_by": "manual",
+ "source": "공공데이터포털 파일 데이터 15062056(인천국제공항공사 항공사별 노선별 운송실적)",
+ "source_url": "https://www.data.go.kr/data/15062056/fileData.do",
+ "basis": "인천공항 국제선 국가별 여객 수(유임+무임+환승, 도착+출발)·운항편수 — 자료 기간 합계",
+ "scope_note": "인천공항만 — 김해·김포·제주 등 국제선은 빠짐",
+ "period": [
+  "2026년 01월",
+  "2026년 06월"
+ ],
+ "route": {
+  "route": "manual",
+  "file": "인천국제공항공사_항공사별 노선별 운송실적_20260707.csv"
+ },
+ "rows": 7688,
+ "unmapped": {},
+ "by_country": {
+  "USA": {
+   "passengers": 3203947,
+   "flights": 21450,
+   "name": "미국"
+  },
+  "JPN": {
+   "passengers": 10449588,
+   "flights": 55931,
+   "name": "일본"
+  },
+  "CHN": {
+   "passengers": 7065325,
+   "flights": 47088,
+   "name": "중국"
+  },
+  "TWN": {
+   "passengers": 1673404,
+   "flights": 7022,
+   "name": "대만"
+  },
+  "HKG": {
+   "passengers": 1479257,
+   "flights": 8666,
+   "name": "홍콩"
+  },
+  "MNG": {
+   "passengers": 299462,
+   "flights": 1680,
+   "name": "몽골"
+  },
+  "VNM": {
+   "passengers": 3779053,
+   "flights": 19670,
+   "name": "베트남"
+  },
+  "SGP": {
+   "passengers": 952082,
+   "flights": 4264,
+   "name": "싱가포르"
+  },
+  "IDN": {
+   "passengers": 572557,
+   "flights": 2637,
+   "name": "인도네시아"
+  },
+  "KHM": {
+   "passengers": 134711,
+   "flights": 871,
+   "name": "캄보디아"
+  },
+  "THA": {
+   "passengers": 1610640,
+   "flights": 7440,
+   "name": "태국"
+  },
+  "PHL": {
+   "passengers": 1641378,
+   "flights": 8100,
+   "name": "필리핀"
+  },
+  "AUS": {
+   "passengers": 508177,
+   "flights": 1693,
+   "name": "호주"
+  },
+  "DEU": {
+   "passengers": 308988,
+   "flights": 2379,
+   "name": "독일"
+  },
+  "ESP": {
+   "passengers": 178943,
+   "flights": 776,
+   "name": "스페인"
+  },
+  "GBR": {
+   "passengers": 217658,
+   "flights": 1026,
+   "name": "영국"
+  },
+  "ITA": {
+   "passengers": 255093,
+   "flights": 1378,
+   "name": "이탈리아"
+  },
+  "CZE": {
+   "passengers": 94167,
+   "flights": 336,
+   "name": "체코"
+  },
+  "FRA": {
+   "passengers": 293143,
+   "flights": 1136,
+   "name": "프랑스"
+  },
+  "TUR": {
+   "passengers": 287191,
+   "flights": 1087,
+   "name": "튀르키예"
+  },
+  "LAO": {
+   "passengers": 106584,
+   "flights": 740,
+   "name": "라오스"
+  },
+  "CAN": {
+   "passengers": 571259,
+   "flights": 2154,
+   "name": "캐나다"
+  },
+  "IND": {
+   "passengers": 109362,
+   "flights": 515,
+   "name": "인도"
+  },
+  "BEL": {
+   "passengers": 0,
+   "flights": 154,
+   "name": "벨기에"
+  },
+  "AUT": {
+   "passengers": 47263,
+   "flights": 183,
+   "name": "오스트리아"
+  },
+  "KAZ": {
+   "passengers": 123922,
+   "flights": 788,
+   "name": "카자흐스탄"
+  },
+  "LKA": {
+   "passengers": 23159,
+   "flights": 90,
+   "name": "스리랑카"
+  },
+  "MAC": {
+   "passengers": 215451,
+   "flights": 1340,
+   "name": "마카오"
+  },
+  "MEX": {
+   "passengers": 71334,
+   "flights": 647,
+   "name": "멕시코"
+  },
+  "LBN": {
+   "passengers": 496,
+   "flights": 4,
+   "name": "레바논"
+  },
+  "BGD": {
+   "passengers": 3070,
+   "flights": 22,
+   "name": "방글라데시"
+  },
+  "GUM": {
+   "passengers": 250886,
+   "flights": 1268,
+   "name": "괌"
+  },
+  "MYS": {
+   "passengers": 563270,
+   "flights": 3052,
+   "name": "말레이시아"
+  },
+  "AZE": {
+   "passengers": 0,
+   "flights": 137,
+   "name": "아제르바이잔"
+  },
+  "LUX": {
+   "passengers": 0,
+   "flights": 150,
+   "name": "룩셈부르크"
+  },
+  "ARE": {
+   "passengers": 264349,
+   "flights": 892,
+   "name": "아랍에미리트"
+  },
+  "NOR": {
+   "passengers": 0,
+   "flights": 95,
+   "name": "노르웨이"
+  },
+  "HUN": {
+   "passengers": 68470,
+   "flights": 259,
+   "name": "헝가리"
+  },
+  "NGA": {
+   "passengers": 0,
+   "flights": 0,
+   "name": "나이지리아"
+  },
+  "ETH": {
+   "passengers": 38020,
+   "flights": 456,
+   "name": "에티오피아"
+  },
+  "FIN": {
+   "passengers": 95526,
+   "flights": 362,
+   "name": "핀란드"
+  },
+  "NLD": {
+   "passengers": 139858,
+   "flights": 768,
+   "name": "네덜란드"
+  },
+  "TKM": {
+   "passengers": 5269,
+   "flights": 106,
+   "name": "투르크메니스탄"
+  },
+  "MNP": {
+   "passengers": 63750,
+   "flights": 429,
+   "name": "사이판"
+  },
+  "MMR": {
+   "passengers": 31759,
+   "flights": 253,
+   "name": "미얀마"
+  },
+  "BRA": {
+   "passengers": 0,
+   "flights": 104,
+   "name": "브라질"
+  },
+  "CHL": {
+   "passengers": 0,
+   "flights": 0,
+   "name": "칠레"
+  },
+  "PER": {
+   "passengers": 0,
+   "flights": 0,
+   "name": "페루"
+  },
+  "NZL": {
+   "passengers": 66106,
+   "flights": 265,
+   "name": "뉴질랜드"
+  },
+  "CHE": {
+   "passengers": 39185,
+   "flights": 209,
+   "name": "스위스"
+  },
+  "PRT": {
+   "passengers": 40157,
+   "flights": 155,
+   "name": "포르투갈"
+  },
+  "NPL": {
+   "passengers": 24162,
+   "flights": 103,
+   "name": "네팔"
+  },
+  "EGY": {
+   "passengers": 3099,
+   "flights": 11,
+   "name": "이집트"
+  },
+  "POL": {
+   "passengers": 76543,
+   "flights": 333,
+   "name": "폴란드"
+  },
+  "UZB": {
+   "passengers": 158815,
+   "flights": 758,
+   "name": "우즈베키스탄"
+  },
+  "QAT": {
+   "passengers": 91052,
+   "flights": 487,
+   "name": "카타르"
+  },
+  "BRN": {
+   "passengers": 17775,
+   "flights": 154,
+   "name": "브루나이"
+  },
+  "DNK": {
+   "passengers": 54436,
+   "flights": 208,
+   "name": "덴마크"
+  },
+  "KGZ": {
+   "passengers": 11670,
+   "flights": 93,
+   "name": "키르기즈스탄"
+  },
+  "SAU": {
+   "passengers": 0,
+   "flights": 0,
+   "name": "사우디아라비아"
+  },
+  "DJI": {
+   "passengers": 0,
+   "flights": 0,
+   "name": "지부티"
+  },
+  "OMN": {
+   "passengers": 78,
+   "flights": 1,
+   "name": "오만"
+  },
+  "SSD": {
+   "passengers": 279,
+   "flights": 4,
+   "name": "남수단"
+  },
+  "GRC": {
+   "passengers": 2271,
+   "flights": 8,
+   "name": "그리스"
+  },
+  "ARM": {
+   "passengers": 1411,
+   "flights": 5,
+   "name": "아르메니아"
+  },
+  "GEO": {
+   "passengers": 1411,
+   "flights": 5,
+   "name": "조지아"
+  },
+  "HRV": {
+   "passengers": 423,
+   "flights": 2,
+   "name": "크로아티아"
+  }
+ }
+}
