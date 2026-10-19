@@ -243,7 +243,7 @@ export function WeeklyList({ data, labels }: { data: WeeklyForecasts | null; lab
 // ── 대한민국 해외 유입 위험 주간 보고서 (2026-10-19) ─────────────
 // 노출 지수는 확률이 아니다 — 고지를 표 바로 아래에 둔다.
 
-function ImportTable({ rows, labels, withIndex }: { rows: ImportRow[]; labels: R['importReport']; withIndex: boolean }) {
+function ImportTable({ rows, labels, withIndex, byPax }: { rows: ImportRow[]; labels: R['importReport']; withIndex: boolean; byPax: boolean }) {
   const th = { textAlign: 'left', padding: '8px 10px', fontSize: 11.5, color: 'var(--muted2)', fontWeight: 600, whiteSpace: 'nowrap' } as const;
   const td = { padding: '9px 10px', borderTop: '1px solid var(--line)', verticalAlign: 'top' } as const;
   return (
@@ -255,7 +255,7 @@ function ImportTable({ rows, labels, withIndex }: { rows: ImportRow[]; labels: R
             <th style={th}>{labels.colCountry}</th>
             {withIndex && <th style={th}>{labels.colIndex}</th>}
             <th style={th}>{labels.colScore}</th>
-            {withIndex && <th style={th}>{labels.colRoutes}</th>}
+            {withIndex && <th style={th}>{byPax ? labels.colPassengers : labels.colRoutes}</th>}
             <th style={th}>{labels.colDisease}</th>
           </tr>
         </thead>
@@ -267,7 +267,7 @@ function ImportTable({ rows, labels, withIndex }: { rows: ImportRow[]; labels: R
               </td>
               {withIndex && <td style={{ ...td, fontFamily: 'var(--mono)', fontWeight: 700 }}>{r.exposure_index?.toFixed(1) ?? '—'}</td>}
               <td style={{ ...td, fontFamily: 'var(--mono)' }}>{r.raw_score.toFixed(1)}</td>
-              {withIndex && <td style={{ ...td, fontFamily: 'var(--mono)' }}>{r.direct_routes_to_kor}</td>}
+              {withIndex && <td style={{ ...td, fontFamily: 'var(--mono)' }}>{byPax ? nf.format(r.kor_passengers ?? 0) : r.direct_routes_to_kor}</td>}
               <td style={{ ...td, color: 'var(--muted)' }}>{r.dominant_disease ?? labels.noDisease}</td>
             </tr>
           ))}
@@ -280,6 +280,9 @@ function ImportTable({ rows, labels, withIndex }: { rows: ImportRow[]; labels: R
 export function ImportReportView({ report, labels, weeklyLabels }: { report: KoreaImportReport | null; labels: R['importReport']; weeklyLabels: R['weekly'] }) {
   if (!report) return <Unavailable text={labels.notYet} />;
   const s = report.summary;
+  // 연결 기준 — 옛 보고서(connectivity 없음)는 노선 수 기준이었다.
+  const byPax = report.connectivity?.basis === 'passengers';
+  const period = report.connectivity?.period?.length === 2 ? `${report.connectivity.period[0]}~${report.connectivity.period[1]}` : '—';
   const h3 = { fontWeight: 700, fontSize: 15, margin: '22px 0 10px' } as const;
   return (
     <div>
@@ -297,10 +300,10 @@ export function ImportReportView({ report, labels, weeklyLabels }: { report: Kor
 
       <h3 style={h3}>{labels.topTitle}</h3>
       {report.routes_error && <p style={{ color: 'var(--amber)', fontSize: 13, marginBottom: 8 }}>⚠ {labels.routesError}</p>}
-      {report.top_exposure.length ? <ImportTable rows={report.top_exposure} labels={labels} withIndex /> : <p style={{ color: 'var(--muted)' }}>{labels.topEmpty}</p>}
+      {report.top_exposure.length ? <ImportTable rows={report.top_exposure} labels={labels} withIndex byPax={byPax} /> : <p style={{ color: 'var(--muted)' }}>{labels.topEmpty}</p>}
 
       <h3 style={h3}>{labels.noRouteTitle}</h3>
-      {report.no_direct_route_high.length ? <ImportTable rows={report.no_direct_route_high} labels={labels} withIndex={false} /> : <p style={{ color: 'var(--muted)' }}>{labels.noRouteEmpty}</p>}
+      {report.no_direct_route_high.length ? <ImportTable rows={report.no_direct_route_high} labels={labels} withIndex={false} byPax={byPax} /> : <p style={{ color: 'var(--muted)' }}>{labels.noRouteEmpty}</p>}
 
       {report.neighbor_trends.length > 0 && (
         <>
@@ -320,7 +323,7 @@ export function ImportReportView({ report, labels, weeklyLabels }: { report: Kor
       )}
 
       <ul style={{ margin: '20px 0 0', paddingLeft: 18, display: 'grid', gap: 4 }}>
-        {labels.caveats.map((c) => (
+        {[byPax ? labels.basisPassengers.replace('{period}', period) : labels.basisRoutes, ...labels.caveats].map((c) => (
           <li key={c} style={{ fontSize: 12.5, color: 'var(--muted2)', lineHeight: 1.7 }}>{c}</li>
         ))}
       </ul>

@@ -126,6 +126,9 @@ export const extraEn: ExtraDict = {
       colScore: 'Anomaly',
       colDisease: 'Main disease',
       colRoutes: 'Direct routes to Korea',
+      colPassengers: 'Incheon passengers',
+      basisRoutes: 'Connectivity = direct route counts from OpenFlights (2014), not passengers or flights.',
+      basisPassengers: 'Connectivity = actual international passengers by country at Incheon Airport ({period}, Korea public data 15062056). Gimhae, Gimpo and Jeju international traffic is not included.',
       colIndex: 'Exposure index',
       noRouteTitle: 'High-signal countries without a direct flight (transit risk)',
       noRouteEmpty: 'None',
@@ -133,7 +136,6 @@ export const extraEn: ExtraDict = {
       lastScored: 'Last scored',
       caveats: [
         'The exposure index is for ranking. It is not a probability.',
-        'Direct routes are route counts from OpenFlights (2014), not passengers or flights.',
         'A signal needs checking. It does not confirm an outbreak.',
         'Transit arrivals are not in the index, so high-signal countries without a direct flight are listed separately.',
       ],

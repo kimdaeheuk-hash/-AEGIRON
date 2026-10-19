@@ -129,6 +129,9 @@ export const extraKo: ExtraDict = {
       colScore: '이상도',
       colDisease: '주요 질병',
       colRoutes: '한국 직항 노선',
+      colPassengers: '인천공항 여객',
+      basisRoutes: '연결 = OpenFlights 2014 기준 직항 노선 개수 — 승객·편수 아님',
+      basisPassengers: '연결 = 인천공항 국제선 국가별 실제 여객 수({period}, 공공데이터포털 15062056) — 김해·김포·제주 국제선은 빠짐',
       colIndex: '노출 지수',
       noRouteTitle: '직항 없는 고이상도 국가 (경유 유입 주의)',
       noRouteEmpty: '해당 없음',
@@ -136,7 +139,6 @@ export const extraKo: ExtraDict = {
       lastScored: '직전 채점',
       caveats: [
         '노출 지수는 순위용 지수이며 확률이 아님',
-        '직항 노선 수는 OpenFlights 2014 기준 노선 개수 — 승객·편수 아님',
         '이상 신호 = 확인이 필요한 신호 · 발병 확정 아님',
         '경유 유입은 지수에 미반영 — 직항 없는 고이상도 국가를 별도 기재',
       ],

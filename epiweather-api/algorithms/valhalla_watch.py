@@ -129,7 +129,7 @@ def _light_layers() -> dict:
     # 를 붙인 것과 같은 이유다.
     try:
         from .reference_snapshots import report as _snapshot_report
-        snap = _snapshot_report()
+        snap = _snapshot_report(owner="VALHALLA")
         out["reference_snapshots"] = {
             "stale": snap["stale_snapshots"],
             "ages_days": {r["name"]: r["age_days"] for r in snap["snapshots"]},

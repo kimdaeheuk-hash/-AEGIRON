@@ -211,3 +211,33 @@ def test_collector_sends_only_when_a_new_report_was_made():
                    for c in ast.walk(n))]
     assert ifs and any(isinstance(c, ast.Call) and isinstance(c.func, ast.Name)
                        and c.func.id == "notify_new_report" for c in ast.walk(ifs[0]))
+
+
+# ── 연결 기준: 인천공항 실제 여객 (2026-10-19, ⑦) ───────────────────────
+
+PAX = {"period": ["2026년 01월", "2026년 06월"], "source": "공공데이터포털 15062056",
+       "scope_note": "인천공항만 — 김해·김포·제주 등 국제선은 빠짐", "snapshot_date": "2026-10-19",
+       "by_country": {"JPN": {"passengers": 10449588}, "PHL": {"passengers": 1641378},
+                      "USA": {"passengers": 3203947}}}
+
+
+def test_passenger_basis_replaces_route_count_and_says_so():
+    rep = kr.build_report([_c("PHL", 90, disease="뎅기열"), _c("USA", 60), _c("COD", 85)],
+                          ROUTES, [], [], NOW, pax=PAX)
+    import math
+    phl = next(r for r in rep["top_exposure"] if r["country"] == "PHL")
+    assert phl["kor_passengers"] == 1641378
+    assert phl["exposure_index"] == round(90 * math.log1p(1641378) / math.log1p(10449588), 1)
+    assert rep["connectivity"]["basis"] == "passengers"
+    assert rep["caveats"][0].startswith("연결 = 인천공항 국제선 국가별 실제 여객 수(2026년 01월~2026년 06월")
+    assert not any("OpenFlights" in c for c in rep["caveats"]), "한 보고서에 두 기준을 섞지 않는다"
+    assert [r["country"] for r in rep["no_direct_route_high"]] == ["COD"]
+    md = kr.to_markdown(rep)
+    assert "인천공항 여객(명)" in md and "1,641,378" in md
+
+
+def test_without_snapshot_falls_back_to_routes_and_labels_it():
+    rep = _build([_c("PHL", 90)])
+    assert rep["connectivity"]["basis"] == "routes"
+    assert rep["caveats"][0].startswith("연결 = OpenFlights 2014")
+    assert rep["top_exposure"][0]["kor_passengers"] is None

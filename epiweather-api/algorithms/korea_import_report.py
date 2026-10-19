@@ -14,8 +14,10 @@ ISO 주마다 한 번 만들어 DB 에 보관한다(지난 보고서를 다시 �
 
 - **유입 노출 지수는 확률이 아니다.** 이상도(0~100)와 직항 노선 수(로그 정규화)를 곱한
   순위용 지수다. "유입될 확률 N%"로 쓰지 않는다.
-- **노선 수는 승객 수가 아니다.** OpenFlights 2014 기준 '노선 개수'다(digital_twin 과
-  같은 캐시). 편수·좌석은 반영되지 않는다.
+- **연결 기준을 보고서가 스스로 밝힌다(connectivity).** 2026-10-19 부터 인천공항 국제선 국가별
+  실제 여객 수 스냅샷(kor_route_stats, 공공데이터포털 15062056)이 있으면 그것으로 잰다 —
+  김해·김포·제주 국제선은 빠진다. 스냅샷이 없으면 예전대로 OpenFlights 2014 '노선 개수'다
+  (승객·편수 아님). 한 보고서 안에서 두 기준을 섞지 않는다.
 - 이상도가 없는 나라(신호 없음)는 순위에 넣지 않는다 — 취약성만으로 만든 기준선 점수를
   위험처럼 보이게 하지 않는다.
 - 직항이 없어도 이상도가 높은 나라는 따로 적는다 — 경유 유입은 이 지수가 못 본다.
@@ -35,11 +37,14 @@ TOP_N = 10
 NO_ROUTE_RAW_MIN = 70          # 직항 없는 나라를 따로 적는 이상도 문턱(country_risk 와 같은 2σ 선)
 CAVEATS = (
     "유입 노출 지수는 순위용 지수이며 확률이 아님",
-    "직항 노선 수는 OpenFlights 2014 기준 '노선 개수' — 승객·편수 아님",
     "이상 신호 = 확인이 필요한 신호 · 발병 확정 아님",
-    "경유 유입은 지수에 반영되지 않음 — 직항 없는 고이상도 국가를 별도 기재",
+    "경유 유입은 지수에 반영되지 않음 — 연결 없는 고이상도 국가를 별도 기재",
     "이웃 나라 주간 추세의 확률은 표본 8건 미만이면 성적 판정 전 값",
 )
+# 연결 기준마다 붙는 고지 — 무엇으로 쟀는지를 보고서가 스스로 말한다(2026-10-19, ⑦).
+ROUTES_CAVEAT = "연결 = OpenFlights 2014 기준 직항 '노선 개수' — 승객·편수 아님"
+PAX_CAVEAT = ("연결 = 인천공항 국제선 국가별 실제 여객 수({period}, 공공데이터포털 15062056) — "
+              "김해·김포·제주 국제선은 빠짐")
 
 
 def week_key(now: dt.datetime) -> str:
@@ -53,11 +58,18 @@ def routes_to_korea(routes: dict[tuple[str, str], int], country: str) -> int:
 
 def build_report(ranked: list[dict], routes: dict[tuple[str, str], int],
                  alerts: list[dict], weekly_rows: list[dict], now: dt.datetime,
-                 routes_error: str | None = None) -> dict:
-    """순수 함수 — 입력만으로 보고서를 만든다(시험 가능)."""
-    # 정규화 기준은 '한국 노선 전체 중 최대'다 — 순위에 든 나라 중 최대로 잡으면 주마다
+                 routes_error: str | None = None, pax: dict | None = None) -> dict:
+    """순수 함수 — 입력만으로 보고서를 만든다(시험 가능).
+
+    pax = 인천공항 국제선 국가별 여객 스냅샷(kor_route_stats). 있으면 연결을 **실제 여객 수**로
+    재고(2026-10-19, ⑦), 없으면 예전대로 OpenFlights 2014 노선 수로 잰다. 한 보고서 안에서
+    두 기준을 섞지 않는다."""
+    by_pax = (pax or {}).get("by_country") or {}
+    use_pax = bool(by_pax)
+    # 정규화 기준은 '전체 중 최대'다 — 순위에 든 나라 중 최대로 잡으면 주마다
     # 어떤 나라가 들어오느냐에 따라 같은 나라의 지수가 말없이 바뀐다.
     max_routes = max((n for pair, n in routes.items() if KOR in pair), default=0)
+    max_pax = max((v.get("passengers") or 0 for v in by_pax.values()), default=0)
 
     exposed, no_route, domestic = [], [], None
     for c in ranked:
@@ -67,6 +79,7 @@ def build_report(ranked: list[dict], routes: dict[tuple[str, str], int],
             domestic = c
             continue
         n_routes = routes_to_korea(routes, c["country"])
+        n_pax = int((by_pax.get(c["country"]) or {}).get("passengers") or 0)
         row = {
             # 표시명은 한글로 통일한다(표에 없으면 원래 이름 그대로 — 지어내지 않는다).
             "country": c["country"], "name": korean_name(c["country"]) or c.get("name"),
@@ -74,9 +87,11 @@ def build_report(ranked: list[dict], routes: dict[tuple[str, str], int],
             "dominant_disease": c.get("dominant_disease"),
             "dominant_disease_share": c.get("dominant_disease_share"),
             "direct_routes_to_kor": n_routes,
+            "kor_passengers": n_pax if use_pax else None,
         }
-        if n_routes and max_routes:
-            conn = math.log1p(n_routes) / math.log1p(max_routes)
+        link, link_max = (n_pax, max_pax) if use_pax else (n_routes, max_routes)
+        if link and link_max:
+            conn = math.log1p(link) / math.log1p(link_max)
             row["exposure_index"] = round(c["raw_score"] * conn, 1)
             exposed.append(row)
         elif c["raw_score"] >= NO_ROUTE_RAW_MIN:
@@ -131,9 +146,19 @@ def build_report(ranked: list[dict], routes: dict[tuple[str, str], int],
         "alerts": active_alerts,
         "routes_source": "OpenFlights routes.dat(2014 기준) · OurAirports",
         "routes_error": routes_error,
-        "caveats": list(CAVEATS),
+        "connectivity": ({"basis": "passengers", "period": pax.get("period"), "source": pax.get("source"),
+                          "scope_note": pax.get("scope_note"), "snapshot_date": pax.get("snapshot_date")}
+                         if use_pax else {"basis": "routes", "source": "OpenFlights routes.dat(2014 기준)"}),
+        "caveats": [PAX_CAVEAT.format(period=_period_text(pax.get("period"))) if use_pax else ROUTES_CAVEAT]
+                   + list(CAVEATS),
         "is_probability": False,
     }
+
+
+def _period_text(period) -> str:
+    if isinstance(period, (list, tuple)) and len(period) == 2:
+        return f"{period[0]}~{period[1]}"
+    return "기간 미상"
 
 
 def to_markdown(rep: dict) -> str:
@@ -150,16 +175,19 @@ def to_markdown(rep: dict) -> str:
         "## 1. 유입 노출 상위 국가",
         "",
     ]
+    use_pax = (rep.get("connectivity") or {}).get("basis") == "passengers"
     if rep["top_exposure"]:
-        lines += ["| 순위 | 국가 | 이상도 | 주요 질병 | 한국 직항 노선 | 노출 지수 |",
+        link_col = "인천공항 여객(명)" if use_pax else "한국 직항 노선"
+        lines += [f"| 순위 | 국가 | 이상도 | 주요 질병 | {link_col} | 노출 지수 |",
                   "|---|---|---|---|---|---|"]
         for i, r in enumerate(rep["top_exposure"], 1):
             disease = r["dominant_disease"] or "질병 미지목"
+            link = f"{r.get('kor_passengers') or 0:,}" if use_pax else r["direct_routes_to_kor"]
             lines.append(f"| {i} | {r['name'] or r['country']} | {r['raw_score']} | {disease} | "
-                         f"{r['direct_routes_to_kor']} | {r['exposure_index']} |")
+                         f"{link} | {r['exposure_index']} |")
     else:
         lines.append("- 한국 직항 연결 국가 중 이상 신호 국가 없음")
-    lines += ["", "## 2. 직항 없는 고이상도 국가 (경유 유입 주의)", ""]
+    lines += ["", "## 2. 직항 연결 없는 고이상도 국가 (경유 유입 주의)", ""]
     if rep["no_direct_route_high"]:
         for r in rep["no_direct_route_high"]:
             lines.append(f"- {r['name'] or r['country']} — 이상도 {r['raw_score']} · "
@@ -233,6 +261,11 @@ def generate_if_due(now: dt.datetime | None = None) -> dict | None:
     from .weekly_forecast import all_forecasts
 
     routes, routes_error = load_flight_routes()
+    try:
+        from .reference_snapshots import _load
+        pax = _load("kor_route_stats")          # 없으면 None — 예전 기준(노선 수)으로 만든다
+    except Exception:                            # noqa: BLE001 — 스냅샷 문제로 보고서를 막지 않는다
+        pax = None
     rep = build_report(
         ranked=rank_countries()["countries"],
         routes=routes,
@@ -240,6 +273,7 @@ def generate_if_due(now: dt.datetime | None = None) -> dict | None:
         weekly_rows=all_forecasts(),
         now=now,
         routes_error=routes_error,
+        pax=pax,
     )
     save_report(rep)
     return rep

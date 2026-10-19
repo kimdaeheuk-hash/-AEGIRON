@@ -126,6 +126,9 @@ export const extraFr: ExtraDict = {
       colScore: 'Anomalie',
       colDisease: 'Maladie principale',
       colRoutes: 'Liaisons directes vers la Corée',
+      colPassengers: 'Passagers à Incheon',
+      basisRoutes: 'Connectivité = nombre de liaisons directes OpenFlights (2014), pas des passagers ni des vols.',
+      basisPassengers: 'Connectivité = passagers internationaux réels par pays à l’aéroport d’Incheon ({period}, données publiques coréennes 15062056). Le trafic international de Gimhae, Gimpo et Jeju n’est pas inclus.',
       colIndex: 'Indice d’exposition',
       noRouteTitle: 'Pays à signal fort sans vol direct (risque via escale)',
       noRouteEmpty: 'Aucun',
@@ -133,7 +136,6 @@ export const extraFr: ExtraDict = {
       lastScored: 'Dernière évaluation',
       caveats: [
         'L’indice d’exposition sert au classement. Ce n’est pas une probabilité.',
-        'Les liaisons directes sont des nombres de routes OpenFlights (2014), pas des passagers ni des vols.',
         'Un signal demande vérification. Il ne confirme pas une épidémie.',
         'Les arrivées via escale ne sont pas dans l’indice : les pays à signal fort sans vol direct sont listés à part.',
       ],
