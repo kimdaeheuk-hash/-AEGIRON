@@ -418,7 +418,7 @@ export const en: Dictionary = {
       },
       {
         title: 'Everything open',
-        body: 'The system, methodology, data and limits are open from the start — a choice a larger service bound by customer contracts cannot structurally copy, and a basis for trust that due diligence can verify directly.',
+        body: 'The system, methodology, data and limits are open from the start — something a larger service bound by customer contracts would find hard to follow, and a basis for trust that due diligence can verify directly.',
       },
     ],
     futureTitle: 'Where we are headed',
@@ -434,7 +434,7 @@ export const en: Dictionary = {
       },
       {
         title: 'A sealed track record',
-        body: 'As sealed forecasts accumulate, “we knew first” becomes a record a third party can verify on the blockchain — an asset whose proof grows stronger with time.',
+        body: 'As sealed forecasts accumulate, “we knew first” becomes a record a third party can verify on the blockchain — the verifiable record grows with time.',
       },
       {
         title: 'Field connections',
@@ -495,7 +495,7 @@ export const en: Dictionary = {
     honestCta: 'See the full validation status',
 
     pipelineTitle: 'From signal to alert',
-    pipelineLead: 'Five stages. At each one, what we discard matters as much as what we keep.',
+    pipelineLead: 'Five stages. At each one, what we leave out matters as much as what we use.',
     pipelineSteps: [
       {
         step: '01',

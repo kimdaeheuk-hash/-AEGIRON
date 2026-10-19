@@ -49,7 +49,7 @@ export const pagesFr: PagesDict = {
         tone: 'sky',
         body: 'Maladie, pays, cas et décès sont structurés à partir des tableaux PDF et du texte des articles. La règle est claire — seules les valeurs confirmées deviennent des chiffres.',
         points: [
-          'Seules les colonnes dont le sens est confirmé par l’en-tête sont utilisées. Rien n’est deviné par position, donc les chiffres ne dérivent pas en silence.',
+          'Seules les colonnes dont le sens est confirmé par l’en-tête sont utilisées. Rien n’est deviné par position : une colonne mal lue ne peut pas fausser un chiffre sans qu’on le voie.',
           '« Nouveaux cas sur sept jours » et « cumul », « suspect » et « confirmé » sont tenus pour des champs distincts.',
           'Une ligne « total » n’est pas un pays et est exclue, pour garder l’analyse des tendances propre.',
           'Les chiffres extraits sont confrontés au texte source, et l’emplacement de la source est consigné.',
@@ -92,7 +92,7 @@ export const pagesFr: PagesDict = {
     ],
     cta: {
       title: 'Voyez les cinq étapes tourner par vous-même',
-      body: 'Sur le tableau de bord en direct, regardez toute la chaîne — de la collecte à la réponse — tourner en temps réel, sans connexion.',
+      body: 'Sur le tableau de bord en direct, regardez tout le processus — de la collecte à la réponse — tourner en temps réel, sans connexion.',
       label: 'Ouvrir le tableau de bord',
       href: '/dashboard',
     },
@@ -186,7 +186,7 @@ export const pagesFr: PagesDict = {
         items: [
           { title: 'Veille des silences', body: 'Quand un canal actif tombe sous la moitié de sa ligne de base, c’est un signal. Elle vise les cas, comme Ebola en Guinée en 2014, où le système de déclaration s’effondre avant la propagation.', meta: 'negative_space' },
           { title: 'Foyers inexpliqués', body: 'Compte les foyers qui ne correspondent à aucun profil de maladie connu. La pneumonie d’origine inconnue de Wuhan en décembre 2019 est du type.', meta: 'unexplained' },
-          { title: 'Rapports uniques à haut risque', body: 'Pour des pathogènes comme la peste, l’anthrax et la variole — où un seul événement est déjà une nouvelle — il remonte un rapport unique sans attendre l’accumulation.', meta: 'pathogen_sentinel' },
+          { title: 'Rapports uniques à haut risque', body: 'Pour des pathogènes comme la peste, l’anthrax et la variole — où un seul signalement est déjà grave — il remonte un rapport unique sans attendre l’accumulation.', meta: 'pathogen_sentinel' },
         ],
       },
       {
@@ -308,20 +308,20 @@ export const pagesFr: PagesDict = {
       },
     ],
     cta: {
-      title: 'Deux couches, une seule chaîne',
-      body: 'Détecter → juger → prévoir → simuler → prescrire → auto-vérifier → sceller. L’écran où cette chaîne tourne réellement est le tableau de bord en direct.',
+      title: 'Deux couches, un seul flux',
+      body: 'Détecter → juger → prévoir → simuler → prescrire → auto-vérifier → sceller. L’écran où ce flux tourne réellement est le tableau de bord en direct.',
       label: 'Tableau de bord en direct',
       href: '/dashboard',
     },
   },
 
   engines: {
-    metaTitle: 'Catalogue des moteurs — la carte complète des 116 modules',
+    metaTitle: 'Catalogue des moteurs — la liste complète des 116 modules',
     metaDescription:
       'Les 116 modules algorithmiques d’AEGIRON, regroupés en sept : veille, extraction, jugement, prévision, génomique, contre-mesures et vérification. Ce que fait chaque module, et s’il tourne chaque heure ou à la demande.',
     eyebrow: 'ENGINE CATALOGUE',
     title: '116 modules, sept systèmes',
-    lead: 'AEGIRON n’est pas un grand modèle unique mais 116 modules, chacun faisant une chose bien, imbriqués — car surveiller le monde entier demande autant d’angles. Les modules principaux sont organisés en sept systèmes nommés — HUGINN, MIMIR, FORSETI, SKULD, HEIMDALL, VALHALLA et VAR — la couche moteurs du système phare d’AEGIRON (voir BAIKAL MOB).',
+    lead: 'AEGIRON n’est pas un grand modèle unique mais 116 modules, chacun faisant une chose bien, combinés pour surveiller le monde entier de nombreuses façons. Les modules principaux sont organisés en sept systèmes nommés — HUGINN, MIMIR, FORSETI, SKULD, HEIMDALL, VALHALLA et VAR — la couche moteurs du système phare d’AEGIRON (voir BAIKAL MOB).',
     blocks: [
       {
         title: 'HUGINN — Veille — rassembler les signaux, trouver les anomalies',
@@ -332,7 +332,7 @@ export const pagesFr: PagesDict = {
           { title: 'Indice d’anomalie à six couches', body: 'Combine six couches de signaux, scorés contre leur niveau habituel, en un indice.', meta: 'gai · horaire' },
           { title: 'Veille des silences', body: 'Traite un canal actif qui se tait comme un signal.', meta: 'negative_space · horaire' },
           { title: 'Foyers inexpliqués', body: 'Compte les foyers qu’aucune maladie connue n’explique.', meta: 'unexplained · horaire' },
-          { title: 'Rapport unique à haut risque', body: 'Remonte sur un seul rapport les pathogènes dont un événement fait l’actualité — peste, anthrax.', meta: 'pathogen_sentinel · horaire' },
+          { title: 'Rapport unique à haut risque', body: 'Remonte la peste, l’anthrax et les pathogènes similaires en candidate d’alerte dès un seul rapport.', meta: 'pathogen_sentinel · horaire' },
           { title: 'Détection standard', body: 'Attrape les anomalies avec CDC EARS C1/C2/C3 et une ligne de base z-score.', meta: 'ears · anomaly_engine · kdca_anomaly' },
           { title: 'Détection à deux étages', body: 'Une sentinelle rapide remonte ; une couche de vérification recoupe.', meta: 'sentinel · verification' },
           { title: 'Catastrophe · polaire · climat', body: 'Lit les signaux environnementaux de conditions changeantes comme indicateurs précurseurs.', meta: 'disaster_watch · polar_* · climate_signals' },
@@ -476,7 +476,7 @@ export const pagesFr: PagesDict = {
       },
     ],
     cta: {
-      title: 'La base mesurée des moteurs profonds',
+      title: 'Ce que mesurent réellement les moteurs de génomique et de propagation',
       body: 'Les mesures par taxon de la couche génomique et les limites de réseau de la simulation sont exposées dans Technologie II.',
       label: 'Voir Technologie II',
       href: 'technology-advanced',
@@ -565,7 +565,7 @@ export const pagesFr: PagesDict = {
         title: 'Sources académiques et spécialisées',
         kicker: 'ACADEMIC',
         tone: 'sky',
-        body: 'Elles peuvent précéder les annonces officielles, mais fluctuent au rythme des cycles de recherche et de publication. Seules, elles ne relèvent jamais un niveau d’alerte ; elles ne pèsent que lorsqu’elles coïncident avec d’autres couches.',
+        body: 'Elles peuvent précéder les annonces officielles, mais fluctuent au rythme des cycles de recherche et de publication. Seules, elles ne relèvent jamais un niveau d’alerte ; elles n’influencent la décision d’alerte que lorsqu’elles coïncident avec des signaux d’autres couches.',
         items: [
           { title: 'CDC Emerging Infectious Diseases', body: 'La revue des CDC américains consacrée aux maladies infectieuses émergentes.', meta: 'Mise à jour à la source : à la publication' },
           { title: 'CIDRAP', body: 'Informations par maladie du Center for Infectious Disease Research and Policy de l’Université du Minnesota.', meta: 'Mise à jour à la source : à la publication' },
@@ -820,7 +820,7 @@ export const pagesFr: PagesDict = {
         tone: 'teal',
         body: 'Nous réunissons la presse en langue locale de 178 pays, les données officielles de surveillance et les signaux environnementaux, commerciaux et génomiques en un seul indice, jugeons l’anomalie de chaque pays au regard de sa propre ligne de base et — dès qu’une alerte est émise — calculons à côté les scénarios de propagation et les effets d’intervention. L’axe de conception est de ne pas s’arrêter à la détection mais de répondre à « et alors, et à quelle intensité ».',
         points: [
-          'Détecter → juger → prévoir → simuler → prescrire → auto-vérifier → sceller. Toute la chaîne tient dans un seul système.',
+          'Détecter → juger → prévoir → simuler → prescrire → auto-vérifier → sceller. Tout le processus tient dans un seul système.',
           'Chaque prévision est évaluée automatiquement au regard des déclarations officielles qui suivent, et scellée au moment où elle est faite pour ne pouvoir être modifiée après coup.',
           'Deux programmes de R&D internes — criblage génomique défensif (HEIMDALL) et préparation en contre-mesures (VALHALLA) — portent l’axe de biosécurité nationale.',
         ],
@@ -838,7 +838,7 @@ export const pagesFr: PagesDict = {
       },
       {
         title: 'Pourquoi nous publions tout',
-        body: 'Si, sans client ni contrat, on construit des choses à cacher, elles deviennent toutes des passifs au moment d’être validé. Tout ouvrir maintenant, c’est rester prêt à être vérifié. C’est aussi un choix qu’un concurrent de grande taille ne peut structurellement copier — il a des contrats clients à protéger ; nous pouvons ouvrir parce que nous n’en avons aucun. La faiblesse et la force viennent du même endroit.',
+        body: 'Si, sans client ni contrat, on construit des choses à cacher, elles deviennent toutes des passifs au moment d’être validé. Tout ouvrir maintenant, c’est rester prêt à être vérifié. Un concurrent de grande taille, qui a des contrats clients à protéger, aurait du mal à faire de même ; nous pouvons ouvrir parce que nous n’en avons aucun. La faiblesse et la force viennent du même endroit.',
         note: 'Notre état de validation et nos limites connues sont exposés intégralement sur une page dédiée.',
       },
       {

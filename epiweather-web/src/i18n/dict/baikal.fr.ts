@@ -15,7 +15,7 @@ export const systemsFr: SystemDict[] = [
   },
   {
     code: 'MIMIR', name: 'Mimir', role: 'Extraction',
-    myth: 'Le puits de sagesse — puise le sens dans le texte source',
+    myth: 'Le puits de sagesse — trouve le sens dans le texte source',
     summary: 'Transforme le texte des articles et les tableaux PDF des rapports en signaux structurés — maladie, pays, cas, décès.',
   },
   {
@@ -40,7 +40,7 @@ export const systemsFr: SystemDict[] = [
   },
   {
     code: 'VAR', name: 'Var', role: 'Vérification',
-    myth: 'La déesse des serments — veille sur les promesses et punit qui les rompt',
+    myth: 'La déesse des serments — vérifie que les promesses sont tenues',
     summary: 'Vérifie les chiffres d’AEGIRON par le scellement des prévisions, leur notation face aux déclarations officielles et le registre d’avance.',
   },
 ];
@@ -142,7 +142,7 @@ export const baikalPageFr: ContentPage = {
   eyebrow: 'SYSTÈME PHARE',
   title: 'BAIKAL MOB — le système phare d’AEGIRON',
   lead:
-    'La structure à trois couches Moteurs → YGGDRASIL → BAIKAL MOB est désignée comme système phare d’AEGIRON. Elle relie l’état de sept systèmes moteurs par une ontologie et enregistre et publie chaque heure les changements d’état de tout l’écosystème — comme le lac le plus profond et le plus ancien dépose son histoire couche après couche, le registre de fonctionnement s’accumule sans altération.',
+    'La structure à trois couches Moteurs → YGGDRASIL → BAIKAL MOB est désignée comme système phare d’AEGIRON. Elle relie l’état de sept systèmes moteurs par une ontologie et enregistre et publie chaque heure les changements d’état de tout l’écosystème. Le registre de fonctionnement est conservé dans l’ordre chronologique, sans suppression ni modification.',
   blocks: [],
   cta: {
     title: 'Vérifiez vous-même les mêmes données',

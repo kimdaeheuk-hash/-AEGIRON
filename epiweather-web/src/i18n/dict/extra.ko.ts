@@ -83,8 +83,8 @@ export const extraKo: ExtraDict = {
     ledgerTitle: '선행성 원장',
     ledgerLead: '신호 문턱 돌파 시점 — 공식 선언 이전 즉시 기록 · 기한 내 선언 부재 시에도 그대로 종결·보존',
     ledgerEmpty: '종결된 원장 기록 없음',
-    anatomyTitle: '경보 한 건 해부',
-    anatomyLead: '운영 중 경보 후보 1건 해부 — 생성 신호·근거 원본 공개',
+    anatomyTitle: '경보 한 건의 근거',
+    anatomyLead: '운영 중 경보 후보 1건을 골라 만든 신호와 근거 원본을 공개함',
     anatomyFields: {
       level: '등급',
       score: '점수',
@@ -94,7 +94,7 @@ export const extraKo: ExtraDict = {
       reason: '근거',
       time: '기록 시각',
     },
-    anatomyEmpty: '현재 해부 대상 경보 후보 없음',
+    anatomyEmpty: '현재 근거를 보여 줄 경보 후보 없음',
     empty: '기록 없음',
     weekly: {
       title: '주간 추세 예측 채점표',

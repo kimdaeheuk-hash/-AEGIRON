@@ -80,8 +80,8 @@ export const extraEn: ExtraDict = {
     ledgerTitle: 'Lead-time ledger',
     ledgerLead: 'The moment a signal crosses its threshold is written down on the spot, before any official declaration. If no declaration comes within the horizon, that too is closed and kept.',
     ledgerEmpty: 'No closed entries in the ledger yet.',
-    anatomyTitle: 'Anatomy of one alert',
-    anatomyLead: 'One live alert candidate opened up, showing exactly which signals and evidence produced it. Evidence lines are shown in the original Korean.',
+    anatomyTitle: 'The evidence behind one alert',
+    anatomyLead: 'One live alert candidate, showing exactly which signals and evidence produced it. Evidence lines are shown in the original Korean.',
     anatomyFields: {
       level: 'Grade',
       score: 'Score',
@@ -91,7 +91,7 @@ export const extraEn: ExtraDict = {
       reason: 'Evidence',
       time: 'Recorded',
     },
-    anatomyEmpty: 'No alert candidate to open up right now.',
+    anatomyEmpty: 'No alert candidate to show right now.',
     empty: 'No records yet.',
     weekly: {
       title: 'Weekly trend forecast scorecard',

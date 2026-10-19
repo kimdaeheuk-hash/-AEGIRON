@@ -420,7 +420,7 @@ export const fr: Dictionary = {
       },
       {
         title: 'Tout est ouvert',
-        body: 'Le système, la méthodologie, les données et les limites sont ouverts dès le départ — un choix qu’un service plus grand, lié par des contrats clients, ne peut structurellement copier, et une base de confiance que la diligence peut vérifier directement.',
+        body: 'Le système, la méthodologie, les données et les limites sont ouverts dès le départ — ce qu’un service plus grand, lié par des contrats clients, aurait du mal à faire, et une base de confiance que la diligence peut vérifier directement.',
       },
     ],
     futureTitle: 'Où nous allons',
@@ -436,7 +436,7 @@ export const fr: Dictionary = {
       },
       {
         title: 'Un historique scellé',
-        body: 'À mesure que les prévisions scellées s’accumulent, « nous l’avons su en premier » devient un enregistrement qu’un tiers peut vérifier sur la blockchain — un actif dont la preuve se renforce avec le temps.',
+        body: 'À mesure que les prévisions scellées s’accumulent, « nous l’avons su en premier » devient un enregistrement qu’un tiers peut vérifier sur la blockchain — l’enregistrement vérifiable s’enrichit avec le temps.',
       },
       {
         title: 'Des liens de terrain',
@@ -497,7 +497,7 @@ export const fr: Dictionary = {
     honestCta: 'Voir l’état de validation complet',
 
     pipelineTitle: 'Du signal à l’alerte',
-    pipelineLead: 'Cinq étapes. À chacune, ce que nous écartons compte autant que ce que nous retenons.',
+    pipelineLead: 'Cinq étapes. À chacune, ce que nous laissons de côté compte autant que ce que nous utilisons.',
     pipelineSteps: [
       {
         step: '01',
