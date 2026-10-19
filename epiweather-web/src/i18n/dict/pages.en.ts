@@ -4,7 +4,7 @@ import type { PagesDict } from '../types';
  * English subpage content.
  *
  * ★ Figures here are measured values ★
- * 23 operational collection sources · 114 algorithm modules · 123 endpoints · 2,145 automated tests (measured 2026-10-18).
+ * 23 operational collection sources · 116 algorithm modules (114 engines + YGGDRASIL · BAIKAL) · 126 endpoints · 2,201 automated tests (measured 2026-10-19).
  *
  * ★ HARD RULE ★ No accuracy or lead-time claims.
  */
@@ -25,11 +25,11 @@ export const pagesEn: PagesDict = {
           { label: 'Surveillance reach', value: '178 countries · 52 languages of local reporting (179 feeds)' },
           { label: 'Live sources', value: '23 · collected automatically every hour' },
           { label: 'Spread model', value: '159 countries · 1,671 air links · 314 land borders' },
-          { label: 'Algorithm modules', value: '114 (surveillance · extraction · judgement · forecast · genomics · countermeasures · verification)' },
-          { label: 'Public API', value: '123 endpoints' },
-          { label: 'Quality control', value: '2,145 automated tests — all must pass before anything ships' },
+          { label: 'Algorithm modules', value: '116 (114 engines · YGGDRASIL ontology · BAIKAL MOB state layer)' },
+          { label: 'Public API', value: '126 endpoints' },
+          { label: 'Quality control', value: '2,201 automated tests — all must pass before anything ships' },
         ],
-        note: 'Measured against the repository and operational logs on 2026-10-18.',
+        note: 'Measured against the repository and operational logs on 2026-10-19.',
       },
       {
         title: '01 · Collect',
@@ -319,12 +319,12 @@ export const pagesEn: PagesDict = {
     metaDescription:
       'All 114 of AEGIRON’s algorithm modules, grouped into seven: surveillance, extraction, judgement, forecast, genomics, countermeasures and verification. What each module does, and whether it runs hourly or on request.',
     eyebrow: 'ENGINE CATALOGUE',
-    title: '114 modules, seven groups',
-    lead: 'AEGIRON is not one large model but 114 modules, each doing one thing well, meshed together — because watching the whole world takes that many angles. The core modules are grouped into seven so you can see at a glance what each engine does.',
+    title: '114 modules, seven systems',
+    lead: 'AEGIRON is not one large model but 114 modules, each doing one thing well, meshed together — because watching the whole world takes that many angles. The core modules are organised into seven named systems — HUGINN, MIMIR, FORSETI, SKULD, HEIMDALL, VALHALLA and VAR — the engine layer of AEGIRON’s flagship system (see BAIKAL MOB).',
     blocks: [
       {
-        title: 'Surveillance — gather signals, find anomalies',
-        kicker: 'GROUP 01 · Surveillance',
+        title: 'HUGINN — Surveillance — gather signals, find anomalies',
+        kicker: 'SYSTEM 01 · HUGINN',
         tone: 'teal',
         items: [
           { title: 'Local-language news watch', body: 'Selects outbreak reports from news aggregated across 178 countries and 52 languages.', meta: 'local_news · hourly' },
@@ -339,8 +339,8 @@ export const pagesEn: PagesDict = {
         ],
       },
       {
-        title: 'Extraction — turn text and tables into numbers',
-        kicker: 'GROUP 02 · Extraction',
+        title: 'MIMIR — Extraction — turn text and tables into numbers',
+        kicker: 'SYSTEM 02 · MIMIR',
         tone: 'sky',
         items: [
           { title: 'PDF table extraction', body: 'Restores tables in health reports to row-and-column structure.', meta: 'pdf_table_extract' },
@@ -352,8 +352,8 @@ export const pagesEn: PagesDict = {
         ],
       },
       {
-        title: 'Judgement — decide whether to raise an alert',
-        kicker: 'GROUP 03 · Judgement',
+        title: 'FORSETI — Judgement — decide whether to raise an alert',
+        kicker: 'SYSTEM 03 · FORSETI',
         tone: 'crimson',
         items: [
           { title: 'Country risk index', body: 'Multiplies raw risk by national vulnerability for a final risk.', meta: 'country_risk · country_indicators' },
@@ -364,8 +364,8 @@ export const pagesEn: PagesDict = {
         ],
       },
       {
-        title: 'Forecast · simulation — see where it will spread',
-        kicker: 'GROUP 04 · Forecast',
+        title: 'SKULD — Forecast · simulation — see where it will spread',
+        kicker: 'SYSTEM 04 · SKULD',
         tone: 'indigo',
         items: [
           { title: '7/14-day forecast', body: 'Extrapolates indicator time series with an ensemble.', meta: 'forecast_engine' },
@@ -376,8 +376,8 @@ export const pagesEn: PagesDict = {
         ],
       },
       {
-        title: 'Genomics — read sequences defensively',
-        kicker: 'GROUP 05 · Genomics',
+        title: 'HEIMDALL — Genomics — read sequences defensively',
+        kicker: 'SYSTEM 05 · HEIMDALL',
         tone: 'violet',
         items: [
           { title: 'Composition statistics', body: 'Looks at unnatural make-up with CAI, CpG and similar.', meta: 'genome_signals' },
@@ -387,8 +387,8 @@ export const pagesEn: PagesDict = {
         ],
       },
       {
-        title: 'Countermeasures — count what can stop it (VALHALLA)',
-        kicker: 'GROUP 06 · Countermeasures',
+        title: 'VALHALLA — Countermeasures — count what can stop it (VALHALLA)',
+        kicker: 'SYSTEM 06 · VALHALLA',
         tone: 'forest',
         items: [
           { title: 'Coverage gap', body: 'Which threats the current stockpile and approved products cannot cover.', meta: 'countermeasure_stockpile · approved_products' },
@@ -399,8 +399,8 @@ export const pagesEn: PagesDict = {
         ],
       },
       {
-        title: 'Verification — we check our own numbers',
-        kicker: 'GROUP 07 · Verification',
+        title: 'VAR — Verification — we check our own numbers',
+        kicker: 'SYSTEM 07 · VAR',
         tone: 'teal',
         items: [
           { title: 'Automatic forecast scoring', body: 'Sorts forecasts against official declarations into hit, miss or hold.', meta: 'prediction_resolver · prediction_scoring' },
@@ -824,7 +824,7 @@ export const pagesEn: PagesDict = {
         tone: 'indigo',
         body: 'The system actually runs. Signals arrive from the data sources every hour, and the live dashboard is open right now with no login. We are looking for a first partner, and we state that plainly — openness and verifiability are the strengths of this stage.',
         points: [
-          '114 modules and 123 endpoints run every hour, and only code that passes 2,145 automated tests ships.',
+          '116 modules and 126 endpoints run every hour, and only code that passes 2,201 automated tests ships.',
           'The system, methodology, data and limits are all open from the start, kept in a state due diligence can verify directly.',
           'Every forecast is sealed and accrues, so a verifiable record grows on its own as operation continues.',
         ],

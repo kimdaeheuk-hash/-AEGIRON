@@ -607,6 +607,24 @@
  },
  {
   "method": "GET",
+  "path": "/api/baikal",
+  "tag": "BAIKAL",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/baikal/history",
+  "tag": "BAIKAL",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/yggdrasil",
+  "tag": "BAIKAL",
+  "auth": false
+ },
+ {
+  "method": "GET",
   "path": "/api/knowledge-graph",
   "tag": "Phase3",
   "auth": false

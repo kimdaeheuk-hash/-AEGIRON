@@ -3,10 +3,10 @@ import type { PagesDict } from '../types';
 /**
  * 한국어 하위 페이지 콘텐츠.
  *
- * ★ 여기 적힌 수치는 2026-10-18 실측값이다 ★
+ * ★ 여기 적힌 수치는 2026-10-19 실측값이다 ★
  * 운영 수집 소스 23종(소스 건강 점검 기준) · 현지어 뉴스 피드 179개(178개국 · 52개 언어,
- * local_news.LOCAL_FEEDS 의 gl/hl 실측) · 알고리즘 모듈 114개 · 엔드포인트 123개 ·
- * 자동 시험 2,145건 · 확산 모델 159개국 / 항공 연결 1,671쌍 / 육로 국경 314개.
+ * local_news.LOCAL_FEEDS 의 gl/hl 실측) · 알고리즘 모듈 116개(엔진 114 + YGGDRASIL·BAIKAL) · 엔드포인트 126개 ·
+ * 자동 시험 2,201건 · 확산 모델 159개국 / 항공 연결 1,671쌍 / 육로 국경 314개.
  * 수치를 바꾸기 전에 다시 센다. 추정치를 사실처럼 쓰지 않는다.
  *
  * ★ 2026-10-18 오후 캡틴 지시 ★ "문장들에서 아이기론이 불리한 부분을 빼라."
@@ -32,11 +32,11 @@ export const pagesKo: PagesDict = {
           { label: '감시 범위', value: '178개국 · 52개 언어 현지 보도 (피드 179개)' },
           { label: '실시간 수집 소스', value: '23종 · 매시간 자동 수집' },
           { label: '확산 모델 범위', value: '159개국 · 항공 연결 1,671쌍 · 육로 국경 314개' },
-          { label: '알고리즘 모듈', value: '114개 (감시 · 추출 · 판정 · 예측 · 유전체 · 대응제 · 검증)' },
-          { label: '공개 API', value: '엔드포인트 123개' },
-          { label: '품질 관리', value: '자동 시험 2,145건 — 전부 통과 시에만 운영 반영' },
+          { label: '알고리즘 모듈', value: '116개 (엔진 114 · 온톨로지 YGGDRASIL · 상태변화 BAIKAL MOB)' },
+          { label: '공개 API', value: '엔드포인트 126개' },
+          { label: '품질 관리', value: '자동 시험 2,201건 — 전부 통과 시에만 운영 반영' },
         ],
-        note: '2026-10-18 저장소·운영 기록 기준 실측값',
+        note: '2026-10-19 저장소·운영 기록 기준 실측값',
       },
       {
         title: '01 · 수집',
@@ -329,12 +329,12 @@ export const pagesKo: PagesDict = {
     metaDescription:
       '114개 알고리즘 모듈 — 감시·추출·판정·예측·유전체·대응제·검증 7개 묶음 전수 나열 · 모듈별 기능·가동 주기(매시/요청 시) 병기',
     eyebrow: 'ENGINE CATALOGUE',
-    title: '114개 모듈, 일곱 묶음',
-    lead: '단일 거대 모델이 아닌 — 각 1개 기능 특화 모듈 114개 결합 시스템 · 전 세계 감시에 필요한 각도의 수 · 핵심 모듈 7개 묶음 분류',
+    title: '114개 모듈, 7개 시스템',
+    lead: '단일 거대 모델이 아닌 — 각 1개 기능 특화 모듈 114개 결합 시스템 · 전 세계 감시에 필요한 각도의 수 · 핵심 모듈을 7개 시스템(HUGINN 후긴·MIMIR 미미르·FORSETI 포르세티·SKULD 스쿨드·HEIMDALL 헤임달·VALHALLA 발할라·VAR 바르)으로 편성함 · 3층 구조의 기반 계층 — 상세: BAIKAL MOB',
     blocks: [
       {
-        title: '감시 — 신호 수집·이상 탐지',
-        kicker: 'GROUP 01 · 감시',
+        title: 'HUGINN · 후긴 — 감시 — 신호 수집·이상 탐지',
+        kicker: 'SYSTEM 01 · HUGINN',
         tone: 'teal',
         items: [
           { title: '현지어 보도 감시', body: '178개국·52개 언어 뉴스 집계 → 발병 보도 선별', meta: 'local_news · cerebras/groq 분류 · 매시' },
@@ -349,8 +349,8 @@ export const pagesKo: PagesDict = {
         ],
       },
       {
-        title: '추출 — 문장·표 → 숫자',
-        kicker: 'GROUP 02 · 추출',
+        title: 'MIMIR · 미미르 — 추출 — 문장·표 → 숫자',
+        kicker: 'SYSTEM 02 · MIMIR',
         tone: 'sky',
         items: [
           { title: 'PDF 표 추출', body: '보건 보고서 표 행·열 구조 복원', meta: 'pdf_table_extract' },
@@ -362,8 +362,8 @@ export const pagesKo: PagesDict = {
         ],
       },
       {
-        title: '판정 — 경보 상향 여부 선별',
-        kicker: 'GROUP 03 · 판정',
+        title: 'FORSETI · 포르세티 — 판정 — 경보 상향 여부 선별',
+        kicker: 'SYSTEM 03 · FORSETI',
         tone: 'crimson',
         items: [
           { title: '국가 위험지수', body: '원시 위험도 × 국가 취약성 → 최종 위험', meta: 'country_risk · country_indicators' },
@@ -374,8 +374,8 @@ export const pagesKo: PagesDict = {
         ],
       },
       {
-        title: '예측 · 시뮬레이션 — 확산 경로 추정',
-        kicker: 'GROUP 04 · 예측',
+        title: 'SKULD · 스쿨드 — 예측 · 시뮬레이션 — 확산 경로 추정',
+        kicker: 'SYSTEM 04 · SKULD',
         tone: 'indigo',
         items: [
           { title: '7·14일 예보', body: '지표 시계열 앙상블 외삽', meta: 'forecast_engine' },
@@ -386,8 +386,8 @@ export const pagesKo: PagesDict = {
         ],
       },
       {
-        title: '유전체 — 서열 방어적 판독',
-        kicker: 'GROUP 05 · 유전체',
+        title: 'HEIMDALL · 헤임달 — 유전체 — 서열 방어적 판독',
+        kicker: 'SYSTEM 05 · HEIMDALL',
         tone: 'violet',
         items: [
           { title: '조성 통계', body: 'CAI·CpG 등 서열 구성 부자연성 탐지', meta: 'genome_signals' },
@@ -397,8 +397,8 @@ export const pagesKo: PagesDict = {
         ],
       },
       {
-        title: '대응제 — 방어 수단 집계 (VALHALLA)',
-        kicker: 'GROUP 06 · 대응제',
+        title: 'VALHALLA · 발할라 — 대응제 — 방어 수단 집계 (VALHALLA)',
+        kicker: 'SYSTEM 06 · VALHALLA',
         tone: 'forest',
         items: [
           { title: '커버리지 격차', body: '현 비축·승인 제품 미방어 위협 식별', meta: 'countermeasure_stockpile · approved_products' },
@@ -409,8 +409,8 @@ export const pagesKo: PagesDict = {
         ],
       },
       {
-        title: '검증 — 자체 수치 자가 점검',
-        kicker: 'GROUP 07 · 검증',
+        title: 'VAR · 바르 — 검증 — 자체 수치 자가 점검',
+        kicker: 'SYSTEM 07 · VAR',
         tone: 'teal',
         items: [
           { title: '예측 자동 채점', body: '예측 × 공식 선언 대조 → 적중·실패·보류 구분', meta: 'prediction_resolver · prediction_scoring' },
@@ -843,7 +843,7 @@ export const pagesKo: PagesDict = {
         tone: 'indigo',
         body: '시스템 실가동 중 · 데이터 소스 매시간 신호 유입 · 라이브 대시보드 현재 로그인 없이 개방 · 첫 파트너 탐색 단계 — 비은폐 기재 · 공개·검증 가능성 = 본 단계 강점',
         points: [
-          '114개 모듈·123개 엔드포인트 매시간 가동 · 자동 시험 2,145건 통과 코드만 운영 반영',
+          '116개 모듈·126개 엔드포인트 매시간 가동 · 자동 시험 2,201건 통과 코드만 운영 반영',
           '시스템·방법론·데이터·한계 초기부터 전면 공개 — 실사 직접 검증 가능 상태',
           '전 예측 봉인 축적 — 운영 지속 시 검증 가능 기록 자연 증가',
         ],

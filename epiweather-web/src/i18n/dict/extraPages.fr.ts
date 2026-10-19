@@ -1,7 +1,10 @@
 import type { ExtraDict } from '../types';
+import { baikalPageFr } from './baikal.fr';
 
 /** Pages d’exploitation, de vérification et nationales (français). Valeurs mesurées uniquement. */
 export const extraPagesFr: ExtraDict['pages'] = {
+  baikal: baikalPageFr,
+
   live: {
     metaTitle: 'En exploitation — ce que fait AEGIRON en ce moment',
     metaDescription: 'Captures du tableau de bord d’AEGIRON en fonctionnement et chiffres d’exploitation en direct : ce qu’il collecte, où il regarde et ce qu’il a élevé en alerte.',
@@ -112,7 +115,7 @@ export const extraPagesFr: ExtraDict['pages'] = {
         kicker: 'ACCESS CONTROL',
         tone: 'indigo',
         specs: [
-          { label: 'API au total', value: '123 points d’accès' },
+          { label: 'API au total', value: '126 points d’accès' },
           { label: 'Authentification requise', value: '37 — fonctions modifiant l’état, coûteuses ou à haut risque' },
           { label: 'Méthode', value: 'En-tête X-API-Key · plusieurs clés étiquetées · comparaison à temps constant' },
           { label: 'Sans clé configurée', value: 'Toutes les API d’écriture désactivées — jamais laissées ouvertes' },
@@ -150,7 +153,7 @@ export const extraPagesFr: ExtraDict['pages'] = {
         tone: 'sky',
         items: [
           { title: 'Gestion des secrets', body: 'Les clés d’API et identifiants ne vivent que dans les variables d’environnement de production — jamais dans le dépôt ni dans les documents.' },
-          { title: 'Porte de mise en production', body: 'Seul le code qui passe les 2 145 tests automatisés est mis en production.' },
+          { title: 'Porte de mise en production', body: 'Seul le code qui passe les 2 201 tests automatisés est mis en production.' },
           { title: 'Veille des défaillances silencieuses', body: 'La santé des sources et les invariants de qualité contrôlent à chaque cycle l’intégrité de la collecte et du calcul.' },
           { title: 'Preuve d’intégrité', body: 'Les prévisions sont scellées par empreinte et leur horodatage ancré sur la blockchain Bitcoin.' },
         ],
@@ -181,7 +184,7 @@ export const extraPagesFr: ExtraDict['pages'] = {
         title: 'Présentation',
         kicker: 'BOILERPLATE',
         tone: 'indigo',
-        body: 'AEGIRON vise à saisir le signal avant qu’une épidémie ne devienne une actualité internationale. Avec 23 sources de données et 114 modules algorithmiques, il juge les anomalies par pays et, dès qu’une alerte est émise, calcule en parallèle une simulation de propagation sur 159 pays et des scénarios d’intervention. Chaque prévision est scellée sur la blockchain à sa création et évaluée automatiquement face aux déclarations officielles ultérieures ; le système, la méthodologie, les données et les limites sont ouverts dès le départ. Deux programmes de R&D — criblage génomique défensif (HEIMDALL) et préparation en contre-mesures (VALHALLA) — portent l’axe de biosécurité nationale.',
+        body: 'AEGIRON vise à saisir le signal avant qu’une épidémie ne devienne une actualité internationale. Avec 23 sources de données et 116 modules algorithmiques, il juge les anomalies par pays et, dès qu’une alerte est émise, calcule en parallèle une simulation de propagation sur 159 pays et des scénarios d’intervention. Chaque prévision est scellée sur la blockchain à sa création et évaluée automatiquement face aux déclarations officielles ultérieures ; le système, la méthodologie, les données et les limites sont ouverts dès le départ. Deux programmes de R&D — criblage génomique défensif (HEIMDALL) et préparation en contre-mesures (VALHALLA) — portent l’axe de biosécurité nationale.',
       },
       {
         title: 'Faits clés',
@@ -191,11 +194,11 @@ export const extraPagesFr: ExtraDict['pages'] = {
           { label: 'Siège', value: 'Busan, Corée du Sud' },
           { label: 'Portée de veille', value: '178 pays · 52 langues de presse locale' },
           { label: 'Sources de données', value: '23 · collectées chaque heure' },
-          { label: 'Modules algorithmiques', value: '114' },
-          { label: 'API publique', value: '123 points d’accès' },
+          { label: 'Modules algorithmiques', value: '116' },
+          { label: 'API publique', value: '126 points d’accès' },
           { label: 'Ce qui est ouvert', value: 'Système · méthodologie · sources · limites · registre des prévisions' },
         ],
-        note: 'Mesuré au 2026-10-18. Merci de citer avec la date.',
+        note: 'Mesuré au 2026-10-19. Merci de citer avec la date.',
       },
       {
         title: 'Vidéo et images',
@@ -268,7 +271,7 @@ export const extraPagesFr: ExtraDict['pages'] = {
 
   developers: {
     metaTitle: 'Développeurs · API',
-    metaDescription: 'L’API REST d’AEGIRON — 123 points d’accès, réponses JSON, authentification X-API-Key et documentation OpenAPI. Guide d’intégration aux systèmes institutionnels.',
+    metaDescription: 'L’API REST d’AEGIRON — 126 points d’accès, réponses JSON, authentification X-API-Key et documentation OpenAPI. Guide d’intégration aux systèmes institutionnels.',
     eyebrow: 'DEVELOPERS',
     title: 'Développeurs · API',
     lead: 'Chaque valeur affichée par le tableau de bord provient de la même API REST. Vous pouvez intégrer alertes, indices de risque et briefings directement dans un système institutionnel.',

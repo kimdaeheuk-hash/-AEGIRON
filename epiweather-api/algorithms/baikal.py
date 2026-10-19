@@ -376,27 +376,44 @@ def judge_heimdall(record: dict | None, now: dt.datetime) -> dict:
         return _system_result("HEIMDALL", "undetermined", "추적 대상 병원체 없음",
                               scope_ko=_HEIMDALL_SCOPE)
     per: list[dict] = []
-    ok_n = 0
+    # ★ 실패와 데이터 부재를 가른다 (2026-10-19 프로덕션 첫 관측) ★
+    # genomic_variants 는 조회가 실패하거나 빌드가 멈추면 available=False 로 둔다 — 그건 실패다.
+    # available=True 인데 우세 계통이 없으면 '최근 구간 시퀀스 없음(제출 지연 가능)' — 고장이
+    # 아니라 아직 판정할 데이터가 안 온 것이다. 첫 배포에서 엠폭스가 이 경우였는데 HEIMDALL 이
+    # '저하'로 나갔다(관측보다 많이 주장). 그런 병원체는 '판정 불가'로 적고 상태를 올리지 않는다.
+    per: list[dict] = []
     for slug, v in sorted(gv.items()):
-        good = bool(v.get("available")) and v.get("dominant_share") is not None
-        ok_n += good
+        if not v.get("available"):
+            state = "failed"
+        elif v.get("dominant_share") is None:
+            state = "no_data"
+        else:
+            state = "ok"
         per.append({
-            "slug": slug, "label": v.get("label") or slug, "ok": good,
+            "slug": slug, "label": v.get("label") or slug, "state": state, "ok": state == "ok",
             "dominant_clade": v.get("dominant_clade"),
             "dominant_share": v.get("dominant_share"),
             "new_clade_count": v.get("new_clade_count"),
             "n_recent_sequences": v.get("n_recent_sequences"),
-            "reason": None if good else (v.get("reason") or v.get("note") or "최근 구간 데이터 없음"),
+            "reason": None if state == "ok" else (v.get("reason") or v.get("note")
+                                                  or "최근 구간 데이터 없음"),
         })
-    readings = {"pathogens": per, "ok": ok_n, "total": len(per)}
-    bad = [f"{p['label']}({p['reason']})" for p in per if not p["ok"]]
-    if ok_n == len(per):
-        return _system_result("HEIMDALL", "ok", f"계통 추적 {ok_n}/{len(per)} 정상",
-                              scope_ko=_HEIMDALL_SCOPE, readings=readings)
-    status = "down" if ok_n == 0 else "degraded"
-    return _system_result("HEIMDALL", status,
-                          f"계통 추적 {ok_n}/{len(per)} 정상 · " + " · ".join(bad),
-                          scope_ko=_HEIMDALL_SCOPE, readings=readings)
+    ok_n = sum(1 for p in per if p["state"] == "ok")
+    failed = [p for p in per if p["state"] == "failed"]
+    no_data = [p for p in per if p["state"] == "no_data"]
+    readings = {"pathogens": per, "ok": ok_n, "failed": len(failed),
+                "no_data": len(no_data), "total": len(per)}
+    parts = [f"계통 추적 {ok_n}/{len(per)} 정상"]
+    parts += [f"{p['label']} 실패({p['reason']})" for p in failed]
+    parts += [f"{p['label']} 판정 불가({p['reason']})" for p in no_data]
+    reason = " · ".join(parts)
+    if failed:
+        status = "down" if len(failed) == len(per) else "degraded"
+    elif ok_n:
+        status = "ok"
+    else:
+        status = "undetermined"
+    return _system_result("HEIMDALL", status, reason, scope_ko=_HEIMDALL_SCOPE, readings=readings)
 
 
 _VALHALLA_SCOPE = "대응제 준비태세 스냅숏의 신선도(조달·임상 파이프라인 조각의 갱신 실패 여부)"

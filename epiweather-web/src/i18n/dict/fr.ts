@@ -47,6 +47,7 @@ export const fr: Dictionary = {
 
   nav: {
     live: 'En exploitation',
+    baikal: 'BAIKAL MOB',
     record: 'Registre des prévisions',
     korea: 'Pour la Corée',
     security: 'Sécurité et gouvernance',
@@ -106,12 +107,12 @@ export const fr: Dictionary = {
     heroNoLogin: 'Accès immédiat — sans inscription ni connexion',
 
     stats: [
-      { value: '114', label: 'Modules algorithmiques', note: 'Détection · génomique · prévision · réponse · vérification' },
-      { value: '123', label: 'Points d’accès API', note: 'Collecte · analyse · simulation · évaluation' },
-      { value: '2 145', label: 'Tests automatisés', note: 'Tous doivent réussir avant toute mise en production' },
+      { value: '116', label: 'Modules algorithmiques', note: '114 moteurs · 2 pour l’ontologie (YGGDRASIL) et la couche d’état (BAIKAL MOB)' },
+      { value: '126', label: 'Points d’accès API', note: 'Collecte · analyse · simulation · évaluation' },
+      { value: '2 201', label: 'Tests automatisés', note: 'Tous doivent réussir avant toute mise en production' },
       { value: '179', label: 'Flux d’actualité en langue locale', note: 'Agrégés par pays et par langue, collectés toutes les heures' },
     ],
-    statsAsOf: 'Mesuré le 2026-10-18 à partir du dépôt et des journaux de production',
+    statsAsOf: 'Mesuré le 2026-10-19 à partir du dépôt et des journaux de production',
     introVideoLabel: 'AEGIRON — présentation',
     photo: {
       src: '/media/photos/earth-eastern-hemisphere.jpg',
@@ -178,7 +179,7 @@ export const fr: Dictionary = {
       {
         src: '/media/photos/data-center.jpg',
         alt: 'Salle de serveurs d’un centre de données',
-        caption: 'Un centre de données. Le calcul horaire des 114 modules s’exécute dans de tels lieux.',
+        caption: 'Un centre de données. Le calcul horaire des 116 modules s’exécute dans de tels lieux.',
         credit: 'BalticServers.com · CC BY-SA 3.0',
         sourceUrl: 'https://commons.wikimedia.org/wiki/File:BalticServers_data_center.jpg',
       },
@@ -191,9 +192,9 @@ export const fr: Dictionary = {
       },
     ],
 
-    engineTitle: 'Les moteurs',
+    engineTitle: 'Les sept systèmes moteurs',
     engineLead:
-      'Seize des 114 modules forment l’ossature de la détection, de la génomique, de la prévision, de la réponse et de la vérification. Chacun indique son mode de fonctionnement réel, afin qu’un moteur exécuté toutes les heures ne soit jamais présenté avec le même poids qu’un moteur qui ne calcule qu’à la demande.',
+      'Les {n} moteurs essentiels parmi les 114 modules, organisés en sept systèmes (HUGINN · MIMIR · FORSETI · SKULD · HEIMDALL · VALHALLA · VAR). Chacun indique son mode de fonctionnement réel, afin qu’un moteur exécuté toutes les heures ne soit jamais présenté avec le même poids qu’un moteur qui ne calcule qu’à la demande.',
     engineModes: {
       hourly: 'Toutes les heures',
       daily: 'Quotidien',
@@ -203,8 +204,7 @@ export const fr: Dictionary = {
     engineCaveatLabel: 'Limites',
     engineGroups: [
       {
-        key: 'detect',
-        label: 'Détection',
+        system: 'HUGINN',
         engines: [
           {
             id: 'local_news',
@@ -230,12 +230,6 @@ export const fr: Dictionary = {
             body: 'Comptabilise à part les foyers extraits de la presse qui ne correspondent à aucun profil de maladie connu. La pneumonie d’origine inconnue de Wuhan, en décembre 2019, en est l’archétype.',
             mode: 'hourly',
           },
-        ],
-      },
-      {
-        key: 'environment',
-        label: 'Environnement · territoire polaire',
-        engines: [
           {
             id: 'polar_signals',
             name: 'Veille du territoire polaire',
@@ -259,8 +253,83 @@ export const fr: Dictionary = {
         ],
       },
       {
-        key: 'genomics',
-        label: 'Génomique',
+        system: 'MIMIR',
+        engines: [
+          {
+            id: 'nlp_extract',
+            name: 'Extraction de signaux structurés',
+            body: 'Transforme le texte des articles en signaux structurés — maladie, pays, cas, décès et type de signal —, attribue la fiabilité de la source et met à part les valeurs non confirmées.',
+            mode: 'daily',
+            caveat: 'Fonctionne une fois par jour dans le créneau IA (21 h UTC), actuellement via un modèle de langage externe.',
+          },
+          {
+            id: 'pdf_table_extract',
+            name: 'Extraction des tableaux des rapports de l’OMS',
+            body: 'Reconstitue en lignes et colonnes les tableaux PDF des rapports de situation hebdomadaires des bureaux régionaux de l’OMS et compte séparément « nouveaux sur 7 jours », « cumul », « suspects » et « confirmés ».',
+            mode: 'daily',
+            caveat: 'N’analyse qu’en présence d’un nouveau numéro — les rapports paraissent chaque semaine.',
+          },
+        ],
+      },
+      {
+        system: 'FORSETI',
+        engines: [
+          {
+            id: 'country_risk',
+            name: 'Indice de risque par pays',
+            body: 'Multiplie le risque brut (issu des signaux) par la vulnérabilité nationale — infrastructures de santé, densité de population, connectivité aérienne — pour obtenir le risque final de chaque pays, et l’enregistre comme prévision au-delà du seuil.',
+            mode: 'hourly',
+            caveat: 'Un indicateur relatif entre pays, pas une probabilité de survenue.',
+          },
+          {
+            id: 'alerts',
+            name: 'Tri des alertes et maîtrise de la fatigue',
+            body: 'Applique niveaux (Critical · High · Medium · Low) et plafonds journaliers par niveau pour ne transmettre que les alertes qui méritent l’attention. Critical et High partent aussitôt sur Telegram ; les familles non évaluables sont maintenues avec une marque d’ancienneté au lieu d’être retirées.',
+            mode: 'hourly',
+          },
+        ],
+      },
+      {
+        system: 'SKULD',
+        engines: [
+          {
+            id: 'forecast_engine',
+            name: 'Tendance à 7 et 14 jours',
+            body: 'Extrapole à 7 et 14 jours la série temporelle de chaque indicateur à l’aide d’un ensemble régression linéaire et lissage exponentiel, et publie le résultat dans le bulletin quotidien.',
+            mode: 'daily',
+            caveat: 'Une extrapolation de séries de signaux, et non un nombre de cas mesuré.',
+          },
+          {
+            id: 'digital_twin',
+            name: 'Simulation de la propagation entre pays',
+            body: 'Un modèle SEIR métapopulationnel dont les nœuds sont 159 pays et les arêtes 1 671 paires de pays reliées par avion et 314 frontières terrestres. Il distingue les pays non atteints pendant la période de ceux pour lesquels aucune voie n’est connue.',
+            mode: 'onRequest',
+            caveat: 'Le réseau aérien repose sur des données de liaisons de 2014 ; le trafic terrestre est une estimation fondée sur la population.',
+          },
+          {
+            id: 'global_inflow',
+            name: 'Estimation de la date d’importation',
+            body: 'Estime le nombre de jours avant un premier cas importé en Corée, ainsi que le risque par point d’entrée, à partir du trafic international de la ville d’origine, de la durée de vol et de la croissance exponentielle initiale.',
+            mode: 'onRequest',
+            caveat: 'Une estimation de modèle, et non une date d’importation observée.',
+          },
+          {
+            id: 'alert_intervention',
+            name: 'Scénarios d’intervention par alerte',
+            body: 'Pour chaque nouvelle alerte critique ou élevée, exécute une simulation SEIR de défense avec des paramètres propres à la maladie et joint l’écart entre absence de réponse et intervention. L’alerte ne s’arrête plus à « ce qui arrive » : elle répond aussi à « quelle mesure change quoi ».',
+            mode: 'onAlert',
+            caveat: 'Un scénario de modèle fondé sur des paramètres de la littérature, et non une prévision. Aucun chiffre n’est produit lorsque la maladie ne peut être identifiée.',
+          },
+          {
+            id: 'defense',
+            name: 'Comparaison d’interventions dans le temps',
+            body: 'Fait varier la date de début et l’intensité de l’isolement, de la distanciation et de la vaccination pour comparer l’évolution du nombre de reproduction effectif et des jours de saturation hospitalière.',
+            mode: 'onRequest',
+          },
+        ],
+      },
+      {
+        system: 'HEIMDALL',
         engines: [
           {
             id: 'genomic_variants',
@@ -284,54 +353,19 @@ export const fr: Dictionary = {
         ],
       },
       {
-        key: 'simulate',
-        label: 'Prévision · Simulation',
+        system: 'VALHALLA',
         engines: [
           {
-            id: 'forecast_engine',
-            name: 'Tendance à 7 et 14 jours',
-            body: 'Extrapole à 7 et 14 jours la série temporelle de chaque indicateur à l’aide d’un ensemble régression linéaire et lissage exponentiel, et publie le résultat dans le bulletin quotidien.',
-            mode: 'daily',
-            caveat: 'Une extrapolation de séries de signaux, et non un nombre de cas mesuré.',
-          },
-          {
-            id: 'digital_twin',
-            name: 'Simulation de la propagation entre pays',
-            body: 'Un modèle SEIR métapopulationnel dont les nœuds sont 159 pays et les arêtes 1 671 paires de pays reliées par avion et 314 frontières terrestres. Il distingue les pays non atteints pendant la période de ceux pour lesquels aucune voie n’est connue.',
-            mode: 'onRequest',
-            caveat: 'Le réseau aérien repose sur des données de liaisons de 2014 ; le trafic terrestre est une estimation fondée sur la population.',
-          },
-          {
-            id: 'global_inflow',
-            name: 'Estimation de la date d’importation',
-            body: 'Estime le nombre de jours avant un premier cas importé en Corée, ainsi que le risque par point d’entrée, à partir du trafic international de la ville d’origine, de la durée de vol et de la croissance exponentielle initiale.',
-            mode: 'onRequest',
-            caveat: 'Une estimation de modèle, et non une date d’importation observée.',
+            id: 'valhalla_watch',
+            name: 'Veille de préparation aux contre-mesures',
+            body: 'Compile stocks internationaux, produits autorisés, préqualification de l’OMS, pipeline clinique et avis de marchés publics coréens en lacunes de couverture par menace et de souveraineté de production.',
+            mode: 'hourly',
+            caveat: 'Les parties marchés et pipeline se mettent à jour selon leur propre cadence ; les informations non publiques comme les volumes des stocks nationaux ne sont pas traitées.',
           },
         ],
       },
       {
-        key: 'respond',
-        label: 'Réponse',
-        engines: [
-          {
-            id: 'alert_intervention',
-            name: 'Scénarios d’intervention par alerte',
-            body: 'Pour chaque nouvelle alerte critique ou élevée, exécute une simulation SEIR de défense avec des paramètres propres à la maladie et joint l’écart entre absence de réponse et intervention. L’alerte ne s’arrête plus à « ce qui arrive » : elle répond aussi à « quelle mesure change quoi ».',
-            mode: 'onAlert',
-            caveat: 'Un scénario de modèle fondé sur des paramètres de la littérature, et non une prévision. Aucun chiffre n’est produit lorsque la maladie ne peut être identifiée.',
-          },
-          {
-            id: 'defense',
-            name: 'Comparaison d’interventions dans le temps',
-            body: 'Fait varier la date de début et l’intensité de l’isolement, de la distanciation et de la vaccination pour comparer l’évolution du nombre de reproduction effectif et des jours de saturation hospitalière.',
-            mode: 'onRequest',
-          },
-        ],
-      },
-      {
-        key: 'verify',
-        label: 'Auto-vérification',
+        system: 'VAR',
         engines: [
           {
             id: 'prediction_resolver',
@@ -349,7 +383,7 @@ export const fr: Dictionary = {
             id: 'prediction_timestamp',
             name: 'Scellement des prévisions',
             body: 'Ancre l’empreinte SHA-256 d’une prévision dans la blockchain Bitcoin via OpenTimestamps, afin qu’un tiers puisse vérifier lui-même que la prévision n’a pas été réécrite après coup.',
-            mode: 'onRequest',
+            mode: 'hourly',
           },
           {
             id: 'source_health',

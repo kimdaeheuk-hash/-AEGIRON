@@ -1,5 +1,6 @@
 import type { ExtraDict } from '../types';
 import { extraPagesKo } from './extraPages.ko';
+import { systemsKo, baikalKo } from './baikal.ko';
 
 /**
  * 실가동 위젯·예측 원장·API·질병 라벨(한국어).
@@ -7,6 +8,8 @@ import { extraPagesKo } from './extraPages.ko';
  */
 export const extraKo: ExtraDict = {
   pages: extraPagesKo,
+  systems: systemsKo,
+  baikal: baikalKo,
 
   live: {
     countersTitle: '지금까지 쌓인 운영 기록',
@@ -96,6 +99,7 @@ export const extraKo: ExtraDict = {
   },
 
   apiTags: {
+    BAIKAL: 'BAIKAL MOB · YGGDRASIL 대표 시스템',
     GAI: '이상지수 · 경보 · 위험지수',
     Phase2: '수집 신호',
     Phase3: '예보 · 지식 그래프 · 맞춤 프로파일',

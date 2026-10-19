@@ -644,3 +644,29 @@ def test_ontology_names_only_engines_that_exist():
         for name in s["engines"] + s["on_request"]:
             mod = name.split(".")[0]
             assert (ROOT / "algorithms" / f"{mod}.py").exists(), f"{s['key']}: {name} 모듈이 없다"
+
+
+def test_heimdall_missing_recent_sequences_is_not_a_degradation():
+    """★ 프로덕션 첫 관측(2026-10-19 04:00) ★ 수집 로그
+    `⏭ Nextstrain 엠폭스: 최근 구간 시퀀스 없음(제출 지연 가능)` 한 줄로 HEIMDALL 이 '저하'로
+    나갔다. 조회는 성공했고 아직 판정할 시퀀스가 안 온 것이다 — 고장이 아니다."""
+    rec = {"type": "free_sources", "timestamp": "2026-10-19T00:01:00", "genomic_variants": {
+        "covid": {"available": True, "dominant_share": 0.54, "label": "SARS-CoV-2(공개시퀀스)",
+                  "dominant_clade": "25C (XFG)", "n_recent_sequences": 1510},
+        "mpox": {"available": True, "dominant_share": None, "label": "엠폭스",
+                 "note": "최근 구간 시퀀스 없음(제출 지연 가능)"},
+        "rsv_a": {"available": True, "dominant_share": 1.0, "label": "RSV-A",
+                  "dominant_clade": "A.D.3.2", "n_recent_sequences": 1, "new_clade_count": 1},
+    }}
+    res = baikal.judge_heimdall(rec, NOW)
+    assert res["status"] == "ok", res
+    assert "엠폭스 판정 불가(최근 구간 시퀀스 없음" in res["reason"], "판정 불가를 숨기지 않는다"
+    assert res["readings"]["no_data"] == 1 and res["readings"]["failed"] == 0
+    # 전부 데이터 부재면 정상도 저하도 아니다.
+    only_gap = {**rec, "genomic_variants": {"mpox": rec["genomic_variants"]["mpox"]}}
+    assert baikal.judge_heimdall(only_gap, NOW)["status"] == "undetermined"
+    # 진짜 실패가 섞이면 여전히 저하다.
+    with_fail = {**rec, "genomic_variants": {**rec["genomic_variants"],
+                 "rsv_b": {"available": False, "reason": "Nextstrain API 응답 실패", "label": "RSV-B"}}}
+    res2 = baikal.judge_heimdall(with_fail, NOW)
+    assert res2["status"] == "degraded" and "RSV-B 실패(Nextstrain API 응답 실패)" in res2["reason"]

@@ -43,6 +43,7 @@ export const ko: Dictionary = {
 
   nav: {
     live: '실가동',
+    baikal: 'BAIKAL MOB',
     record: '공개 예측 원장',
     korea: '대한민국 관점',
     security: '보안 · 데이터 거버넌스',
@@ -102,12 +103,12 @@ export const ko: Dictionary = {
     heroNoLogin: '가입·로그인 없이 즉시 접속',
 
     stats: [
-      { value: '114', label: '알고리즘 모듈', note: '감지 · 유전체 · 예측 · 대응 · 검증' },
-      { value: '123', label: 'API 엔드포인트', note: '수집 · 분석 · 시뮬레이션 · 채점' },
-      { value: '2,145', label: '자동 시험', note: '전부 통과해야 운영에 반영' },
+      { value: '116', label: '알고리즘 모듈', note: '엔진 114 · 온톨로지(YGGDRASIL)·상태변화(BAIKAL MOB) 2' },
+      { value: '126', label: 'API 엔드포인트', note: '수집 · 분석 · 시뮬레이션 · 채점' },
+      { value: '2,201', label: '자동 시험', note: '전부 통과해야 운영에 반영' },
       { value: '178', label: '감시 대상 국가', note: '52개 언어 현지 보도 · 매시 수집' },
     ],
-    statsAsOf: '2026-10-18 저장소·운영 로그 기준 실측',
+    statsAsOf: '2026-10-19 저장소·운영 로그 기준 실측',
     introVideoLabel: '아이기론 소개 영상',
     photo: {
       src: '/media/photos/earth-eastern-hemisphere.jpg',
@@ -174,7 +175,7 @@ export const ko: Dictionary = {
       {
         src: '/media/photos/data-center.jpg',
         alt: '데이터센터 서버실',
-        caption: '데이터센터 · 114개 모듈 매시간 연산 수행 현장',
+        caption: '데이터센터 · 116개 모듈 매시간 연산 수행 현장',
         credit: 'BalticServers.com · CC BY-SA 3.0',
         sourceUrl: 'https://commons.wikimedia.org/wiki/File:BalticServers_data_center.jpg',
       },
@@ -187,9 +188,9 @@ export const ko: Dictionary = {
       },
     ],
 
-    engineTitle: '엔진 구성',
+    engineTitle: '7개 엔진 시스템 — 엔진 구성',
     engineLead:
-      '114개 모듈 중 감지·유전체·예측·대응·검증 축 16개 선별 · 엔진별 실제 가동 방식(매시·매일·경보 시·요청 시) 병기 — 상시 가동·호출 가동 구분 · 전체 114개 모듈 = 엔진 카탈로그 정리',
+      '114개 모듈 중 핵심 {n}개를 7개 시스템(HUGINN·MIMIR·FORSETI·SKULD·HEIMDALL·VALHALLA·VAR)으로 편성해 표시함 · 엔진마다 실제 가동 방식(매시·매일·경보 시·요청 시)을 병기해 상시 가동과 호출 가동을 구분함 · 전체 114개 모듈은 엔진 카탈로그에 정리함',
     engineModes: {
       hourly: '매시 자동',
       daily: '매일 자동',
@@ -199,8 +200,7 @@ export const ko: Dictionary = {
     engineCaveatLabel: '한계',
     engineGroups: [
       {
-        key: 'detect',
-        label: '감지',
+        system: 'HUGINN',
         engines: [
           {
             id: 'local_news',
@@ -226,12 +226,6 @@ export const ko: Dictionary = {
             body: '보도 추출 집단 발병 중 기존 질병 패턴 불일치 건 별도 집계 · 2019년 12월 우한 원인불명 폐렴 유형',
             mode: 'hourly',
           },
-        ],
-      },
-      {
-        key: 'environment',
-        label: '환경 · 극지 영토',
-        engines: [
           {
             id: 'polar_signals',
             name: '극지 영토 감시',
@@ -255,8 +249,83 @@ export const ko: Dictionary = {
         ],
       },
       {
-        key: 'genomics',
-        label: '유전체',
+        system: 'MIMIR',
+        engines: [
+          {
+            id: 'nlp_extract',
+            name: '구조화 신호 추출',
+            body: '보도 본문을 질병·국가·확진·사망·신호 유형의 구조화 신호로 변환함 · 출처 신뢰도를 부여하고 확인되지 않은 값은 미검증으로 분리 저장함',
+            mode: 'daily',
+            caveat: '하루 1회(21:00 UTC) AI 슬롯에서 가동함 · 현재 외부 언어모델 경로를 사용함',
+          },
+          {
+            id: 'pdf_table_extract',
+            name: 'WHO 보고서 표 추출',
+            body: 'WHO 지역사무소 주간 상황보고서의 PDF 표를 행·열 구조로 복원하고 \'7일 신규\'·\'누적\'·\'의심\'·\'확진\'을 분리 집계함',
+            mode: 'daily',
+            caveat: '새 회차가 있을 때만 파싱함 — 보고서는 주 1회 발행됨',
+          },
+        ],
+      },
+      {
+        system: 'FORSETI',
+        engines: [
+          {
+            id: 'country_risk',
+            name: '국가 위험지수',
+            body: '원시 위험도(신호)에 국가 취약성(의료 인프라·인구밀도·공항 연결성)을 곱해 국가별 최종 위험도를 산출함 · 문턱을 넘으면 예측으로 기록함',
+            mode: 'hourly',
+            caveat: '발생 확률이 아닌 국가 간 상대 지표임',
+          },
+          {
+            id: 'alerts',
+            name: '경보 판정·피로 방지',
+            body: '등급(Critical·High·Medium·Low)과 등급별 일일 상한을 적용해 사람에게 보낼 경보만 선별함 · Critical·High는 텔레그램으로 즉시 전달함 · 판정하지 못한 계열은 내리지 않고 낡음 표시로 유지함',
+            mode: 'hourly',
+          },
+        ],
+      },
+      {
+        system: 'SKULD',
+        engines: [
+          {
+            id: 'forecast_engine',
+            name: '7·14일 추세 예보',
+            body: '지표별 시계열 선형회귀·지수평활 앙상블 7일·14일 외삽 → 일일 브리핑 반영',
+            mode: 'daily',
+            caveat: '측정 발병 수 아닌 신호 시계열 외삽',
+          },
+          {
+            id: 'digital_twin',
+            name: '국가 간 확산 시뮬레이션',
+            body: '메타개체군 SEIR 모델 — 노드 159개국 · 간선 = 항공 연결 1,671개 나라쌍 + 육로 국경 314개 · 기간 내 미도달 국가와 경로 미상 국가 구분 보고',
+            mode: 'onRequest',
+            caveat: '항공망 = 2014년 노선 데이터 · 육로 통행량 = 인구 기반 추정',
+          },
+          {
+            id: 'global_inflow',
+            name: '국내 유입 시점 추정',
+            body: '발원 도시 국제선 여객량·비행시간·초기 지수성장률 기반 국내 첫 유입 일수·입국 관문별 위험 추정',
+            mode: 'onRequest',
+            caveat: '모델 추정값 · 관측 유입일 아님',
+          },
+          {
+            id: 'alert_intervention',
+            name: '경보별 개입 시나리오',
+            body: '신규 critical·high 경보별 질병 파라미터 SEIR 방어 시뮬레이션 — 무대응 vs 개입 시나리오 차이 경보 동봉 · "무엇이 오는가" → "어떤 조치가 무엇을 바꾸는가"',
+            mode: 'onAlert',
+            caveat: '예보 아닌 문헌 파라미터 기반 모델 시나리오 · 질병 미특정 경보 숫자 미생성',
+          },
+          {
+            id: 'defense',
+            name: '시간가변 개입 비교',
+            body: '격리·거리두기·백신 접종 시작 시점·강도 조정 — 실효 재생산수·병상 초과 일수 변화 비교',
+            mode: 'onRequest',
+          },
+        ],
+      },
+      {
+        system: 'HEIMDALL',
         engines: [
           {
             id: 'genomic_variants',
@@ -280,54 +349,19 @@ export const ko: Dictionary = {
         ],
       },
       {
-        key: 'simulate',
-        label: '예측 · 시뮬레이션',
+        system: 'VALHALLA',
         engines: [
           {
-            id: 'forecast_engine',
-            name: '7·14일 추세 예보',
-            body: '지표별 시계열 선형회귀·지수평활 앙상블 7일·14일 외삽 → 일일 브리핑 반영',
-            mode: 'daily',
-            caveat: '측정 발병 수 아닌 신호 시계열 외삽',
-          },
-          {
-            id: 'digital_twin',
-            name: '국가 간 확산 시뮬레이션',
-            body: '메타개체군 SEIR 모델 — 노드 159개국 · 간선 = 항공 연결 1,671개 나라쌍 + 육로 국경 314개 · 기간 내 미도달 국가와 경로 미상 국가 구분 보고',
-            mode: 'onRequest',
-            caveat: '항공망 = 2014년 노선 데이터 · 육로 통행량 = 인구 기반 추정',
-          },
-          {
-            id: 'global_inflow',
-            name: '국내 유입 시점 추정',
-            body: '발원 도시 국제선 여객량·비행시간·초기 지수성장률 기반 국내 첫 유입 일수·입국 관문별 위험 추정',
-            mode: 'onRequest',
-            caveat: '모델 추정값 · 관측 유입일 아님',
+            id: 'valhalla_watch',
+            name: '대응제 준비태세 감시',
+            body: '국제 비축·규제 승인 제품·WHO 사전적격성·임상 파이프라인·국내 조달 공고를 집계해 위협별 커버리지와 생산 주권 격차를 산출함',
+            mode: 'hourly',
+            caveat: '조달·임상 조각은 각자 주기로 갱신됨 · 국가 비축량 등 비공개 정보는 다루지 않음',
           },
         ],
       },
       {
-        key: 'respond',
-        label: '대응',
-        engines: [
-          {
-            id: 'alert_intervention',
-            name: '경보별 개입 시나리오',
-            body: '신규 critical·high 경보별 질병 파라미터 SEIR 방어 시뮬레이션 — 무대응 vs 개입 시나리오 차이 경보 동봉 · "무엇이 오는가" → "어떤 조치가 무엇을 바꾸는가"',
-            mode: 'onAlert',
-            caveat: '예보 아닌 문헌 파라미터 기반 모델 시나리오 · 질병 미특정 경보 숫자 미생성',
-          },
-          {
-            id: 'defense',
-            name: '시간가변 개입 비교',
-            body: '격리·거리두기·백신 접종 시작 시점·강도 조정 — 실효 재생산수·병상 초과 일수 변화 비교',
-            mode: 'onRequest',
-          },
-        ],
-      },
-      {
-        key: 'verify',
-        label: '자기검증',
+        system: 'VAR',
         engines: [
           {
             id: 'prediction_resolver',
@@ -345,7 +379,7 @@ export const ko: Dictionary = {
             id: 'prediction_timestamp',
             name: '예측 봉인',
             body: '예측 기록 SHA-256 해시 OpenTimestamps 경유 비트코인 블록체인 고정 · 사후 수정 예측 아님 제3자 직접 검증 가능',
-            mode: 'onRequest',
+            mode: 'hourly',
           },
           {
             id: 'source_health',

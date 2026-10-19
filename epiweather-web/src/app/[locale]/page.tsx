@@ -7,9 +7,10 @@ import { IntroVideo } from '@/components/site/IntroVideo';
 import { PhotoFigure } from '@/components/site/PhotoFigure';
 import { getSourceHealth, type SourceHealthSummary } from '@/lib/status';
 import { introVideo } from '@/lib/video';
-import { getOpsStatus, getRiskTop } from '@/lib/live';
+import { getOpsStatus, getRiskTop, getBaikal } from '@/lib/live';
 import { listBriefings } from '@/lib/briefings';
 import { OpsCounters, RiskTop, ScreenGallery } from '@/components/live/LiveWidgets';
+import { LayerDiagram, SystemStatusGrid, SYSTEM_TONE, systemByCode, systemTitle } from '@/components/live/BaikalWidgets';
 
 /**
  * 홈.
@@ -34,11 +35,16 @@ export default async function HomePage(props: { params: Promise<{ locale: string
   const locale = (isLocale(raw) ? raw : 'ko') as Locale;
   const dict = getDictionary(locale);
   const t = dict.home;
-  const [health, ops, risk, briefs] = await Promise.all([
-    getSourceHealth(), getOpsStatus(), getRiskTop(6), listBriefings(locale),
+  const [health, ops, risk, briefs, baikal] = await Promise.all([
+    getSourceHealth(), getOpsStatus(), getRiskTop(6), listBriefings(locale), getBaikal(),
   ]);
   const video = introVideo();
   const live = dict.extra.live;
+  const bx = dict.extra.baikal;
+  const systems = systemByCode(dict.extra.systems);
+  // 엔진 수는 문구에 박지 않고 실제로 그리는 수로 채운다 — '열여섯 개'라고 적어 두고
+  // 19개를 그리던 일이 있었다(극지·환경 묶음을 추가하면서 숫자가 안 바뀌었다).
+  const engineCount = t.engineGroups.reduce((n, g) => n + g.engines.length, 0);
   const latestBrief = briefs?.[0] ?? null;
 
   return (
@@ -143,6 +149,29 @@ export default async function HomePage(props: { params: Promise<{ locale: string
         </p>
       </Section>
 
+      {/* ── ★ 대표 시스템 — 엔진 → YGGDRASIL → BAIKAL MOB ★ (2026-10-19 캡틴: "아이기론을 대표하는
+           시스템으로 명명하고 기록해") — 상태 카드는 운영 서버가 매시간 기록한 스냅숏 그대로다. ── */}
+      <div id="flagship" style={{ scrollMarginTop: 80, wordBreak: 'keep-all' }}>
+        <Section>
+          <Card accent>
+            <SectionHeading eyebrow={bx.flagshipEyebrow} title={bx.flagshipTitle} lead={bx.flagshipLead} />
+            <LayerDiagram labels={bx} />
+            <h3 style={{ fontFamily: 'var(--disp)', fontWeight: 800, fontSize: 19, margin: '34px 0 6px' }}>{bx.statusTitle}</h3>
+            <p style={{ color: 'var(--muted)', fontSize: 13.5, lineHeight: 1.7, margin: '0 0 14px', maxWidth: 780 }}>{bx.statusLead}</p>
+            <SystemStatusGrid data={baikal} systems={dict.extra.systems} labels={bx} compact />
+            <Link
+              href={localePath(locale, 'baikal')}
+              style={{
+                display: 'inline-block', marginTop: 22, fontFamily: 'var(--mono)', fontSize: 13, textDecoration: 'none',
+                fontWeight: 700, background: 'var(--accent)', color: 'var(--on-accent)', borderRadius: 10, padding: '12px 20px',
+              }}
+            >
+              {bx.openPage} →
+            </Link>
+          </Card>
+        </Section>
+      </div>
+
       {/* ── 실가동 — 운영 API 실측 + 운영 화면 캡처 (2026-10-18 캡틴: "실가동되는 걸 보여줘야 해") ── */}
       <div className="band-deep">
         <Section>
@@ -213,22 +242,30 @@ export default async function HomePage(props: { params: Promise<{ locale: string
       {/* ── 엔진 구성 ──────────────────────────────────────── */}
       <div id="engines" style={{ scrollMarginTop: 80, wordBreak: 'keep-all' }}>
         <Section>
-          <SectionHeading eyebrow="ENGINE" title={t.engineTitle} lead={t.engineLead} />
+          <SectionHeading eyebrow="ENGINE SYSTEMS" title={t.engineTitle} lead={t.engineLead.replace('{n}', String(engineCount))} />
           <ModeLegend modes={t.engineModes} />
           <div style={{ display: 'grid', gap: 34, marginTop: 30 }}>
-            {t.engineGroups.map((group, gi) => (
-              <div key={group.key}>
+            {t.engineGroups.map((group, gi) => {
+              const sys = systems[group.system];
+              return (
+              <div key={group.system}>
+                {/* 영문 코드명 · 현지 표기 — 역할. 고객이 이름만 보고도 무엇을 하는 시스템인지 알 수 있게. */}
                 <h3
                   style={{
-                    display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 14,
+                    display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap', marginBottom: 4,
                     fontFamily: 'var(--disp)', fontWeight: 800, fontSize: 18, letterSpacing: '-.01em',
+                    borderLeft: `4px solid ${SYSTEM_TONE[group.system]}`, paddingLeft: 12,
                   }}
                 >
                   <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--accent)', fontWeight: 500 }}>
                     {String(gi + 1).padStart(2, '0')}
                   </span>
-                  {group.label}
+                  <span style={{ fontFamily: 'var(--mono)', letterSpacing: '.03em' }}>{sys ? systemTitle(sys) : group.system}</span>
+                  {sys && <span style={{ color: 'var(--muted)', fontWeight: 700 }}>— {sys.role}</span>}
                 </h3>
+                {sys && (
+                  <p style={{ color: 'var(--muted2)', fontSize: 12.5, margin: '0 0 14px 16px', fontStyle: 'italic' }}>{sys.myth}</p>
+                )}
                 <Grid min={280}>
                   {group.engines.map((e) => (
                     <EngineCard
@@ -240,7 +277,8 @@ export default async function HomePage(props: { params: Promise<{ locale: string
                   ))}
                 </Grid>
               </div>
-            ))}
+              );
+            })}
           </div>
           <Link
             href={localePath(locale, 'engines')}

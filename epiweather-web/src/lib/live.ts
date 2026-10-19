@@ -157,3 +157,62 @@ export function predictionStatus(p: Prediction): 'hit' | 'miss' | 'open' | 'othe
   if (p.outcome === 'ambiguous' || p.outcome === 'cancelled') return 'other';
   return 'open';
 }
+
+// ── BAIKAL MOB (2026-10-19) ─────────────────────────────────
+// 응답 모양은 백엔드 algorithms/baikal.py · main.baikal_current 와 같다.
+// 못 읽으면 null — 화면은 지어낸 상태 대신 "읽지 못함"을 쓴다.
+
+export type BaikalSystem = {
+  key: string;
+  name_ko?: string;
+  role_ko?: string;
+  order?: number;
+  status: 'ok' | 'degraded' | 'down' | 'undetermined';
+  status_ko?: string;
+  reason: string;
+  scope_ko?: string;
+  evidence_class: 'measured' | 'estimated' | 'proxy';
+  readings?: Record<string, unknown>;
+  on_request?: string[];
+};
+
+export type BaikalLoopLink = Record<string, string | number | null | undefined> & { key: string };
+
+export type BaikalTransition = {
+  id: number;
+  observed_at: string;
+  subject: string;
+  from_status: string | null;
+  to_status: string;
+  reason: string | null;
+};
+
+export type BaikalSnapshot = {
+  available: true;
+  observed_at: string;
+  systems: BaikalSystem[];
+  summary: { counts: Record<string, number>; total: number };
+  loop: {
+    state: 'measuring' | 'awaiting' | 'empty' | 'undetermined';
+    text: string;
+    links: BaikalLoopLink[];
+    earliest_due: string | null;
+  };
+  transitions: BaikalTransition[];
+  snapshot_age_minutes: number | null;
+  stale: boolean;
+};
+
+export type BaikalResult =
+  | BaikalSnapshot
+  | { available: false; transitions: BaikalTransition[] };
+
+export async function getBaikal(): Promise<BaikalResult | null> {
+  const d = await getJson<Record<string, unknown>>('/api/baikal?transitions=30');
+  if (!d || typeof d.available !== 'boolean') return null;
+  if (!d.available) {
+    return { available: false, transitions: Array.isArray(d.transitions) ? (d.transitions as BaikalTransition[]) : [] };
+  }
+  if (!Array.isArray(d.systems) || !d.loop) return null;
+  return d as unknown as BaikalSnapshot;
+}
