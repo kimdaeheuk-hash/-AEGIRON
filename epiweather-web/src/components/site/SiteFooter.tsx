@@ -18,6 +18,7 @@ const COLUMNS: { titleKey: 'product' | 'company'; links: { key: keyof Dictionary
     titleKey: 'product',
     links: [
       { key: 'platform', path: 'platform' },
+      { key: 'baikal', path: 'baikal' },
       { key: 'live', path: 'live' },
       { key: 'record', path: 'record' },
       { key: 'techSpec1', path: 'technology' },

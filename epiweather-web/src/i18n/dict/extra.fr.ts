@@ -1,9 +1,12 @@
 import type { ExtraDict } from '../types';
 import { extraPagesFr } from './extraPages.fr';
+import { systemsFr, baikalFr } from './baikal.fr';
 
 /** Libellés des widgets en direct, du registre, de l’API et des maladies (français). */
 export const extraFr: ExtraDict = {
   pages: extraPagesFr,
+  systems: systemsFr,
+  baikal: baikalFr,
 
   live: {
     countersTitle: 'Le bilan d’exploitation à ce jour',
@@ -93,6 +96,7 @@ export const extraFr: ExtraDict = {
   },
 
   apiTags: {
+    BAIKAL: 'BAIKAL MOB · YGGDRASIL — système phare',
     GAI: 'Indice d’anomalie · alertes · indice de risque',
     Phase2: 'Signaux collectés',
     Phase3: 'Prévision · graphe de connaissances · profils',

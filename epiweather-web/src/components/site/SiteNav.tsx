@@ -28,6 +28,8 @@ export function navGroups(locale: Locale, nav: Dictionary['nav']): NavGroup[] {
       { label: nav.contact, href: p('contact') },
     ] },
     { label: nav.platform, href: p('platform') },
+    // 대표 시스템 — "엔진=>온톨로지=>바이칼몹 시스템을 아이기론을 대표하는 시스템으로"(캡틴 2026-10-19).
+    { label: nav.baikal, href: p('baikal'), emphasis: true },
     // 실가동 — "진짜 아이기론이 뭘 하고 있는지 보여줘야 해"(캡틴 2026-10-18). 최상위에 둔다.
     { label: nav.live, href: p('live'), emphasis: true },
     { label: nav.technology, items: [

@@ -4,7 +4,7 @@ import type { PagesDict } from '../types';
  * Contenu français des pages secondaires.
  *
  * ★ Les chiffres ici sont des valeurs mesurées ★
- * 23 sources de collecte opérationnelles · 114 modules algorithmiques · 123 points d’accès · 2 145 tests automatisés (mesuré le 2026-10-18).
+ * 23 sources de collecte opérationnelles · 116 modules algorithmiques (114 moteurs + YGGDRASIL · BAIKAL) · 126 points d’accès · 2 201 tests automatisés (mesuré le 2026-10-19).
  * Aucune estimation n’est présentée comme un fait.
  *
  * ★ RÈGLE ABSOLUE ★ Aucune affirmation de précision ni de délai d’avance.
@@ -26,11 +26,11 @@ export const pagesFr: PagesDict = {
           { label: 'Portée de veille', value: '178 pays · 52 langues de presse locale (179 flux)' },
           { label: 'Sources en direct', value: '23 · collectées automatiquement chaque heure' },
           { label: 'Modèle de propagation', value: '159 pays · 1 671 liaisons aériennes · 314 frontières terrestres' },
-          { label: 'Modules algorithmiques', value: '114 (veille · extraction · jugement · prévision · génomique · contre-mesures · vérification)' },
-          { label: 'API publique', value: '123 points d’accès' },
-          { label: 'Contrôle qualité', value: '2 145 tests automatisés — tous doivent passer avant toute mise en production' },
+          { label: 'Modules algorithmiques', value: '116 (114 moteurs · ontologie YGGDRASIL · couche d’état BAIKAL MOB)' },
+          { label: 'API publique', value: '126 points d’accès' },
+          { label: 'Contrôle qualité', value: '2 201 tests automatisés — tous doivent passer avant toute mise en production' },
         ],
-        note: 'Mesuré sur le dépôt et les journaux d’exploitation le 2026-10-18.',
+        note: 'Mesuré sur le dépôt et les journaux d’exploitation le 2026-10-19.',
       },
       {
         title: '01 · Collecter',
@@ -320,12 +320,12 @@ export const pagesFr: PagesDict = {
     metaDescription:
       'Les 114 modules algorithmiques d’AEGIRON, regroupés en sept : veille, extraction, jugement, prévision, génomique, contre-mesures et vérification. Ce que fait chaque module, et s’il tourne chaque heure ou à la demande.',
     eyebrow: 'ENGINE CATALOGUE',
-    title: '114 modules, sept groupes',
-    lead: 'AEGIRON n’est pas un grand modèle unique mais 114 modules, chacun faisant une chose bien, imbriqués — car surveiller le monde entier demande autant d’angles. Les modules principaux sont regroupés en sept pour voir d’un coup d’œil ce que fait chaque moteur.',
+    title: '114 modules, sept systèmes',
+    lead: 'AEGIRON n’est pas un grand modèle unique mais 114 modules, chacun faisant une chose bien, imbriqués — car surveiller le monde entier demande autant d’angles. Les modules principaux sont organisés en sept systèmes nommés — HUGINN, MIMIR, FORSETI, SKULD, HEIMDALL, VALHALLA et VAR — la couche moteurs du système phare d’AEGIRON (voir BAIKAL MOB).',
     blocks: [
       {
-        title: 'Veille — rassembler les signaux, trouver les anomalies',
-        kicker: 'GROUP 01 · Veille',
+        title: 'HUGINN — Veille — rassembler les signaux, trouver les anomalies',
+        kicker: 'SYSTEM 01 · HUGINN',
         tone: 'teal',
         items: [
           { title: 'Veille de la presse locale', body: 'Sélectionne les articles de foyer dans l’actualité agrégée de 178 pays et 52 langues.', meta: 'local_news · horaire' },
@@ -340,8 +340,8 @@ export const pagesFr: PagesDict = {
         ],
       },
       {
-        title: 'Extraction — transformer textes et tableaux en chiffres',
-        kicker: 'GROUP 02 · Extraction',
+        title: 'MIMIR — Extraction — transformer textes et tableaux en chiffres',
+        kicker: 'SYSTEM 02 · MIMIR',
         tone: 'sky',
         items: [
           { title: 'Extraction de tableaux PDF', body: 'Restitue les tableaux des rapports de santé en structure lignes-colonnes.', meta: 'pdf_table_extract' },
@@ -353,8 +353,8 @@ export const pagesFr: PagesDict = {
         ],
       },
       {
-        title: 'Jugement — décider s’il faut lever une alerte',
-        kicker: 'GROUP 03 · Jugement',
+        title: 'FORSETI — Jugement — décider s’il faut lever une alerte',
+        kicker: 'SYSTEM 03 · FORSETI',
         tone: 'crimson',
         items: [
           { title: 'Indice de risque par pays', body: 'Multiplie le risque brut par la vulnérabilité nationale pour un risque final.', meta: 'country_risk · country_indicators' },
@@ -365,8 +365,8 @@ export const pagesFr: PagesDict = {
         ],
       },
       {
-        title: 'Prévision · simulation — voir où cela se propagera',
-        kicker: 'GROUP 04 · Prévision',
+        title: 'SKULD — Prévision · simulation — voir où cela se propagera',
+        kicker: 'SYSTEM 04 · SKULD',
         tone: 'indigo',
         items: [
           { title: 'Prévision à 7/14 jours', body: 'Extrapole les séries d’indicateurs par un ensemble.', meta: 'forecast_engine' },
@@ -377,8 +377,8 @@ export const pagesFr: PagesDict = {
         ],
       },
       {
-        title: 'Génomique — lire les séquences de façon défensive',
-        kicker: 'GROUP 05 · Génomique',
+        title: 'HEIMDALL — Génomique — lire les séquences de façon défensive',
+        kicker: 'SYSTEM 05 · HEIMDALL',
         tone: 'violet',
         items: [
           { title: 'Statistiques de composition', body: 'Regarde une composition non naturelle avec CAI, CpG et autres.', meta: 'genome_signals' },
@@ -388,8 +388,8 @@ export const pagesFr: PagesDict = {
         ],
       },
       {
-        title: 'Contre-mesures — compter ce qui peut l’arrêter (VALHALLA)',
-        kicker: 'GROUP 06 · Contre-mesures',
+        title: 'VALHALLA — Contre-mesures — compter ce qui peut l’arrêter (VALHALLA)',
+        kicker: 'SYSTEM 06 · VALHALLA',
         tone: 'forest',
         items: [
           { title: 'Écart de couverture', body: 'Quelles menaces le stock actuel et les produits approuvés ne couvrent pas.', meta: 'countermeasure_stockpile · approved_products' },
@@ -400,8 +400,8 @@ export const pagesFr: PagesDict = {
         ],
       },
       {
-        title: 'Vérification — nous contrôlons nos propres chiffres',
-        kicker: 'GROUP 07 · Vérification',
+        title: 'VAR — Vérification — nous contrôlons nos propres chiffres',
+        kicker: 'SYSTEM 07 · VAR',
         tone: 'teal',
         items: [
           { title: 'Évaluation automatique des prévisions', body: 'Classe les prévisions face aux déclarations officielles en succès, échec ou attente.', meta: 'prediction_resolver · prediction_scoring' },
@@ -828,7 +828,7 @@ export const pagesFr: PagesDict = {
         tone: 'indigo',
         body: 'Le système tourne réellement. Les signaux arrivent des sources de données chaque heure, et le tableau de bord en direct est ouvert en ce moment, sans authentification. Nous cherchons un premier partenaire, et nous le disons clairement — l’ouverture et la vérifiabilité sont les forces de ce stade.',
         points: [
-          '114 modules et 123 points d’accès tournent chaque heure, et seul le code qui passe 2 145 tests automatisés est mis en production.',
+          '116 modules et 126 points d’accès tournent chaque heure, et seul le code qui passe 2 201 tests automatisés est mis en production.',
           'Le système, la méthodologie, les données et les limites sont tous ouverts dès le départ, dans un état que la diligence peut vérifier directement.',
           'Chaque prévision est scellée et s’accumule, de sorte qu’un historique vérifiable grandit de lui-même à mesure que l’exploitation continue.',
         ],

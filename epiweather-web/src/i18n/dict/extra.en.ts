@@ -1,9 +1,12 @@
 import type { ExtraDict } from '../types';
 import { extraPagesEn } from './extraPages.en';
+import { systemsEn, baikalEn } from './baikal.en';
 
 /** Live widgets, forecast ledger, API and disease labels (English). */
 export const extraEn: ExtraDict = {
   pages: extraPagesEn,
+  systems: systemsEn,
+  baikal: baikalEn,
 
   live: {
     countersTitle: 'The operating record so far',
@@ -93,6 +96,7 @@ export const extraEn: ExtraDict = {
   },
 
   apiTags: {
+    BAIKAL: 'BAIKAL MOB · YGGDRASIL flagship system',
     GAI: 'Anomaly index · alerts · risk index',
     Phase2: 'Collected signals',
     Phase3: 'Forecast · knowledge graph · custom profiles',

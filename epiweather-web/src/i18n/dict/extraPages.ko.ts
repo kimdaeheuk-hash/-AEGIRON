@@ -1,12 +1,15 @@
 import type { ExtraDict } from '../types';
+import { baikalPageKo } from './baikal.ko';
 
 /**
  * 실가동·검증·국가사업 페이지 본문(한국어).
  *
- * ★ 수치는 실측만 ★ 엔드포인트 123개 중 인증 필요 37개(main.py 실측), 질병 파라미터는
+ * ★ 수치는 실측만 ★ 엔드포인트 126개 중 인증 필요 37개(main.py 실측), 질병 파라미터는
  * disease_params.DISEASE_PARAMS 의 문헌값. 고객·인증·계약 실적처럼 없는 것은 쓰지 않는다.
  */
 export const extraPagesKo: ExtraDict['pages'] = {
+  baikal: baikalPageKo,
+
   live: {
     metaTitle: '실가동 — 아이기론 실시간 운영 현황',
     metaDescription: '운영 대시보드 화면과 실시간 운영 수치 — 수집 현황, 감시 대상 국가, 경보 후보.',
@@ -117,7 +120,7 @@ export const extraPagesKo: ExtraDict['pages'] = {
         kicker: 'ACCESS CONTROL',
         tone: 'indigo',
         specs: [
-          { label: '전체 API', value: '엔드포인트 123개' },
+          { label: '전체 API', value: '엔드포인트 126개' },
           { label: '인증 필요', value: '37개 — 상태 변경 · 고비용 · 고위험 기능' },
           { label: '인증 방식', value: 'X-API-Key 헤더 · 다중 키(라벨별) · 상수 시간 비교' },
           { label: '키 미설정 시', value: '쓰기 API 전체 비활성(열린 상태 방치 없음)' },
@@ -155,7 +158,7 @@ export const extraPagesKo: ExtraDict['pages'] = {
         tone: 'sky',
         items: [
           { title: '비밀 관리', body: 'API 키·자격증명 운영 환경 변수 전용 · 저장소·문서 기록 금지' },
-          { title: '배포 관문', body: '자동 시험 2,145건 전부 통과 코드만 운영 반영' },
+          { title: '배포 관문', body: '자동 시험 2,201건 전부 통과 코드만 운영 반영' },
           { title: '조용한 실패 감시', body: '소스 건강·품질 불변식 — 매 주기 수집·계산 무결성 점검' },
           { title: '변조 방지', body: '예측 기록 해시 봉인 · 비트코인 블록체인 시점 고정' },
         ],
@@ -186,7 +189,7 @@ export const extraPagesKo: ExtraDict['pages'] = {
         title: '한 문단 소개',
         kicker: 'BOILERPLATE',
         tone: 'indigo',
-        body: '감염병이 국제 뉴스가 되기 전 신호 포착을 목표로 하는 조기경보 시스템. 23종 데이터 소스·114개 알고리즘 모듈로 국가별 이상도 판정, 경보 시점에 159개국 확산 시뮬레이션·개입 시나리오 동시 산출. 전 예측 생성 시점 블록체인 봉인 및 공식 선언 자동 대조 채점, 시스템·방법론·데이터·한계 전면 공개. 방어적 유전체 스크리닝(HEIMDALL)·대응제 준비태세(VALHALLA) 두 R&D 프로그램으로 국가 바이오안보 축 담당.',
+        body: '감염병이 국제 뉴스가 되기 전 신호 포착을 목표로 하는 조기경보 시스템. 23종 데이터 소스·116개 알고리즘 모듈로 국가별 이상도 판정, 경보 시점에 159개국 확산 시뮬레이션·개입 시나리오 동시 산출. 전 예측 생성 시점 블록체인 봉인 및 공식 선언 자동 대조 채점, 시스템·방법론·데이터·한계 전면 공개. 방어적 유전체 스크리닝(HEIMDALL)·대응제 준비태세(VALHALLA) 두 R&D 프로그램으로 국가 바이오안보 축 담당.',
       },
       {
         title: '핵심 사실',
@@ -196,11 +199,11 @@ export const extraPagesKo: ExtraDict['pages'] = {
           { label: '본사', value: '대한민국 부산' },
           { label: '감시 범위', value: '178개국 · 52개 언어 현지 보도' },
           { label: '데이터 소스', value: '23종 · 매시간 수집' },
-          { label: '알고리즘 모듈', value: '114개' },
-          { label: '공개 API', value: '엔드포인트 123개' },
+          { label: '알고리즘 모듈', value: '116개' },
+          { label: '공개 API', value: '엔드포인트 126개' },
           { label: '공개 범위', value: '시스템 · 방법론 · 데이터 소스 · 한계 · 예측 원장' },
         ],
-        note: '2026-10-18 실측 기준 · 인용 시 날짜 병기',
+        note: '2026-10-19 실측 기준 · 인용 시 날짜 병기',
       },
       {
         title: '영상과 이미지',
@@ -273,7 +276,7 @@ export const extraPagesKo: ExtraDict['pages'] = {
 
   developers: {
     metaTitle: '개발자 · API',
-    metaDescription: '아이기론 REST API — 엔드포인트 123개, JSON 응답, X-API-Key 인증, OpenAPI 문서. 기관 시스템 연동 안내.',
+    metaDescription: '아이기론 REST API — 엔드포인트 126개, JSON 응답, X-API-Key 인증, OpenAPI 문서. 기관 시스템 연동 안내.',
     eyebrow: 'DEVELOPERS',
     title: '개발자 · API',
     lead: '대시보드 전 수치의 단일 출처 = REST API · 경보·위험지수·브리핑 기관 시스템 직접 연동 가능',

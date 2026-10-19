@@ -45,6 +45,7 @@ export const en: Dictionary = {
 
   nav: {
     live: 'Live operations',
+    baikal: 'BAIKAL MOB',
     record: 'Public forecast ledger',
     korea: 'For Korea',
     security: 'Security & governance',
@@ -104,12 +105,12 @@ export const en: Dictionary = {
     heroNoLogin: 'Opens immediately — no signup, no login',
 
     stats: [
-      { value: '114', label: 'Algorithm modules', note: 'Detection · genomics · forecasting · response · verification' },
-      { value: '123', label: 'API endpoints', note: 'Collection · analysis · simulation · scoring' },
-      { value: '2,145', label: 'Automated tests', note: 'All must pass before anything reaches production' },
+      { value: '116', label: 'Algorithm modules', note: '114 engines · 2 for the ontology (YGGDRASIL) and state layer (BAIKAL MOB)' },
+      { value: '126', label: 'API endpoints', note: 'Collection · analysis · simulation · scoring' },
+      { value: '2,201', label: 'Automated tests', note: 'All must pass before anything reaches production' },
       { value: '179', label: 'Local-language news feeds', note: 'Aggregated by country and language, collected hourly' },
     ],
-    statsAsOf: 'Measured 2026-10-18 from the repository and production logs',
+    statsAsOf: 'Measured 2026-10-19 from the repository and production logs',
     introVideoLabel: 'AEGIRON — introduction',
     photo: {
       src: '/media/photos/earth-eastern-hemisphere.jpg',
@@ -176,7 +177,7 @@ export const en: Dictionary = {
       {
         src: '/media/photos/data-center.jpg',
         alt: 'A data-centre server room',
-        caption: 'A data centre. The hourly computation of 114 modules runs in places like this.',
+        caption: 'A data centre. The hourly computation of 116 modules runs in places like this.',
         credit: 'BalticServers.com · CC BY-SA 3.0',
         sourceUrl: 'https://commons.wikimedia.org/wiki/File:BalticServers_data_center.jpg',
       },
@@ -189,9 +190,9 @@ export const en: Dictionary = {
       },
     ],
 
-    engineTitle: 'The engines',
+    engineTitle: 'The seven engine systems',
     engineLead:
-      'Sixteen of the 114 modules form the backbone of detection, genomics, forecasting, response and verification. Each one is labelled with how it actually runs, so that an engine that runs every hour is never presented with the same weight as one that computes only when asked.',
+      'The {n} core engines out of 114 modules, organised into the seven systems (HUGINN · MIMIR · FORSETI · SKULD · HEIMDALL · VALHALLA · VAR). Each one is labelled with how it actually runs, so that an engine that runs every hour is never presented with the same weight as one that computes only when asked.',
     engineModes: {
       hourly: 'Runs hourly',
       daily: 'Runs daily',
@@ -201,8 +202,7 @@ export const en: Dictionary = {
     engineCaveatLabel: 'Limits',
     engineGroups: [
       {
-        key: 'detect',
-        label: 'Detection',
+        system: 'HUGINN',
         engines: [
           {
             id: 'local_news',
@@ -228,12 +228,6 @@ export const en: Dictionary = {
             body: 'Counts, as a separate class, clusters extracted from reporting that do not match any known disease pattern. The pneumonia of unknown cause in Wuhan in December 2019 is the archetype.',
             mode: 'hourly',
           },
-        ],
-      },
-      {
-        key: 'environment',
-        label: 'Environment · polar territory',
-        engines: [
           {
             id: 'polar_signals',
             name: 'Polar-territory surveillance',
@@ -257,8 +251,83 @@ export const en: Dictionary = {
         ],
       },
       {
-        key: 'genomics',
-        label: 'Genomics',
+        system: 'MIMIR',
+        engines: [
+          {
+            id: 'nlp_extract',
+            name: 'Structured signal extraction',
+            body: 'Turns article text into structured signals — disease, country, cases, deaths and signal type — assigns source reliability, and keeps unconfirmed values apart as unverified.',
+            mode: 'daily',
+            caveat: 'Runs once a day in the AI slot (21:00 UTC), currently through an external language-model path.',
+          },
+          {
+            id: 'pdf_table_extract',
+            name: 'WHO report table extraction',
+            body: 'Rebuilds the PDF tables of WHO regional weekly situation reports into rows and columns, and counts “new in 7 days”, “cumulative”, “suspected” and “confirmed” separately.',
+            mode: 'daily',
+            caveat: 'Parses only when a new issue exists — the reports are published weekly.',
+          },
+        ],
+      },
+      {
+        system: 'FORSETI',
+        engines: [
+          {
+            id: 'country_risk',
+            name: 'Country risk index',
+            body: 'Multiplies raw (signal-based) risk by national vulnerability — health infrastructure, population density, airport connectivity — to give each country’s final risk, and records it as a forecast once it crosses the threshold.',
+            mode: 'hourly',
+            caveat: 'A relative indicator between countries, not a probability of occurrence.',
+          },
+          {
+            id: 'alerts',
+            name: 'Alert triage and fatigue control',
+            body: 'Applies tiers (Critical · High · Medium · Low) and per-tier daily caps so that only alerts worth a person’s attention go out. Critical and High go to Telegram at once; families that could not be assessed are held with a staleness mark rather than withdrawn.',
+            mode: 'hourly',
+          },
+        ],
+      },
+      {
+        system: 'SKULD',
+        engines: [
+          {
+            id: 'forecast_engine',
+            name: '7- and 14-day trend outlook',
+            body: 'Extrapolates each indicator’s time series 7 and 14 days ahead with an ensemble of linear regression and exponential smoothing, and publishes the result in the daily briefing.',
+            mode: 'daily',
+            caveat: 'An extrapolation of signal time series, not a measured case count.',
+          },
+          {
+            id: 'digital_twin',
+            name: 'Cross-border spread simulation',
+            body: 'A metapopulation SEIR model with 159 countries as nodes and 1,671 air-linked country pairs and 314 land borders as edges. It reports countries not reached within the period separately from countries for which no route is known.',
+            mode: 'onRequest',
+            caveat: 'The air network uses 2014 route data; land traffic is a population-based estimate.',
+          },
+          {
+            id: 'global_inflow',
+            name: 'Import-date estimate',
+            body: 'Estimates the days until a first imported case reaches Korea, and the risk at each port of entry, from the origin city’s international passenger volume, flight time and early exponential growth.',
+            mode: 'onRequest',
+            caveat: 'A model estimate, not an observed import date.',
+          },
+          {
+            id: 'alert_intervention',
+            name: 'Intervention scenarios per alert',
+            body: 'For every new critical or high alert, runs an SEIR defence simulation with disease-specific parameters and attaches the difference between no response and intervention. The alert no longer stops at “what is coming”; it also answers “which measures change what”.',
+            mode: 'onAlert',
+            caveat: 'A model scenario built on literature parameters, not a forecast. No figures are produced for alerts where the disease cannot be identified.',
+          },
+          {
+            id: 'defense',
+            name: 'Time-varying intervention comparison',
+            body: 'Varies the start date and intensity of isolation, distancing and vaccination to compare how the effective reproduction number and days of hospital overload change.',
+            mode: 'onRequest',
+          },
+        ],
+      },
+      {
+        system: 'HEIMDALL',
         engines: [
           {
             id: 'genomic_variants',
@@ -282,54 +351,19 @@ export const en: Dictionary = {
         ],
       },
       {
-        key: 'simulate',
-        label: 'Forecasting · Simulation',
+        system: 'VALHALLA',
         engines: [
           {
-            id: 'forecast_engine',
-            name: '7- and 14-day trend outlook',
-            body: 'Extrapolates each indicator’s time series 7 and 14 days ahead with an ensemble of linear regression and exponential smoothing, and publishes the result in the daily briefing.',
-            mode: 'daily',
-            caveat: 'An extrapolation of signal time series, not a measured case count.',
-          },
-          {
-            id: 'digital_twin',
-            name: 'Cross-border spread simulation',
-            body: 'A metapopulation SEIR model with 159 countries as nodes and 1,671 air-linked country pairs and 314 land borders as edges. It reports countries not reached within the period separately from countries for which no route is known.',
-            mode: 'onRequest',
-            caveat: 'The air network uses 2014 route data; land traffic is a population-based estimate.',
-          },
-          {
-            id: 'global_inflow',
-            name: 'Import-date estimate',
-            body: 'Estimates the days until a first imported case reaches Korea, and the risk at each port of entry, from the origin city’s international passenger volume, flight time and early exponential growth.',
-            mode: 'onRequest',
-            caveat: 'A model estimate, not an observed import date.',
+            id: 'valhalla_watch',
+            name: 'Countermeasure readiness watch',
+            body: 'Compiles international stockpiles, approved products, WHO prequalification, the clinical pipeline and Korean procurement notices into per-threat coverage and manufacturing-sovereignty gaps.',
+            mode: 'hourly',
+            caveat: 'Procurement and clinical parts refresh on their own cadences; non-public information such as national stockpile volumes is not handled.',
           },
         ],
       },
       {
-        key: 'respond',
-        label: 'Response',
-        engines: [
-          {
-            id: 'alert_intervention',
-            name: 'Intervention scenarios per alert',
-            body: 'For every new critical or high alert, runs an SEIR defence simulation with disease-specific parameters and attaches the difference between no response and intervention. The alert no longer stops at “what is coming”; it also answers “which measures change what”.',
-            mode: 'onAlert',
-            caveat: 'A model scenario built on literature parameters, not a forecast. No figures are produced for alerts where the disease cannot be identified.',
-          },
-          {
-            id: 'defense',
-            name: 'Time-varying intervention comparison',
-            body: 'Varies the start date and intensity of isolation, distancing and vaccination to compare how the effective reproduction number and days of hospital overload change.',
-            mode: 'onRequest',
-          },
-        ],
-      },
-      {
-        key: 'verify',
-        label: 'Self-verification',
+        system: 'VAR',
         engines: [
           {
             id: 'prediction_resolver',
@@ -347,7 +381,7 @@ export const en: Dictionary = {
             id: 'prediction_timestamp',
             name: 'Forecast sealing',
             body: 'Anchors the SHA-256 hash of a forecast record in the Bitcoin blockchain through OpenTimestamps, so that a third party can verify for themselves that the forecast was not rewritten after the fact.',
-            mode: 'onRequest',
+            mode: 'hourly',
           },
           {
             id: 'source_health',

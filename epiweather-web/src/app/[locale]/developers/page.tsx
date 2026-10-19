@@ -7,7 +7,7 @@ import endpoints from '@/data/api-endpoints.json';
 
 /**
  * 개발자 · API. 엔드포인트 표는 epiweather-api/main.py 의 라우트 데코레이터에서 뽑은
- * src/data/api-endpoints.json(123개 · 인증 37개, 2026-10-18)을 그대로 그린다.
+ * src/data/api-endpoints.json(126개 · 인증 37개, 2026-10-19)을 그대로 그린다.
  */
 const PATH = 'developers';
 

@@ -89,7 +89,7 @@ SYSTEMS: tuple[dict[str, Any], ...] = (
         "myth_ko": "맹세의 여신 — 약속을 지켜보고 어기면 벌한다",
         "summary_ko": "예측 봉인·공식 선언 대조 채점·선행성 원장으로 스스로의 숫자를 검증",
         "engines": ["prediction_timestamp", "prediction_resolver", "prediction_scoring",
-                    "lead_time_ledger"],
+                    "lead_time_ledger", "source_health", "quality_health"],
         "on_request": [],
     },
 )

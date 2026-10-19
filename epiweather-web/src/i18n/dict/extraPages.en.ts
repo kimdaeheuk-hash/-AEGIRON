@@ -1,7 +1,10 @@
 import type { ExtraDict } from '../types';
+import { baikalPageEn } from './baikal.en';
 
 /** Live operations, verification and national pages (English). Measured values only. */
 export const extraPagesEn: ExtraDict['pages'] = {
+  baikal: baikalPageEn,
+
   live: {
     metaTitle: 'Live operations — what AEGIRON is doing right now',
     metaDescription: 'Screens captured from AEGIRON’s running dashboard and live operational figures — what it is collecting, where it is looking and what it has raised as an alert.',
@@ -112,7 +115,7 @@ export const extraPagesEn: ExtraDict['pages'] = {
         kicker: 'ACCESS CONTROL',
         tone: 'indigo',
         specs: [
-          { label: 'Total API', value: '123 endpoints' },
+          { label: 'Total API', value: '126 endpoints' },
           { label: 'Authentication required', value: '37 — state-changing, costly and high-risk functions' },
           { label: 'Method', value: 'X-API-Key header · multiple labelled keys · constant-time comparison' },
           { label: 'With no key configured', value: 'All write APIs disabled — never left open' },
@@ -150,7 +153,7 @@ export const extraPagesEn: ExtraDict['pages'] = {
         tone: 'sky',
         items: [
           { title: 'Secret management', body: 'API keys and credentials live only in production environment variables — never in the repository or documents.' },
-          { title: 'Release gate', body: 'Only code that passes all 2,145 automated tests ships.' },
+          { title: 'Release gate', body: 'Only code that passes all 2,201 automated tests ships.' },
           { title: 'Silent-failure watch', body: 'Source health and quality invariants check the integrity of collection and computation every cycle.' },
           { title: 'Tamper evidence', body: 'Forecast records are sealed by hash and their time anchored to the Bitcoin blockchain.' },
         ],
@@ -181,7 +184,7 @@ export const extraPagesEn: ExtraDict['pages'] = {
         title: 'Boilerplate',
         kicker: 'BOILERPLATE',
         tone: 'indigo',
-        body: 'AEGIRON aims to catch the signal before an outbreak becomes international news. With 23 data sources and 114 algorithm modules it judges anomalies by country and, when an alert is raised, computes a 159-country spread simulation and intervention scenarios alongside it. Every forecast is sealed on the blockchain when made and scored automatically against later official declarations, and the system, methodology, data and limits are open from the start. Two R&D programs — defensive genomic screening (HEIMDALL) and countermeasure readiness (VALHALLA) — carry the national-biosecurity axis.',
+        body: 'AEGIRON aims to catch the signal before an outbreak becomes international news. With 23 data sources and 116 algorithm modules it judges anomalies by country and, when an alert is raised, computes a 159-country spread simulation and intervention scenarios alongside it. Every forecast is sealed on the blockchain when made and scored automatically against later official declarations, and the system, methodology, data and limits are open from the start. Two R&D programs — defensive genomic screening (HEIMDALL) and countermeasure readiness (VALHALLA) — carry the national-biosecurity axis.',
       },
       {
         title: 'Key facts',
@@ -191,11 +194,11 @@ export const extraPagesEn: ExtraDict['pages'] = {
           { label: 'Headquarters', value: 'Busan, South Korea' },
           { label: 'Surveillance reach', value: '178 countries · 52 languages of local reporting' },
           { label: 'Data sources', value: '23 · collected hourly' },
-          { label: 'Algorithm modules', value: '114' },
-          { label: 'Public API', value: '123 endpoints' },
+          { label: 'Algorithm modules', value: '116' },
+          { label: 'Public API', value: '126 endpoints' },
           { label: 'What is open', value: 'System · methodology · data sources · limits · forecast ledger' },
         ],
-        note: 'Measured as of 2026-10-18. Please cite with the date.',
+        note: 'Measured as of 2026-10-19. Please cite with the date.',
       },
       {
         title: 'Video and images',
@@ -268,7 +271,7 @@ export const extraPagesEn: ExtraDict['pages'] = {
 
   developers: {
     metaTitle: 'Developers · API',
-    metaDescription: 'The AEGIRON REST API — 123 endpoints, JSON responses, X-API-Key authentication and OpenAPI docs. Guidance for integrating institutional systems.',
+    metaDescription: 'The AEGIRON REST API — 126 endpoints, JSON responses, X-API-Key authentication and OpenAPI docs. Guidance for integrating institutional systems.',
     eyebrow: 'DEVELOPERS',
     title: 'Developers · API',
     lead: 'Every value the dashboard shows comes from the same REST API. You can pull alerts, risk indices and briefings straight into an institutional system.',

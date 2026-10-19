@@ -11,6 +11,8 @@ export type NavDict = {
   company: string;
   trust: string;
   live: string;
+  /** 대표 시스템 BAIKAL MOB — 메뉴 최상위 */
+  baikal: string;
   record: string;
   korea: string;
   security: string;
@@ -75,10 +77,90 @@ export type EngineDict = {
   caveat?: string;
 };
 
+/**
+ * 아이기론 7개 시스템 — 백엔드 YGGDRASIL 온톨로지(algorithms/yggdrasil.py)의 키와 같다.
+ * 이름은 내부 코드명이다(기관·기밀등급·능력 주장 아님).
+ */
+export type SystemCode = 'HUGINN' | 'MIMIR' | 'FORSETI' | 'SKULD' | 'HEIMDALL' | 'VALHALLA' | 'VAR';
+
+export type SystemDict = {
+  code: SystemCode;
+  /** 현지 표기 — ko '후긴', en·fr 'Huginn'. */
+  name: string;
+  /** 역할 — ko '감시', en 'Surveillance'. */
+  role: string;
+  /** 이름의 유래 한 줄. */
+  myth: string;
+  /** 하는 일 한 줄. */
+  summary: string;
+};
+
+/** 엔진 구성은 7개 시스템 단위로 묶는다 — 제목은 extra.systems 에서 찾는다(이름을 한 곳에 둔다). */
 export type EngineGroupDict = {
-  key: string;
-  label: string;
+  system: SystemCode;
   engines: EngineDict[];
+};
+
+export type BaikalStatus = 'ok' | 'degraded' | 'down' | 'undetermined';
+export type BaikalLoopState = 'measuring' | 'awaiting' | 'empty' | 'undetermined';
+
+/** YGGDRASIL 의 흐름(간선) — 백엔드 RELATIONS 의 id 와 같다. 코드에 실제로 있는 흐름만. */
+export type FlowDict = {
+  id: string;
+  from: SystemCode;
+  to: SystemCode;
+  kind: 'data' | 'feedback';
+  label: string;
+  cadence: string;
+};
+
+/** 대표 시스템(엔진 → YGGDRASIL → BAIKAL MOB) 화면 문구. */
+export type BaikalDict = {
+  flagshipEyebrow: string;
+  flagshipTitle: string;
+  flagshipLead: string;
+  /** 3층 — 엔진 · 온톨로지 · 상태변화 */
+  layers: { code: string; name: string; role: string; body: string }[];
+  statusTitle: string;
+  statusLead: string;
+  statusLabels: Record<BaikalStatus, string>;
+  evidenceLabels: Record<'measured' | 'estimated' | 'proxy', string>;
+  scopeLabel: string;
+  reasonLabel: string;
+  /** 근거 문장은 운영 로그 원문(한국어)이다 — en·fr 에서 그 사실을 밝힌다. 한국어판은 빈 문자열. */
+  reasonOriginalNote: string;
+  onRequestLabel: string;
+  observedAt: string;
+  /** '{n}' = 분 */
+  staleNote: string;
+  notYet: string;
+  unavailable: string;
+  summaryLine: string;
+  loopTitle: string;
+  /** 상태 변화 기록에서 피드백 루프를 가리키는 짧은 이름 */
+  loopSubject: string;
+  loopLead: string;
+  loopStates: Record<BaikalLoopState, string>;
+  loopLinks: { ground_truth: string; predictions: string; scoring: string };
+  loopFields: { live: string; other: string; total: string; named: string; resolved: string; unresolved: string; earliestDue: string };
+  loopNote: string;
+  transitionsTitle: string;
+  transitionsLead: string;
+  transitionsEmpty: string;
+  observationStart: string;
+  flowsTitle: string;
+  flowsLead: string;
+  flows: FlowDict[];
+  feedbackNote: string;
+  isolatedNote: string;
+  systemsTitle: string;
+  systemsLead: string;
+  colSystem: string;
+  colRole: string;
+  colEngines: string;
+  honestyTitle: string;
+  honestyPoints: string[];
+  openPage: string;
 };
 
 export type HomeDict = {
@@ -195,7 +277,10 @@ export type ExtraDict = {
     pilot: ContentPage;
     developers: ContentPage;
     diseases: ContentPage;
+    baikal: ContentPage;
   };
+  systems: SystemDict[];
+  baikal: BaikalDict;
   live: {
     countersTitle: string;
     countersLead: string;
