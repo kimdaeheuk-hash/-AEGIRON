@@ -2036,6 +2036,26 @@ def get_predictions(country: Optional[str] = None, verified_only: bool = False):
     }
 
 
+@app.get("/api/weekly-forecasts", tags=["예측 검증"])
+def weekly_forecasts(limit: int = 200):
+    """주간 추세 예측 — 공식 주간 표본감시의 '다음 주 증감' 예측과 별도 채점표.
+
+    90일 발병 예측(/api/predictions)과 **따로** 채점한다 — 맞히기 쉬운 방향 예측이
+    발병 예측의 적중률을 부풀리지 않게. 판정 8건 미만이면 scorecard.enough=False 이며
+    그때 성적은 판정하지 않는다. 기준선: 동전(Brier 0.25)·지난주 방향 그대로."""
+    from algorithms.weekly_forecast import (
+        all_forecasts, list_forecasts, scorecard, MIN_SCORED, METHOD, SERIES)
+    rows = list_forecasts(limit=max(1, min(limit, 1000)))
+    return {
+        "method": METHOD,
+        "series": [{"key": s["key"], "label_ko": s["label_ko"]} for s in SERIES],
+        "scorecard": scorecard(all_forecasts()),   # 표시 건수(limit)와 무관하게 전체로 채점
+        "min_scored": MIN_SCORED,
+        "note": "주간 방향 예측은 90일 발병 예측과 다른 과제다 — 두 채점표를 합치지 않는다.",
+        "forecasts": rows,
+    }
+
+
 @app.get("/api/predictions/scorecard", tags=["예측 검증"])
 def prediction_scorecard(country: Optional[str] = None):
     """예측 채점표 — 적중률·Brier·보정(calibration).

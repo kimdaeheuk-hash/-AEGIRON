@@ -216,27 +216,37 @@ def fetch_japan_idwr() -> dict | None:
     year = dt.date.today().year
     cur_week = dt.date.today().isocalendar()[1]
     for week in range(cur_week, cur_week - 4, -1):
-        url = f"https://id-info.jihs.go.jp/en/surveillance/idwr/rapid/{year}/{week:02d}/teiten{week:02d}.csv"
         try:
-            r = requests.get(url, headers=USER_AGENT, timeout=15)
-            if r.status_code == 404:
-                continue
-            r.raise_for_status()
-            rows = list(csv.reader(io.StringIO(r.content.decode("utf-8-sig"))))
-            disease_row, total_row = rows[3], rows[5]
-            totals: dict[str, int | None] = {}
-            for i in range(1, len(disease_row), 2):
-                name = disease_row[i].strip()
-                if not name:
-                    continue
-                # isdigit()은 "1,384" 같은 천단위 쉼표에 False를 준다 — 그러면
-                # 1000건 넘는 질병만 조용히 None(결측)이 돼서, 유행이 커질수록
-                # 데이터가 사라지는 최악의 방향으로 틀린다. 에러도 안 난다.
-                totals[name] = parse_kdca_count(total_row[i])
-            return {"year": year, "week": week, "national_totals": totals}
+            got = fetch_japan_idwr_week(year, week)
         except Exception:
             continue
+        if got is not None:
+            return got
     return None
+
+
+def fetch_japan_idwr_week(year: int, week: int) -> dict | None:
+    """일본 IDWR 한 주치 전국 합계. 아직 게시 전(404)이면 None, 그 밖의 실패는 예외.
+
+    fetch_japan_idwr 의 한 주 처리부를 떼어 낸 것이다(2026-10-19) — 주간 추세 예측
+    (weekly_forecast)이 지난 주 게시분을 직접 채워야 해서. 동작은 그대로다."""
+    url = f"https://id-info.jihs.go.jp/en/surveillance/idwr/rapid/{year}/{week:02d}/teiten{week:02d}.csv"
+    r = requests.get(url, headers=USER_AGENT, timeout=15)
+    if r.status_code == 404:
+        return None
+    r.raise_for_status()
+    rows = list(csv.reader(io.StringIO(r.content.decode("utf-8-sig"))))
+    disease_row, total_row = rows[3], rows[5]
+    totals: dict[str, int | None] = {}
+    for i in range(1, len(disease_row), 2):
+        name = disease_row[i].strip()
+        if not name:
+            continue
+        # isdigit()은 "1,384" 같은 천단위 쉼표에 False를 준다 — 그러면
+        # 1000건 넘는 질병만 조용히 None(결측)이 돼서, 유행이 커질수록
+        # 데이터가 사라지는 최악의 방향으로 틀린다. 에러도 안 난다.
+        totals[name] = parse_kdca_count(total_row[i])
+    return {"year": year, "week": week, "national_totals": totals}
 
 
 def fetch_infodengue() -> dict[str, dict | None]:
@@ -1173,6 +1183,18 @@ def collect_free_sources() -> dict:
     except Exception as e:
         log(f"  ❌ 선행성 원장 실패: {type(e).__name__}: {e}")
         log_error("LeadTimeLedger", e)
+
+    # ── 주간 추세 예측 (2026-10-19 편입, 캡틴 승인 ②) ──────────────────────
+    # 90일 발병 예측과 따로 채점한다(algorithms/weekly_forecast.py). 이 층이
+    # 고장 나도 위 경보·예측·원장은 이미 끝난 뒤라 영향이 없다.
+    try:
+        from algorithms.weekly_forecast import run_cycle, cycle_line
+        import db
+        db.init_db()
+        weekly = run_cycle(result.get("japan_idwr"), fetch_japan_idwr_week)
+        log(f"  {cycle_line(weekly)}")
+    except Exception as e:
+        log_error("WeeklyForecast", e)
 
     # 소스별 헬스 기록(㉔) — result의 각 키가 None이면 이번 주기 수집 실패로
     # 판정. 주기당 소스별 정확히 1회만 기록해 "어느 소스가 며칠째 죽었는지"를
