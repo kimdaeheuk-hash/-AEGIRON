@@ -64,7 +64,8 @@ export function SectionHeading({
         {title}
       </Tag>
       {lead && (
-        <p style={{ color: 'var(--muted)', fontSize: 'clamp(14px,1.15vw,16px)', lineHeight: 1.75, marginTop: 16 }}>
+        // pre-line: 여러 단락짜리 머리글(회사 소개 등)의 '\n\n'을 단락 구분으로 살린다.
+        <p style={{ color: 'var(--muted)', fontSize: 'clamp(14px,1.15vw,16px)', lineHeight: 1.75, marginTop: 16, whiteSpace: 'pre-line' }}>
           {lead}
         </p>
       )}
