@@ -103,9 +103,9 @@ export const ko: Dictionary = {
     heroNoLogin: '가입·로그인 없이 즉시 접속',
 
     stats: [
-      { value: '116', label: '알고리즘 모듈', note: '엔진 114 · 온톨로지(YGGDRASIL)·상태변화(BAIKAL MOB) 2' },
-      { value: '126', label: 'API 엔드포인트', note: '수집 · 분석 · 시뮬레이션 · 채점' },
-      { value: '2,201', label: '자동 시험', note: '전부 통과해야 운영에 반영' },
+      { value: '118', label: '알고리즘 모듈', note: '엔진 116 · 온톨로지(YGGDRASIL)·상태변화(BAIKAL MOB) 2' },
+      { value: '128', label: 'API 엔드포인트', note: '수집 · 분석 · 시뮬레이션 · 채점' },
+      { value: '2,263', label: '자동 시험', note: '전부 통과해야 운영에 반영' },
       { value: '178', label: '감시 대상 국가', note: '52개 언어 현지 보도 · 매시 수집' },
     ],
     statsAsOf: '2026-10-19 저장소·운영 로그 기준 실측',
@@ -175,7 +175,7 @@ export const ko: Dictionary = {
       {
         src: '/media/photos/data-center.jpg',
         alt: '데이터센터 서버실',
-        caption: '데이터센터 · 116개 모듈 매시간 연산 수행 현장',
+        caption: '데이터센터 · 118개 모듈 매시간 연산 수행 현장',
         credit: 'BalticServers.com · CC BY-SA 3.0',
         sourceUrl: 'https://commons.wikimedia.org/wiki/File:BalticServers_data_center.jpg',
       },
@@ -190,7 +190,7 @@ export const ko: Dictionary = {
 
     engineTitle: '7개 엔진 시스템 — 엔진 구성',
     engineLead:
-      '114개 모듈 중 핵심 {n}개를 7개 시스템(HUGINN · MIMIR · FORSETI · SKULD · HEIMDALL · VALHALLA · VAR)으로 편성해 표시함 · 엔진마다 실제 가동 방식(매시·매일·경보 시·요청 시)을 병기해 상시 가동과 호출 가동을 구분함 · 전체 114개 모듈은 엔진 카탈로그에 정리함',
+      '116개 모듈 중 핵심 {n}개를 7개 시스템(HUGINN · MIMIR · FORSETI · SKULD · HEIMDALL · VALHALLA · VAR)으로 편성해 표시함 · 엔진마다 실제 가동 방식(매시·매일·경보 시·요청 시)을 병기해 상시 가동과 호출 가동을 구분함 · 전체 116개 모듈은 엔진 카탈로그에 정리함',
     engineModes: {
       hourly: '매시 자동',
       daily: '매일 자동',
@@ -391,7 +391,7 @@ export const ko: Dictionary = {
       },
     ],
 
-    engineCatalogueCta: '엔진 카탈로그에서 114개 모듈의 역할을 전부 보기',
+    engineCatalogueCta: '엔진 카탈로그에서 116개 모듈의 역할을 전부 보기',
 
     diffEyebrow: 'WHAT MAKES US DIFFERENT',
     diffTitle: '다른 조기경보와 무엇이 다른가',

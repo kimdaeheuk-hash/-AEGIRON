@@ -252,6 +252,25 @@ async def _run_baikal_cycle() -> None:
         collector.log(summary_line(result))
     except Exception as e:
         collector.log_error("scheduler_baikal", e)
+        return
+    # ── 운영 알림 (2026-10-19, 캡틴 승인 ⑤) ── 중단 진입·해제 전이만 캡틴에게 한 줄.
+    # 전이는 바뀐 순간에만 생기므로 같은 상태로 두 번 울리지 않는다. 전송 실패는 재시도하지
+    # 않는다(전이 기록과 /baikal 화면에는 남는다) — 그 사실을 로그에 그대로 쓴다.
+    if os.environ.get("EPIWEATHER_BAIKAL_NOTIFY", "on").strip().lower() in ("off", "0", "false"):
+        return
+    try:
+        from algorithms.baikal import ops_notice_text
+        from algorithms.notifier import ops_chat_id, ops_configured, send_telegram_message
+        notice = ops_notice_text(result.get("transitions") or [])
+        if notice:
+            if not ops_configured():
+                status = "채널 미설정"
+            else:
+                sent = await asyncio.to_thread(send_telegram_message, notice, ops_chat_id())
+                status = "전송됨" if sent else "전송 실패(재시도 없음 — 전이 기록·/baikal 에 남음)"
+            collector.log(f"🌊 BAIKAL 운영 알림: {status}")
+    except Exception as e:
+        collector.log_error("scheduler_baikal_notify", e)
 
 
 def _load_last_weekly_run() -> dt.datetime | None:

@@ -403,6 +403,18 @@
  },
  {
   "method": "GET",
+  "path": "/api/weekly-forecasts",
+  "tag": "예측 검증",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/korea-import-report",
+  "tag": "보고서",
+  "auth": false
+ },
+ {
+  "method": "GET",
   "path": "/api/predictions/scorecard",
   "tag": "예측 검증",
   "auth": false

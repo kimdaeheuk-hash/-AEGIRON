@@ -48,14 +48,29 @@ def _record_alert_attempt(ok: bool, detail: str | None = None) -> None:
         pass      # 기록 실패가 알림 전송을 막지 않는다
 
 
-def send_telegram_message(text: str) -> bool:
+def ops_chat_id() -> str | None:
+    """운영 알림(BAIKAL)을 받을 대화. TELEGRAM_OPS_CHAT_ID 가 있으면 그쪽, 없으면 경보 대화.
+
+    ★ 왜 따로 두는가 ★ 지금 경보 대화는 캡틴 한 사람이지만, 나중에 경보를 공개 채널로
+    열면 '수집기 침묵' 같은 운영 알림이 구독자에게 가면 안 된다. 그때는 이 변수 하나로
+    운영 알림만 캡틴에게 남긴다."""
+    return os.environ.get("TELEGRAM_OPS_CHAT_ID") or os.environ.get("TELEGRAM_CHAT_ID")
+
+
+def ops_configured() -> bool:
+    return bool(os.environ.get("TELEGRAM_BOT_TOKEN") and ops_chat_id())
+
+
+def send_telegram_message(text: str, chat_id: str | None = None) -> bool:
     """설정 안 됐으면 조용히 False. 네트워크 실패도 예외 없이 False로 흡수.
 
     다만 '조용히'가 영원하면 안 된다 — 토큰만 꽂혀 있고 전송은 매번 실패하는
     상태를 아무도 모르게 된다. 시도 결과를 능력 장부에 남겨 /api/status에서
-    '설정됨'과 '실제로 보내진 적 있음'이 구분되게 한다."""
+    '설정됨'과 '실제로 보내진 적 있음'이 구분되게 한다.
+
+    chat_id 를 주면 그 대화로 보낸다(운영 알림 — ops_chat_id). 안 주면 경보 대화."""
     token = os.environ.get("TELEGRAM_BOT_TOKEN")
-    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+    chat_id = chat_id or os.environ.get("TELEGRAM_CHAT_ID")
     if not token or not chat_id:
         return False      # 설정 자체가 없는 건 실패로 세지 않는다(안 켠 것뿐)
     try:

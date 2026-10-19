@@ -4,7 +4,7 @@ import type { PagesDict } from '../types';
  * English subpage content.
  *
  * ★ Figures here are measured values ★
- * 23 operational collection sources · 116 algorithm modules (114 engines + YGGDRASIL · BAIKAL) · 126 endpoints · 2,201 automated tests (measured 2026-10-19).
+ * 23 operational collection sources · 118 algorithm modules (116 engines + YGGDRASIL · BAIKAL) · 128 endpoints · 2,263 automated tests (measured 2026-10-19).
  *
  * ★ HARD RULE ★ No accuracy or lead-time claims.
  */
@@ -25,9 +25,9 @@ export const pagesEn: PagesDict = {
           { label: 'Surveillance reach', value: '178 countries · 52 languages of local reporting (179 feeds)' },
           { label: 'Live sources', value: '23 · collected automatically every hour' },
           { label: 'Spread model', value: '159 countries · 1,671 air links · 314 land borders' },
-          { label: 'Algorithm modules', value: '116 (114 engines · YGGDRASIL ontology · BAIKAL MOB state layer)' },
-          { label: 'Public API', value: '126 endpoints' },
-          { label: 'Quality control', value: '2,201 automated tests — all must pass before anything ships' },
+          { label: 'Algorithm modules', value: '118 (116 engines · YGGDRASIL ontology · BAIKAL MOB state layer)' },
+          { label: 'Public API', value: '128 endpoints' },
+          { label: 'Quality control', value: '2,263 automated tests — all must pass before anything ships' },
         ],
         note: 'Measured against the repository and operational logs on 2026-10-19.',
       },
@@ -315,12 +315,12 @@ export const pagesEn: PagesDict = {
   },
 
   engines: {
-    metaTitle: 'Engine catalogue — the full map of 114 modules',
+    metaTitle: 'Engine catalogue — the full map of 116 modules',
     metaDescription:
-      'All 114 of AEGIRON’s algorithm modules, grouped into seven: surveillance, extraction, judgement, forecast, genomics, countermeasures and verification. What each module does, and whether it runs hourly or on request.',
+      'All 116 of AEGIRON’s algorithm modules, grouped into seven: surveillance, extraction, judgement, forecast, genomics, countermeasures and verification. What each module does, and whether it runs hourly or on request.',
     eyebrow: 'ENGINE CATALOGUE',
-    title: '114 modules, seven systems',
-    lead: 'AEGIRON is not one large model but 114 modules, each doing one thing well, meshed together — because watching the whole world takes that many angles. The core modules are organised into seven named systems — HUGINN, MIMIR, FORSETI, SKULD, HEIMDALL, VALHALLA and VAR — the engine layer of AEGIRON’s flagship system (see BAIKAL MOB).',
+    title: '116 modules, seven systems',
+    lead: 'AEGIRON is not one large model but 116 modules, each doing one thing well, meshed together — because watching the whole world takes that many angles. The core modules are organised into seven named systems — HUGINN, MIMIR, FORSETI, SKULD, HEIMDALL, VALHALLA and VAR — the engine layer of AEGIRON’s flagship system (see BAIKAL MOB).',
     blocks: [
       {
         title: 'HUGINN — Surveillance — gather signals, find anomalies',
@@ -373,6 +373,7 @@ export const pagesEn: PagesDict = {
           { title: 'Domestic import date', body: 'Estimates days to a first domestic import from the origin.', meta: 'global_inflow · origin_catalog' },
           { title: 'Nowcast learning', body: 'Assembles signal→outbreak training sets and evaluates prospectively.', meta: 'nowcast_dataset · nowcast_eval' },
           { title: 'Knowledge graph', body: 'Interprets signals through cause-and-effect chains.', meta: 'knowledge_graph' },
+          { title: 'Weekly import report', body: 'Country anomaly × direct flights to Korea, one page per ISO week. The exposure index is not a probability.', meta: 'korea_import_report' },
         ],
       },
       {
@@ -406,6 +407,7 @@ export const pagesEn: PagesDict = {
           { title: 'Automatic forecast scoring', body: 'Sorts forecasts against official declarations into hit, miss or hold.', meta: 'prediction_resolver · prediction_scoring' },
           { title: 'Lead-time ledger', body: 'Fixes the moment a signal was first seen before any declaration.', meta: 'lead_time_ledger' },
           { title: 'Forecast sealing', body: 'Anchors a forecast hash to the Bitcoin chain.', meta: 'prediction_timestamp' },
+          { title: 'Weekly trend forecasts', body: 'Seals and auto-scores next-week up/down calls on Japan’s official weekly surveillance, on a scorecard kept apart from the 90-day forecasts.', meta: 'weekly_forecast' },
           { title: 'Source health', body: 'Counts every cycle whether a value actually arrived.', meta: 'source_health' },
           { title: 'Quality invariants', body: 'Catches a broken computation even when the source lives.', meta: 'quality_health · capability_ledger' },
           { title: 'Launch readiness', body: 'Answers “are we ready to launch” as a measurement, not an opinion.', meta: 'launch_readiness' },
@@ -825,7 +827,7 @@ export const pagesEn: PagesDict = {
         tone: 'indigo',
         body: 'The system actually runs. Signals arrive from the data sources every hour, and the live dashboard is open right now with no login. We are looking for a first partner, and we state that plainly — openness and verifiability are the strengths of this stage.',
         points: [
-          '116 modules and 126 endpoints run every hour, and only code that passes 2,201 automated tests ships.',
+          '118 modules and 128 endpoints run every hour, and only code that passes 2,263 automated tests ships.',
           'The system, methodology, data and limits are all open from the start, kept in a state due diligence can verify directly.',
           'Every forecast is sealed and accrues, so a verifiable record grows on its own as operation continues.',
         ],

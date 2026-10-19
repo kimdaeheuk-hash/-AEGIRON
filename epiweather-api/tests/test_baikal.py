@@ -72,6 +72,10 @@ def _inputs(**over) -> dict:
         "ground_truth": {"live": 7, "other": 31, "total": 38,
                          "latest_live_event_date": "2026-10-07"},
         "seal_batch": 10,
+        # 2026-10-19 운영 첫 주기: 주간 예측 3건 봉인, 판정 0건.
+        "weekly": {"scored": 0, "void": 0, "open": 3, "min_scored": 8, "enough": False,
+                   "brier_coin": 0.25, "brier_model": None, "hits_model": None,
+                   "calls_model": None, "hits_naive": None, "calls_naive": None},
         "errors": {},
     }
     base.update(over)
@@ -340,10 +344,10 @@ def test_loop_earliest_due_skips_resolved_and_past_dates():
 def test_first_cycle_records_observation_start_without_inventing_prior_state(isolated_db):
     r = baikal.run_cycle(NOW, _inputs())
     subjects = [t["subject"] for t in r["transitions"]]
-    assert subjects == list(yggdrasil.SYSTEM_KEYS) + ["LOOP"]
+    assert subjects == list(yggdrasil.SYSTEM_KEYS) + ["LOOP", "LOOP_WEEKLY"]
     assert all(t["from_status"] is None for t in r["transitions"])
     assert "관측 시작" in baikal.summary_line(r)
-    assert len(isolated_db.list_baikal_transitions(100)) == 8
+    assert len(isolated_db.list_baikal_transitions(100)) == 9
 
 
 def test_same_state_adds_snapshot_but_no_transition(isolated_db):
@@ -351,7 +355,7 @@ def test_same_state_adds_snapshot_but_no_transition(isolated_db):
     r2 = baikal.run_cycle(NOW + dt.timedelta(minutes=30), _inputs())
     assert r2["transitions"] == []
     assert "전이 없음" in baikal.summary_line(r2)
-    assert len(isolated_db.list_baikal_transitions(100)) == 8
+    assert len(isolated_db.list_baikal_transitions(100)) == 9
     assert len(isolated_db.list_baikal_snapshots("2026-01-01")) == 2
 
 
@@ -383,7 +387,7 @@ def test_old_snapshots_pruned_transitions_kept(isolated_db):
     baikal.run_cycle(NOW, _inputs())
     snaps = isolated_db.list_baikal_snapshots("2000-01-01")
     assert [s["observed_at"] for s in snaps] == [NOW.isoformat()]
-    assert len(isolated_db.list_baikal_transitions(100)) == 8, "전이는 감사 기록이라 지우지 않는다"
+    assert len(isolated_db.list_baikal_transitions(100)) == 9, "전이는 감사 기록이라 지우지 않는다"
 
 
 # ── ⑤ 읽기 전용 · 격리 ───────────────────────────────────────
@@ -516,7 +520,7 @@ def test_api_returns_stored_snapshot_and_transitions(client):
     assert body["available"] is True
     assert [s["key"] for s in body["systems"]] == list(yggdrasil.SYSTEM_KEYS)
     assert body["loop"]["state"] == "awaiting"
-    assert len(body["transitions"]) == 8
+    assert len(body["transitions"]) == 9
     hist = client.get("/api/baikal/history?hours=24").json()
     assert hist["hours"] == 24
 
@@ -670,3 +674,178 @@ def test_heimdall_missing_recent_sequences_is_not_a_degradation():
                  "rsv_b": {"available": False, "reason": "Nextstrain API 응답 실패", "label": "RSV-B"}}}
     res2 = baikal.judge_heimdall(with_fail, NOW)
     assert res2["status"] == "degraded" and "RSV-B 실패(Nextstrain API 응답 실패)" in res2["reason"]
+
+
+# ── 주간 루프 — 90일 루프와 따로 (2026-10-19, 오늘 생긴 할일 ②) ──────────────
+
+def _card(**over):
+    base = {"scored": 0, "void": 0, "open": 0, "min_scored": 8, "enough": False,
+            "brier_coin": 0.25, "brier_model": None, "hits_model": None, "calls_model": None}
+    base.update(over)
+    return base
+
+
+def test_weekly_loop_states_never_claim_a_score_before_eight():
+    assert baikal.weekly_loop_state(None)["state"] == "undetermined"
+    assert "못 읽음" in baikal.weekly_loop_state(None)["text"]
+    assert baikal.weekly_loop_state(_card())["state"] == "empty"
+    awaiting = baikal.weekly_loop_state(_card(open=3))
+    assert awaiting["state"] == "awaiting" and "판정 0건 · 미결 3건" in awaiting["text"]
+    few = baikal.weekly_loop_state(_card(scored=5, open=3, brier_model=0.11,
+                                         hits_model=5, calls_model=5))
+    assert few["state"] == "measuring" and "성적은 8건부터 말함" in few["text"]
+    assert "Brier" not in few["text"] and "0.11" not in few["text"], "8건 전에는 성적을 말하지 않는다"
+    enough = baikal.weekly_loop_state(_card(scored=9, enough=True, brier_model=0.18,
+                                            hits_model=6, calls_model=8))
+    assert "Brier 0.18 (동전 0.25)" in enough["text"] and "6/8" in enough["text"]
+
+
+def test_weekly_loop_is_a_separate_subject_from_the_90_day_loop(isolated_db):
+    baikal.run_cycle(NOW, _inputs())
+    scored = _inputs(weekly=_card(scored=1, open=2))
+    r = baikal.run_cycle(NOW + dt.timedelta(minutes=30), scored)
+    assert [(t["subject"], t["from_status"], t["to_status"]) for t in r["transitions"]] == [
+        ("LOOP_WEEKLY", "awaiting", "measuring")], "90일 루프(LOOP)는 그대로 측정 대기다"
+    assert r["loop"]["state"] == "awaiting"
+    assert "주간 루프 측정 중" in baikal.summary_line(r)
+
+
+def test_unreadable_weekly_table_is_undetermined_end_to_end(isolated_db, monkeypatch):
+    from algorithms import baikal as b
+    from algorithms import weekly_forecast
+
+    def boom():
+        raise RuntimeError("locked")
+    monkeypatch.setattr(weekly_forecast, "all_forecasts", boom)
+    monkeypatch.setattr(b, "_latest_cycle_record", lambda: None)
+    r = b.observe(NOW)
+    assert r["weekly_loop"]["state"] == "undetermined"
+    assert r["read_errors"]["weekly_forecasts"] == "RuntimeError"
+
+
+# ── 운영 알림 — 중단 진입·해제만 (2026-10-19, 캡틴 승인 ⑤) ─────────────────
+
+def _t(subject, frm, to, reason="사유"):
+    return {"subject": subject, "from_status": frm, "to_status": to, "reason": reason}
+
+
+def test_ops_notice_only_down_and_recovery_from_down():
+    text = baikal.ops_notice_text([
+        _t("FORSETI", "ok", "down", "경보 표 3시간 갱신 없음"),
+        _t("HUGINN", "down", "ok", "23개 중 22개 정상"),
+        _t("HUGINN", "ok", "degraded"),           # 저하는 보내지 않는다(경보 피로)
+        _t("LOOP", "awaiting", "measuring"),      # 루프는 운영 고장이 아니다
+        _t("LOOP_WEEKLY", None, "undetermined"),
+    ])
+    assert "🔴 FORSETI 포르세티: 정상 → <b>중단</b>" in text
+    assert "경보 표 3시간 갱신 없음" in text
+    assert "🟢 HUGINN 후긴: 중단 → <b>정상</b> (복구)" in text
+    assert text.count("\n🔴") + text.count("\n🟢") == 2
+    assert "LOOP" not in text and "저하" not in text
+    assert "감염병 경보가 아님" in text, "운영 알림을 감염병 경보로 읽히지 않게"
+
+
+def test_ops_notice_first_observation_down_is_sent_as_observation_start():
+    text = baikal.ops_notice_text([_t("VAR", None, "down")])
+    assert "VAR 바르: 관측 시작 → <b>중단</b>" in text
+
+
+def test_ops_notice_none_when_nothing_to_say():
+    assert baikal.ops_notice_text([]) is None
+    assert baikal.ops_notice_text([_t("HUGINN", "ok", "degraded"),
+                                   _t("MIMIR", "degraded", "ok")]) is None
+
+
+def test_ops_notice_escapes_reason_html():
+    text = baikal.ops_notice_text([_t("MIMIR", "ok", "down", "<script>&</script>")])
+    assert "<script>" not in text and "&lt;script&gt;&amp;&lt;/script&gt;" in text
+
+
+def test_ops_chat_falls_back_to_alert_chat(monkeypatch):
+    from algorithms import notifier
+    monkeypatch.delenv("TELEGRAM_OPS_CHAT_ID", raising=False)
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "alerts")
+    assert notifier.ops_chat_id() == "alerts"
+    monkeypatch.setenv("TELEGRAM_OPS_CHAT_ID", "ops")
+    assert notifier.ops_chat_id() == "ops"
+    monkeypatch.delenv("TELEGRAM_CHAT_ID")
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "t")
+    assert notifier.ops_configured() is True, "운영 대화만 있어도 운영 알림은 보낼 수 있다"
+    monkeypatch.delenv("TELEGRAM_BOT_TOKEN")
+    assert notifier.ops_configured() is False
+
+
+def test_send_telegram_message_uses_given_chat(monkeypatch):
+    from algorithms import notifier
+    sent = {}
+
+    class R:
+        status_code = 200
+        ok = True
+
+        def raise_for_status(self):
+            return None
+
+    def fake_post(url, json=None, data=None, **kw):
+        sent.update(json or data or {})
+        return R()
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "t")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "alerts")
+    monkeypatch.setattr(notifier.requests, "post", fake_post)
+    notifier.send_telegram_message("x", "ops")
+    assert sent["chat_id"] == "ops"
+    notifier.send_telegram_message("x")
+    assert sent["chat_id"] == "alerts", "chat_id 를 안 주면 예전처럼 경보 대화"
+
+
+def _run_with(monkeypatch, transitions, configured=True, send_ok=True, notify="on"):
+    import collector
+    import main
+    from algorithms import baikal as b
+    from algorithms import notifier
+    logs, sent = [], []
+    monkeypatch.setenv("EPIWEATHER_BAIKAL", "on")
+    monkeypatch.setenv("EPIWEATHER_BAIKAL_NOTIFY", notify)
+    monkeypatch.setattr(b, "run_cycle", lambda *a, **k: {"transitions": transitions})
+    monkeypatch.setattr(b, "summary_line", lambda r: "🌊 BAIKAL")
+    monkeypatch.setattr(notifier, "ops_configured", lambda: configured)
+    monkeypatch.setattr(notifier, "ops_chat_id", lambda: "ops")
+    monkeypatch.setattr(notifier, "send_telegram_message",
+                        lambda text, chat_id=None: sent.append((text, chat_id)) or send_ok)
+    monkeypatch.setattr(collector, "log", logs.append)
+    monkeypatch.setattr(collector, "log_error", lambda ctx, e: logs.append(f"ERR {ctx}"))
+    asyncio.run(main._run_baikal_cycle())
+    return logs, sent
+
+
+def test_cycle_sends_down_notice_to_ops_chat_and_logs_it(monkeypatch):
+    logs, sent = _run_with(monkeypatch, [_t("FORSETI", "ok", "down")])
+    assert len(sent) == 1 and sent[0][1] == "ops" and "FORSETI" in sent[0][0]
+    assert "🌊 BAIKAL 운영 알림: 전송됨" in logs
+
+
+def test_cycle_sends_nothing_without_a_down_transition(monkeypatch):
+    logs, sent = _run_with(monkeypatch, [_t("HUGINN", "ok", "degraded")])
+    assert sent == [] and not any("운영 알림" in line for line in logs)
+
+
+def test_cycle_reports_unconfigured_and_failed_send_honestly(monkeypatch):
+    logs, sent = _run_with(monkeypatch, [_t("VAR", "ok", "down")], configured=False)
+    assert sent == [] and "🌊 BAIKAL 운영 알림: 채널 미설정" in logs
+    logs, _ = _run_with(monkeypatch, [_t("VAR", "ok", "down")], send_ok=False)
+    assert any("전송 실패(재시도 없음" in line for line in logs)
+
+
+def test_notify_kill_switch_keeps_the_cycle_but_sends_nothing(monkeypatch):
+    logs, sent = _run_with(monkeypatch, [_t("VAR", "ok", "down")], notify="off")
+    assert sent == [] and logs == ["🌊 BAIKAL"]
+
+
+def test_notify_failure_never_breaks_the_scheduler(monkeypatch):
+    from algorithms import baikal as b
+
+    def boom(*a):
+        raise RuntimeError("notice exploded")
+    monkeypatch.setattr(b, "ops_notice_text", boom)
+    logs, sent = _run_with(monkeypatch, [_t("VAR", "ok", "down")])
+    assert "ERR scheduler_baikal_notify" in logs and sent == []
