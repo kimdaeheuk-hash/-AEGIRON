@@ -3025,9 +3025,9 @@ def local_news():
 @app.get("/api/animal-signals", tags=["Phase2"])
 def animal_signals():
     """
-    WAHIS(세계동물보건기구) 동물질병 신호.
-    30일 내 발병 건수, 감시 대상 질병 활성 수, WOAH RSS 항목 수.
-    WAHIS_API_KEY 환경변수가 있으면 전체 API, 없으면 RSS로만 수집.
+    WOAH(세계동물보건기구) 동물질병 신호 — 2026-10-19 부터 공식 RSS 만 읽는다.
+    WAHIS API 는 은퇴(키 없이 HTTP 400) — outbreaks_30d·watch_hits 는 늘 None(판정 안 함).
+    RSS 를 못 읽으면 woah_rss_items=None 이고 사유가 rss_reason 에 있다.
     """
     from algorithms.wahis import get_animal_signal
     return get_animal_signal()

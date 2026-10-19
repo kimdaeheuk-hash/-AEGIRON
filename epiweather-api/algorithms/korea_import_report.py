@@ -28,6 +28,8 @@ import json
 import math
 from typing import Any
 
+from .country_resolve import korean_name
+
 KOR = "KOR"
 TOP_N = 10
 NO_ROUTE_RAW_MIN = 70          # 직항 없는 나라를 따로 적는 이상도 문턱(country_risk 와 같은 2σ 선)
@@ -66,7 +68,8 @@ def build_report(ranked: list[dict], routes: dict[tuple[str, str], int],
             continue
         n_routes = routes_to_korea(routes, c["country"])
         row = {
-            "country": c["country"], "name": c.get("name"),
+            # 표시명은 한글로 통일한다(표에 없으면 원래 이름 그대로 — 지어내지 않는다).
+            "country": c["country"], "name": korean_name(c["country"]) or c.get("name"),
             "raw_score": c["raw_score"], "tier": c.get("tier"),
             "dominant_disease": c.get("dominant_disease"),
             "dominant_disease_share": c.get("dominant_disease_share"),

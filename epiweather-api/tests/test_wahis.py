@@ -1,113 +1,102 @@
-"""WAHIS 동물신호 — 못 읽음을 '30일 발병 0건'으로 쓰지 않는다 (2026-10-19).
+"""WOAH 동물신호 — RSS 만 쓴다 (2026-10-19 캡틴 결정 "RSS만 써라").
 
-운영 로그가 매시간 'WAHIS 동물신호: 30일 발병 0건, 감시질병 활성 0종'을 찍었다.
-fetch_wahis_outbreaks 가 200 이 아니거나 예외가 나면 조용히 [] 를 돌려줬기 때문이다.
-이 값은 지수와 부정적 공간(보고 급감 판정)에 그대로 들어간다. 실제 WAHIS 호출은 mock.
+배경: 운영 로그가 매시간 'WAHIS 동물신호: 30일 발병 0건'을 찍었다. WAHIS API 호출이
+실패했는데 그 실패가 0 으로 기록됐다(#94 에서 '판정 안 함'으로 고침). 고친 뒤 운영 로그가
+실제 사유를 보여 줬다 — `HTTP 400, 키 없음`. 캡틴 결정으로 API 를 걷어 내고 RSS 만 쓴다.
+이 시험은 ① API 를 다시 부르지 않음 ② 30일 발병 건수를 0 으로 채우지 않음
+③ RSS 를 못 읽으면 사유와 함께 None — 를 고정한다. 실제 호출은 mock.
 """
 from __future__ import annotations
+
+import ast
+import pathlib
 from unittest.mock import patch, MagicMock
 
 import requests
 
 from algorithms import wahis
 
-
-def _resp(status=200, payload=None, json_exc=None):
-    m = MagicMock(status_code=status)
-    if json_exc is not None:
-        m.json = MagicMock(side_effect=json_exc)
-    else:
-        m.json = MagicMock(return_value=payload)
-    return m
+COLLECTOR_PY = pathlib.Path(__file__).resolve().parents[1] / "collector.py"
+RSS = '<?xml version="1.0"?><rss version="2.0"><channel>' + "<item>x</item>" * 10 + "</channel></rss>"
 
 
-ITEM_AI = {"disease": {"name": "Highly pathogenic avian influenza"},
-           "country": {"name": "Poland"}, "reportDate": "2026-10-10", "cases": 12}
-ITEM_ASF = {"disease": "African swine fever", "country": "Viet Nam", "date": "2026-10-12"}
+def _resp(status=200, text=RSS):
+    return MagicMock(status_code=status, text=text)
 
 
-# ── fetch_wahis_outbreaks: 다섯 경로 ─────────────────────────────────────────
+# ── RSS 읽기 ──────────────────────────────────────────────────────────
 
-def test_success_parses_items():
-    with patch("algorithms.wahis.requests.get", return_value=_resp(payload={"data": [ITEM_AI, ITEM_ASF]})):
-        outbreaks, reason = wahis.fetch_wahis_outbreaks("k")
-    assert reason is None
-    assert [o["country"] for o in outbreaks] == ["Poland", "Viet Nam"]
-    assert outbreaks[0]["disease"] == "Highly pathogenic avian influenza"
+def test_rss_counts_items():
+    with patch("algorithms.wahis.requests.get", return_value=_resp()):
+        assert wahis.fetch_woah_rss_count() == (10, None)
 
 
-def test_explicit_empty_list_is_real_zero():
-    # 응답이 '목록이 비었다'고 분명히 말하면 그것은 진짜 0건이다.
-    with patch("algorithms.wahis.requests.get", return_value=_resp(payload={"data": []})):
-        outbreaks, reason = wahis.fetch_wahis_outbreaks("k")
-    assert outbreaks == [] and reason is None
+def test_rss_http_error_is_none_with_status():
+    with patch("algorithms.wahis.requests.get", return_value=_resp(status=403, text="")):
+        assert wahis.fetch_woah_rss_count() == (None, "HTTP 403")
 
 
-def test_http_error_is_none_with_status_not_empty_list():
-    with patch("algorithms.wahis.requests.get", return_value=_resp(status=404)):
-        outbreaks, reason = wahis.fetch_wahis_outbreaks()
-    assert outbreaks is None          # 예전엔 [] → '30일 발병 0건'
-    assert reason == "HTTP 404"
-
-
-def test_network_exception_is_none_with_reason():
+def test_rss_network_error_is_none_with_reason():
     with patch("algorithms.wahis.requests.get", side_effect=requests.Timeout("slow")):
-        outbreaks, reason = wahis.fetch_wahis_outbreaks()
-    assert outbreaks is None
-    assert reason == "Timeout"
+        assert wahis.fetch_woah_rss_count() == (None, "Timeout")
 
 
-def test_non_json_body_is_none():
-    # 200 인데 HTML 이 오는 경우(로그인 페이지 등) — 파싱 실패를 0건으로 읽지 않는다.
-    with patch("algorithms.wahis.requests.get",
-               return_value=_resp(json_exc=ValueError("Expecting value"))):
-        outbreaks, reason = wahis.fetch_wahis_outbreaks()
-    assert outbreaks is None
-    assert reason == "ValueError"
+def test_non_rss_page_is_not_read_as_zero_items():
+    # 200 인데 차단·점검 안내 HTML 이 오면 '항목 0건'이 아니라 못 읽음이다.
+    with patch("algorithms.wahis.requests.get", return_value=_resp(text="<html>점검 중</html>")):
+        assert wahis.fetch_woah_rss_count() == (None, "RSS 형식 아님")
 
 
-def test_unknown_shape_is_none_not_zero():
-    # 예전 코드는 data.get("data") or data.get("items") or [] 라 이것도 0건이었다.
-    with patch("algorithms.wahis.requests.get",
-               return_value=_resp(payload={"message": "Unauthorized"})):
-        outbreaks, reason = wahis.fetch_wahis_outbreaks()
-    assert outbreaks is None
-    assert reason == "응답 형식 불일치"
+# ── 신호: API 를 부르지 않고, 30일 발병 건수를 0 으로 채우지 않는다 ─────────
+
+def test_signal_calls_only_the_rss_never_the_retired_api():
+    calls = []
+
+    def fake_get(url, **kw):
+        calls.append(url)
+        return _resp()
+
+    with patch("algorithms.wahis.requests.get", side_effect=fake_get):
+        sig = wahis.get_animal_signal()
+    assert calls == [wahis.WOAH_RSS_URL]
+    assert not any("wahis.woah.org/api" in u for u in calls)
+    assert sig["woah_rss_items"] == 10 and sig["rss_reason"] is None
+    assert sig["outbreaks_30d"] is None and sig["watch_hits"] is None   # 0 이 아니다
+    assert sig["api_status"] == "retired"
 
 
-# ── get_animal_signal: None 이 지표까지 그대로 간다 ───────────────────────────
-
-def test_signal_failure_propagates_none_and_keeps_rss(monkeypatch):
-    monkeypatch.setattr(wahis, "fetch_wahis_outbreaks", lambda key=None: (None, "HTTP 401"))
-    monkeypatch.setattr(wahis, "fetch_woah_rss_count", lambda: 10)
-    monkeypatch.delenv("WAHIS_API_KEY", raising=False)
-    sig = wahis.get_animal_signal()
-    assert sig["outbreaks_30d"] is None
-    assert sig["watch_hits"] is None
-    assert sig["api_reason"] == "HTTP 401"
-    assert sig["has_api_key"] is False
-    assert sig["woah_rss_items"] == 10      # RSS 는 따로 산다
-    assert sig["outbreaks"] == []
+def test_signal_carries_rss_failure_reason():
+    with patch("algorithms.wahis.requests.get", return_value=_resp(status=503, text="")):
+        sig = wahis.get_animal_signal()
+    assert sig["woah_rss_items"] is None and sig["rss_reason"] == "HTTP 503"
 
 
-def test_signal_success_counts_watch_diseases(monkeypatch):
-    monkeypatch.setattr(wahis, "fetch_wahis_outbreaks",
-                        lambda key=None: ([{"disease": "Highly pathogenic avian influenza"},
-                                           {"disease": "African swine fever"},
-                                           {"disease": "Something else"}], None))
-    monkeypatch.setattr(wahis, "fetch_woah_rss_count", lambda: 10)
-    sig = wahis.get_animal_signal()
-    assert sig["outbreaks_30d"] == 3
-    assert sig["watch_hits"] == 2
-    assert sig["api_reason"] is None
-
-
-def test_signal_metrics_reads_none_not_zero():
+def test_index_metrics_read_none_not_zero():
     # 지수 층의 실제 추출기가 None 을 그대로 받아야 지수·부정적 공간이 '판정 안 함'으로 둔다.
     from algorithms import signal_metrics
     getters = {m[0]: m[2] for layer in signal_metrics.LAYERS.values() for m in layer["metrics"]}
-    failed = {"wahis": {"outbreaks_30d": None, "watch_hits": None, "woah_rss_items": 10}}
-    assert getters["wahis_outbreaks_30d"](failed) is None
-    assert getters["wahis_watch_hits"](failed) is None
-    ok = {"wahis": {"outbreaks_30d": 0, "watch_hits": 0, "woah_rss_items": 10}}
-    assert getters["wahis_outbreaks_30d"](ok) == 0      # 진짜 0건은 0 으로 남는다
+    with patch("algorithms.wahis.requests.get", return_value=_resp()):
+        row = {"wahis": wahis.get_animal_signal()}
+    assert getters["wahis_outbreaks_30d"](row) is None
+    assert getters["wahis_watch_hits"](row) is None
+
+
+# ── 수집기: RSS 를 못 읽으면 이 소스는 실패다 ───────────────────────────
+
+def test_collector_marks_source_failed_when_rss_is_unreadable():
+    """RSS 가 이 소스의 전부라, 못 읽은 주기에 결과를 남기면 소스 건강이 '정상'으로 센다.
+    WAHIS 블록이 그때 예외를 올리고, except 가 result["wahis"] 를 None 으로 둔다."""
+    tree = ast.parse(COLLECTOR_PY.read_text(encoding="utf-8"))
+    fn = next(n for n in ast.walk(tree)
+              if isinstance(n, ast.FunctionDef) and n.name == "collect_free_sources")
+    block = next(t for t in ast.walk(fn) if isinstance(t, ast.Try)
+                 and any(isinstance(c, ast.Call) and isinstance(c.func, ast.Name)
+                         and c.func.id == "get_animal_signal" for c in ast.walk(t)))
+    assert any(isinstance(n, ast.Raise) for s in block.body for n in ast.walk(s)), \
+        "RSS 를 못 읽어도 예외를 올리지 않는다 — 소스 건강이 실패를 못 본다"
+    sets_none = [
+        n for h in block.handlers for n in ast.walk(h)
+        if isinstance(n, ast.Assign) and isinstance(n.value, ast.Constant) and n.value.value is None
+        and any(isinstance(t, ast.Subscript) and isinstance(t.slice, ast.Constant)
+                and t.slice.value == "wahis" for t in n.targets)]
+    assert sets_none, "실패 시 result['wahis'] = None 으로 두지 않는다"

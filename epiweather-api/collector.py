@@ -913,15 +913,12 @@ def collect_free_sources() -> dict:
         from algorithms.wahis import get_animal_signal
         result["wahis"] = get_animal_signal()
         w = result["wahis"]
-        rss = w["woah_rss_items"]
-        rss_text = f"WOAH RSS {rss}건" if rss is not None else "WOAH RSS 못 읽음"
-        if w["outbreaks_30d"] is None:
-            # 못 읽은 것을 '30일 발병 0건'으로 찍지 않는다 — 사유와 키 유무를 남긴다.
-            log(f"  ⚠ WAHIS API 못 읽음({w.get('api_reason')}, 키 "
-                f"{'있음' if w.get('has_api_key') else '없음'}) — 발병 건수 판정 안 함 · {rss_text}")
-        else:
-            log(f"  WAHIS 동물신호: 30일 발병 {w['outbreaks_30d']}건, "
-                f"감시질병 활성 {w['watch_hits']}종, {rss_text}")
+        if w["woah_rss_items"] is None:
+            # 2026-10-19 부터 RSS 가 이 소스의 전부다(WAHIS API 은퇴) — 못 읽으면
+            # 이 소스는 이번 주기 실패다. None 으로 두어 소스 건강이 실패로 센다.
+            raise RuntimeError(f"WOAH RSS 못 읽음({w.get('rss_reason')})")
+        log(f"  WOAH 동물신호: RSS {w['woah_rss_items']}건 "
+            f"(WAHIS API 은퇴 — 30일 발병 건수는 판정 안 함)")
     except Exception as e:
         result["wahis"] = None
         log_error("WAHIS", e)

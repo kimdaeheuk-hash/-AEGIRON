@@ -144,3 +144,29 @@ def test_collector_cycle_generates_report_and_logs_its_line():
                and any(isinstance(c, ast.Call) and isinstance(c.func, ast.Name)
                        and c.func.id == "report_line" for a in n.args for c in ast.walk(a))
                for n in ast.walk(fn))
+
+
+def test_report_names_are_korean_not_mixed_with_english():
+    """2026-W43 첫 운영 보고서가 '일본(62.8), Russian Federation(25.3), Cambodia(14.9)' 로
+    한글·영문을 섞어 썼다(Tier-2 국가는 영문 캐시 이름). 표시명은 한글로 통일한다."""
+    ranked = [_c("JPN", 66, name="일본"), _c("RUS", 40, name="Russian Federation"),
+              _c("KHM", 30, name="Cambodia")]
+    routes = {**ROUTES, ("KHM", "KOR"): 6, ("KOR", "RUS"): 27}
+    rep = _build(ranked, routes=routes)
+    assert [r["name"] for r in rep["top_exposure"]] == ["일본", "러시아", "캄보디아"]
+    assert "Russian Federation" not in kr.report_line(rep)
+
+
+def test_name_not_in_korean_table_falls_back_to_original_not_invented():
+    rep = _build([_c("PHL", 60, name="Philippines"), _c("XXA", 90, name="Atlantis")],
+                 routes={**ROUTES, ("KOR", "XXA"): 5})
+    names = {r["country"]: r["name"] for r in rep["top_exposure"]}
+    assert names == {"PHL": "필리핀", "XXA": "Atlantis"}
+
+
+def test_korean_name_uses_canonical_first_spelling():
+    from algorithms.country_resolve import korean_name
+    assert korean_name("KOR") == "대한민국"          # '한국' 이 아니라 표준형
+    assert korean_name("TUR") == "튀르키예"           # '터키' 가 아니라 표준형
+    assert korean_name("COD") == "콩고민주공화국"
+    assert korean_name("ZZZ") is None and korean_name(None) is None
