@@ -228,6 +228,15 @@ CREATE TABLE IF NOT EXISTS weekly_sync (
     synced_at  TEXT NOT NULL             -- 지난 주 게시분 동기화를 마지막으로 시도한 시각
 );
 
+-- 정답 경로의 '공식 아카이브 전수 포괄' 시작일 (2026-10-19). 공식 발표 목록을 날짜순으로 **통째로**
+-- 받는 경로(WHO DON)는 그 목록이 덮는 가장 이른 날부터 정답을 보고 있던 것과 같다 — 고른 백필이 아니다.
+CREATE TABLE IF NOT EXISTS ground_truth_coverage (
+    source_type   TEXT PRIMARY KEY,      -- who_don
+    covered_from  TEXT NOT NULL,         -- 이 날짜 이후 발표는 빠짐없이 받았다(가장 이른 값만 남김)
+    recorded_at   TEXT NOT NULL,
+    basis         TEXT NOT NULL          -- 무엇을 근거로 '빠짐없다'고 했는지
+);
+
 -- 질병청 주간 값의 성숙도 측정 (2026-10-19, ⑥ 1단계). 같은 주의 값이 나중에 얼마나 늘어나는지
 -- 재려고, (질병, 주) 값이 **바뀐 순간만** 남긴다. 지우지 않는다.
 CREATE TABLE IF NOT EXISTS kdca_vintages (
@@ -699,6 +708,29 @@ def get_timeline(event_id: str) -> dict:
             "event_name": rows[0]["event_name"],
             "milestones": [dict(r) for r in rows],
         }
+
+
+def extend_ground_truth_coverage(source_type: str, covered_from: str, basis: str) -> str:
+    """아카이브 전수 포괄 시작일을 남긴다 — 이미 더 이른 날이 있으면 그대로(당기기만, 미루지 않음). 결과 날짜."""
+    now = datetime.now(timezone.utc).isoformat()
+    with get_connection() as conn:
+        row = conn.execute("SELECT covered_from FROM ground_truth_coverage WHERE source_type=?",
+                           (source_type,)).fetchone()
+        if row and row["covered_from"] <= covered_from:
+            return row["covered_from"]
+        conn.execute("INSERT OR REPLACE INTO ground_truth_coverage (source_type, covered_from, recorded_at, basis) "
+                     "VALUES (?, ?, ?, ?)", (source_type, covered_from, now, basis))
+        conn.commit()
+        return covered_from
+
+
+def ground_truth_coverage(source_types: tuple[str, ...]) -> list[dict]:
+    if not source_types:
+        return []
+    marks = ",".join("?" for _ in source_types)
+    with get_connection() as conn:
+        return [dict(r) for r in conn.execute(
+            f"SELECT * FROM ground_truth_coverage WHERE source_type IN ({marks})", tuple(source_types))]
 
 
 def list_live_timeline_rows(source_types: tuple[str, ...]) -> list[dict]:

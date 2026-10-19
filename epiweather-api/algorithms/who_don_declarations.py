@@ -180,12 +180,38 @@ def fetch_items() -> object:
         raise DonError(f"WHO DON 수집 실패({type(e).__name__}): {str(e)[:160]}") from e
 
 
+def archive_coverage(payload: object, today: dt.date | None = None) -> tuple[str | None, str]:
+    """이 응답이 '빠짐없이' 덮는 가장 이른 날짜와 근거. 말할 수 없으면 (None, 사유).
+
+    응답은 발행일 내림차순 최신 PAGE_SIZE 건이다. 그러면 가장 오래된 항목의 날짜부터 오늘까지의 DON 은
+    전부 이 응답에 들어 있다 — **고른 것이 아니라 목록 전체다.** 다만 정렬이 실제로 내림차순일 때만
+    그렇게 말한다(아니면 빠진 날이 있을 수 있다). LOOKBACK_DAYS 보다 오래된 항목은 올리지 않으므로
+    그 경계보다 이르게 말하지 않는다."""
+    today = today or dt.date.today()
+    items = payload.get("value") if isinstance(payload, dict) else payload
+    if not isinstance(items, list) or not items:
+        return None, "목록 없음"
+    dates = [_date(_first(i, _DATE_KEYS)) for i in items if isinstance(i, dict)]
+    if not dates or any(d is None for d in dates):
+        return None, "발행일 못 읽은 항목이 있어 빠짐없다고 말할 수 없음"
+    if any(a < b for a, b in zip(dates, dates[1:])):
+        return None, "발행일 내림차순이 아님 — 빠진 날이 있을 수 있어 말하지 않음"
+    oldest = max(dates[-1], today - dt.timedelta(days=LOOKBACK_DAYS))
+    return oldest.isoformat(), (f"WHO DON API 발행일 내림차순 최신 {len(items)}건 전체 — "
+                                f"{oldest.isoformat()} 이후 발표는 목록에 빠짐없이 있음")
+
+
 def ingest_don(payload: object | None = None, today: dt.date | None = None) -> dict:
     """DON 을 받아 정답 테이블에 올린다. 실패는 호출부로 올린다(조용히 0건으로 만들지 않는다).
 
     반환: {"등재": 새로 올라간 수, "이미있음": n, "건너뜀": {사유: n}, "검토": n}
     """
-    parsed = parse_items(fetch_items() if payload is None else payload, today)
+    payload = fetch_items() if payload is None else payload
+    parsed = parse_items(payload, today)
+    # 아카이브 전수 포괄 — 이 목록이 빠짐없이 덮는 기간을 남긴다(정답 경로가 그 기간을 '보고 있었다'의 근거).
+    covered, basis = archive_coverage(payload, today)
+    if covered:
+        covered = db.extend_ground_truth_coverage(SOURCE_TYPE, covered, basis)
     added = existing = 0
     for d in parsed["declarations"]:
         event_id = event_id_for(d["disease"], d["iso3"], d["date"])
@@ -206,7 +232,7 @@ def ingest_don(payload: object | None = None, today: dt.date | None = None) -> d
         )
         added += 1
     return {"등재": added, "이미있음": existing, "건너뜀": parsed["skipped"], "검토": parsed["read"],
-            "예시": parsed.get("samples") or {}}
+            "예시": parsed.get("samples") or {}, "포괄": covered, "포괄_근거": basis}
 
 
 def samples_line(result: dict) -> str | None:
@@ -225,4 +251,8 @@ def summary(result: dict) -> str:
     skipped = result.get("건너뜀") or {}
     if skipped:
         parts.append(" · ".join(f"{k} {v}" for k, v in sorted(skipped.items())))
+    if result.get("포괄"):
+        parts.append(f"아카이브 포괄 {result['포괄']}~")
+    elif result.get("포괄_근거"):
+        parts.append(f"아카이브 포괄 판정 안 함({result['포괄_근거']})")
     return " · ".join(parts)

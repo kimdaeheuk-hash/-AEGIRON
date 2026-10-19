@@ -19,6 +19,16 @@
 
 하나라도 아니면 `blind_reason` 을 돌려주고 호출부는 닫지 않는다. 손으로 적은 백필(`official`)은 센다고
 하지 않는다 — 과거 16건은 오늘의 경로가 보고 있었다는 증거가 아니다.
+
+## 공식 아카이브 전수 포괄 (2026-10-19, 캡틴 결정)
+
+1번의 '첫 적재 시각'은 **고른 백필**을 막으려는 선이다. 그런데 WHO DON 경로는 공식 발표 목록을
+발행일 내림차순으로 **통째로** 받는다(약 400일치) — 고르지 않았고, 발행일은 WHO 가 정한 값이라 바꿀
+수 없다. 그 목록이 빠짐없이 덮는 가장 이른 날(`ground_truth_coverage.covered_from`)부터는 정답 경로가
+보고 있던 것과 같다. 그래서 1번의 시작 시각은 '첫 적재 시각'과 '아카이브 포괄 시작일' 중 이른 쪽이다.
+- 포괄 시작일은 정렬이 실제로 내림차순이고 모든 항목의 발행일을 읽었을 때만 남긴다(who_don_declarations).
+- 선행 인정은 그대로 `선언일 > 예측일` 일 때만이다 — 예측 뒤에 나온 발표만 적중으로 센다.
+- 대가: 이 기준으로 10-07 이전 예측도 닫힌다 — 대부분 **오답·질병 불일치**일 수 있다. 그것도 채점이다.
 """
 from __future__ import annotations
 
@@ -45,9 +55,12 @@ def blind_reason(window_start: dt.date, window_end: dt.date) -> str | None:
     if not rows:
         return "정답 경로가 한 건도 적재한 적이 없다"
     firsts = [d for d in (_as_date(r.get("created_at")) for r in rows) if d]
+    # 공식 아카이브를 통째로 받는 경로는 그 목록이 빠짐없이 덮는 가장 이른 날부터 보고 있던 것과 같다(머리말).
+    firsts += [d for d in (_as_date(c.get("covered_from"))
+                           for c in db.ground_truth_coverage(LIVE_SOURCE_TYPES)) if d]
     first = min(firsts) if firsts else None
     if first is None or first > window_start:
-        return (f"정답 경로의 첫 적재({first.isoformat() if first else '날짜 모름'})가 "
+        return (f"정답 경로의 첫 적재·아카이브 포괄 시작({first.isoformat() if first else '날짜 모름'})이 "
                 f"판정 구간 시작({window_start.isoformat()})보다 늦다")
     in_window = any(
         d and window_start <= d <= window_end
