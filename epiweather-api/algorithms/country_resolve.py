@@ -65,6 +65,19 @@ _KO: dict[str, str] = {
     "사모아": "WSM", "통가": "TON", "바누아투": "VUT",
 }
 
+# ISO3 → 한글 표기(표시용). _KO 에서 **처음 나온 표기**가 표준형이다(대한민국·튀르키예·
+# 콩고민주공화국 — 변형은 뒤에 적혀 있다). 보고서처럼 사람이 읽는 화면이 영문 이름
+# ('Russian Federation')과 한글 이름을 섞어 쓰지 않게 한다(2026-10-19).
+_ISO3_TO_KO: dict[str, str] = {}
+for _name, _iso3 in _KO.items():
+    _ISO3_TO_KO.setdefault(_iso3, _name)
+
+
+def korean_name(iso3: str | None) -> str | None:
+    """ISO3 → 한글 국가명. 표에 없으면 None — 지어내지 않고 호출부가 원래 이름을 쓴다."""
+    return _ISO3_TO_KO.get(iso3) if iso3 else None
+
+
 # 영문 표기 → ISO3. bulletin_ingest._ISO3와 겹치지만 여기서 단일 출처로 관리한다.
 _EN: dict[str, str] = {
     "democratic republic of the congo": "COD", "democratic republic of congo": "COD",
