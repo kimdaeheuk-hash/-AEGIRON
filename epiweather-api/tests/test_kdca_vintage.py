@@ -54,4 +54,4 @@ def test_collector_records_vintages_inside_the_kdca_block():
     fn = next(n for n in ast.walk(tree)
               if isinstance(n, ast.FunctionDef) and n.name == "collect_free_sources")
     names = {c.func.id for c in ast.walk(fn) if isinstance(c, ast.Call) and isinstance(c.func, ast.Name)}
-    assert {"record", "maturity_report", "report_line"} <= names
+    assert {"record_vintage", "maturity_report", "maturity_line"} <= names

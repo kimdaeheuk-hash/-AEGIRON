@@ -517,12 +517,13 @@ def collect_free_sources() -> dict:
             # 한국 주간 예측(⑥) 1단계 — 같은 주 값이 나중에 얼마나 늘어나는지 잰다. 값이 바뀐
             # 주기에만 성숙도 한 줄을 남긴다(매시간 같은 줄을 찍지 않는다).
             try:
-                from algorithms.kdca_vintage import maturity_report, record, report_line
+                from algorithms.kdca_vintage import (maturity_report, record as record_vintage,
+                                                     report_line as maturity_line)
                 import db
                 db.init_db()
                 now_utc = dt.datetime.now(dt.timezone.utc)
-                if record(result["kdca_weekly"], now_utc):
-                    log(f"  {report_line(maturity_report(now_utc))}")
+                if record_vintage(result["kdca_weekly"], now_utc):
+                    log(f"  {maturity_line(maturity_report(now_utc))}")
             except Exception as e:
                 log_error("KDCAVintage", e)
         except Exception as e:
