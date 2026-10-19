@@ -232,6 +232,28 @@ async def _run_alert_cycle() -> None:
         collector.log_error("scheduler_alerts", e)
 
 
+def _baikal_enabled() -> bool:
+    return os.environ.get("EPIWEATHER_BAIKAL", "on").lower() != "off"
+
+
+async def _run_baikal_cycle() -> None:
+    """BAIKAL MOB — 경보 주기 직후 7개 시스템 상태를 기록한다(algorithms/baikal.py).
+
+    ★ 이 층은 경보를 절대 막지 않는다 ★ 소킹 기간에 들어온 층이라 읽기 전용이고,
+    경보 주기 **뒤에** 돌며, 어떤 예외도 여기서 삼킨다(log_error 로 남긴다).
+    EPIWEATHER_BAIKAL=off 면 아무것도 하지 않는다.
+    """
+    if not _baikal_enabled():
+        return
+    import collector
+    try:
+        from algorithms.baikal import run_cycle, summary_line
+        result = await asyncio.to_thread(run_cycle)
+        collector.log(summary_line(result))
+    except Exception as e:
+        collector.log_error("scheduler_baikal", e)
+
+
 def _load_last_weekly_run() -> dt.datetime | None:
     if not _WEEKLY_STATE_FILE.exists():
         return None
@@ -591,6 +613,7 @@ async def _scheduler_loop() -> None:
     collector.log(_weekly_state_line())
     await _run_collector("free")
     await _run_alert_cycle()
+    await _run_baikal_cycle()
     await _maybe_run_daily_brief()
     await _maybe_refresh_missing_snapshots()
 
@@ -612,6 +635,8 @@ async def _scheduler_loop() -> None:
         # 수집 바로 뒤에 붙인다 — 방금 들어온 값으로 판정해야 "빨리 알린다"가
         # 실제로 지켜진다. 같은 source 재통보는 refresh_alerts가 막는다.
         await _run_alert_cycle()
+        # 경보 주기 뒤에 둔다 — 방금 갱신된 경보 표까지 읽어야 FORSETI 상태가 맞다.
+        await _run_baikal_cycle()
         await _maybe_refresh_missing_snapshots()
 
         now = dt.datetime.utcnow()
@@ -2766,6 +2791,47 @@ def forecast_detail():
     """신호원별 상세 예측값 (delta: 현재 대비 점수 변화량)."""
     from algorithms.forecast_engine import forecast_all_metrics
     return forecast_all_metrics()
+
+
+@app.get("/api/baikal", tags=["BAIKAL"])
+def baikal_current(transitions: int = 50):
+    """BAIKAL MOB — 생태계 현재 상태(마지막 매시 스냅숏) + 최근 상태 전이.
+
+    매시간 경보 주기 직후 저장된 스냅숏을 그대로 돌려준다(요청마다 다시 계산하지 않는다 —
+    화면이 보는 값과 로그 `🌊 BAIKAL` 줄이 같은 관측이어야 한다).
+    상태는 정상·저하·중단·판정 안 함 네 가지이고, 시스템마다 `scope_ko` 가 그 상태가
+    무엇을 보고 판정했는지 말한다. 첫 매시 주기 전이면 `available: false`.
+    """
+    latest = db.latest_baikal_snapshot()
+    trans = db.list_baikal_transitions(limit=max(1, min(transitions, 500)))
+    if not latest:
+        return {"available": False,
+                "reason": "아직 첫 매시 관측 전 — 다음 수집 주기 뒤에 채워진다",
+                "transitions": trans}
+    return {"available": True, **latest["payload"], "transitions": trans}
+
+
+@app.get("/api/baikal/history", tags=["BAIKAL"])
+def baikal_history(hours: int = 168):
+    """시스템별 상태의 시간 흐름(타임라인). 스냅숏은 30일 보관한다."""
+    hours = max(1, min(hours, 24 * 30))
+    since = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=hours)).isoformat()
+    from algorithms.baikal import history
+    rows = db.list_baikal_snapshots(since, limit=24 * 30 + 50)
+    return {"hours": hours, "points": history(rows)}
+
+
+@app.get("/api/yggdrasil", tags=["BAIKAL"])
+def yggdrasil_ontology(format: str = "json"):
+    """YGGDRASIL — 7개 시스템과 실제 데이터 흐름을 잇는 온톨로지.
+
+    `format=jsonld` 면 W3C JSON-LD(rdfs·owl 어휘)로 낸다. 간선은 코드에 있는 흐름만
+    적고, 피드백 간선은 기록만 된다(`automatic: false`).
+    """
+    from algorithms.yggdrasil import ontology, to_jsonld
+    if format == "jsonld":
+        return to_jsonld()
+    return ontology()
 
 
 @app.get("/api/knowledge-graph", tags=["Phase3"])

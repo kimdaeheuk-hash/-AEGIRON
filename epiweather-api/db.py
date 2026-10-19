@@ -156,6 +156,29 @@ CREATE TABLE IF NOT EXISTS lead_time_ledger (
     outcome        TEXT,                    -- declared / no_declaration / open
     UNIQUE(disease, country_iso3, crossed_at)
 );
+
+-- ── BAIKAL MOB — 생태계 상태변화 (2026-10-19) ─────────────────────
+-- 매시간 7개 시스템(YGGDRASIL)의 상태를 한 행으로 남긴다. 계산은 algorithms/baikal.py.
+-- 스냅숏은 30일 보관(대량 원격측정), 전이는 지우지 않는다(감사 기록).
+CREATE TABLE IF NOT EXISTS baikal_snapshots (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    observed_at  TEXT NOT NULL,          -- UTC ISO
+    payload      TEXT NOT NULL           -- JSON — baikal.observe() 의 결과 전체
+);
+CREATE INDEX IF NOT EXISTS idx_baikal_snapshots_observed ON baikal_snapshots(observed_at);
+
+-- 상태가 **바뀐 순간만** 남는다. from_status 가 NULL 이면 '관측 시작'이다
+-- (첫 관측은 전이가 아니므로 이전 상태를 지어내지 않는다).
+CREATE TABLE IF NOT EXISTS baikal_transitions (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    observed_at     TEXT NOT NULL,
+    subject         TEXT NOT NULL,       -- 시스템 키(HUGINN…) 또는 'LOOP'(피드백 루프)
+    from_status     TEXT,
+    to_status       TEXT NOT NULL,
+    reason          TEXT,                -- 바뀐 뒤 상태의 근거 한 줄
+    evidence_class  TEXT                 -- measured / estimated / proxy
+);
+CREATE INDEX IF NOT EXISTS idx_baikal_transitions_observed ON baikal_transitions(observed_at);
 """
 
 
@@ -876,3 +899,101 @@ def api_key_usage_summary(days: int = 30) -> list[dict]:
             (cutoff,),
         ).fetchall()
         return [dict(r) for r in rows]
+
+
+# ── BAIKAL MOB — 생태계 상태변화 (2026-10-19) ─────────────────────
+# 저장·조회만 한다. 상태 판정은 algorithms/baikal.py 에 있다.
+BAIKAL_SNAPSHOT_RETENTION_DAYS = 30
+
+
+def insert_baikal_snapshot(observed_at: str, payload: dict) -> int:
+    with get_connection() as conn:
+        cur = conn.execute(
+            "INSERT INTO baikal_snapshots (observed_at, payload) VALUES (?, ?)",
+            (observed_at, json.dumps(payload, ensure_ascii=False)),
+        )
+        conn.commit()
+        return cur.lastrowid
+
+
+def latest_baikal_snapshot() -> dict | None:
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT * FROM baikal_snapshots ORDER BY observed_at DESC, id DESC LIMIT 1"
+        ).fetchone()
+        if not row:
+            return None
+        return {"id": row["id"], "observed_at": row["observed_at"],
+                "payload": json.loads(row["payload"])}
+
+
+def list_baikal_snapshots(since_iso: str, limit: int = 1000) -> list[dict]:
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM baikal_snapshots WHERE observed_at >= ? "
+            "ORDER BY observed_at ASC, id ASC LIMIT ?",
+            (since_iso, limit),
+        ).fetchall()
+        return [{"id": r["id"], "observed_at": r["observed_at"],
+                 "payload": json.loads(r["payload"])} for r in rows]
+
+
+def prune_baikal_snapshots(before_iso: str) -> int:
+    """보관 기간이 지난 스냅숏만 지운다. 전이(baikal_transitions)는 건드리지 않는다."""
+    with get_connection() as conn:
+        cur = conn.execute("DELETE FROM baikal_snapshots WHERE observed_at < ?", (before_iso,))
+        conn.commit()
+        return cur.rowcount
+
+
+def insert_baikal_transition(observed_at: str, subject: str, from_status: str | None,
+                             to_status: str, reason: str | None,
+                             evidence_class: str | None) -> int:
+    with get_connection() as conn:
+        cur = conn.execute(
+            "INSERT INTO baikal_transitions "
+            "(observed_at, subject, from_status, to_status, reason, evidence_class) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (observed_at, subject, from_status, to_status, reason, evidence_class),
+        )
+        conn.commit()
+        return cur.lastrowid
+
+
+def list_baikal_transitions(limit: int = 50, subject: str | None = None) -> list[dict]:
+    with get_connection() as conn:
+        if subject:
+            rows = conn.execute(
+                "SELECT * FROM baikal_transitions WHERE subject = ? "
+                "ORDER BY observed_at DESC, id DESC LIMIT ?", (subject, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM baikal_transitions ORDER BY observed_at DESC, id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def count_extracted_signals_since(since_iso: str) -> int:
+    with get_connection() as conn:
+        return conn.execute(
+            "SELECT COUNT(*) FROM extracted_signals WHERE extracted_at >= ?", (since_iso,)
+        ).fetchone()[0]
+
+
+# 정답 경로가 실제로 적재한 선언(손으로 적은 백필과 구분한다 — prediction-loop 규약).
+GROUND_TRUTH_LIVE_TYPES = ("official_live", "who_don")
+
+
+def ground_truth_counts() -> dict:
+    """정답 테이블을 '실시간 적재'와 '그 밖(백필 등)'으로 갈라 센다."""
+    marks = ",".join("?" for _ in GROUND_TRUTH_LIVE_TYPES)
+    with get_connection() as conn:
+        live = conn.execute(
+            f"SELECT COUNT(*), MAX(event_date) FROM outbreak_timeline "
+            f"WHERE source_type IN ({marks})", GROUND_TRUTH_LIVE_TYPES,
+        ).fetchone()
+        total = conn.execute("SELECT COUNT(*) FROM outbreak_timeline").fetchone()[0]
+    return {"live": live[0], "latest_live_event_date": live[1],
+            "other": total - live[0], "total": total}
