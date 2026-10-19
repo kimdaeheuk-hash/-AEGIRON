@@ -1,0 +1,97 @@
+name: Ledger backup
+
+# 봉인된 예측 원장의 하루 1회 외부 백업 (2026-10-19 캡틴 승인 ④).
+#
+# 왜: 예측 원장은 아이기론의 트랙레코드 그 자체다. 지금은 Railway 볼륨 한 곳에만
+# 있고, /api/admin/db-backup 은 '수동 호출 권장'뿐이라 자동 외부 사본이 없었다.
+# 볼륨이 손상되면 수개월치 봉인 기록이 사라진다.
+#
+# 무엇을: 공개 API 가 이미 내주는 값만 받는다 — 서버 코드·비밀값은 건드리지 않는다.
+#   · /api/predictions          예측 원장 전체(내용 해시·블록체인 봉인 증명 포함)
+#   · /api/predictions/scorecard 채점표
+#   · /api/lead-time-ledger     선행성 원장
+#   · /api/baikal               BAIKAL 현재 상태 + 상태 전이 기록(삭제하지 않는 기록)
+#   · /api/baikal/history       최근 30일 상태 스냅숏
+#
+# 어디에: 워크플로 아티팩트(90일 보관). 브랜치에 커밋하지 않는다 — 커밋하면 Vercel 이
+# 매일 미리보기 빌드를 돈다.
+#
+# 실패하면 작업이 빨간불로 끝난다(GitHub 알림). 조용히 빈 백업을 남기지 않는다:
+# 응답을 못 받았거나, JSON 이 아니거나, 원장이 비었으면 실패다(비었다 = 데이터 손실 의심).
+# 미봉인 예측은 실패가 아니라 경고로 남긴다 — 봉인 지연은 백업의 고장이 아니다.
+# Railway 볼륨 예약 백업(대시보드에서 켬)과 함께 쓴다 — 이쪽은 공급자 밖 사본이다.
+
+on:
+  schedule:
+    - cron: "17 3 * * *"   # 매일 03:17 UTC (12:17 KST) — 매시 정각 수집 주기를 피함
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ledger-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      API: https://epiweather-api-production.up.railway.app
+    steps:
+      - name: Fetch
+        run: |
+          set -euo pipefail
+          day=$(date -u +%Y-%m-%d)
+          mkdir -p "out/$day"
+          echo "DAY=$day" >> "$GITHUB_ENV"
+          fetch() {  # 이름 경로
+            curl -sS --fail --retry 3 --retry-delay 20 -m 120 "$API$2" -o "out/$day/$1.json"
+          }
+          fetch predictions        "/api/predictions"
+          fetch scorecard          "/api/predictions/scorecard"
+          fetch lead_time_ledger   "/api/lead-time-ledger?limit=5000"
+          fetch baikal             "/api/baikal?transitions=500"
+          fetch baikal_history     "/api/baikal/history?hours=720"
+
+      - name: Verify
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, sys
+          d = pathlib.Path("out") / os.environ["DAY"]
+          manifest, problems = {}, []
+          for f in sorted(d.glob("*.json")):
+              raw = f.read_bytes()
+              try:
+                  json.loads(raw)
+              except ValueError:
+                  problems.append(f"{f.name}: JSON 아님")
+                  continue
+              manifest[f.name] = {"bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest()}
+          preds = json.loads((d / "predictions.json").read_bytes()).get("predictions")
+          if not isinstance(preds, list) or not preds:
+              problems.append("예측 원장이 비었거나 형식이 다름")
+          else:
+              # 해시는 봉인 때 채워진다. 미봉인은 봉인 층의 일(VAR·BAIKAL 이 본다)이지
+              # 백업 실패가 아니다 — 세어서 남기고 백업은 그대로 보관한다.
+              unsealed = [p.get("id") for p in preds if not p.get("content_hash")]
+              sealed = sum(1 for p in preds if p.get("ots_proof_hex"))
+              manifest["_ledger"] = {"predictions": len(preds), "sealed": sealed,
+                                     "unsealed_ids": unsealed[:50]}
+              print(f"예측 원장 {len(preds)}건 · 봉인 증명 {sealed}건 · 미봉인 {len(unsealed)}건")
+              if unsealed:
+                  print(f"::warning::미봉인 예측 {len(unsealed)}건 — 봉인 층 확인 필요: {unsealed[:10]}")
+          (d / "MANIFEST.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2))
+          if problems:
+              print("백업 실패:", *problems, sep="\n  ")
+              sys.exit(1)
+          PY
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: ledger-${{ env.DAY }}
+          path: out/${{ env.DAY }}
+          retention-days: 90
+          if-no-files-found: error

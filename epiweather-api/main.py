@@ -2036,6 +2036,43 @@ def get_predictions(country: Optional[str] = None, verified_only: bool = False):
     }
 
 
+@app.get("/api/weekly-forecasts", tags=["예측 검증"])
+def weekly_forecasts(limit: int = 200):
+    """주간 추세 예측 — 공식 주간 표본감시의 '다음 주 증감' 예측과 별도 채점표.
+
+    90일 발병 예측(/api/predictions)과 **따로** 채점한다 — 맞히기 쉬운 방향 예측이
+    발병 예측의 적중률을 부풀리지 않게. 판정 8건 미만이면 scorecard.enough=False 이며
+    그때 성적은 판정하지 않는다. 기준선: 동전(Brier 0.25)·지난주 방향 그대로."""
+    from algorithms.weekly_forecast import (
+        all_forecasts, list_forecasts, scorecard, MIN_SCORED, METHOD, SERIES)
+    rows = list_forecasts(limit=max(1, min(limit, 1000)))
+    return {
+        "method": METHOD,
+        "series": [{"key": s["key"], "label_ko": s["label_ko"]} for s in SERIES],
+        "scorecard": scorecard(all_forecasts()),   # 표시 건수(limit)와 무관하게 전체로 채점
+        "min_scored": MIN_SCORED,
+        "note": "주간 방향 예측은 90일 발병 예측과 다른 과제다 — 두 채점표를 합치지 않는다.",
+        "forecasts": rows,
+    }
+
+
+@app.get("/api/korea-import-report", tags=["보고서"])
+def korea_import_report(week: Optional[str] = None, format: str = "json"):
+    """대한민국 해외 유입 위험 주간 보고서 — ISO 주마다 1건(예: 2026-W43). week 를
+    비우면 가장 최근 보고서. format=md 면 기관에 그대로 붙일 한 장짜리 마크다운.
+
+    유입 노출 지수는 확률이 아니다(이상도 × 한국 직항 노선 수 로그 정규화).
+    노선 수는 OpenFlights 2014 기준 노선 개수 — 승객 수가 아니다."""
+    from fastapi.responses import PlainTextResponse
+    from algorithms.korea_import_report import get_report, list_weeks, to_markdown
+    rep = get_report(week)
+    if rep is None:
+        raise HTTPException(status_code=404, detail="해당 주 보고서 없음 — 매주 첫 수집 주기에 생성됨")
+    if format == "md":
+        return PlainTextResponse(to_markdown(rep), media_type="text/markdown; charset=utf-8")
+    return {**rep, "available_weeks": list_weeks()}
+
+
 @app.get("/api/predictions/scorecard", tags=["예측 검증"])
 def prediction_scorecard(country: Optional[str] = None):
     """예측 채점표 — 적중률·Brier·보정(calibration).

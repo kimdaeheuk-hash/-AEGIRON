@@ -1,0 +1,146 @@
+"""대한민국 해외 유입 위험 주간 보고서 (2026-10-19, 캡틴 승인 ③).
+
+배경: 기능은 많은데 기관이 손에 쥘 결과물이 없었다. 이상도 × 한국 직항 연결 + 이웃 나라
+주간 추세 + 이번 주 경보를 ISO 주마다 한 장으로 묶는다. 이 시험은 정직성 경계선을 고정한다 —
+지수는 확률이 아님, 신호 없는 나라는 순위에 넣지 않음, 직항 없는 고이상도 나라를 빠뜨리지 않음,
+정규화 기준이 주마다 흔들리지 않음, 주당 1건.
+"""
+from __future__ import annotations
+
+import ast
+import datetime as dt
+import pathlib
+
+import pytest
+
+from algorithms import korea_import_report as kr
+
+UTC = dt.timezone.utc
+NOW = dt.datetime(2026, 10, 19, 6, tzinfo=UTC)          # 2026-W43
+COLLECTOR_PY = pathlib.Path(__file__).resolve().parents[1] / "collector.py"
+
+ROUTES = {("CHN", "KOR"): 303, ("JPN", "KOR"): 213, ("KOR", "USA"): 78, ("KOR", "PHL"): 53,
+          ("COD", "UGA"): 4}
+
+
+def _c(cid, raw, name=None, disease=None, tier="medium"):
+    return {"country": cid, "name": name or cid, "raw_score": raw, "tier": tier,
+            "dominant_disease": disease, "dominant_disease_share": 0.6 if disease else None}
+
+
+def _build(ranked, routes=ROUTES, alerts=(), weekly=(), err=None):
+    return kr.build_report(list(ranked), routes, list(alerts), list(weekly), NOW, routes_error=err)
+
+
+def test_countries_without_signal_are_not_ranked():
+    # 취약성만으로 만든 기준선 점수를 위험처럼 보이게 하지 않는다.
+    rep = _build([_c("CHN", None), _c("JPN", 40)])
+    assert [r["country"] for r in rep["top_exposure"]] == ["JPN"]
+    assert rep["summary"]["countries_with_signal"] == 1
+
+
+def test_exposure_ranks_by_signal_times_connectivity_and_is_not_probability():
+    rep = _build([_c("PHL", 90, disease="뎅기열"), _c("CHN", 30), _c("USA", 60)])
+    # PHL 90×ln54/ln304 ≈ 62.8 · USA 60×ln79/ln304 ≈ 45.9 · CHN 30×1 = 30.0
+    assert [(r["country"], r["exposure_index"]) for r in rep["top_exposure"]] == [
+        ("PHL", 62.8), ("USA", 45.9), ("CHN", 30.0)]
+    phl = rep["top_exposure"][0]
+    assert phl["direct_routes_to_kor"] == 53 and phl["dominant_disease"] == "뎅기열"
+    assert phl["exposure_index"] < phl["raw_score"]          # 연결이 최대가 아니면 줄어든다
+    assert rep["is_probability"] is False
+    assert any("확률이 아님" in c for c in rep["caveats"])
+
+
+def test_normalisation_is_stable_regardless_of_who_is_ranked():
+    """정규화 기준을 '순위에 든 나라 중 최대'로 잡으면 중국이 빠진 주에 일본 지수가 말없이
+    커진다. 한국 노선 전체 최대(303)로 고정한다."""
+    with_chn = _build([_c("CHN", 50), _c("JPN", 50)])
+    without_chn = _build([_c("JPN", 50)])
+    jpn = lambda rep: next(r for r in rep["top_exposure"] if r["country"] == "JPN")["exposure_index"]
+    assert jpn(with_chn) == jpn(without_chn) < 50
+
+
+def test_high_signal_country_without_direct_route_is_listed_separately():
+    rep = _build([_c("COD", 85, disease="에볼라"), _c("UGA", 40)])
+    assert rep["top_exposure"] == []
+    assert [r["country"] for r in rep["no_direct_route_high"]] == ["COD"]   # UGA 는 문턱 미만
+
+
+def test_korea_itself_goes_to_domestic_not_import_ranking():
+    rep = _build([_c("KOR", 72, disease="레지오넬라증"), _c("JPN", 40)])
+    assert rep["domestic"]["raw_score"] == 72
+    assert all(r["country"] != "KOR" for r in rep["top_exposure"])
+
+
+def test_suppressed_alerts_are_not_reported_as_active():
+    alerts = [{"tier": "medium", "label": "하수 농도", "score": 79, "suppressed": 0},
+              {"tier": "low", "label": "내려간 경보", "score": 40, "suppressed": 1}]
+    rep = _build([], alerts=alerts)
+    assert [a["label"] for a in rep["alerts"]] == ["하수 농도"]
+
+
+def _wf(i, series, tw, p, outcome=None):
+    return {"id": i, "series": series, "base_year": 2026, "base_week": tw - 1, "base_value": 1000.0,
+            "target_year": 2026, "target_week": tw, "prob_up": p, "outcome": outcome}
+
+
+def test_neighbor_trends_show_latest_forecast_and_last_scored_one():
+    weekly = [_wf(1, "jp_influenza", 41, 0.6, "up"), _wf(2, "jp_influenza", 42, 0.7),
+              _wf(3, "jp_covid", 42, 0.4)]
+    rep = _build([], weekly=weekly)
+    flu = next(t for t in rep["neighbor_trends"] if t["series"] == "jp_influenza")
+    assert flu["target_week"] == "2026-W42" and flu["prob_up"] == 0.7
+    assert flu["last_scored"] == {"target_week": "2026-W41", "prob_up": 0.6, "outcome": "up"}
+    covid = next(t for t in rep["neighbor_trends"] if t["series"] == "jp_covid")
+    assert covid["last_scored"] is None
+
+
+def test_markdown_has_all_sections_and_handles_empty_report():
+    md = kr.to_markdown(_build([]))
+    for heading in ("유입 노출 상위 국가", "직항 없는 고이상도", "이웃 나라 주간 추세", "활성 경보", "고지"):
+        assert heading in md
+    assert "이상 신호 국가 없음" in md and "확률이 아님" in md
+
+
+def test_markdown_warns_when_route_cache_is_missing():
+    md = kr.to_markdown(_build([_c("JPN", 50)], routes={}, err="항공 노선 캐시가 없다."))
+    assert "노출 지수 산출 불가" in md
+
+
+def test_generate_once_per_iso_week(isolated_db, monkeypatch):
+    from algorithms import country_risk, digital_twin
+    monkeypatch.setattr(country_risk, "rank_countries",
+                        lambda: {"countries": [_c("PHL", 80, disease="뎅기열")]})
+    monkeypatch.setattr(digital_twin, "load_flight_routes", lambda: (ROUTES, None))
+    first = kr.generate_if_due(NOW)
+    assert first["week"] == "2026-W43" and first["top_exposure"][0]["country"] == "PHL"
+    assert kr.generate_if_due(NOW + dt.timedelta(days=3)) is None            # 같은 주
+    nxt = kr.generate_if_due(NOW + dt.timedelta(days=7))
+    assert nxt["week"] == "2026-W44"
+    assert kr.list_weeks() == ["2026-W44", "2026-W43"]
+    assert kr.get_report("2026-W43")["generated_at"] == first["generated_at"]   # 지우지 않는다
+
+
+def test_api_returns_404_without_report_and_markdown_with_one(isolated_db, monkeypatch):
+    import main
+    from fastapi import HTTPException
+    with pytest.raises(HTTPException) as exc:
+        main.korea_import_report()
+    assert exc.value.status_code == 404
+    kr.save_report(_build([_c("JPN", 50)]))
+    body = main.korea_import_report(format="md").body.decode("utf-8")
+    assert body.startswith("# 대한민국 해외 유입 위험 주간 보고서 — 2026-W43")
+    assert main.korea_import_report()["available_weeks"] == ["2026-W43"]
+
+
+def test_collector_cycle_generates_report_and_logs_its_line():
+    """만들어만 두고 아무도 안 부르는 층이 되지 않게 배선을 AST 로 고정한다."""
+    tree = ast.parse(COLLECTOR_PY.read_text(encoding="utf-8"))
+    fn = next(n for n in ast.walk(tree)
+              if isinstance(n, ast.FunctionDef) and n.name == "collect_free_sources")
+    assert any(isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+               and n.func.id == "generate_if_due" for n in ast.walk(fn))
+    assert any(isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "log"
+               and any(isinstance(c, ast.Call) and isinstance(c.func, ast.Name)
+                       and c.func.id == "report_line" for a in n.args for c in ast.walk(a))
+               for n in ast.walk(fn))

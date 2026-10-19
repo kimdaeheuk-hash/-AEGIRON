@@ -179,6 +179,54 @@ CREATE TABLE IF NOT EXISTS baikal_transitions (
     evidence_class  TEXT                 -- measured / estimated / proxy
 );
 CREATE INDEX IF NOT EXISTS idx_baikal_transitions_observed ON baikal_transitions(observed_at);
+
+-- ── 주간 추세 예측 (2026-10-19) ───────────────────────────────────
+-- 공식 주간 표본감시 값의 '다음 주 증감'을 매주 봉인하고 다음 주 공식 값으로 채점한다.
+-- 90일 발병 예측(predictions)과 **섞지 않는다** — 맞히기 쉬운 방향 예측이 발병 예측의
+-- 적중률을 부풀리면 안 된다. 계산은 algorithms/weekly_forecast.py.
+CREATE TABLE IF NOT EXISTS weekly_observations (
+    series       TEXT NOT NULL,          -- jp_influenza / jp_covid / jp_rsv
+    year         INTEGER NOT NULL,       -- ISO 연도
+    week         INTEGER NOT NULL,       -- ISO 주
+    value        REAL NOT NULL,          -- 공식 게시 값(전국 표본감시 보고 수)
+    observed_at  TEXT NOT NULL,          -- 우리가 처음 본 시각(UTC ISO)
+    PRIMARY KEY (series, year, week)
+);
+
+CREATE TABLE IF NOT EXISTS weekly_forecasts (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    series           TEXT NOT NULL,
+    base_year        INTEGER NOT NULL,   -- 예측 시점에 게시돼 있던 최신 주
+    base_week        INTEGER NOT NULL,
+    base_value       REAL NOT NULL,
+    target_year      INTEGER NOT NULL,   -- 예측 대상 주(= base 다음 주, 아직 미게시)
+    target_week      INTEGER NOT NULL,
+    prob_up          REAL NOT NULL,      -- 대상 주 값 > 기준 주 값일 확률
+    naive_up         INTEGER,            -- 기준선: 지난주 방향 그대로(1 증가 · 0 감소)
+    method           TEXT NOT NULL,
+    created_at       TEXT NOT NULL,
+    content_hash     TEXT,               -- 봉인 대상 SHA-256
+    ots_proof_hex    TEXT,
+    ots_submitted_at TEXT,
+    actual_value     REAL,
+    outcome          TEXT,               -- up / down / void(판정 안 함) / NULL(미결)
+    outcome_note     TEXT,               -- void 사유 등
+    resolved_at      TEXT,
+    UNIQUE (series, target_year, target_week)
+);
+
+-- 대한민국 해외 유입 위험 주간 보고서 (2026-10-19). ISO 주마다 1건, 지우지 않는다.
+-- 계산은 algorithms/korea_import_report.py.
+CREATE TABLE IF NOT EXISTS weekly_reports (
+    week          TEXT PRIMARY KEY,      -- 2026-W43
+    generated_at  TEXT NOT NULL,
+    payload       TEXT NOT NULL          -- JSON — build_report() 결과 전체
+);
+
+CREATE TABLE IF NOT EXISTS weekly_sync (
+    source     TEXT PRIMARY KEY,         -- japan_idwr
+    synced_at  TEXT NOT NULL             -- 지난 주 게시분 동기화를 마지막으로 시도한 시각
+);
 """
 
 
