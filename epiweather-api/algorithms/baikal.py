@@ -490,6 +490,67 @@ def judge_var(unsealed: int | None, scorecard: dict | None, ledger: dict | None,
     return _system_result("VAR", "ok", body, scope_ko=_VAR_SCOPE, readings=readings)
 
 
+def weekly_loop_state(card: dict | None) -> dict:
+    """주간 추세 예측(weekly_forecast)의 흐르는 양 — 90일 루프와 **따로** 본다.
+
+    주간 예측은 기한이 1~2주라 90일 루프보다 훨씬 먼저 '측정 중'이 된다. 둘을 한 줄로
+    합치면 "피드백 루프가 측정 중"이 90일 발병 예측도 채점되기 시작한 것처럼 읽힌다."""
+    if card is None:
+        state, text = "undetermined", "판정 안 함 — 주간 예측 표를 못 읽음"
+    elif not (card.get("scored") or card.get("open") or card.get("void")):
+        state, text = "empty", "비어 있음 — 기록된 주간 예측 없음"
+    elif not card.get("scored"):
+        state, text = "awaiting", f"측정 대기 — 판정 0건 · 미결 {card.get('open', 0)}건"
+    elif not card.get("enough"):
+        state = "measuring"
+        text = (f"측정 중 — 판정 {card['scored']}건 · 성적은 {card.get('min_scored', 8)}건부터 "
+                f"말함 · 미결 {card.get('open', 0)}건")
+    else:
+        state = "measuring"
+        text = (f"측정 중 — 판정 {card['scored']}건 · Brier {card.get('brier_model')} "
+                f"(동전 {card.get('brier_coin', 0.25)}) · 방향 적중 "
+                f"{card.get('hits_model')}/{card.get('calls_model')}")
+    return {"state": state, "state_ko": LOOP_STATE_KO[state], "text": text,
+            "card": card}
+
+
+# ── 운영 알림 (2026-10-19, 캡틴 승인 ⑤) ──────────────────────────────
+# 시스템이 '중단'으로 바뀌거나 '중단'에서 돌아올 때만 캡틴에게 한 줄 보낸다.
+# '저하'는 보내지 않는다 — 위키 소스 하나로도 자주 오가서(HUGINN) 매번 울리면 경보
+# 피로가 된다. 전이는 '바뀐 순간'만 생기므로 같은 상태로는 두 번 울리지 않는다.
+# 이 알림은 **시스템 자체의 운영 상태**이지 감염병 경보가 아니다 — 본문에 그렇게 쓴다.
+_OPS_ICON = {"down": "🔴", "recovered": "🟢"}
+
+
+def ops_notice_text(transitions: list[dict]) -> str | None:
+    """중단 진입·중단 해제 전이를 텔레그램 본문으로. 해당 전이가 없으면 None."""
+    import html
+
+    from .yggdrasil import SYSTEMS
+
+    names = {s["key"]: f"{s['key']} {s.get('name_ko', '')}".strip() for s in SYSTEMS}
+    lines = []
+    for t in transitions or []:
+        if t["subject"] not in names:          # LOOP·LOOP_WEEKLY 는 운영 고장이 아니다
+            continue
+        before = STATUS_KO.get(t["from_status"], "관측 시작") if t["from_status"] else "관측 시작"
+        if t["to_status"] == "down":
+            icon = _OPS_ICON["down"]
+            after = "<b>중단</b>"
+        elif t["from_status"] == "down":
+            icon = _OPS_ICON["recovered"]
+            after = f"<b>{html.escape(STATUS_KO.get(t['to_status'], t['to_status']))}</b> (복구)"
+        else:
+            continue
+        reason = html.escape(str(t.get("reason") or ""), quote=False)
+        lines.append(f"{icon} {html.escape(names[t['subject']])}: {html.escape(before)} → {after}"
+                     + (f"\n   └ {reason}" if reason else ""))
+    if not lines:
+        return None
+    return ("🌊 <b>BAIKAL 운영 알림</b>\n" + "\n".join(lines) +
+            "\n\n<i>시스템 자체의 운영 상태 알림 — 감염병 경보가 아님 · 상세: /baikal</i>")
+
+
 def loop_state(scorecard: dict | None, predictions: list[dict] | None,
                ground_truth: dict | None, today: dt.date) -> dict:
     """피드백 루프(정답 적재 → 예측 → 채점)의 흐르는 양."""
@@ -614,6 +675,10 @@ def gather_inputs(now: dt.datetime) -> dict:
         from algorithms.prediction_timestamp import SEAL_BATCH
         return SEAL_BATCH
 
+    def _weekly():
+        from algorithms.weekly_forecast import all_forecasts, scorecard
+        return scorecard(all_forecasts())
+
     preds = _safe(db.list_predictions, errors, "predictions")
     since = (now - dt.timedelta(hours=24)).isoformat()
     return {
@@ -631,6 +696,7 @@ def gather_inputs(now: dt.datetime) -> dict:
         "ledger": _safe(_ledger, errors, "ledger"),
         "ground_truth": _safe(db.ground_truth_counts, errors, "ground_truth"),
         "seal_batch": _safe(_seal_batch, errors, "seal_batch") or 10,
+        "weekly": _safe(_weekly, errors, "weekly_forecasts"),
         "errors": errors,
     }
 
@@ -657,6 +723,7 @@ def observe(now: dt.datetime | None = None, inputs: dict | None = None) -> dict:
         "systems": systems,
         "summary": {"counts": counts, "total": len(systems)},
         "loop": loop,
+        "weekly_loop": weekly_loop_state(i.get("weekly")),
         "read_errors": i.get("errors") or {},
         "ontology": "YGGDRASIL",
     }
@@ -680,6 +747,13 @@ def diff_transitions(previous: dict | None, current: dict) -> list[dict]:
     if loop.get("state") and loop.get("state") != prev_loop:
         out.append({"subject": "LOOP", "from_status": prev_loop, "to_status": loop["state"],
                     "reason": loop.get("text"), "evidence_class": "measured"})
+    # 주간 루프는 따로 센다 — 90일 루프의 전이와 섞이면 "측정 중"이 어느 루프 얘기인지 흐려진다.
+    prev_weekly = ((previous or {}).get("weekly_loop") or {}).get("state")
+    weekly = current.get("weekly_loop") or {}
+    if weekly.get("state") and weekly.get("state") != prev_weekly:
+        out.append({"subject": "LOOP_WEEKLY", "from_status": prev_weekly,
+                    "to_status": weekly["state"], "reason": weekly.get("text"),
+                    "evidence_class": "measured"})
     return out
 
 
@@ -707,6 +781,9 @@ def summary_line(result: dict) -> str:
         if c.get(key):
             parts.append(f"{STATUS_KO[key]} {c[key]}")
     parts.append(f"루프 {result['loop']['state_ko']}")
+    weekly = result.get("weekly_loop")
+    if weekly:
+        parts.append(f"주간 루프 {weekly['state_ko']}")
     trans = result.get("transitions") or []
     if trans:
         shown = []
