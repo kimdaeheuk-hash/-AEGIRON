@@ -227,6 +227,16 @@ CREATE TABLE IF NOT EXISTS weekly_sync (
     source     TEXT PRIMARY KEY,         -- japan_idwr
     synced_at  TEXT NOT NULL             -- 지난 주 게시분 동기화를 마지막으로 시도한 시각
 );
+
+-- 질병청 주간 값의 성숙도 측정 (2026-10-19, ⑥ 1단계). 같은 주의 값이 나중에 얼마나 늘어나는지
+-- 재려고, (질병, 주) 값이 **바뀐 순간만** 남긴다. 지우지 않는다.
+CREATE TABLE IF NOT EXISTS kdca_vintages (
+    disease   TEXT NOT NULL,
+    period    TEXT NOT NULL,             -- KDCA 표기 그대로(예: '2026년 41주')
+    value     INTEGER NOT NULL,
+    seen_at   TEXT NOT NULL,             -- 이 값을 처음 본 시각(UTC)
+    PRIMARY KEY (disease, period, seen_at)
+);
 """
 
 
