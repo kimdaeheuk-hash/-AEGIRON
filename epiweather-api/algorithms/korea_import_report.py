@@ -245,6 +245,61 @@ def generate_if_due(now: dt.datetime | None = None) -> dict | None:
     return rep
 
 
+SITE_URL_DEFAULT = "https://epiweather-web.vercel.app"
+
+
+def telegram_text(rep: dict, site_url: str | None = None) -> str:
+    """주간 보고서 텔레그램 요약(2026-10-19 — 만들어만 두고 받는 사람이 없던 결과물).
+
+    값은 HTML 이스케이프한다(parse_mode=HTML). 노출 지수가 확률이 아니라는 고지를 본문에 싣는다."""
+    import html
+    import os
+
+    site = (site_url or os.environ.get("EPIWEATHER_SITE_URL") or SITE_URL_DEFAULT).rstrip("/")
+    s = rep["summary"]
+    esc = lambda v: html.escape(str(v), quote=False)
+    lines = [
+        f"🇰🇷 <b>대한민국 해외 유입 위험 주간 보고서 {esc(rep['week'])}</b>",
+        f"이상 신호 국가 {s['countries_with_signal']}곳 · 한국 직항 연결 {s['exposed_countries']}곳 · "
+        f"직항 없는 고이상도 {s['no_direct_route_high']}곳 · 활성 경보 {s['active_alerts']}건",
+    ]
+    top = rep.get("top_exposure") or []
+    if top:
+        lines.append("노출 상위: " + " · ".join(
+            f"{esc(r['name'] or r['country'])} {r['exposure_index']}" for r in top[:5]))
+    else:
+        lines.append("한국 직항 연결 국가 중 이상 신호 국가 없음")
+    if rep.get("no_direct_route_high"):
+        lines.append("직항 없는 고이상도: " + " · ".join(
+            esc(r["name"] or r["country"]) for r in rep["no_direct_route_high"][:5]))
+    if rep.get("routes_error"):
+        lines.append("⚠ 항공 노선 캐시 문제 — 이번 주 노출 지수 산출 불가")
+    lines += [
+        "",
+        "<i>노출 지수는 순위용 지수이며 확률이 아님 · 이상 신호 = 확인이 필요한 신호, 발병 확정 아님</i>",
+        f"전문: {site}/ko/record",
+    ]
+    return "\n".join(lines)
+
+
+def notify_new_report(rep: dict) -> str:
+    """새로 만든 보고서를 텔레그램으로 보낸다. 상태 문구를 돌려준다(로그용).
+
+    EPIWEATHER_WEEKLY_REPORT_NOTIFY=off 면 보내지 않는다. 전송 실패는 재시도하지 않는다 —
+    보고서는 이미 저장돼 /record 와 API 에 게시돼 있다."""
+    import os
+
+    from .notifier import send_telegram_message, telegram_configured
+
+    if os.environ.get("EPIWEATHER_WEEKLY_REPORT_NOTIFY", "on").strip().lower() in ("off", "0", "false"):
+        return "꺼 둠"
+    if not telegram_configured():
+        return "채널 미설정"
+    if send_telegram_message(telegram_text(rep)):
+        return "전송됨"
+    return "전송 실패(재시도 없음 — /record·API 에 게시됨)"
+
+
 def report_line(rep: dict) -> str:
     s = rep["summary"]
     top = ", ".join(f"{r['name'] or r['country']}({r['exposure_index']})" for r in rep["top_exposure"][:3])

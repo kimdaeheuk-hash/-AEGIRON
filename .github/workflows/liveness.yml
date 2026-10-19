@@ -1,0 +1,64 @@
+name: Liveness
+
+# 서버 밖에서 하는 생존 감시 (2026-10-19, 캡틴 승인 ①).
+#
+# 왜: BAIKAL 운영 알림은 Railway 서버 안에서 보낸다. 서버가 죽거나 매시 주기가 멈추면 알림도
+# 같이 멈춘다. 여기서 매시간 바깥에서 본다 — /health · BAIKAL 스냅숏 나이 · 웹사이트 첫 화면.
+# 판단 규칙은 epiweather-api/scripts/liveness_check.py(시험: tests/test_liveness_check.py).
+#
+# 바뀐 순간만 보낸다: 직전 실행들의 결론(성공/실패)을 세어 스크립트에 넘긴다 — 처음 실패하면
+# 한 통, 계속되면 6회마다, 살아나면 복구 한 통. 이상이면 작업이 빨간불로 끝난다.
+#
+# 시크릿: TELEGRAM_BOT_TOKEN + TELEGRAM_OPS_CHAT_ID(없으면 TELEGRAM_CHAT_ID). 없으면 알림 없이
+# 빨간불로만 남는다(GitHub 이메일 알림). GitHub 예약 실행은 몇 분 늦거나 드물게 빠질 수 있다.
+
+on:
+  schedule:
+    - cron: "25 * * * *"   # 매시 25분 — 정각 수집·경보·BAIKAL 주기(보통 :03 전후 끝) 뒤
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: liveness
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: epiweather-api/scripts
+
+      - name: Count prior consecutive failures
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # 지금 실행을 뺀 최근 완료 실행들의 결론 — 맨 앞부터 연속 failure 개수.
+          n=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow liveness.yml --status completed -L 30 \
+                --json conclusion,databaseId \
+              | python3 -c "import json,sys,os
+          runs=[r for r in json.load(sys.stdin) if str(r['databaseId'])!=os.environ['GITHUB_RUN_ID']]
+          n=0
+          for r in runs:
+              if r['conclusion']=='failure': n+=1
+              elif r['conclusion']=='success': break
+          print(n)")
+          echo "PRIOR=$n" >> "$GITHUB_ENV"
+          echo "직전 연속 실패: $n"
+
+      - name: Check
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_OPS_CHAT_ID: ${{ secrets.TELEGRAM_OPS_CHAT_ID }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python3 epiweather-api/scripts/liveness_check.py \
+            --api https://epiweather-api-production.up.railway.app \
+            --site https://epiweather-web.vercel.app/ko \
+            --prior-failures "$PRIOR"

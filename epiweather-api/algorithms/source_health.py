@@ -62,6 +62,11 @@ NO_DATA_ALARM_HOURS = 72.0
 # 연속 카운팅으로는 이 모양을 잡을 수 없다. 그래서 **최근 N주기의 성공률**을 본다.
 FLAKY_WINDOW = 24          # 시간당 1주기 → 하루치
 FLAKY_SUCCESS_RATE = 0.5   # 하루의 절반도 성공 못 하면 그건 살아있는 게 아니다
+# ★ 회복 중 (2026-10-19) ★ 24주기 창은 회복도 하루 늦게 본다. Wikipedia_Ebola 가 12시부터
+# 매시간 성공했는데 13:01 로그·텔레그램이 `소스 중단 … 1시간째 데이터 없음 (연속 실패 0회)` 이라고
+# 했다 — 관측보다 많이 주장했다. 창 성공률은 아직 낮아도 최근 RECOVERY_STREAK 주기가 연속
+# 성공이면 '회복 중'으로 따로 둔다: 이상 목록·재통보에서 빼고, 정상으로도 세지 않는다.
+RECOVERY_STREAK = 3
 # 창이 다 차기 전에는 판정하지 않는다 — 배포 직후 몇 주기로 울리면 거짓 경보가 된다.
 
 # ── 추적에서 정식으로 제외한 소스 ──────────────────────────────────
@@ -187,6 +192,13 @@ def _recent_success_rate(entry: dict) -> tuple[float | None, int]:
     return ok / len(recent), len(recent)
 
 
+def is_recovering(entry: dict) -> bool:
+    """최근 RECOVERY_STREAK 주기가 전부 성공인가 — flaky 판정 뒤에만 의미가 있다."""
+    recent = entry.get("recent_outcomes") or []
+    tail = recent[-RECOVERY_STREAK:]
+    return len(tail) == RECOVERY_STREAK and all(o == "ok" for o in tail)
+
+
 def is_flaky(entry: dict) -> bool:
     """가끔만 성공하는 소스인가 — 연속 카운팅이 못 잡는 모양.
 
@@ -273,7 +285,7 @@ def _status_for(entry: dict) -> tuple[str, float | None]:
     # no_data 를 먼저 보면 이 상태에 영영 도달하지 못한다 — 그게 GroqWatch 가
     # 몇 주째 `정상 20/21` 에 묻혀 있던 이유다.
     if is_flaky(entry):
-        return "flaky", staleness_hours
+        return ("recovering" if is_recovering(entry) else "flaky"), staleness_hours
     if entry.get("last_outcome") == "no_data":
         return "no_data", staleness_hours
     if last_success is None:
@@ -292,6 +304,7 @@ def source_health_report() -> dict:
     no_data = []
     long_no_data = []
     flaky = []
+    recovering = []
     for source, entry in sorted(data.items()):
         if is_retired(source):
             # 집계·경보에서 뺀다. 파일에 남은 옛 항목이 여기로 새어 들어오면
@@ -320,6 +333,14 @@ def source_health_report() -> dict:
                 "recent_success_rate": round(rate, 3) if rate is not None else None,
                 "window": samples,
             })
+        elif status == "recovering":
+            # 이상도 정상도 아니다 — 따로 세워 '지켜보는 중'임을 드러낸다.
+            recovering.append({
+                "source": source,
+                "recent_success_rate": round(rate, 3) if rate is not None else None,
+                "window": samples,
+                "streak": RECOVERY_STREAK,
+            })
         elif status in ("failing", "stale"):
             degraded.append(source)
         elif status == "no_data":
@@ -340,6 +361,8 @@ def source_health_report() -> dict:
         # 성공할 때마다 staleness 가 리셋되고 no_data 라 연속실패도 0 이라,
         # 실측 7~9% 성공률의 GroqWatch 가 몇 주째 `정상 20/21` 에 묻혀 있었다.
         "flaky_sources": flaky,
+        # ★ 회복 중 ★ 창 성공률은 아직 낮지만 최근 RECOVERY_STREAK 주기 연속 성공.
+        "recovering_sources": recovering,
         # ★ 추적에서 뺀 소스 — 숨기지 않고 이유와 함께 드러낸다 ★
         # 집계에는 안 들어가지만 목록에는 남는다. 조용히 사라진 소스가 이
         # 시스템에서 가장 위험한 실패 방식이라, 뺀 것도 보이게 둔다.
@@ -383,7 +406,7 @@ def pending_notifications() -> dict:
     """
     data = _load_raw()
     now = _now()
-    degraded, recovered = [], []
+    degraded, recovered, recovering = [], [], []
     for source, entry in sorted(data.items()):
         if is_retired(source):
             continue      # 뺀 소스는 울리지도, 복구 통보를 내지도 않는다
@@ -415,15 +438,22 @@ def pending_notifications() -> dict:
                 or (now - last_notified).total_seconds() / 3600 >= RENOTIFY_HOURS
             )
             if due:
+                rate, samples = _recent_success_rate(entry)
                 degraded.append({
                     "source": source,
                     "status": status,
                     "staleness_hours": staleness,
                     "consecutive_failures": entry.get("consecutive_failures", 0),
+                    # 간헐 성공은 '데이터 없음 N시간'이 아니라 성공률로 말해야 한다.
+                    "recent_success_rate": round(rate, 3) if rate is not None else None,
+                    "window": samples,
                 })
-        elif status == "ok" and notified in ("failing", "stale", "no_data", "flaky"):
+        elif (status in ("ok", "recovering")
+              and notified in ("failing", "stale", "no_data", "flaky")):
             recovered.append(source)
-    return {"degraded": degraded, "recovered": recovered}
+            if status == "recovering":
+                recovering.append(source)
+    return {"degraded": degraded, "recovered": recovered, "recovering": recovering}
 
 
 def mark_notified(sources: list[str]) -> None:

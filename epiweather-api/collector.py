@@ -1196,12 +1196,14 @@ def collect_free_sources() -> dict:
     # ── 대한민국 해외 유입 위험 주간 보고서 (2026-10-19 편입, 캡틴 승인 ③) ──────
     # ISO 주마다 한 번 만든다. 이미 있으면 아무것도 하지 않는다(로그도 남기지 않는다).
     try:
-        from algorithms.korea_import_report import generate_if_due, report_line
+        from algorithms.korea_import_report import generate_if_due, notify_new_report, report_line
         import db
         db.init_db()
         weekly_report = generate_if_due()
         if weekly_report is not None:
             log(f"  {report_line(weekly_report)}")
+            # 만들어만 두고 받는 사람이 없으면 결과물이 아니다 — 새 주 보고서는 한 번 보낸다.
+            log(f"  🇰🇷 유입 주간 보고서 텔레그램: {notify_new_report(weekly_report)}")
     except Exception as e:
         log_error("KoreaImportReport", e)
 
@@ -1217,10 +1219,13 @@ def collect_free_sources() -> dict:
         # 알림은 나흘 전 1건뿐이었다(2026-08-13). 아래 pending_notifications가
         # 24시간마다 다시 울리고, 살아나면 복구도 알린다.
         pending = pending_notifications()
+        # 상태 이름을 그대로 쓴다 — 간헐 성공을 '중단'이라고 적으면 관측보다 많이 주장한다.
+        _ko = {"failing": "중단", "stale": "갱신 끊김", "flaky": "간헐 성공", "no_data": "장기 값없음"}
         for d in pending["degraded"]:
-            log(f"  ⚠️ 소스 중단: {d['source']} ({d['status']}, 연속 실패 {d['consecutive_failures']}회)")
+            log(f"  ⚠️ 소스 이상: {d['source']} ({_ko.get(d['status'], d['status'])}, "
+                f"연속 실패 {d['consecutive_failures']}회)")
         for s in pending["recovered"]:
-            log(f"  ✅ 소스 복구: {s}")
+            log(f"  ✅ 소스 복구: {s}" + (" (회복 중)" if s in pending.get("recovering", []) else ""))
         from algorithms.notifier import notify_source_health
         if notify_source_health(pending):
             # 전송에 성공했을 때만 도장 — 실패한 통보를 '했다'고 적으면
@@ -1255,8 +1260,14 @@ def collect_free_sources() -> dict:
         # 늙는중 없음'처럼 빈 항목을 다 나열해서, 정작 문제가 생겼을 때 눈에
         # 안 띄었다. 평소엔 짧게, 문제가 생기면 길어지는 쪽이 맞다.
         parts = [f"정상 {rep['healthy_count']}/{rep['total_tracked']}"]
-        if rep["degraded_sources"]:
-            parts.append(f"중단 {_brief(rep['degraded_sources'])}")
+        # '중단'은 연속 실패(failing)만 — 간헐 성공·늙음은 아래에서 따로 이름을 붙인다.
+        by_status = {s["source"]: s["status"] for s in rep["sources"]}
+        failing = [n for n in rep["degraded_sources"] if by_status.get(n) == "failing"]
+        aged_out = [n for n in rep["degraded_sources"] if by_status.get(n) == "stale"]
+        if failing:
+            parts.append(f"중단 {_brief(failing)}")
+        if aged_out:
+            parts.append(f"갱신 끊김 {_brief(aged_out)}")
         if rep.get("no_data_sources"):
             parts.append(f"값없음 {_brief(rep['no_data_sources'])}")
         # 며칠째 값없음은 따로 시간까지 찍는다. "값없음 Mobility" 만 보면
@@ -1275,6 +1286,13 @@ def collect_free_sources() -> dict:
                 for x in rep["flaky_sources"]
             )
             parts.append(f"❌ 간헐 성공 {spotty}")
+        if rep.get("recovering_sources"):
+            back = ", ".join(
+                f"{x['source']}(최근 {x['streak']}회 연속 성공 · {x['window']}주기 "
+                f"{x['recent_success_rate']:.0%})"
+                for x in rep["recovering_sources"]
+            )
+            parts.append(f"↗ 회복 중 {back}")
         if stale:
             parts.append(f"늙는중 {_brief(stale)}")
         if len(parts) == 1:
