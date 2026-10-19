@@ -11,7 +11,7 @@ import {
 import { pageMetadata } from '@/lib/meta';
 
 /**
- * 공개 예측 원장 — 봉인된 예측·채점표·선행성 원장·경보 한 건 해부.
+ * 공개 예측 원장 — 봉인된 예측·채점표·선행성 원장·경보 한 건의 근거.
  * 판정 대기·실패를 지우지 않는다. 숫자는 전부 운영 API 실측(5분 캐시).
  * 2026-10-19: 주간 추세 예측 채점표(90일 예측과 따로)·대한민국 유입 주간 보고서 추가.
  */
@@ -45,7 +45,7 @@ export default async function RecordPage(props: { params: Promise<{ locale: stri
 
       <div className="band-deep">
         <Section>
-          <SectionHeading eyebrow="ALERT ANATOMY" title={R.anatomyTitle} lead={R.anatomyLead} />
+          <SectionHeading eyebrow="ALERT EVIDENCE" title={R.anatomyTitle} lead={R.anatomyLead} />
           <AlertAnatomy alert={alerts?.items[0] ?? null} labels={R} date={alerts?.date} />
         </Section>
       </div>

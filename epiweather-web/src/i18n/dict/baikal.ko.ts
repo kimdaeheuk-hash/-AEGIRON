@@ -19,7 +19,7 @@ export const systemsKo: SystemDict[] = [
   },
   {
     code: 'MIMIR', name: '미미르', role: '추출',
-    myth: '지혜의 샘 — 원문에서 의미를 길어 올림',
+    myth: '지혜의 샘 — 원문에서 의미를 찾아냄',
     summary: '보도 본문·보고서 PDF 표를 질병·국가·확진·사망의 구조화 신호로 변환함',
   },
   {
@@ -44,7 +44,7 @@ export const systemsKo: SystemDict[] = [
   },
   {
     code: 'VAR', name: '바르', role: '검증',
-    myth: '맹세의 여신 — 약속을 지켜보고 어기면 벌함',
+    myth: '맹세의 여신 — 약속이 지켜졌는지 확인함',
     summary: '예측 봉인·공식 선언 대조 채점·선행성 원장으로 자체 수치를 검증함',
   },
 ];
@@ -146,7 +146,7 @@ export const baikalPageKo: ContentPage = {
   eyebrow: 'FLAGSHIP SYSTEM',
   title: 'BAIKAL MOB — 아이기론 대표 시스템',
   lead:
-    '엔진 → YGGDRASIL → BAIKAL MOB 3층 구조를 아이기론 대표 시스템으로 명명함. 7개 엔진 시스템의 상태를 온톨로지로 연결하고, 생태계 전체의 상태 변화를 매시간 기록·공개함. 가장 깊고 오래된 호수가 바닥에 층층이 역사를 쌓듯, 운영 이력을 변조 없이 축적함.',
+    '엔진 → YGGDRASIL → BAIKAL MOB 3층 구조를 아이기론 대표 시스템으로 명명함. 7개 엔진 시스템의 상태를 온톨로지로 연결하고, 생태계 전체의 상태 변화를 매시간 기록·공개함. 운영 이력은 삭제·수정 없이 시간순으로 쌓아 둠.',
   blocks: [],
   cta: {
     title: '같은 데이터 직접 확인',

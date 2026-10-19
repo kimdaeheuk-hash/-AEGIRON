@@ -48,7 +48,7 @@ export const pagesEn: PagesDict = {
         tone: 'sky',
         body: 'Disease, country, cases and deaths are structured from PDF tables and article text. The rule is clear — only confirmed values become numbers.',
         points: [
-          'Only columns whose meaning is confirmed by the table header are used. Nothing is guessed by position, so numbers do not drift silently.',
+          'Only columns whose meaning is confirmed by the table header are used. Nothing is guessed by position, so a misread column cannot quietly change a number.',
           '“New in the last seven days” and “cumulative”, “suspected” and “confirmed”, are kept as separate fields.',
           'A “total” row is not a country and is excluded, keeping trend analysis clean.',
           'Extracted numbers are cross-checked against the source text, and the source location is recorded.',
@@ -91,7 +91,7 @@ export const pagesEn: PagesDict = {
     ],
     cta: {
       title: 'See the five stages running for yourself',
-      body: 'On the live dashboard you can watch the whole chain — from collection to response — run in real time, with no login.',
+      body: 'On the live dashboard you can watch the whole process — from collection to response — run in real time, with no login.',
       label: 'Open the live dashboard',
       href: '/dashboard',
     },
@@ -185,7 +185,7 @@ export const pagesEn: PagesDict = {
         items: [
           { title: 'Reporting-silence watch', body: 'When a normally active channel falls below half its baseline, that is a signal. It targets cases, like 2014 Guinea Ebola, where the reporting system collapses before the spread.', meta: 'negative_space' },
           { title: 'Unexplained clusters', body: 'Counts clusters that match no known disease pattern. The December 2019 pneumonia of unknown cause in Wuhan is the type.', meta: 'unexplained' },
-          { title: 'High-risk single reports', body: 'For pathogens like plague, anthrax and smallpox — where one event is already news — it raises a single report without waiting for counts to build.', meta: 'pathogen_sentinel' },
+          { title: 'High-risk single reports', body: 'For pathogens like plague, anthrax and smallpox — where a single report is already serious — it raises a single report without waiting for counts to build.', meta: 'pathogen_sentinel' },
         ],
       },
       {
@@ -307,20 +307,20 @@ export const pagesEn: PagesDict = {
       },
     ],
     cta: {
-      title: 'Two layers, one chain',
-      body: 'Detect → judge → forecast → simulate → prescribe → self-verify → seal. The screen where that chain actually runs is the live dashboard.',
+      title: 'Two layers, one connected flow',
+      body: 'Detect → judge → forecast → simulate → prescribe → self-verify → seal. The screen where that flow actually runs is the live dashboard.',
       label: 'Live dashboard',
       href: '/dashboard',
     },
   },
 
   engines: {
-    metaTitle: 'Engine catalogue — the full map of 116 modules',
+    metaTitle: 'Engine catalogue — the full list of 116 modules',
     metaDescription:
       'All 116 of AEGIRON’s algorithm modules, grouped into seven: surveillance, extraction, judgement, forecast, genomics, countermeasures and verification. What each module does, and whether it runs hourly or on request.',
     eyebrow: 'ENGINE CATALOGUE',
     title: '116 modules, seven systems',
-    lead: 'AEGIRON is not one large model but 116 modules, each doing one thing well, meshed together — because watching the whole world takes that many angles. The core modules are organised into seven named systems — HUGINN, MIMIR, FORSETI, SKULD, HEIMDALL, VALHALLA and VAR — the engine layer of AEGIRON’s flagship system (see BAIKAL MOB).',
+    lead: 'AEGIRON is not one large model but 116 modules, each doing one thing well, combined so the whole world can be watched in many different ways. The core modules are organised into seven named systems — HUGINN, MIMIR, FORSETI, SKULD, HEIMDALL, VALHALLA and VAR — the engine layer of AEGIRON’s flagship system (see BAIKAL MOB).',
     blocks: [
       {
         title: 'HUGINN — Surveillance — gather signals, find anomalies',
@@ -331,7 +331,7 @@ export const pagesEn: PagesDict = {
           { title: 'Six-layer anomaly index', body: 'Combines six layers of signals, scored against their usual level, into one index.', meta: 'gai · hourly' },
           { title: 'Reporting-silence watch', body: 'Treats an active channel falling quiet as a signal.', meta: 'negative_space · hourly' },
           { title: 'Unexplained clusters', body: 'Counts clusters not explained by any known disease.', meta: 'unexplained · hourly' },
-          { title: 'High-risk single report', body: 'Raises pathogens where one event is news — plague, anthrax — on a single report.', meta: 'pathogen_sentinel · hourly' },
+          { title: 'High-risk single report', body: 'Raises plague, anthrax and similar pathogens to an alert candidate on a single report.', meta: 'pathogen_sentinel · hourly' },
           { title: 'Standard detection', body: 'Catches anomalies with US CDC EARS C1/C2/C3 and a z-score baseline.', meta: 'ears · anomaly_engine · kdca_anomaly' },
           { title: 'Two-stage detection', body: 'A fast sentinel raises; a verification layer cross-checks.', meta: 'sentinel · verification' },
           { title: 'Disaster · polar · climate', body: 'Reads environmental signals of changing outbreak conditions as leading indicators.', meta: 'disaster_watch · polar_* · climate_signals' },
@@ -564,7 +564,7 @@ export const pagesEn: PagesDict = {
         title: 'Academic and specialist sources',
         kicker: 'ACADEMIC',
         tone: 'sky',
-        body: 'Can move before official announcements. On their own they never raise an alert tier; they carry weight only when they coincide with other layers.',
+        body: 'Can move before official announcements. On their own they never raise an alert tier; they affect alert decisions only when they coincide with signals from other layers.',
         items: [
           { title: 'CDC Emerging Infectious Diseases', body: 'The US CDC journal of emerging infectious diseases.', meta: 'Origin updates: as published' },
           { title: 'CIDRAP', body: 'Disease-specific reporting from the University of Minnesota’s Center for Infectious Disease Research and Policy.', meta: 'Origin updates: as published' },
@@ -816,7 +816,7 @@ export const pagesEn: PagesDict = {
         tone: 'teal',
         body: 'We fold local-language reporting from 178 countries, official surveillance data, and environmental, trade and genomic signals into a single index, judge each country’s anomaly against its own baseline, and — the moment an alert is raised — compute spread scenarios and intervention effects alongside it. The design axis is to not stop at detection but to answer “so what, and at what strength”.',
         points: [
-          'Detect → judge → forecast → simulate → prescribe → self-verify → seal. The whole chain sits inside one system.',
+          'Detect → judge → forecast → simulate → prescribe → self-verify → seal. The whole process sits inside one system.',
           'Every forecast is scored automatically against the official declarations that follow, and sealed at the moment it is made so it cannot be edited after the fact.',
           'Two internal R&D programs — defensive genomic screening (HEIMDALL) and countermeasure readiness (VALHALLA) — carry the national-biosecurity axis.',
         ],
@@ -836,7 +836,7 @@ export const pagesEn: PagesDict = {
         title: 'Why we publish everything',
         kicker: 'WHY OPEN',
         tone: 'forest',
-        body: 'Open everything now, and you stay ready to be checked. It is also a choice a larger competitor cannot structurally copy — they have customer contracts to protect; AEGIRON can open because it has none. The openness itself becomes the basis for trust.',
+        body: 'Open everything now, and you stay ready to be checked. A larger competitor with customer contracts to protect would find this hard to follow; AEGIRON can open because it has none. The openness itself becomes the basis for trust.',
         note: 'Our validation status and known limits are set out in full on a separate page.',
       },
       {

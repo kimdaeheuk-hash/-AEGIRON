@@ -55,7 +55,7 @@ export const pagesKo: PagesDict = {
         tone: 'sky',
         body: 'PDF 표·기사 본문 → 질병·국가·확진·사망 구조화 · 원칙: 확인된 값만 숫자화',
         points: [
-          '표 헤더로 의미 확인된 열만 사용 · 위치 기반 추정 채움 없음 — 숫자의 조용한 어긋남 차단',
+          '표 헤더로 의미 확인된 열만 사용 · 위치 기반 추정 채움 없음 — 열을 잘못 읽어 숫자가 틀어지는 일 차단',
           '"최근 7일 신규"·"누적", "의심"·"확진" 별도 항목 분리 집계',
           '"합계" 행 국가 집계 제외 — 추이 분석 순도 유지',
           '추출 숫자 원문 텍스트 교차검증 · 출처 위치 동시 기록',
@@ -193,7 +193,7 @@ export const pagesKo: PagesDict = {
         items: [
           { title: '보고 침묵 감시', body: '활발하던 보고 채널의 기준선 절반 이하 급감 = 신호 · 표적: 보고 체계 붕괴가 확산에 선행하는 사례(2014년 기니 에볼라)', meta: 'negative_space' },
           { title: '설명 불가 집단 발병', body: '기존 질병 패턴 불일치 집단 발병 별도 집계 · 2019년 12월 우한 원인불명 폐렴 유형', meta: 'unexplained' },
-          { title: '고위험 병원체 단건 감시', body: '페스트·탄저·두창 등 단건 = 뉴스 병원체 — 누적 대기 없이 단건 보도 즉시 상향', meta: 'pathogen_sentinel' },
+          { title: '고위험 병원체 단건 감시', body: '페스트·탄저·두창 등 한 건만 보도돼도 중대한 고위험 병원체 — 건수 누적을 기다리지 않고 즉시 경보 후보로 상향', meta: 'pathogen_sentinel' },
         ],
       },
       {
@@ -316,8 +316,8 @@ export const pagesKo: PagesDict = {
       },
     ],
     cta: {
-      title: '두 계층 — 단일 사슬',
-      body: '감지 → 판정 → 예측 → 시뮬레이션 → 처방 → 자기검증 → 봉인 · 실가동 사슬 = 라이브 대시보드',
+      title: '두 계층 — 한 흐름으로 연결',
+      body: '감지 → 판정 → 예측 → 시뮬레이션 → 처방 → 자기검증 → 봉인 · 실제 가동 흐름 = 라이브 대시보드',
       label: '라이브 대시보드',
       href: '/dashboard',
     },
@@ -325,12 +325,12 @@ export const pagesKo: PagesDict = {
 
   // ── 엔진 카탈로그 ─────────────────────────────────────────
   engines: {
-    metaTitle: '엔진 카탈로그 — 116개 모듈 전체 지도',
+    metaTitle: '엔진 카탈로그 — 116개 모듈 전체 목록',
     metaDescription:
       '116개 알고리즘 모듈 — 감시·추출·판정·예측·유전체·대응제·검증 7개 묶음 전수 나열 · 모듈별 기능·가동 주기(매시/요청 시) 병기',
     eyebrow: 'ENGINE CATALOGUE',
     title: '116개 모듈, 7개 시스템',
-    lead: '단일 거대 모델이 아닌 — 각 1개 기능 특화 모듈 116개 결합 시스템 · 전 세계 감시에 필요한 각도의 수 · 핵심 모듈을 7개 시스템(HUGINN 후긴·MIMIR 미미르·FORSETI 포르세티·SKULD 스쿨드·HEIMDALL 헤임달·VALHALLA 발할라·VAR 바르)으로 편성함 · 3층 구조의 기반 계층 — 상세: BAIKAL MOB',
+    lead: '단일 거대 모델이 아닌 — 각 1개 기능 특화 모듈 116개 결합 시스템 · 전 세계를 여러 방식으로 감시하기 위한 구성 · 핵심 모듈을 7개 시스템(HUGINN 후긴·MIMIR 미미르·FORSETI 포르세티·SKULD 스쿨드·HEIMDALL 헤임달·VALHALLA 발할라·VAR 바르)으로 편성함 · 3층 구조의 기반 계층 — 상세: BAIKAL MOB',
     blocks: [
       {
         title: 'HUGINN · 후긴 — 감시 — 신호 수집·이상 탐지',
@@ -341,7 +341,7 @@ export const pagesKo: PagesDict = {
           { title: '6계층 이상도 지수', body: '6개 층 신호 평소 대비 이상도 합산 → 단일 지수', meta: 'gai · 매시' },
           { title: '보고 침묵 감시', body: '활발하던 채널의 침묵 = 신호', meta: 'negative_space · 매시' },
           { title: '설명 불가 집단 발병', body: '기존 질병 미설명 집단 발병 별도 집계', meta: 'unexplained · 매시' },
-          { title: '고위험 병원체 단건', body: '페스트·탄저 등 단건 = 뉴스 병원체 단건 상향', meta: 'pathogen_sentinel · 매시' },
+          { title: '고위험 병원체 단건', body: '페스트·탄저 등 한 건만 보도돼도 즉시 경보 후보로 상향', meta: 'pathogen_sentinel · 매시' },
           { title: '표준 이상탐지', body: '미국 CDC EARS C1·C2·C3 + z-점수 기준선 이상 탐지', meta: 'ears · anomaly_engine · kdca_anomaly' },
           { title: '2단 탐지', body: '빠른 센티널 상향 → 검증 레이어 교차 확인', meta: 'sentinel · verification' },
           { title: '재난·극지·기후', body: '발병 여건 변화 환경 신호 = 선행지표', meta: 'disaster_watch · polar_* · climate_signals' },
@@ -576,7 +576,7 @@ export const pagesKo: PagesDict = {
         title: '학술·전문 매체',
         kicker: 'ACADEMIC',
         tone: 'sky',
-        body: '공식 발표 대비 선행 가능 · 단독 경보 등급 미상향 · 타 층 중첩 시 무게 획득',
+        body: '공식 발표 대비 선행 가능 · 단독 경보 등급 미상향 · 다른 층 신호와 겹칠 때 경보 판단에 반영',
         items: [
           { title: 'CDC Emerging Infectious Diseases', body: '미국 CDC 신종 감염병 학술지', meta: '원천 갱신: 수시' },
           { title: 'CIDRAP', body: '미네소타대 감염병연구정책센터 질병별 보도', meta: '원천 갱신: 수시' },
@@ -835,7 +835,7 @@ export const pagesKo: PagesDict = {
         tone: 'teal',
         body: '178개국 현지어 보도·각국 공식 감시 자료·환경·무역·유전체 신호 단일 지수 통합 → 국가별 이상도 판정 · 경보 시점 확산 시나리오·개입 효과 동시 산출 · 설계 축 = 감지를 넘어 "무엇을, 어느 강도로"까지 응답',
         points: [
-          '감지 → 판정 → 예측 → 시뮬레이션 → 처방 → 자기검증 → 봉인 — 전 사슬 단일 시스템 내장',
+          '감지 → 판정 → 예측 → 시뮬레이션 → 처방 → 자기검증 → 봉인 — 전 과정 단일 시스템 내장',
           '전 예측 이후 공식 선언 자동 대조 채점 · 생성 시점 봉인 — 사후 수정 불가',
           '두 내부 R&D 프로그램 — 방어적 유전체 스크리닝(HEIMDALL)·대응제 준비태세(VALHALLA) — 국가 바이오안보 축 담당',
         ],
@@ -855,7 +855,7 @@ export const pagesKo: PagesDict = {
         title: '왜 전부 공개하는가',
         kicker: 'WHY OPEN',
         tone: 'forest',
-        body: '전면 공개 = 검증 준비 완료 상태 유지 · 대형 경쟁사 구조적 모방 난이 선택 — 경쟁사 = 보호할 고객 계약 보유, 아이기론 = 현 시점 해당 제약 없이 공개 가능 · 공개 자체 = 신뢰 근거',
+        body: '전면 공개 = 검증 준비 완료 상태 유지 · 고객 계약 때문에 전면 공개가 어려운 대형 경쟁사는 따라 하기 어려운 방식 — 아이기론 = 현 시점 해당 제약 없이 공개 가능 · 공개 자체 = 신뢰 근거',
         note: '검증 현황·알려진 한계 — 별도 페이지 전면 기재',
       },
       {

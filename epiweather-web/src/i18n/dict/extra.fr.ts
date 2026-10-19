@@ -80,8 +80,8 @@ export const extraFr: ExtraDict = {
     ledgerTitle: 'Registre d’antériorité',
     ledgerLead: 'Le moment où un signal franchit son seuil est consigné sur-le-champ, avant toute déclaration officielle. Si aucune déclaration ne vient dans le délai, cela aussi est clos et conservé.',
     ledgerEmpty: 'Aucune entrée close au registre pour l’instant.',
-    anatomyTitle: 'Anatomie d’une alerte',
-    anatomyLead: 'Une candidate d’alerte en direct, dépliée pour montrer exactement quels signaux et quelles preuves l’ont produite. Les preuves sont affichées en coréen d’origine.',
+    anatomyTitle: 'Les preuves derrière une alerte',
+    anatomyLead: 'Une candidate d’alerte en direct, avec exactement quels signaux et quelles preuves l’ont produite. Les preuves sont affichées en coréen d’origine.',
     anatomyFields: {
       level: 'Niveau',
       score: 'Score',
@@ -91,7 +91,7 @@ export const extraFr: ExtraDict = {
       reason: 'Preuves',
       time: 'Enregistrée',
     },
-    anatomyEmpty: 'Aucune candidate d’alerte à déplier pour l’instant.',
+    anatomyEmpty: 'Aucune candidate d’alerte à présenter pour l’instant.',
     empty: 'Aucun enregistrement pour l’instant.',
     weekly: {
       title: 'Tableau d’évaluation des prévisions hebdomadaires',

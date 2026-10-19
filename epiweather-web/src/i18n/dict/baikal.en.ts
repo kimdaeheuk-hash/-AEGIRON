@@ -10,7 +10,7 @@ export const systemsEn: SystemDict[] = [
   },
   {
     code: 'MIMIR', name: 'Mimir', role: 'Extraction',
-    myth: 'The well of wisdom — draws meaning out of source text',
+    myth: 'The well of wisdom — finds the meaning in source text',
     summary: 'Turns article text and report PDF tables into structured signals: disease, country, cases, deaths.',
   },
   {
@@ -35,7 +35,7 @@ export const systemsEn: SystemDict[] = [
   },
   {
     code: 'VAR', name: 'Var', role: 'Verification',
-    myth: 'The goddess of oaths — watches promises and punishes those who break them',
+    myth: 'The goddess of oaths — checks whether promises were kept',
     summary: 'Checks AEGIRON’s own numbers through sealed forecasts, scoring against official declarations and the lead-time ledger.',
   },
 ];
@@ -137,7 +137,7 @@ export const baikalPageEn: ContentPage = {
   eyebrow: 'FLAGSHIP SYSTEM',
   title: 'BAIKAL MOB — AEGIRON’s flagship system',
   lead:
-    'The three-layer structure Engines → YGGDRASIL → BAIKAL MOB is designated as AEGIRON’s flagship system. It connects the state of seven engine systems through an ontology and records and publishes the state changes of the whole ecosystem every hour — like the deepest, oldest lake laying down its history layer by layer, the operating record accumulates without alteration.',
+    'The three-layer structure Engines → YGGDRASIL → BAIKAL MOB is designated as AEGIRON’s flagship system. It connects the state of seven engine systems through an ontology and records and publishes the state changes of the whole ecosystem every hour. The operating record is kept in time order, with nothing deleted or altered.',
   blocks: [],
   cta: {
     title: 'Check the same data yourself',
