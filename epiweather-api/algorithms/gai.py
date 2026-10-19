@@ -17,8 +17,8 @@ from __future__ import annotations
 import statistics
 
 from .trust import trust_for
-from .signal_metrics import (LAYERS, MIN_HISTORY, has_enough_distinct_history,
-                             load_records)
+from .signal_metrics import (LAYERS, MIN_HISTORY, SLOW_CADENCE_METRICS, collapse_repeats,
+                             has_enough_distinct_history, load_records)
 
 MIN_RELIABLE_SAMPLES = 14  # free_sources 누적이 이 미만이면 caveat 표시
 
@@ -112,6 +112,9 @@ def compute_gai() -> dict:
         metric_scores = []
         for metric_id, rtype, extractor, trust_category in cfg["metrics"]:
             series = [extractor(r) for r in records if r.get("type") == rtype]
+            if metric_id in SLOW_CADENCE_METRICS:
+                # 원천보다 자주 다시 기록되는 값 — 같은 값의 반복을 한 관측으로 접는다(signal_metrics 주석).
+                series = collapse_repeats(series)
             raw_score = _anomaly_score(series)
             if raw_score is None:
                 continue

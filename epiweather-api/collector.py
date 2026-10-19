@@ -514,6 +514,18 @@ def collect_free_sources() -> dict:
             top = (f" · 급증 {len(spikes)}종(최상위 {spikes[0]['disease']})"
                    if spikes else " · 급증 없음")
             log(f"  KDCA(주간, 전 법정감염병 {n_dis}종 수집){top}")
+            # 한국 주간 예측(⑥) 1단계 — 같은 주 값이 나중에 얼마나 늘어나는지 잰다. 값이 바뀐
+            # 주기에만 성숙도 한 줄을 남긴다(매시간 같은 줄을 찍지 않는다).
+            try:
+                from algorithms.kdca_vintage import (maturity_report, record as record_vintage,
+                                                     report_line as maturity_line)
+                import db
+                db.init_db()
+                now_utc = dt.datetime.now(dt.timezone.utc)
+                if record_vintage(result["kdca_weekly"], now_utc):
+                    log(f"  {maturity_line(maturity_report(now_utc))}")
+            except Exception as e:
+                log_error("KDCAVintage", e)
         except Exception as e:
             result["kdca_weekly"] = None
             result["kdca_disease_spikes"] = None

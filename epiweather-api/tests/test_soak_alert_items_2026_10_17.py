@@ -184,7 +184,9 @@ def test_compute_gai_exports_previous_distinct_for_every_metric(monkeypatch):
     m = [m for layer in out["layers"].values() for m in layer["metrics"]
          if m["metric"] == "cdc_nwss_concentration"][0]
     assert m["latest"] == 1680229.8 and m["previous_distinct"] == 63488.7
-    assert m["baseline_mean"] > 63488.7                                         # 평균은 반복된 새 값에 끌려 올라가 있다
+    # 10-17 당시엔 '평균은 반복된 새 값에 끌려 올라가 있다'(> 63488.7)를 고정했다 — 그게 기준선 오염이었다.
+    # 10-19(④)부터 주간 지표는 반복을 한 관측으로 접어, 평균은 과거 주 값들의 평균이다.
+    assert m["baseline_mean"] == round((60000.0 + 61000.0 + 62000.0 + 63488.7) / 4, 4)
 
 
 def test_nwss_ordinary_variation_is_untouched(monkeypatch):
