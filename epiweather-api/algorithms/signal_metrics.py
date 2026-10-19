@@ -44,6 +44,38 @@ MIN_HISTORY = 3  # 통계 계산에 필요한 최소 과거 관측치 수
 MIN_DISTINCT_HISTORY = 3
 
 
+# ── 원천보다 자주 다시 기록되는 지표 — 기준선은 '관측 회차'로 센다 (2026-10-19, ④) ──
+#
+# ★ 운영 관측 ★ 10-19 하수 농도 경보의 '평소 값'이 10:01 137,336 → 12:03 141,075 로 매시간
+# 올랐다. 주간 값이 매시간 다시 기록돼 기준선 평균이 그 값 쪽으로 끌려간 것이다(시간당 약 650).
+# 같은 이유로 z-score 도 새 주 값이 들어온 순간이 가장 높고, 값은 그대로인데 그 주 안에서
+# 시간마다 저절로 낮아진다 — 기준선이 '평소'가 아니라 '이번 주에 몇 시간 지났나'를 잰다.
+#
+# 이 지표들은 연속으로 같은 값을 **한 관측으로 접는다**(collapse_repeats). 점수·기준선·직전
+# 값이 모두 '주(또는 일) 단위 관측'의 통계가 된다. 값이 실제로 그대로인 주가 이어지면 그것도
+# 하나로 접힌다 — 대가: 과거 표본이 한 개 줄 수 있다(없는 값을 만들지는 않는다).
+# 늘릴 때는 원천의 갱신 주기를 먼저 확인한다(RSS 항목 수처럼 매시 바뀔 수 있는 값은 넣지 않는다).
+SLOW_CADENCE_METRICS: frozenset[str] = frozenset({
+    "kdca_weekly_total", "kdca_disease_spike_max",     # 질병청 주간 신고
+    "japan_idwr_total",                                # 일본 감염증 주보(주간)
+    "infodengue_casos_total",                          # 브라질 InfoDengue(주간)
+    "cdc_nwss_concentration",                          # 미국 하수 감시(주간 창)
+    "naver_flu_ratio", "naver_ebola_ratio", "naver_covid_ratio",   # 네이버 데이터랩(주 단위로 바뀜)
+    "wiki_ebola_daily",                                # 위키 일일 조회수(하루 한 번 바뀜)
+})
+
+
+def collapse_repeats(series: list) -> list:
+    """None 을 빼고 연속으로 같은 값을 하나로 접는다. [1,1,None,1,2,2,1] → [1,2,1]."""
+    out: list = []
+    for v in series:
+        if v is None:
+            continue
+        if not out or out[-1] != v:
+            out.append(v)
+    return out
+
+
 def has_enough_distinct_history(history) -> bool:
     """z-score 를 낼 만큼 과거가 '변해왔는가'. 표본 수는 MIN_HISTORY 가 본다.
 
@@ -542,4 +574,6 @@ def iter_metric_series(records: list[dict]):
     for layer_key, cfg in LAYERS.items():
         for metric_id, rtype, extractor, trust_category in cfg["metrics"]:
             series = [extractor(r) for r in records if r.get("type") == rtype]
+            if metric_id in SLOW_CADENCE_METRICS:
+                series = collapse_repeats(series)      # gai 와 같은 관측 단위(SLOW_CADENCE_METRICS 주석)
             yield layer_key, metric_id, trust_category, series

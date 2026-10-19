@@ -33,7 +33,7 @@ from .gai import _anomaly_score, _tier
 from .country_indicators import load_country_indicators
 from .world_countries import load_world_countries
 from .signal_metrics import (
-    load_records, _kdca_latest_total, _japan_idwr_total, _hk_chp_total, _infodengue_total,
+    collapse_repeats, load_records, _kdca_latest_total, _japan_idwr_total, _hk_chp_total, _infodengue_total,
 )
 
 TIER2_DISCOVERY_WINDOW_DAYS = 30  # 이 기간 내 country_iso3 신호가 있어야 Tier-2로 편입
@@ -147,6 +147,8 @@ DIRECT_METRICS = {
     "HKG": _hk_chp_total,
     "BRA": _infodengue_total,
 }
+# 위 중 원천이 주 단위인 것(홍콩 CHP 는 RSS 항목 수라 매시 바뀔 수 있어 뺀다).
+DIRECT_SLOW_CADENCE = frozenset({"KOR", "JPN", "BRA"})
 
 
 def _vulnerability_components(country_id: str) -> tuple[dict, bool]:
@@ -365,6 +367,9 @@ def compute_country_risk(country_id: str) -> dict:
     if extractor:
         records = load_records()
         series = [extractor(r) for r in records if r.get("type") == "free_sources"]
+        if country_id in DIRECT_SLOW_CADENCE:
+            # 주간 원천 — 매시간 다시 기록된 같은 값을 한 관측으로 접는다(signal_metrics.SLOW_CADENCE_METRICS 주석).
+            series = collapse_repeats(series)
         direct_score = _anomaly_score(series)
 
     matched = _matched_signals(country_id)
