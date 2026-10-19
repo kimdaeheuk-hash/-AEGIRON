@@ -47,6 +47,7 @@ LOOP_STATE_KO = {
     "measuring": "측정 중",
     "awaiting": "측정 대기",
     "empty": "비어 있음",
+    "undetermined": "판정 안 함",
 }
 
 EVIDENCE_CLASSES = ("measured", "estimated", "proxy")
@@ -59,6 +60,8 @@ ALERT_TABLE_STALE_HOURS = 2.0
 COLLECTOR_SILENT_DOWN_HOURS = 2.0
 # 수집 주기 기록을 찾을 때 파일 끝에서부터 읽는 최대 바이트.
 CYCLE_RECORD_SCAN_BYTES = 32 * 1024 * 1024
+# 저장된 스냅숏이 이보다 오래되면 API 가 '낡음'으로 표시한다 — 매시 주기를 두 번 놓친 것.
+SNAPSHOT_STALE_MINUTES = 130
 
 _SOURCE_STATUS_KO = {
     "failing": "중단", "flaky": "간헐 성공", "stale": "늙는중",
@@ -93,6 +96,14 @@ def _parse_iso(value: Any) -> dt.datetime | None:
     return t if t.tzinfo else t.replace(tzinfo=dt.timezone.utc)
 
 
+def snapshot_age_minutes(observed_at: Any, now: dt.datetime | None = None) -> int | None:
+    """저장된 스냅숏의 나이(분). 시각을 못 읽으면 None."""
+    t = _parse_iso(observed_at)
+    if t is None:
+        return None
+    return int(((now or _now()) - t).total_seconds() // 60)
+
+
 def _hours_between(later: dt.datetime, earlier: dt.datetime) -> float:
     return round((later - earlier).total_seconds() / 3600, 1)
 
@@ -125,7 +136,11 @@ _HUGINN_SCOPE = ("매시 수집 소스의 실제 값 유입(소스 건강)과 �
 
 
 def judge_huginn(health: dict | None, quality: dict | None) -> dict:
-    if not health or not health.get("total_tracked"):
+    # None(못 읽음)과 빈 기록을 같은 말로 쓰지 않는다 — 둘 다 판정 안 함이지만 사유가 다르다.
+    if health is None:
+        return _system_result("HUGINN", "undetermined", "소스 건강을 못 읽음",
+                              scope_ko=_HUGINN_SCOPE)
+    if not health.get("total_tracked"):
         return _system_result("HUGINN", "undetermined", "소스 건강 기록 없음",
                               scope_ko=_HUGINN_SCOPE)
     healthy, total = health.get("healthy_count", 0), health["total_tracked"]
@@ -175,8 +190,11 @@ _MIMIR_SCOPE = ("AI 슬롯의 NLP 구조화 추출 층(품질 불변식 '구조�
 
 def judge_mimir(quality: dict | None, extracted_24h: int | None) -> dict:
     readings: dict[str, Any] = {"extracted_last_24h": extracted_24h}
+    if quality is None:
+        return _system_result("MIMIR", "undetermined", "품질 불변식을 못 읽음",
+                              scope_ko=_MIMIR_SCOPE, readings=readings)
     inv = None
-    for item in (quality or {}).get("invariants") or []:
+    for item in quality.get("invariants") or []:
         if item.get("key") == _MIMIR_INVARIANT:
             inv = item
             break
@@ -206,8 +224,21 @@ _FORSETI_SCOPE = ("오늘 경보 표의 갱신 신선도(경보 주기가 돌았
                   "폰으로 실제 전송된 최고 등급")
 
 
+def _is_held(row: dict) -> bool:
+    """판정 못 한 계열이라 지난 값 그대로 붙들린 행(낡음 표시가 근거 맨 앞에 붙는다)."""
+    try:
+        from algorithms.alerts import is_stale_marked
+    except Exception:
+        return False
+    ev = row.get("evidence")
+    return bool(is_stale_marked(ev if isinstance(ev, list) else None))
+
+
 def judge_forseti(alerts_today: list[dict] | None, now: dt.datetime) -> dict:
-    rows = alerts_today or []
+    if alerts_today is None:
+        return _system_result("FORSETI", "undetermined", "경보 표를 못 읽음",
+                              scope_ko=_FORSETI_SCOPE, readings={"tiers": {}, "active": 0})
+    rows = alerts_today
     if not rows:
         return _system_result(
             "FORSETI", "undetermined",
@@ -244,7 +275,19 @@ def judge_forseti(alerts_today: list[dict] | None, now: dt.datetime) -> dict:
             f"오늘 활성 경보 없음(내려간 행 {len(rows)}건) — 평온인지 경보 주기 미가동인지 "
             f"이 표만으로 가리지 않는다{phone}",
             scope_ko=_FORSETI_SCOPE, readings=readings)
-    latest = max((t for t in (_parse_iso(r.get("updated_at")) for r in active) if t),
+    # ★ 붙들린 행도 신선도에서 뺀다 (2026-10-19 재검토) ★ 무역 스캔·보도 조회가 실패한 주기에
+    # 그 계열 행은 내리지 않고 지난 값 그대로 화면에 남는다(alerts._held) — upsert 되지 않아
+    # updated_at 이 멈춘다. 활성 행이 전부 이런 행이고 실패가 두 시간을 넘으면, 경보 주기는
+    # 돌았는데 '멎음 의심'을 거짓으로 낸다. 이번 주기에 실제로 다시 저장된 행만 증거로 쓴다.
+    live = [r for r in active if not _is_held(r)]
+    readings["held"] = len(active) - len(live)
+    if not live:
+        return _system_result(
+            "FORSETI", "undetermined",
+            f"활성 경보 {len(active)}건 전부 판정 보류(지난 값 유지) — 이번 주기 갱신 여부를 "
+            f"이 표만으로 가리지 않는다 · {tier_text}{phone}",
+            scope_ko=_FORSETI_SCOPE, readings=readings)
+    latest = max((t for t in (_parse_iso(r.get("updated_at")) for r in live) if t),
                  default=None)
     if latest is None:
         return _system_result("FORSETI", "undetermined", f"경보 표 갱신 시각 없음 · {tier_text}",
@@ -273,7 +316,10 @@ def _unnamed_label() -> str:
 
 
 def judge_skuld(predictions: list[dict] | None, now: dt.datetime) -> dict:
-    preds = predictions or []
+    if predictions is None:
+        return _system_result("SKULD", "undetermined", "예측 원장을 못 읽음",
+                              scope_ko=_SKULD_SCOPE, readings={"total": None})
+    preds = predictions
     if not preds:
         return _system_result("SKULD", "undetermined", "예측 원장 비어 있음",
                               scope_ko=_SKULD_SCOPE, readings={"total": 0})
@@ -317,7 +363,12 @@ def judge_heimdall(record: dict | None, now: dt.datetime) -> dict:
     stale = _record_age_reason(record, now)
     if stale:
         return _system_result("HEIMDALL", "undetermined", stale, scope_ko=_HEIMDALL_SCOPE)
-    gv = record.get("genomic_variants")
+    # 수집기는 이 단계가 예외로 실패하면 키를 남기고 값을 None 으로 둔다(collector.py). 키가
+    # 아예 없으면 실패가 아니라 이 기록으로는 모르는 것이다 — 중단과 판정 안 함을 가른다.
+    if "genomic_variants" not in record:
+        return _system_result("HEIMDALL", "undetermined", "수집 주기 기록에 계통 추적 항목이 없음",
+                              scope_ko=_HEIMDALL_SCOPE)
+    gv = record["genomic_variants"]
     if gv is None:
         return _system_result("HEIMDALL", "down", "계통 추적 단계 실패(수집 주기 기록상 값 없음)",
                               scope_ko=_HEIMDALL_SCOPE)
@@ -356,7 +407,10 @@ def judge_valhalla(record: dict | None, now: dt.datetime,
     stale = _record_age_reason(record, now)
     if stale:
         return _system_result("VALHALLA", "undetermined", stale, scope_ko=_VALHALLA_SCOPE)
-    v = record.get("valhalla")
+    if "valhalla" not in record:
+        return _system_result("VALHALLA", "undetermined", "수집 주기 기록에 발할라 항목이 없음",
+                              scope_ko=_VALHALLA_SCOPE)
+    v = record["valhalla"]
     if not isinstance(v, dict):
         return _system_result("VALHALLA", "down", "발할라 단계 실패(수집 주기 기록상 값 없음)",
                               scope_ko=_VALHALLA_SCOPE)
@@ -403,14 +457,19 @@ def judge_var(unsealed: int | None, scorecard: dict | None, ledger: dict | None,
         "ledger_false_alarms": (ledger or {}).get("false_alarms"),
     }
     seal_text = "미봉인 없음" if unsealed == 0 else f"미봉인 {unsealed}건"
-    body = (f"{seal_text} · 판정 {sc.get('resolved', 0)}건 · 미결 {sc.get('unresolved', 0)}건"
-            f" · 원장 열린 기록 {readings['ledger_open']}")
+    body = f"{seal_text} · 판정 {sc.get('resolved', 0)}건 · 미결 {sc.get('unresolved', 0)}건"
+    # 원장을 못 읽었으면 'None' 을 찍지 않고 그 사실을 적는다.
+    body += (" · 선행성 원장을 못 읽음" if ledger is None
+             else f" · 원장 열린 기록 {readings['ledger_open']}")
     if unsealed > seal_batch:
         # 매시 주기가 한 번에 seal_batch 건씩 봉인한다. 그보다 많이 밀려 있으면 따라잡기가
-        # 한 주기 안에 안 끝나는 상태다.
+        # 한 주기 안에 안 끝나는 상태다. 관측된 문제라 원장 읽기 실패보다 앞에 둔다.
         return _system_result("VAR", "degraded",
                               f"{body} — 매시 {seal_batch}건 봉인보다 많이 밀림",
                               scope_ko=_VAR_SCOPE, readings=readings)
+    if ledger is None:
+        # 상태 범위(scope)의 절반을 못 봤다 — 정상이라 하지 않는다.
+        return _system_result("VAR", "undetermined", body, scope_ko=_VAR_SCOPE, readings=readings)
     return _system_result("VAR", "ok", body, scope_ko=_VAR_SCOPE, readings=readings)
 
 
@@ -422,7 +481,11 @@ def loop_state(scorecard: dict | None, predictions: list[dict] | None,
     gt = ground_truth or {}
     total = sc.get("total", len(preds))
     resolved = sc.get("resolved") or 0
-    if not total:
+    if scorecard is None:
+        # 원장을 못 읽은 것을 '기록된 예측 없음'으로 쓰면 거짓이다(운영엔 36건이 있다).
+        state = "undetermined"
+        text = "판정 안 함 — 예측 원장·채점표를 못 읽음"
+    elif not total:
         state = "empty"
         text = "비어 있음 — 기록된 예측 없음"
     elif resolved > 0:
