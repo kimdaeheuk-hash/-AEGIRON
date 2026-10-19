@@ -9,6 +9,11 @@ const API_BASE =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ??
   'https://epiweather-api-production.up.railway.app';
 
+/** 화면에서 운영 API 원문으로 바로 거는 링크(예: 보고서 마크다운). */
+export function apiUrl(path: string): string {
+  return `${API_BASE}${path}`;
+}
+
 /** 수집이 매시 돈다 — 5분이면 충분히 새롭다. */
 const REVALIDATE_SECONDS = 300;
 
@@ -198,6 +203,12 @@ export type BaikalSnapshot = {
     links: BaikalLoopLink[];
     earliest_due: string | null;
   };
+  /** 주간 추세 예측 루프 — 90일 루프와 따로 센다(2026-10-19). 옛 스냅숏에는 없다. */
+  weekly_loop?: {
+    state: 'measuring' | 'awaiting' | 'empty' | 'undetermined';
+    text: string;
+    card: WeeklyScorecard | null;
+  };
   transitions: BaikalTransition[];
   snapshot_age_minutes: number | null;
   stale: boolean;
@@ -215,4 +226,90 @@ export async function getBaikal(): Promise<BaikalResult | null> {
   }
   if (!Array.isArray(d.systems) || !d.loop) return null;
   return d as unknown as BaikalSnapshot;
+}
+
+// ── 주간 추세 예측 · 대한민국 유입 주간 보고서 (2026-10-19) ─────────
+// 응답 모양은 백엔드 algorithms/weekly_forecast.py · korea_import_report.py 와 같다.
+
+export type WeeklyScorecard = {
+  scored: number;
+  void: number;
+  open: number;
+  min_scored: number;
+  /** 판정 min_scored 건 미만이면 false — 그때 성적은 말하지 않는다. */
+  enough: boolean;
+  brier_coin: number;
+  brier_model: number | null;
+  hits_model: number | null;
+  calls_model: number | null;
+  hits_naive: number | null;
+  calls_naive: number | null;
+};
+
+export type WeeklyForecast = {
+  id: number;
+  series: string;
+  base_year: number;
+  base_week: number;
+  base_value: number;
+  target_year: number;
+  target_week: number;
+  prob_up: number;
+  created_at: string;
+  content_hash?: string | null;
+  ots_submitted_at?: string | null;
+  actual_value?: number | null;
+  /** up / down / void(판정 안 함) / null(미결) */
+  outcome?: 'up' | 'down' | 'void' | null;
+  outcome_note?: string | null;
+};
+
+export type WeeklyForecasts = {
+  method: string;
+  scorecard: WeeklyScorecard;
+  forecasts: WeeklyForecast[];
+};
+
+export async function getWeeklyForecasts(): Promise<WeeklyForecasts | null> {
+  const d = await getJson<WeeklyForecasts>('/api/weekly-forecasts?limit=60');
+  return d?.scorecard && Array.isArray(d.forecasts) ? d : null;
+}
+
+export type ImportRow = {
+  country: string;
+  name: string | null;
+  raw_score: number;
+  dominant_disease: string | null;
+  direct_routes_to_kor: number;
+  exposure_index?: number;
+};
+
+export type KoreaImportReport = {
+  week: string;
+  generated_at: string;
+  summary: { countries_with_signal: number; exposed_countries: number; no_direct_route_high: number; active_alerts: number };
+  top_exposure: ImportRow[];
+  no_direct_route_high: ImportRow[];
+  neighbor_trends: {
+    series: string;
+    base_week: string;
+    base_value: number;
+    target_week: string;
+    prob_up: number;
+    last_scored: { target_week: string; prob_up: number; outcome: string } | null;
+  }[];
+  routes_error: string | null;
+  is_probability: false;
+  available_weeks: string[];
+};
+
+/** 없으면(첫 주 생성 전 404 포함) null — 화면은 '아직 없음/읽지 못함'을 쓴다. */
+export async function getKoreaImportReport(): Promise<KoreaImportReport | null> {
+  const d = await getJson<KoreaImportReport>('/api/korea-import-report');
+  return d?.week && Array.isArray(d.top_exposure) ? d : null;
+}
+
+/** 2026 · 43 → "2026-W43" */
+export function isoWeek(year: number, week: number): string {
+  return `${year}-W${String(week).padStart(2, '0')}`;
 }

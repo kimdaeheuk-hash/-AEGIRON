@@ -4,7 +4,7 @@ import type { PagesDict } from '../types';
  * Contenu français des pages secondaires.
  *
  * ★ Les chiffres ici sont des valeurs mesurées ★
- * 23 sources de collecte opérationnelles · 116 modules algorithmiques (114 moteurs + YGGDRASIL · BAIKAL) · 126 points d’accès · 2 201 tests automatisés (mesuré le 2026-10-19).
+ * 23 sources de collecte opérationnelles · 118 modules algorithmiques (116 moteurs + YGGDRASIL · BAIKAL) · 128 points d’accès · 2 263 tests automatisés (mesuré le 2026-10-19).
  * Aucune estimation n’est présentée comme un fait.
  *
  * ★ RÈGLE ABSOLUE ★ Aucune affirmation de précision ni de délai d’avance.
@@ -26,9 +26,9 @@ export const pagesFr: PagesDict = {
           { label: 'Portée de veille', value: '178 pays · 52 langues de presse locale (179 flux)' },
           { label: 'Sources en direct', value: '23 · collectées automatiquement chaque heure' },
           { label: 'Modèle de propagation', value: '159 pays · 1 671 liaisons aériennes · 314 frontières terrestres' },
-          { label: 'Modules algorithmiques', value: '116 (114 moteurs · ontologie YGGDRASIL · couche d’état BAIKAL MOB)' },
-          { label: 'API publique', value: '126 points d’accès' },
-          { label: 'Contrôle qualité', value: '2 201 tests automatisés — tous doivent passer avant toute mise en production' },
+          { label: 'Modules algorithmiques', value: '118 (116 moteurs · ontologie YGGDRASIL · couche d’état BAIKAL MOB)' },
+          { label: 'API publique', value: '128 points d’accès' },
+          { label: 'Contrôle qualité', value: '2 263 tests automatisés — tous doivent passer avant toute mise en production' },
         ],
         note: 'Mesuré sur le dépôt et les journaux d’exploitation le 2026-10-19.',
       },
@@ -316,12 +316,12 @@ export const pagesFr: PagesDict = {
   },
 
   engines: {
-    metaTitle: 'Catalogue des moteurs — la carte complète des 114 modules',
+    metaTitle: 'Catalogue des moteurs — la carte complète des 116 modules',
     metaDescription:
-      'Les 114 modules algorithmiques d’AEGIRON, regroupés en sept : veille, extraction, jugement, prévision, génomique, contre-mesures et vérification. Ce que fait chaque module, et s’il tourne chaque heure ou à la demande.',
+      'Les 116 modules algorithmiques d’AEGIRON, regroupés en sept : veille, extraction, jugement, prévision, génomique, contre-mesures et vérification. Ce que fait chaque module, et s’il tourne chaque heure ou à la demande.',
     eyebrow: 'ENGINE CATALOGUE',
-    title: '114 modules, sept systèmes',
-    lead: 'AEGIRON n’est pas un grand modèle unique mais 114 modules, chacun faisant une chose bien, imbriqués — car surveiller le monde entier demande autant d’angles. Les modules principaux sont organisés en sept systèmes nommés — HUGINN, MIMIR, FORSETI, SKULD, HEIMDALL, VALHALLA et VAR — la couche moteurs du système phare d’AEGIRON (voir BAIKAL MOB).',
+    title: '116 modules, sept systèmes',
+    lead: 'AEGIRON n’est pas un grand modèle unique mais 116 modules, chacun faisant une chose bien, imbriqués — car surveiller le monde entier demande autant d’angles. Les modules principaux sont organisés en sept systèmes nommés — HUGINN, MIMIR, FORSETI, SKULD, HEIMDALL, VALHALLA et VAR — la couche moteurs du système phare d’AEGIRON (voir BAIKAL MOB).',
     blocks: [
       {
         title: 'HUGINN — Veille — rassembler les signaux, trouver les anomalies',
@@ -374,6 +374,7 @@ export const pagesFr: PagesDict = {
           { title: 'Date d’importation nationale', body: 'Estime les jours jusqu’à une première importation depuis l’origine.', meta: 'global_inflow · origin_catalog' },
           { title: 'Apprentissage nowcast', body: 'Assemble des jeux signal→foyer et évalue de façon prospective.', meta: 'nowcast_dataset · nowcast_eval' },
           { title: 'Graphe de connaissances', body: 'Interprète les signaux par des chaînes de cause à effet.', meta: 'knowledge_graph' },
+          { title: 'Rapport hebdomadaire d’importation', body: 'Anomalie par pays × vols directs vers la Corée, une page par semaine ISO. L’indice d’exposition n’est pas une probabilité.', meta: 'korea_import_report' },
         ],
       },
       {
@@ -407,6 +408,7 @@ export const pagesFr: PagesDict = {
           { title: 'Évaluation automatique des prévisions', body: 'Classe les prévisions face aux déclarations officielles en succès, échec ou attente.', meta: 'prediction_resolver · prediction_scoring' },
           { title: 'Registre d’antériorité', body: 'Fixe le moment où un signal a été vu avant toute déclaration.', meta: 'lead_time_ledger' },
           { title: 'Scellement des prévisions', body: 'Ancre l’empreinte d’une prévision à la chaîne Bitcoin.', meta: 'prediction_timestamp' },
+          { title: 'Prévisions de tendance hebdomadaires', body: 'Scelle et évalue automatiquement les paris hausse/baisse de la semaine suivante sur la surveillance hebdomadaire officielle du Japon, dans un tableau séparé des prévisions à 90 jours.', meta: 'weekly_forecast' },
           { title: 'Santé des sources', body: 'Compte à chaque cycle si une valeur est réellement arrivée.', meta: 'source_health' },
           { title: 'Invariants de qualité', body: 'Attrape un calcul cassé même quand la source vit.', meta: 'quality_health · capability_ledger' },
           { title: 'Préparation au lancement', body: 'Répond à « sommes-nous prêts à lancer » par une mesure, non une opinion.', meta: 'launch_readiness' },
@@ -829,7 +831,7 @@ export const pagesFr: PagesDict = {
         tone: 'indigo',
         body: 'Le système tourne réellement. Les signaux arrivent des sources de données chaque heure, et le tableau de bord en direct est ouvert en ce moment, sans authentification. Nous cherchons un premier partenaire, et nous le disons clairement — l’ouverture et la vérifiabilité sont les forces de ce stade.',
         points: [
-          '116 modules et 126 points d’accès tournent chaque heure, et seul le code qui passe 2 201 tests automatisés est mis en production.',
+          '118 modules et 128 points d’accès tournent chaque heure, et seul le code qui passe 2 263 tests automatisés est mis en production.',
           'Le système, la méthodologie, les données et les limites sont tous ouverts dès le départ, dans un état que la diligence peut vérifier directement.',
           'Chaque prévision est scellée et s’accumule, de sorte qu’un historique vérifiable grandit de lui-même à mesure que l’exploitation continue.',
         ],

@@ -105,9 +105,9 @@ export const en: Dictionary = {
     heroNoLogin: 'Opens immediately — no signup, no login',
 
     stats: [
-      { value: '116', label: 'Algorithm modules', note: '114 engines · 2 for the ontology (YGGDRASIL) and state layer (BAIKAL MOB)' },
-      { value: '126', label: 'API endpoints', note: 'Collection · analysis · simulation · scoring' },
-      { value: '2,201', label: 'Automated tests', note: 'All must pass before anything reaches production' },
+      { value: '118', label: 'Algorithm modules', note: '116 engines · 2 for the ontology (YGGDRASIL) and state layer (BAIKAL MOB)' },
+      { value: '128', label: 'API endpoints', note: 'Collection · analysis · simulation · scoring' },
+      { value: '2,263', label: 'Automated tests', note: 'All must pass before anything reaches production' },
       { value: '179', label: 'Local-language news feeds', note: 'Aggregated by country and language, collected hourly' },
     ],
     statsAsOf: 'Measured 2026-10-19 from the repository and production logs',
@@ -177,7 +177,7 @@ export const en: Dictionary = {
       {
         src: '/media/photos/data-center.jpg',
         alt: 'A data-centre server room',
-        caption: 'A data centre. The hourly computation of 116 modules runs in places like this.',
+        caption: 'A data centre. The hourly computation of 118 modules runs in places like this.',
         credit: 'BalticServers.com · CC BY-SA 3.0',
         sourceUrl: 'https://commons.wikimedia.org/wiki/File:BalticServers_data_center.jpg',
       },
@@ -192,7 +192,7 @@ export const en: Dictionary = {
 
     engineTitle: 'The seven engine systems',
     engineLead:
-      'The {n} core engines out of 114 modules, organised into the seven systems (HUGINN · MIMIR · FORSETI · SKULD · HEIMDALL · VALHALLA · VAR). Each one is labelled with how it actually runs, so that an engine that runs every hour is never presented with the same weight as one that computes only when asked.',
+      'The {n} core engines out of 116 modules, organised into the seven systems (HUGINN · MIMIR · FORSETI · SKULD · HEIMDALL · VALHALLA · VAR). Each one is labelled with how it actually runs, so that an engine that runs every hour is never presented with the same weight as one that computes only when asked.',
     engineModes: {
       hourly: 'Runs hourly',
       daily: 'Runs daily',
@@ -393,7 +393,7 @@ export const en: Dictionary = {
       },
     ],
 
-    engineCatalogueCta: 'See the role of all 114 modules in the engine catalogue',
+    engineCatalogueCta: 'See the role of all 116 modules in the engine catalogue',
 
     diffEyebrow: 'WHAT MAKES US DIFFERENT',
     diffTitle: 'What sets us apart from other early warning',

@@ -5,8 +5,8 @@ import type { PagesDict } from '../types';
  *
  * ★ 여기 적힌 수치는 2026-10-19 실측값이다 ★
  * 운영 수집 소스 23종(소스 건강 점검 기준) · 현지어 뉴스 피드 179개(178개국 · 52개 언어,
- * local_news.LOCAL_FEEDS 의 gl/hl 실측) · 알고리즘 모듈 116개(엔진 114 + YGGDRASIL·BAIKAL) · 엔드포인트 126개 ·
- * 자동 시험 2,201건 · 확산 모델 159개국 / 항공 연결 1,671쌍 / 육로 국경 314개.
+ * local_news.LOCAL_FEEDS 의 gl/hl 실측) · 알고리즘 모듈 118개(엔진 116 + YGGDRASIL·BAIKAL) · 엔드포인트 128개 ·
+ * 자동 시험 2,263건 · 확산 모델 159개국 / 항공 연결 1,671쌍 / 육로 국경 314개.
  * 수치를 바꾸기 전에 다시 센다. 추정치를 사실처럼 쓰지 않는다.
  *
  * ★ 2026-10-18 오후 캡틴 지시 ★ "문장들에서 아이기론이 불리한 부분을 빼라."
@@ -32,9 +32,9 @@ export const pagesKo: PagesDict = {
           { label: '감시 범위', value: '178개국 · 52개 언어 현지 보도 (피드 179개)' },
           { label: '실시간 수집 소스', value: '23종 · 매시간 자동 수집' },
           { label: '확산 모델 범위', value: '159개국 · 항공 연결 1,671쌍 · 육로 국경 314개' },
-          { label: '알고리즘 모듈', value: '116개 (엔진 114 · 온톨로지 YGGDRASIL · 상태변화 BAIKAL MOB)' },
-          { label: '공개 API', value: '엔드포인트 126개' },
-          { label: '품질 관리', value: '자동 시험 2,201건 — 전부 통과 시에만 운영 반영' },
+          { label: '알고리즘 모듈', value: '118개 (엔진 116 · 온톨로지 YGGDRASIL · 상태변화 BAIKAL MOB)' },
+          { label: '공개 API', value: '엔드포인트 128개' },
+          { label: '품질 관리', value: '자동 시험 2,263건 — 전부 통과 시에만 운영 반영' },
         ],
         note: '2026-10-19 저장소·운영 기록 기준 실측값',
       },
@@ -325,12 +325,12 @@ export const pagesKo: PagesDict = {
 
   // ── 엔진 카탈로그 ─────────────────────────────────────────
   engines: {
-    metaTitle: '엔진 카탈로그 — 114개 모듈 전체 지도',
+    metaTitle: '엔진 카탈로그 — 116개 모듈 전체 지도',
     metaDescription:
-      '114개 알고리즘 모듈 — 감시·추출·판정·예측·유전체·대응제·검증 7개 묶음 전수 나열 · 모듈별 기능·가동 주기(매시/요청 시) 병기',
+      '116개 알고리즘 모듈 — 감시·추출·판정·예측·유전체·대응제·검증 7개 묶음 전수 나열 · 모듈별 기능·가동 주기(매시/요청 시) 병기',
     eyebrow: 'ENGINE CATALOGUE',
-    title: '114개 모듈, 7개 시스템',
-    lead: '단일 거대 모델이 아닌 — 각 1개 기능 특화 모듈 114개 결합 시스템 · 전 세계 감시에 필요한 각도의 수 · 핵심 모듈을 7개 시스템(HUGINN 후긴·MIMIR 미미르·FORSETI 포르세티·SKULD 스쿨드·HEIMDALL 헤임달·VALHALLA 발할라·VAR 바르)으로 편성함 · 3층 구조의 기반 계층 — 상세: BAIKAL MOB',
+    title: '116개 모듈, 7개 시스템',
+    lead: '단일 거대 모델이 아닌 — 각 1개 기능 특화 모듈 116개 결합 시스템 · 전 세계 감시에 필요한 각도의 수 · 핵심 모듈을 7개 시스템(HUGINN 후긴·MIMIR 미미르·FORSETI 포르세티·SKULD 스쿨드·HEIMDALL 헤임달·VALHALLA 발할라·VAR 바르)으로 편성함 · 3층 구조의 기반 계층 — 상세: BAIKAL MOB',
     blocks: [
       {
         title: 'HUGINN · 후긴 — 감시 — 신호 수집·이상 탐지',
@@ -383,6 +383,7 @@ export const pagesKo: PagesDict = {
           { title: '국내 유입 시점', body: '발원지 → 국내 첫 유입 일수 추정', meta: 'global_inflow · origin_catalog' },
           { title: '나우캐스트 학습', body: '신호→발병 학습셋 조립·전향적 평가', meta: 'nowcast_dataset · nowcast_eval' },
           { title: '지식 그래프', body: '원인-결과 인과 체인 기반 신호 해석', meta: 'knowledge_graph' },
+          { title: '유입 주간 보고서', body: '국가 이상도 × 한국 직항 연결 → ISO 주마다 한 장 · 노출 지수는 확률 아님', meta: 'korea_import_report' },
         ],
       },
       {
@@ -416,6 +417,7 @@ export const pagesKo: PagesDict = {
           { title: '예측 자동 채점', body: '예측 × 공식 선언 대조 → 적중·실패·보류 구분', meta: 'prediction_resolver · prediction_scoring' },
           { title: '선행성 원장', body: '신호 최초 관측 시각 선언 이전 고정', meta: 'lead_time_ledger' },
           { title: '예측 봉인', body: '예측 해시 비트코인 체인 고정', meta: 'prediction_timestamp' },
+          { title: '주간 추세 예측', body: '일본 공식 주간 표본감시 다음 주 증감 봉인·자동 채점 · 90일 예측과 별도 채점표', meta: 'weekly_forecast' },
           { title: '소스 건강', body: '실제 값 유입 여부 매 주기 집계', meta: 'source_health' },
           { title: '품질 불변식', body: '소스 정상·계산 붕괴 사례 포착', meta: 'quality_health · capability_ledger' },
           { title: '런칭 준비도', body: '"런칭 가능 여부" — 의견 아닌 측정값 응답', meta: 'launch_readiness' },
@@ -844,7 +846,7 @@ export const pagesKo: PagesDict = {
         tone: 'indigo',
         body: '시스템 실가동 중 · 데이터 소스 매시간 신호 유입 · 라이브 대시보드 현재 로그인 없이 개방 · 첫 파트너 탐색 단계 — 비은폐 기재 · 공개·검증 가능성 = 본 단계 강점',
         points: [
-          '116개 모듈·126개 엔드포인트 매시간 가동 · 자동 시험 2,201건 통과 코드만 운영 반영',
+          '118개 모듈·128개 엔드포인트 매시간 가동 · 자동 시험 2,263건 통과 코드만 운영 반영',
           '시스템·방법론·데이터·한계 초기부터 전면 공개 — 실사 직접 검증 가능 상태',
           '전 예측 봉인 축적 — 운영 지속 시 검증 가능 기록 자연 증가',
         ],

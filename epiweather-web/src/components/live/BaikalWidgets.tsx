@@ -225,6 +225,42 @@ export function LoopPanel({ data, labels }: { data: BaikalResult | null; labels:
         ))}
       </div>
       <p style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.7, marginTop: 12 }}>{labels.loopNote}</p>
+      {data.weekly_loop && <WeeklyLoop loop={data.weekly_loop} labels={labels} />}
+    </div>
+  );
+}
+
+/** 주간 추세 예측 루프 — 90일 루프와 따로. 판정 min_scored 건 전에는 성적을 말하지 않는다. */
+function WeeklyLoop({ loop, labels }: { loop: NonNullable<BaikalSnapshot['weekly_loop']>; labels: BaikalDict }) {
+  const c = loop.card;
+  const F = labels.weeklyFields;
+  const fields: [string, string][] = c
+    ? [[F.scored, String(c.scored)], [F.open, String(c.open)], [F.void, String(c.void)]]
+    : [];
+  if (c?.enough) {
+    fields.push([F.brier, `${c.brier_model ?? '—'} (${F.coin} ${c.brier_coin})`]);
+    fields.push([F.hits, `${c.hits_model ?? '—'}/${c.calls_model ?? '—'}`]);
+  }
+  return (
+    <div style={{ marginTop: 22, border: '1px solid var(--line2)', borderRadius: 12, padding: '14px 16px', background: 'var(--panel)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <strong style={{ fontSize: 14 }}>{labels.weeklyTitle}</strong>
+        <StatusBadge status={loop.state === 'measuring' ? 'ok' : 'undetermined'} label={labels.loopStates[loop.state] ?? loop.state} />
+      </div>
+      {fields.length > 0 && (
+        <dl style={{ margin: '10px 0 0', display: 'flex', flexWrap: 'wrap', gap: '4px 18px', fontSize: 13 }}>
+          {fields.map(([k, v]) => (
+            <div key={k} style={{ display: 'flex', gap: 6 }}>
+              <dt style={{ color: 'var(--muted)' }}>{k}</dt>
+              <dd style={{ margin: 0, fontFamily: 'var(--mono)', fontWeight: 700 }}>{v}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {c && !c.enough && (
+        <p style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 8 }}>{labels.weeklyNotEnough.replace('{min}', String(c.min_scored))}</p>
+      )}
+      <p style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.7, marginTop: 8 }}>{labels.weeklyNote}</p>
     </div>
   );
 }
@@ -254,7 +290,7 @@ export function TransitionList({
             <tr key={t.id} style={{ borderTop: '1px solid var(--line)' }}>
               <td style={{ padding: '9px 10px 9px 0', fontFamily: 'var(--mono)', fontSize: 11.5, color: 'var(--muted2)', whiteSpace: 'nowrap', verticalAlign: 'top' }}>{fmtTime(t.observed_at)}</td>
               <td style={{ padding: '9px 10px', fontFamily: 'var(--mono)', fontWeight: 700, whiteSpace: 'nowrap', verticalAlign: 'top' }}>
-                {meta[t.subject] ? systemTitle(meta[t.subject]) : t.subject === 'LOOP' ? labels.loopSubject : t.subject}
+                {meta[t.subject] ? systemTitle(meta[t.subject]) : t.subject === 'LOOP' ? labels.loopSubject : t.subject === 'LOOP_WEEKLY' ? labels.weeklySubject : t.subject}
               </td>
               <td style={{ padding: '9px 10px', whiteSpace: 'nowrap', verticalAlign: 'top' }}>
                 {transitionLabel(t.from_status, labels)} → <strong>{transitionLabel(t.to_status, labels)}</strong>

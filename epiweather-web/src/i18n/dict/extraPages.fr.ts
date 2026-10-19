@@ -115,7 +115,7 @@ export const extraPagesFr: ExtraDict['pages'] = {
         kicker: 'ACCESS CONTROL',
         tone: 'indigo',
         specs: [
-          { label: 'API au total', value: '126 points d’accès' },
+          { label: 'API au total', value: '128 points d’accès' },
           { label: 'Authentification requise', value: '37 — fonctions modifiant l’état, coûteuses ou à haut risque' },
           { label: 'Méthode', value: 'En-tête X-API-Key · plusieurs clés étiquetées · comparaison à temps constant' },
           { label: 'Sans clé configurée', value: 'Toutes les API d’écriture désactivées — jamais laissées ouvertes' },
@@ -184,7 +184,7 @@ export const extraPagesFr: ExtraDict['pages'] = {
         title: 'Présentation',
         kicker: 'BOILERPLATE',
         tone: 'indigo',
-        body: 'AEGIRON vise à saisir le signal avant qu’une épidémie ne devienne une actualité internationale. Avec 23 sources de données et 116 modules algorithmiques, il juge les anomalies par pays et, dès qu’une alerte est émise, calcule en parallèle une simulation de propagation sur 159 pays et des scénarios d’intervention. Chaque prévision est scellée sur la blockchain à sa création et évaluée automatiquement face aux déclarations officielles ultérieures ; le système, la méthodologie, les données et les limites sont ouverts dès le départ. Deux programmes de R&D — criblage génomique défensif (HEIMDALL) et préparation en contre-mesures (VALHALLA) — portent l’axe de biosécurité nationale.',
+        body: 'AEGIRON vise à saisir le signal avant qu’une épidémie ne devienne une actualité internationale. Avec 23 sources de données et 118 modules algorithmiques, il juge les anomalies par pays et, dès qu’une alerte est émise, calcule en parallèle une simulation de propagation sur 159 pays et des scénarios d’intervention. Chaque prévision est scellée sur la blockchain à sa création et évaluée automatiquement face aux déclarations officielles ultérieures ; le système, la méthodologie, les données et les limites sont ouverts dès le départ. Deux programmes de R&D — criblage génomique défensif (HEIMDALL) et préparation en contre-mesures (VALHALLA) — portent l’axe de biosécurité nationale.',
       },
       {
         title: 'Faits clés',
@@ -194,8 +194,8 @@ export const extraPagesFr: ExtraDict['pages'] = {
           { label: 'Siège', value: 'Busan, Corée du Sud' },
           { label: 'Portée de veille', value: '178 pays · 52 langues de presse locale' },
           { label: 'Sources de données', value: '23 · collectées chaque heure' },
-          { label: 'Modules algorithmiques', value: '116' },
-          { label: 'API publique', value: '126 points d’accès' },
+          { label: 'Modules algorithmiques', value: '118' },
+          { label: 'API publique', value: '128 points d’accès' },
           { label: 'Ce qui est ouvert', value: 'Système · méthodologie · sources · limites · registre des prévisions' },
         ],
         note: 'Mesuré au 2026-10-19. Merci de citer avec la date.',
@@ -271,7 +271,7 @@ export const extraPagesFr: ExtraDict['pages'] = {
 
   developers: {
     metaTitle: 'Développeurs · API',
-    metaDescription: 'L’API REST d’AEGIRON — 126 points d’accès, réponses JSON, authentification X-API-Key et documentation OpenAPI. Guide d’intégration aux systèmes institutionnels.',
+    metaDescription: 'L’API REST d’AEGIRON — 128 points d’accès, réponses JSON, authentification X-API-Key et documentation OpenAPI. Guide d’intégration aux systèmes institutionnels.',
     eyebrow: 'DEVELOPERS',
     title: 'Développeurs · API',
     lead: 'Chaque valeur affichée par le tableau de bord provient de la même API REST. Vous pouvez intégrer alertes, indices de risque et briefings directement dans un système institutionnel.',

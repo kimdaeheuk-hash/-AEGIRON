@@ -107,9 +107,9 @@ export const fr: Dictionary = {
     heroNoLogin: 'Accès immédiat — sans inscription ni connexion',
 
     stats: [
-      { value: '116', label: 'Modules algorithmiques', note: '114 moteurs · 2 pour l’ontologie (YGGDRASIL) et la couche d’état (BAIKAL MOB)' },
-      { value: '126', label: 'Points d’accès API', note: 'Collecte · analyse · simulation · évaluation' },
-      { value: '2 201', label: 'Tests automatisés', note: 'Tous doivent réussir avant toute mise en production' },
+      { value: '118', label: 'Modules algorithmiques', note: '116 moteurs · 2 pour l’ontologie (YGGDRASIL) et la couche d’état (BAIKAL MOB)' },
+      { value: '128', label: 'Points d’accès API', note: 'Collecte · analyse · simulation · évaluation' },
+      { value: '2 263', label: 'Tests automatisés', note: 'Tous doivent réussir avant toute mise en production' },
       { value: '179', label: 'Flux d’actualité en langue locale', note: 'Agrégés par pays et par langue, collectés toutes les heures' },
     ],
     statsAsOf: 'Mesuré le 2026-10-19 à partir du dépôt et des journaux de production',
@@ -179,7 +179,7 @@ export const fr: Dictionary = {
       {
         src: '/media/photos/data-center.jpg',
         alt: 'Salle de serveurs d’un centre de données',
-        caption: 'Un centre de données. Le calcul horaire des 116 modules s’exécute dans de tels lieux.',
+        caption: 'Un centre de données. Le calcul horaire des 118 modules s’exécute dans de tels lieux.',
         credit: 'BalticServers.com · CC BY-SA 3.0',
         sourceUrl: 'https://commons.wikimedia.org/wiki/File:BalticServers_data_center.jpg',
       },
@@ -194,7 +194,7 @@ export const fr: Dictionary = {
 
     engineTitle: 'Les sept systèmes moteurs',
     engineLead:
-      'Les {n} moteurs essentiels parmi les 114 modules, organisés en sept systèmes (HUGINN · MIMIR · FORSETI · SKULD · HEIMDALL · VALHALLA · VAR). Chacun indique son mode de fonctionnement réel, afin qu’un moteur exécuté toutes les heures ne soit jamais présenté avec le même poids qu’un moteur qui ne calcule qu’à la demande.',
+      'Les {n} moteurs essentiels parmi les 116 modules, organisés en sept systèmes (HUGINN · MIMIR · FORSETI · SKULD · HEIMDALL · VALHALLA · VAR). Chacun indique son mode de fonctionnement réel, afin qu’un moteur exécuté toutes les heures ne soit jamais présenté avec le même poids qu’un moteur qui ne calcule qu’à la demande.',
     engineModes: {
       hourly: 'Toutes les heures',
       daily: 'Quotidien',
@@ -395,7 +395,7 @@ export const fr: Dictionary = {
       },
     ],
 
-    engineCatalogueCta: 'Voir le rôle des 114 modules dans le catalogue des moteurs',
+    engineCatalogueCta: 'Voir le rôle des 116 modules dans le catalogue des moteurs',
 
     diffEyebrow: 'WHAT MAKES US DIFFERENT',
     diffTitle: 'Ce qui nous distingue des autres systèmes d’alerte',

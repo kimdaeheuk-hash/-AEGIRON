@@ -144,6 +144,12 @@ export type BaikalDict = {
   loopLinks: { ground_truth: string; predictions: string; scoring: string };
   loopFields: { live: string; other: string; total: string; named: string; resolved: string; unresolved: string; earliestDue: string };
   loopNote: string;
+  /** 주간 추세 예측 루프 — 90일 루프와 따로 (2026-10-19). */
+  weeklySubject: string;
+  weeklyTitle: string;
+  weeklyFields: { scored: string; open: string; void: string; brier: string; coin: string; hits: string };
+  weeklyNotEnough: string;
+  weeklyNote: string;
   transitionsTitle: string;
   transitionsLead: string;
   transitionsEmpty: string;
@@ -334,6 +340,50 @@ export type ExtraDict = {
     anatomyFields: { level: string; score: string; source: string; country: string; disease: string; reason: string; time: string };
     anatomyEmpty: string;
     empty: string;
+    /** 주간 추세 예측 채점표 — 90일 예측과 따로 (2026-10-19). */
+    weekly: {
+      title: string;
+      lead: string;
+      labels: { scored: string; open: string; void: string; brierModel: string; brierCoin: string; hitsModel: string; hitsNaive: string };
+      notEnough: string;
+      note: string;
+      series: Record<string, string>;
+      listTitle: string;
+      base: string;
+      target: string;
+      probUp: string;
+      statusUp: string;
+      statusDown: string;
+      statusVoid: string;
+      statusOpen: string;
+      sealed: string;
+      empty: string;
+    };
+    /** 대한민국 해외 유입 위험 주간 보고서 (2026-10-19). */
+    importReport: {
+      title: string;
+      lead: string;
+      week: string;
+      generated: string;
+      summary: { signal: string; exposed: string; noRoute: string; alerts: string };
+      topTitle: string;
+      topEmpty: string;
+      colCountry: string;
+      colScore: string;
+      colDisease: string;
+      colRoutes: string;
+      colIndex: string;
+      noRouteTitle: string;
+      noRouteEmpty: string;
+      trendsTitle: string;
+      lastScored: string;
+      caveats: string[];
+      routesError: string;
+      markdown: string;
+      notYet: string;
+      originalNote: string;
+      noDisease: string;
+    };
   };
   apiTags: Record<string, string>;
   api: { colMethod: string; colPath: string; colAuth: string; authYes: string; authNo: string; tableTitle: string; tableLead: string };
