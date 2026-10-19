@@ -903,8 +903,15 @@ def collect_free_sources() -> dict:
         from algorithms.wahis import get_animal_signal
         result["wahis"] = get_animal_signal()
         w = result["wahis"]
-        log(f"  WAHIS 동물신호: 30일 발병 {w['outbreaks_30d']}건, "
-            f"감시질병 활성 {w['watch_hits']}종, WOAH RSS {w['woah_rss_items']}건")
+        rss = w["woah_rss_items"]
+        rss_text = f"WOAH RSS {rss}건" if rss is not None else "WOAH RSS 못 읽음"
+        if w["outbreaks_30d"] is None:
+            # 못 읽은 것을 '30일 발병 0건'으로 찍지 않는다 — 사유와 키 유무를 남긴다.
+            log(f"  ⚠ WAHIS API 못 읽음({w.get('api_reason')}, 키 "
+                f"{'있음' if w.get('has_api_key') else '없음'}) — 발병 건수 판정 안 함 · {rss_text}")
+        else:
+            log(f"  WAHIS 동물신호: 30일 발병 {w['outbreaks_30d']}건, "
+                f"감시질병 활성 {w['watch_hits']}종, {rss_text}")
     except Exception as e:
         result["wahis"] = None
         log_error("WAHIS", e)
