@@ -476,7 +476,7 @@ export const pagesFr: PagesDict = {
       },
     ],
     cta: {
-      title: 'La base mesurée des moteurs profonds',
+      title: 'Ce que mesurent réellement les moteurs de génomique et de propagation',
       body: 'Les mesures par taxon de la couche génomique et les limites de réseau de la simulation sont exposées dans Technologie II.',
       label: 'Voir Technologie II',
       href: 'technology-advanced',

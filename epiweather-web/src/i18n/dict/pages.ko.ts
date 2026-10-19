@@ -486,8 +486,8 @@ export const pagesKo: PagesDict = {
       },
     ],
     cta: {
-      title: '깊은 엔진 실측 근거',
-      body: '유전체 계층 분류군별 실측·시뮬레이션 네트워크 한계 — 기술 스펙 Ⅱ 정리',
+      title: '유전체·확산 엔진의 실측 근거',
+      body: '유전체 판독의 분류군별 실측 결과와 확산 시뮬레이션 네트워크의 한계 — 기술 스펙 Ⅱ에 정리함',
       label: '기술 스펙 Ⅱ 보기',
       href: 'technology-advanced',
     },
