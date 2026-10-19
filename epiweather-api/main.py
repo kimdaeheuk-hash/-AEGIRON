@@ -2056,6 +2056,23 @@ def weekly_forecasts(limit: int = 200):
     }
 
 
+@app.get("/api/korea-import-report", tags=["보고서"])
+def korea_import_report(week: Optional[str] = None, format: str = "json"):
+    """대한민국 해외 유입 위험 주간 보고서 — ISO 주마다 1건(예: 2026-W43). week 를
+    비우면 가장 최근 보고서. format=md 면 기관에 그대로 붙일 한 장짜리 마크다운.
+
+    유입 노출 지수는 확률이 아니다(이상도 × 한국 직항 노선 수 로그 정규화).
+    노선 수는 OpenFlights 2014 기준 노선 개수 — 승객 수가 아니다."""
+    from fastapi.responses import PlainTextResponse
+    from algorithms.korea_import_report import get_report, list_weeks, to_markdown
+    rep = get_report(week)
+    if rep is None:
+        raise HTTPException(status_code=404, detail="해당 주 보고서 없음 — 매주 첫 수집 주기에 생성됨")
+    if format == "md":
+        return PlainTextResponse(to_markdown(rep), media_type="text/markdown; charset=utf-8")
+    return {**rep, "available_weeks": list_weeks()}
+
+
 @app.get("/api/predictions/scorecard", tags=["예측 검증"])
 def prediction_scorecard(country: Optional[str] = None):
     """예측 채점표 — 적중률·Brier·보정(calibration).

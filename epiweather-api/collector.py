@@ -1196,6 +1196,18 @@ def collect_free_sources() -> dict:
     except Exception as e:
         log_error("WeeklyForecast", e)
 
+    # ── 대한민국 해외 유입 위험 주간 보고서 (2026-10-19 편입, 캡틴 승인 ③) ──────
+    # ISO 주마다 한 번 만든다. 이미 있으면 아무것도 하지 않는다(로그도 남기지 않는다).
+    try:
+        from algorithms.korea_import_report import generate_if_due, report_line
+        import db
+        db.init_db()
+        weekly_report = generate_if_due()
+        if weekly_report is not None:
+            log(f"  {report_line(weekly_report)}")
+    except Exception as e:
+        log_error("KoreaImportReport", e)
+
     # 소스별 헬스 기록(㉔) — result의 각 키가 None이면 이번 주기 수집 실패로
     # 판정. 주기당 소스별 정확히 1회만 기록해 "어느 소스가 며칠째 죽었는지"를
     # /api/status에서 눈에 보이게 한다(조용한 실패 제거).

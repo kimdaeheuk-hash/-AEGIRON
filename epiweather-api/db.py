@@ -215,6 +215,14 @@ CREATE TABLE IF NOT EXISTS weekly_forecasts (
     UNIQUE (series, target_year, target_week)
 );
 
+-- 대한민국 해외 유입 위험 주간 보고서 (2026-10-19). ISO 주마다 1건, 지우지 않는다.
+-- 계산은 algorithms/korea_import_report.py.
+CREATE TABLE IF NOT EXISTS weekly_reports (
+    week          TEXT PRIMARY KEY,      -- 2026-W43
+    generated_at  TEXT NOT NULL,
+    payload       TEXT NOT NULL          -- JSON — build_report() 결과 전체
+);
+
 CREATE TABLE IF NOT EXISTS weekly_sync (
     source     TEXT PRIMARY KEY,         -- japan_idwr
     synced_at  TEXT NOT NULL             -- 지난 주 게시분 동기화를 마지막으로 시도한 시각
