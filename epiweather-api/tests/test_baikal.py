@@ -527,3 +527,120 @@ def test_api_ontology_plain_and_jsonld(client):
     assert plain["isolated_systems"] == ["VALHALLA"]
     ld = client.get("/api/yggdrasil?format=jsonld").json()
     assert "@context" in ld and "@graph" in ld
+
+
+# ── 2026-10-19 재검토(캡틴 "다시 검토해봐 — 오류가 있는지")에서 찾은 것 ──────────
+
+def test_forseti_held_rows_only_are_not_a_stopped_cycle():
+    """★ 붙들린 행만 남은 날 ★ 무역 스캔·보도 조회가 실패한 주기에 그 계열 행은 내리지 않고
+    지난 값 그대로 화면에 남는다(alerts._held, suppressed=0) — upsert 되지 않아 updated_at 이
+    멈춘다. 활성 행이 전부 이런 행이고 실패가 두 시간을 넘으면, 경보 주기는 돌았는데
+    '멎음 의심'(중단)을 거짓으로 냈다. 옛 판정이 중단이었다는 사실까지 고정한다."""
+    from algorithms.alerts import stale_marker
+    held = [{"tier": "medium", "score": 78.0, "label": "BLZ (2 품목)", "suppressed": 0,
+             "updated_at": "2026-10-18T20:00:00+00:00", "notified_rank": None,
+             "evidence": [stale_marker("2026-10-18T20:00:00+00:00"), "근거"]}]
+    res = baikal.judge_forseti(held, NOW)
+    assert res["status"] == "undetermined", res
+    assert "전부 판정 보류" in res["reason"]
+    assert res["readings"]["held"] == 1
+    # 옛 판정(활성 행 전체의 최신 시각): 5시간 → 중단이었다.
+    assert (NOW - dt.datetime.fromisoformat(held[0]["updated_at"])).total_seconds() / 3600 \
+        >= baikal.ALERT_TABLE_STALE_HOURS
+
+
+def test_forseti_one_freshly_saved_row_is_enough_evidence():
+    from algorithms.alerts import stale_marker
+    rows = [
+        {"tier": "medium", "score": 78.0, "label": "BLZ", "suppressed": 0,
+         "updated_at": "2026-10-18T20:00:00+00:00", "notified_rank": None,
+         "evidence": [stale_marker("2026-10-18T20:00:00+00:00")]},
+        {"tier": "medium", "score": 79.0, "label": "NWSS", "suppressed": 0,
+         "updated_at": "2026-10-19T00:02:09+00:00", "notified_rank": None, "evidence": ["근거"]},
+    ]
+    res = baikal.judge_forseti(rows, NOW)
+    assert res["status"] == "ok" and res["readings"]["held"] == 1
+    assert res["readings"]["tiers"] == {"medium": 2}, "붙들린 행도 화면에 있으니 건수에는 든다"
+
+
+def test_read_failure_is_never_reported_as_empty():
+    """'못 읽음'과 '비어 있음'은 다른 사실이다(honesty-review 3번). 옛 문구는 예측 원장을
+    못 읽었을 때 '기록된 예측 없음'이라고 말했다 — 운영에는 36건이 있다."""
+    cases = {
+        "HUGINN": baikal.judge_huginn(None, None),
+        "MIMIR": baikal.judge_mimir(None, None),
+        "FORSETI": baikal.judge_forseti(None, NOW),
+        "SKULD": baikal.judge_skuld(None, NOW),
+    }
+    for key, res in cases.items():
+        assert res["status"] == "undetermined", key
+        assert "못 읽음" in res["reason"], (key, res["reason"])
+        assert "비어 있음" not in res["reason"] and "기록 없음" not in res["reason"], key
+    # 비어 있는 것은 여전히 비어 있다고 말한다.
+    assert "비어 있음" in baikal.judge_forseti([], NOW)["reason"]
+    assert "비어 있음" in baikal.judge_skuld([], NOW)["reason"]
+
+    loop = baikal.loop_state(None, None, None, NOW.date())
+    assert loop["state"] == "undetermined"
+    assert "기록된 예측 없음" not in loop["text"] and "못 읽음" in loop["text"]
+    assert baikal.loop_state({"total": 0}, [], None, NOW.date())["state"] == "empty"
+
+
+def test_unreadable_predictions_end_to_end(isolated_db, monkeypatch):
+    from algorithms import baikal as b
+
+    def boom():
+        raise RuntimeError("locked")
+    monkeypatch.setattr(isolated_db, "list_predictions", boom)
+    monkeypatch.setattr(b, "_latest_cycle_record", lambda: None)
+    r = b.observe(NOW)
+    by = {s["key"]: s for s in r["systems"]}
+    assert by["SKULD"]["reason"] == "예측 원장을 못 읽음"
+    assert r["loop"]["state"] == "undetermined"
+    assert r["read_errors"]["predictions"] == "RuntimeError"
+
+
+def test_var_unreadable_ledger_never_prints_none():
+    i = _inputs()
+    res = baikal.judge_var(0, i["scorecard"], None)
+    assert res["status"] == "undetermined"
+    assert "None" not in res["reason"] and "선행성 원장을 못 읽음" in res["reason"]
+    # 관측된 봉인 밀림은 원장 읽기 실패에 가려지지 않는다.
+    backlog = baikal.judge_var(25, i["scorecard"], None)
+    assert backlog["status"] == "degraded" and "None" not in backlog["reason"]
+
+
+def test_missing_stage_key_is_undetermined_but_explicit_none_is_down():
+    """수집기는 단계가 예외로 실패하면 키를 남기고 값을 None 으로 둔다 — 그건 중단이다.
+    키가 아예 없는 기록은 실패가 아니라 모르는 것이다."""
+    rec = {"type": "free_sources", "timestamp": "2026-10-19T00:01:00"}
+    assert baikal.judge_heimdall(rec, NOW)["status"] == "undetermined"
+    assert baikal.judge_valhalla(rec, NOW)["status"] == "undetermined"
+    assert baikal.judge_heimdall({**rec, "genomic_variants": None}, NOW)["status"] == "down"
+    assert baikal.judge_valhalla({**rec, "valhalla": None}, NOW)["status"] == "down"
+
+
+def test_api_flags_a_stale_snapshot_instead_of_serving_it_as_now(client):
+    """스케줄러가 멈추면 BAIKAL 도 멈추는데 API 는 마지막 스냅숏을 계속 준다. 몇 시간 전의
+    '정상'이 지금처럼 읽히지 않게 요청 시점에 나이를 잰다."""
+    old = dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=10)
+    baikal.run_cycle(old, _inputs())
+    body = client.get("/api/baikal").json()
+    assert body["stale"] is True
+    assert body["snapshot_age_minutes"] >= 590
+    assert "지금 상태로 읽지 않는다" in body["stale_note"]
+
+
+def test_api_fresh_snapshot_is_not_stale(client):
+    baikal.run_cycle(dt.datetime.now(dt.timezone.utc), _inputs())
+    body = client.get("/api/baikal").json()
+    assert body["stale"] is False and body["stale_note"] is None
+    assert body["snapshot_age_minutes"] <= 1
+
+
+def test_ontology_names_only_engines_that_exist():
+    """없는 엔진을 이름만 걸어 두면 그것도 지어낸 것이다 — 모듈이 사라지거나 이름이 바뀌면 깨진다."""
+    for s in yggdrasil.SYSTEMS:
+        for name in s["engines"] + s["on_request"]:
+            mod = name.split(".")[0]
+            assert (ROOT / "algorithms" / f"{mod}.py").exists(), f"{s['key']}: {name} 모듈이 없다"

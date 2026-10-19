@@ -2808,7 +2808,20 @@ def baikal_current(transitions: int = 50):
         return {"available": False,
                 "reason": "아직 첫 매시 관측 전 — 다음 수집 주기 뒤에 채워진다",
                 "transitions": trans}
-    return {"available": True, **latest["payload"], "transitions": trans}
+    # ★ 스냅숏이 낡았으면 그렇다고 말한다 ★ 스케줄러가 멈추면 BAIKAL 도 같이 멈추는데, 이
+    # 응답은 마지막 스냅숏을 계속 돌려준다. 몇 시간 전의 '정상'이 지금처럼 읽히지 않게 요청
+    # 시점에 나이를 재서 싣는다(매시 주기를 두 번 놓치면 낡음).
+    from algorithms.baikal import SNAPSHOT_STALE_MINUTES, snapshot_age_minutes
+    age = snapshot_age_minutes(latest["observed_at"])
+    stale = age is None or age > SNAPSHOT_STALE_MINUTES
+    return {
+        "available": True, **latest["payload"], "transitions": trans,
+        "snapshot_age_minutes": age,
+        "stale": stale,
+        "stale_note": (f"마지막 관측이 {age}분 전 — 매시 주기가 멈췄을 수 있어 지금 상태로 읽지 않는다"
+                       if stale and age is not None else
+                       "관측 시각을 못 읽음 — 지금 상태로 읽지 않는다" if stale else None),
+    }
 
 
 @app.get("/api/baikal/history", tags=["BAIKAL"])
