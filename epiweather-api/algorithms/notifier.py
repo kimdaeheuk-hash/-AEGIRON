@@ -253,27 +253,47 @@ def notify_source_degradation(failing_sources: list[str]) -> bool:
 
 def format_source_health_message(pending: dict) -> str:
     """죽은 소스는 '며칠째 몇 시간째'까지 적는다 — 한 줄짜리 '장애 감지'는
-    이틀 뒤에 다시 봐도 그게 아직 진행 중인지 알 수가 없었다."""
+    이틀 뒤에 다시 봐도 그게 아직 진행 중인지 알 수가 없었다.
+
+    ★ 상태마다 다르게 말한다 (2026-10-19) ★ 예전엔 간헐 성공(flaky)도 '중단 · N시간째
+    데이터 없음'으로 적었다 — 한 시간 전에 성공한 소스를 '중단'이라고 폰에 보냈다."""
     lines: list[str] = []
     degraded = pending.get("degraded") or []
     recovered = pending.get("recovered") or []
+    recovering = set(pending.get("recovering") or [])
+
+    def _age(stale):
+        if stale is None:
+            return "마지막 성공 기록 없음"
+        if stale >= 24:
+            return f"{stale / 24:.1f}일째"
+        return f"{stale:.0f}시간째"
+
     if degraded:
-        lines.append(f"⚠️ <b>아이기론 데이터 소스 {len(degraded)}개 중단</b>")
+        lines.append(f"⚠️ <b>아이기론 데이터 소스 {len(degraded)}개 이상</b>")
         for d in degraded:
-            stale = d.get("staleness_hours")
-            if stale is None:
-                age = "마지막 성공 기록 없음"
-            elif stale >= 24:
-                age = f"{stale / 24:.1f}일째 데이터 없음"
+            st, stale = d.get("status"), d.get("staleness_hours")
+            if st == "flaky":
+                rate = d.get("recent_success_rate")
+                rate_s = f"{rate:.0%}" if rate is not None else "측정 불가"
+                last = ("마지막 성공 기록 없음" if stale is None
+                        else f"마지막 성공 {_age(stale).removesuffix('째')} 전")
+                lines.append(f"🟡 {d['source']} — 간헐 성공: 최근 {d.get('window') or '?'}주기 "
+                             f"성공률 {rate_s} ({last})")
+            elif st == "no_data":
+                lines.append(f"⚪ {d['source']} — {_age(stale)} 값 없음(수집은 돌지만 값이 안 옴)")
+            elif st == "stale":
+                lines.append(f"🟠 {d['source']} — {_age(stale)} 새 데이터 없음")
             else:
-                age = f"{stale:.0f}시간째 데이터 없음"
-            fails = d.get("consecutive_failures") or 0
-            lines.append(f"🔴 {d['source']} — {age} (연속 실패 {fails}회)")
-        lines.append("\n<i>이 소스가 담당하는 지역·질병은 지금 '조용한 게 아니라 안 보이는' 상태입니다.</i>")
+                fails = d.get("consecutive_failures") or 0
+                lines.append(f"🔴 {d['source']} — 중단 · {_age(stale)} 데이터 없음 (연속 실패 {fails}회)")
+        lines.append("\n<i>값이 오지 않은 주기에 이 소스가 담당하는 지역·질병은 '조용한 게 아니라 안 보이는' 상태입니다.</i>")
     if recovered:
         if lines:
             lines.append("")
-        lines.append(f"✅ <b>복구됨</b>: {', '.join(recovered)}")
+        names = [f"{r} (회복 중 — 최근 연속 성공, 지켜보는 중)" if r in recovering else r
+                 for r in recovered]
+        lines.append(f"✅ <b>복구됨</b>: {', '.join(names)}")
     return "\n".join(lines)
 
 

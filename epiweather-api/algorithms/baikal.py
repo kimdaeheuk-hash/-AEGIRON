@@ -65,7 +65,7 @@ SNAPSHOT_STALE_MINUTES = 130
 
 _SOURCE_STATUS_KO = {
     "failing": "중단", "flaky": "간헐 성공", "stale": "늙는중",
-    "no_data": "값없음", "unknown": "판정불가",
+    "no_data": "값없음", "unknown": "판정불가", "recovering": "회복 중",
 }
 # 소스 건강이 '문제'로 보는 상태. no_data 는 넣지 않는다 — 위키처럼 정상 지연이 잦은
 # 소스를 매 주기 저하로 올리면 경보 피로가 된다(source_health._status_for 의 같은 판단).
@@ -158,7 +158,7 @@ def judge_huginn(health: dict | None, quality: dict | None) -> dict:
         st = s.get("status")
         if st in _SOURCE_PROBLEM:
             problems.append(f"{_SOURCE_STATUS_KO[st]} {s.get('source')}")
-        elif st in ("no_data", "unknown"):
+        elif st in ("no_data", "unknown", "recovering"):
             notes.append(f"{_SOURCE_STATUS_KO[st]} {s.get('source')}")
     for x in health.get("long_no_data_sources") or []:
         problems.append(f"장기 값없음 {x.get('source')}")

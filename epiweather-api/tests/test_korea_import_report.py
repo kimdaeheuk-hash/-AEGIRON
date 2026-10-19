@@ -170,3 +170,44 @@ def test_korean_name_uses_canonical_first_spelling():
     assert korean_name("TUR") == "튀르키예"           # '터키' 가 아니라 표준형
     assert korean_name("COD") == "콩고민주공화국"
     assert korean_name("ZZZ") is None and korean_name(None) is None
+
+
+# ── 텔레그램 발송 (2026-10-19 — 만들어만 두고 받는 사람이 없던 결과물) ─────────
+
+def test_telegram_text_summarises_with_caveat_and_link():
+    rep = _build([_c("PHL", 90, disease="뎅기열"), _c("COD", 85), _c("XXA", 80, name="<b>A&B</b>")],
+                 routes={**ROUTES, ("KOR", "XXA"): 5})
+    text = kr.telegram_text(rep, site_url="https://example.test/")
+    assert text.startswith("🇰🇷 <b>대한민국 해외 유입 위험 주간 보고서 2026-W43</b>")
+    assert "노출 상위: 필리핀 62.8" in text
+    assert "직항 없는 고이상도: 콩고민주공화국" in text
+    assert "확률이 아님" in text and "https://example.test/ko/record" in text
+    assert "<b>A&B</b>" not in text and "&lt;b&gt;A&amp;B&lt;/b&gt;" in text, "값은 이스케이프"
+
+
+def test_notify_states(monkeypatch):
+    from algorithms import notifier
+    rep = _build([_c("JPN", 50)])
+    sent = []
+    monkeypatch.setattr(notifier, "telegram_configured", lambda: True)
+    monkeypatch.setattr(notifier, "send_telegram_message", lambda t: sent.append(t) or True)
+    assert kr.notify_new_report(rep) == "전송됨" and len(sent) == 1
+    monkeypatch.setattr(notifier, "send_telegram_message", lambda t: False)
+    assert kr.notify_new_report(rep).startswith("전송 실패(재시도 없음")
+    monkeypatch.setenv("EPIWEATHER_WEEKLY_REPORT_NOTIFY", "off")
+    assert kr.notify_new_report(rep) == "꺼 둠"
+    monkeypatch.delenv("EPIWEATHER_WEEKLY_REPORT_NOTIFY")
+    monkeypatch.setattr(notifier, "telegram_configured", lambda: False)
+    assert kr.notify_new_report(rep) == "채널 미설정"
+
+
+def test_collector_sends_only_when_a_new_report_was_made():
+    """generate_if_due 가 None(이번 주 이미 있음)이면 보내지 않는다 — 같은 if 블록 안에 있어야 한다."""
+    tree = ast.parse(COLLECTOR_PY.read_text(encoding="utf-8"))
+    fn = next(n for n in ast.walk(tree)
+              if isinstance(n, ast.FunctionDef) and n.name == "collect_free_sources")
+    ifs = [n for n in ast.walk(fn) if isinstance(n, ast.If)
+           and any(isinstance(c, ast.Call) and isinstance(c.func, ast.Name) and c.func.id == "report_line"
+                   for c in ast.walk(n))]
+    assert ifs and any(isinstance(c, ast.Call) and isinstance(c.func, ast.Name)
+                       and c.func.id == "notify_new_report" for c in ast.walk(ifs[0]))

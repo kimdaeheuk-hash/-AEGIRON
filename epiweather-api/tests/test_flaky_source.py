@@ -145,3 +145,79 @@ def test_retired_source_is_still_excluded():
     report = sh.source_health_report()
     assert "Mobility" not in report["degraded_sources"]
     assert not any(f["source"] == "Mobility" for f in report["flaky_sources"])
+
+
+# ── 회복 중 (2026-10-19) ────────────────────────────────────────────
+# 운영 관측: Wikipedia_Ebola 가 12:00 부터 매시간 성공했는데 13:01 에
+# `⚠️ 소스 중단: Wikipedia_Ebola (flaky, 연속 실패 0회)` 로그와 함께 텔레그램이
+# '중단 · 1시간째 데이터 없음' 을 보냈다. 24주기 창은 회복을 하루 늦게 본다.
+
+def _wiki_like_recovery():
+    """하루 내내 실패하다가 최근 3주기 연속 성공 — 창 성공률은 아직 50% 미만."""
+    _run("Wikipedia_Ebola", ["fail", "no_data"] * 10 + ["no_data"] + ["ok"] * 3)
+
+
+def test_recent_success_streak_is_recovering_not_flaky():
+    _wiki_like_recovery()
+    row = _row("Wikipedia_Ebola")
+    assert row["status"] == "recovering", row
+    assert row["recent_success_rate"] < sh.FLAKY_SUCCESS_RATE, "창 성공률은 아직 낮다"
+    report = sh.source_health_report()
+    assert "Wikipedia_Ebola" not in report["degraded_sources"]
+    assert report["healthy_count"] == 0, "회복 중은 정상으로 세지 않는다"
+    assert report["recovering_sources"][0]["streak"] == sh.RECOVERY_STREAK
+
+
+def test_recovering_source_is_not_renotified_as_down_and_recovery_is_sent_once():
+    _run("Wikipedia_Ebola", ["no_data"] * sh.FLAKY_WINDOW)
+    assert any(d["status"] == "flaky" for d in sh.pending_notifications()["degraded"])
+    sh.mark_notified(["Wikipedia_Ebola"])
+    _run("Wikipedia_Ebola", ["ok"] * sh.RECOVERY_STREAK)
+    pending = sh.pending_notifications()
+    assert pending["degraded"] == []
+    assert pending["recovered"] == ["Wikipedia_Ebola"]
+    assert pending["recovering"] == ["Wikipedia_Ebola"]
+    sh.mark_notified(pending["recovered"])
+    assert sh.pending_notifications() == {"degraded": [], "recovered": [], "recovering": []}, \
+        "회복 통보는 한 번만"
+    _run("Wikipedia_Ebola", ["ok"] * sh.FLAKY_WINDOW)          # 완전히 정상으로
+    assert sh.pending_notifications()["recovered"] == [], "회복 중 → 정상은 다시 울리지 않는다"
+
+
+def test_relapse_after_recovering_alarms_again():
+    _run("Wikipedia_Ebola", ["no_data"] * sh.FLAKY_WINDOW)
+    sh.mark_notified(["Wikipedia_Ebola"])
+    _run("Wikipedia_Ebola", ["ok"] * sh.RECOVERY_STREAK)
+    sh.mark_notified(sh.pending_notifications()["recovered"])
+    _run("Wikipedia_Ebola", ["no_data"])                       # 다시 끊김
+    assert [d["status"] for d in sh.pending_notifications()["degraded"]] == ["flaky"]
+
+
+def test_two_successes_are_not_enough_to_call_recovery():
+    _run("Wikipedia_Ebola", ["no_data"] * (sh.FLAKY_WINDOW - 2) + ["ok", "ok"])
+    assert _row("Wikipedia_Ebola")["status"] == "flaky"
+
+
+def test_flaky_message_says_success_rate_not_down():
+    from algorithms.notifier import format_source_health_message
+    msg = format_source_health_message({"degraded": [
+        {"source": "Wikipedia_Ebola", "status": "flaky", "staleness_hours": 1.0,
+         "consecutive_failures": 0, "recent_success_rate": 0.25, "window": 24},
+        {"source": "KDCA", "status": "failing", "staleness_hours": 30.0,
+         "consecutive_failures": 30, "recent_success_rate": 0.0, "window": 24},
+    ], "recovered": ["NewsWatch"], "recovering": ["NewsWatch"]})
+    wiki = next(line for line in msg.splitlines() if "Wikipedia_Ebola" in line)
+    assert "간헐 성공" in wiki and "성공률 25%" in wiki and "마지막 성공 1시간 전" in wiki
+    assert "중단" not in wiki and "데이터 없음" not in wiki, "한 시간 전에 성공한 소스를 중단이라 하지 않는다"
+    kdca = next(line for line in msg.splitlines() if "KDCA" in line)
+    assert "중단" in kdca and "1.2일째" in kdca and "연속 실패 30회" in kdca
+    assert "2개 이상" in msg and "NewsWatch (회복 중" in msg
+
+
+def test_baikal_huginn_reads_recovering_as_note_not_problem():
+    from algorithms import baikal
+    health = {"total_tracked": 23, "healthy_count": 22, "collector_silent_hours": 0.1,
+              "sources": [{"source": "Wikipedia_Ebola", "status": "recovering"}],
+              "long_no_data_sources": []}
+    res = baikal.judge_huginn(health, {"invariants": []})
+    assert res["status"] == "ok" and "회복 중 Wikipedia_Ebola" in res["reason"]

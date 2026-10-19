@@ -1,0 +1,107 @@
+name: Restore drill
+
+# 백업 복원 훈련 + 90일 예측 채점 리허설 (2026-10-19, 캡틴 승인 ②·⑤).
+#
+# ② 매일 백업(ledger-backup.yml)은 성공하지만 복원해 본 적이 없었다. 매주 가장 최근 성공한
+#    백업 아티팩트를 받아 열고, 운영 원장과 대조한다(scripts/restore_drill.py).
+#    — 해시·무결성·핵심 표 · 백업의 예측이 운영에서 사라지지 않았는지 · 봉인 해시가 그대로인지.
+# ⑤ 복원한 그 사본으로 예측 채점을 판정 기한 다음 날로 앞당겨 돌려 본다
+#    (scripts/rehearse_resolution.py). 첫 판정 기한에 채점 경로가 처음 실데이터로 도는 날
+#    고장 나지 않게. 사본에만 쓰고 운영 DB 는 건드리지 않는다.
+#
+# 결과는 작업 요약(Summary)에 남고, 텔레그램 시크릿이 있으면 한 통 보낸다.
+# 하나라도 실패하면 빨간불. 운영 서버에 쓰지 않는다.
+
+on:
+  schedule:
+    - cron: "47 4 * * 1"   # 매주 월요일 04:47 UTC — 03:17 백업 뒤
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: restore-drill
+  cancel-in-progress: false
+
+jobs:
+  drill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      API: https://epiweather-api-production.up.railway.app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        working-directory: epiweather-api
+        run: pip install -r requirements.txt
+
+      - name: Download latest backup
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          id=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ledger-backup.yml --status success -L 1 \
+                 --json databaseId -q '.[0].databaseId')
+          if [ -z "$id" ]; then echo "::error::성공한 백업 실행이 없음"; exit 1; fi
+          gh run download "$id" --repo "$GITHUB_REPOSITORY" -D restore
+          dir=$(dirname "$(find restore -name MANIFEST.json | sort | tail -1)")
+          echo "BACKUP_DIR=$dir" >> "$GITHUB_ENV"
+          echo "백업 실행 $id → $dir"
+
+      - name: Fetch live ledger
+        run: curl -sS --fail --retry 3 --retry-delay 20 -m 120 "$API/api/predictions" -o live_predictions.json
+
+      - name: Restore drill
+        id: drill
+        run: |
+          set -o pipefail
+          python3 epiweather-api/scripts/restore_drill.py "$BACKUP_DIR" --live-predictions live_predictions.json \
+            | tee drill.md
+          cat drill.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Resolution rehearsal (on the restored copy)
+        id: rehearsal
+        if: always() && steps.drill.outcome != 'skipped'
+        working-directory: epiweather-api
+        run: |
+          set -o pipefail
+          python3 scripts/rehearse_resolution.py "$GITHUB_WORKSPACE/$BACKUP_DIR/epiweather.db" \
+            --json "$GITHUB_WORKSPACE/rehearsal.json" | tee "$GITHUB_WORKSPACE/rehearsal.md"
+          cat "$GITHUB_WORKSPACE/rehearsal.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Notify
+        if: always()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_OPS_CHAT_ID: ${{ secrets.TELEGRAM_OPS_CHAT_ID }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          DRILL: ${{ steps.drill.outcome }}
+          REHEARSAL: ${{ steps.rehearsal.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python3 - <<'PY'
+          import html, importlib.util, json, os, pathlib
+          spec = importlib.util.spec_from_file_location("lc", "epiweather-api/scripts/liveness_check.py")
+          lc = importlib.util.module_from_spec(spec); spec.loader.exec_module(lc)
+          mark = {"success": "통과", "failure": "실패"}
+          lines = ["🗄 <b>주간 복원 훈련 · 채점 리허설</b>",
+                   f"· 백업 복원: {mark.get(os.environ['DRILL'], '실행 안 됨')}",
+                   f"· 90일 예측 채점 리허설: {mark.get(os.environ['REHEARSAL'], '실행 안 됨')}"]
+          rep = pathlib.Path("rehearsal.json")
+          if rep.exists():
+              r = json.loads(rep.read_text(encoding="utf-8"))
+              blind = sum(d["blind"] for d in r["days"])
+              closed = sum(sum(d["resolved"].values()) for d in r["days"])
+              lines.append(f"· 첫 판정 기한 {r['first_deadline'] or '없음'} · 앞쪽 {len(r['days'])}개 기한 모의: "
+                           f"닫힘 {closed}건 · 판정 보류 {blind}건 · 기한 불일치 {len(r['deadline_mismatches'])}건")
+          lines += ["", f"<i>운영 DB 는 건드리지 않음 · 모의 결과이며 성적이 아님</i>",
+                    html.escape(os.environ["RUN_URL"], quote=False)]
+          lc.send("\n".join(lines))
+          PY
