@@ -1183,7 +1183,7 @@ def collect_free_sources() -> dict:
                 % outcome["closed_no_declaration"])
         if outcome.get("blind"):
             reasons = " / ".join(f"{k} {v}건" for k, v in sorted(outcome["blind_reasons"].items()))
-            log("  ⏸ 선행성 원장: 기한이 지났으나 정답 경로가 그 기간을 못 보고 있어 오경보로 닫지 "
+            log("  ⏸ 선행성 원장: 기한이 지났으나 정답 경로가 그 기간을 못 봤거나 못 읽은 발표가 있어 오경보로 닫지 "
                 "않음 %d건 — %s" % (outcome["blind"], reasons))
         record = ledger_record()
         log("  선행성 원장: 실측 %d건 · 오경보 %d건 · 추적 중 %d건"

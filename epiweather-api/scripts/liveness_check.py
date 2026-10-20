@@ -32,7 +32,9 @@ import time
 import urllib.error
 import urllib.request
 
-RENOTIFY_EVERY = 6          # 매시 실행 기준 6시간마다 '아직 멈춤'
+# 연속 실패 몇 회마다 '아직 멈춤'을 다시 보내나. 시간당 두 번 예약(liveness.yml)이 다 오면 약 6시간마다다 —
+# 예약이 빠지면 더 길어진다. 그래서 알림에는 시간이 아니라 횟수를 적는다.
+RENOTIFY_EVERY = 12
 TIMEOUT = 30
 
 

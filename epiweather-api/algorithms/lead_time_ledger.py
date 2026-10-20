@@ -226,8 +226,10 @@ def resolve_ledger(now: dt.datetime | None = None) -> dict:
             # 기한이 지났는데 선언이 없다 — 오경보다. 지우지 않고 남긴다.
             # ★ 단, 정답 경로가 그 기간을 보고 있었을 때만 ★ 눈이 먼 채 지나간 침묵은 오경보가
             # 아니라 '못 봤다'다. 닫지 않고 열어 둔다(판정 안 함).
-            from .ground_truth_channel import blind_reason
-            reason = blind_reason(crossed, crossed + dt.timedelta(days=RESOLUTION_HORIZON_DAYS))
+            from .ground_truth_channel import blind_reason, unread_reason
+            window_end = crossed + dt.timedelta(days=RESOLUTION_HORIZON_DAYS)
+            # 받았지만 못 읽은 발표가 구간에 있어도 '선언 없음'이라 말할 수 없다(ground_truth_channel 머리말).
+            reason = blind_reason(crossed, window_end) or unread_reason(crossed, window_end)
             if reason:
                 blind += 1
                 blind_reasons[reason] = blind_reasons.get(reason, 0) + 1

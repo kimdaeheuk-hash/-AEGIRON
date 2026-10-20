@@ -173,6 +173,8 @@ _WEEKLY_STATE_FILE   = Path(__file__).parent / "data" / "last_weekly_run.json"
 # AI 갭필링 마지막 실행일. 메모리 변수로만 두면 재배포마다 초기화돼 같은 날
 # 유료 AI가 두 번 돈다(아래 _load_last_ai_run 주석 참고).
 _AI_STATE_FILE       = Path(__file__).parent / "data" / "last_ai_run.json"
+# 경보 주기 완료 장부 — 빠진 슬롯을 다음 주기가 말하게 한다(algorithms/cycle_watch.py).
+_ALERT_CYCLE_FILE    = Path(__file__).parent / "data" / "last_alert_cycle.json"
 
 
 async def _run_collector(mode: str) -> None:
@@ -207,6 +209,13 @@ async def _run_alert_cycle() -> None:
     바깥에 나가는 무역 스캔(UN 18회)은 6시간 캐시가 있어 하루 4회로 묶인다.
     """
     import collector
+    from algorithms import cycle_watch
+    # 직전 완료와 지금 사이에 완료 기록이 없는 슬롯이 있으면 먼저 말한다(10-19 22시 결손 — 원인 판정 못 함).
+    last_done = cycle_watch.load_last_done(_ALERT_CYCLE_FILE)
+    gap = cycle_watch.gap_line(cycle_watch.missed_slots(last_done, dt.datetime.now(dt.timezone.utc)), last_done) \
+        if last_done else None
+    if gap:
+        collector.log(gap)
     try:
         from algorithms.alerts import (
             already_notified_line, negative_space_line, refresh_alerts, retired_alerts_line,
@@ -214,6 +223,10 @@ async def _run_alert_cycle() -> None:
         )
         result = await asyncio.to_thread(refresh_alerts)
         collector.log(f"🚨 경보 주기: {summary_line(result)}")
+        try:
+            cycle_watch.save_done(_ALERT_CYCLE_FILE, dt.datetime.now(dt.timezone.utc))
+        except OSError as e:
+            collector.log_error("alert_cycle_ledger", e)
         retired_line = retired_alerts_line(result)
         if retired_line:
             collector.log(retired_line)
@@ -234,6 +247,34 @@ async def _run_alert_cycle() -> None:
 
 def _baikal_enabled() -> bool:
     return os.environ.get("EPIWEATHER_BAIKAL", "on").lower() != "off"
+
+
+async def _watched(step: str, coro) -> None:
+    """한 단계가 cycle_watch.STALL_WARN_SECONDS 를 넘기면 `⏳` 줄과 스레드 호출 위치를 찍는다. 끊지는 않는다."""
+    import collector
+    from algorithms import cycle_watch
+    started = dt.datetime.now(dt.timezone.utc)
+    done = asyncio.Event()
+    stalled = False
+
+    async def _watch() -> None:
+        nonlocal stalled
+        try:
+            await asyncio.wait_for(done.wait(), cycle_watch.STALL_WARN_SECONDS)
+        except asyncio.TimeoutError:
+            stalled = True
+            collector.log(cycle_watch.stall_line(step, started, cycle_watch.STALL_WARN_SECONDS))
+            print(cycle_watch.thread_stacks(), flush=True)
+
+    watcher = asyncio.create_task(_watch())
+    try:
+        await coro
+    finally:
+        done.set()
+        await watcher
+        if stalled:
+            took = (dt.datetime.now(dt.timezone.utc) - started).total_seconds()
+            collector.log(f"⏳ {step} 끝남 — {took / 60:.1f}분 걸림")
 
 
 async def _run_baikal_cycle() -> None:
@@ -550,7 +591,7 @@ async def _run_prediction_resolution() -> None:
         if outcome.get("blind"):
             # 닫지 않고 연 채로 둔 것 — 오답으로 세지 않았다는 사실과 이유를 그대로 남긴다.
             reasons = " / ".join(f"{k} {v}건" for k, v in sorted(outcome["blind_reasons"].items()))
-            collector.log(f"⏸ 예측 판정 보류: 기한이 지났으나 정답 경로가 그 기간을 못 보고 있어 "
+            collector.log(f"⏸ 예측 판정 보류: 기한이 지났으나 정답 경로가 그 기간을 못 봤거나 못 읽은 발표가 있어 "
                           f"오답으로 닫지 않음 {outcome['blind']}건 — {reasons}")
         if resolved:
             hits = [r for r in resolved if r["correct"] == 1]
@@ -630,9 +671,9 @@ async def _scheduler_loop() -> None:
     last_ai_run_date: dt.date | None = _load_last_ai_run()
     import collector
     collector.log(_weekly_state_line())
-    await _run_collector("free")
-    await _run_alert_cycle()
-    await _run_baikal_cycle()
+    await _watched("무료 수집", _run_collector("free"))
+    await _watched("경보 주기", _run_alert_cycle())
+    await _watched("BAIKAL", _run_baikal_cycle())
     await _maybe_run_daily_brief()
     await _maybe_refresh_missing_snapshots()
 
@@ -650,12 +691,12 @@ async def _scheduler_loop() -> None:
         now = dt.datetime.now(dt.timezone.utc)
         next_hour = (now + dt.timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
         await asyncio.sleep(max(60.0, (next_hour - now).total_seconds()))
-        await _run_collector("free")
+        await _watched("무료 수집", _run_collector("free"))
         # 수집 바로 뒤에 붙인다 — 방금 들어온 값으로 판정해야 "빨리 알린다"가
         # 실제로 지켜진다. 같은 source 재통보는 refresh_alerts가 막는다.
-        await _run_alert_cycle()
+        await _watched("경보 주기", _run_alert_cycle())
         # 경보 주기 뒤에 둔다 — 방금 갱신된 경보 표까지 읽어야 FORSETI 상태가 맞다.
-        await _run_baikal_cycle()
+        await _watched("BAIKAL", _run_baikal_cycle())
         await _maybe_refresh_missing_snapshots()
 
         now = dt.datetime.utcnow()

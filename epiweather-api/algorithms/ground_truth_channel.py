@@ -29,6 +29,15 @@
 - 포괄 시작일은 정렬이 실제로 내림차순이고 모든 항목의 발행일을 읽었을 때만 남긴다(who_don_declarations).
 - 선행 인정은 그대로 `선언일 > 예측일` 일 때만이다 — 예측 뒤에 나온 발표만 적중으로 센다.
 - 대가: 이 기준으로 10-07 이전 예측도 닫힌다 — 대부분 **오답·질병 불일치**일 수 있다. 그것도 채점이다.
+
+## 받았지만 못 읽은 발표 (2026-10-20, 첫 아카이브 채점 다음 날)
+
+'보고 있었다'는 **받았다**는 뜻이지 **읽었다**는 뜻이 아니다. 10-19 21:00 슬롯에서 DON 100건 중 16건이
+나라·형식을 못 읽어 정답에서 빠졌다(`Avian Influenza A(H9N2)`, `Yellow fever - Global`, `… Multi-locations`).
+그 발표가 예측의 나라였을 수 있다 — 그러면 정답(correct)이거나 적어도 질병 불일치(ambiguous)인데
+'선언 없음'으로 오답을 매기게 된다. 그래서 판정 구간 `(예측일, 기한]` 안에 못 읽은 발표가 있으면
+오답·질병 불일치로 닫지 않고 판정 안 함으로 둔다(`unread_reason`). 파서가 그 발표를 읽게 되면 행이
+지워지고 다음 채점에서 닫힌다. 적중(①)은 막지 않는다 — 읽힌 선언으로 이미 맞았다.
 """
 from __future__ import annotations
 
@@ -69,3 +78,15 @@ def blind_reason(window_start: dt.date, window_end: dt.date) -> str | None:
     if not in_window:
         return "판정 구간 안의 날짜를 가진 선언이 정답 경로에서 하나도 적재되지 않았다"
     return None
+
+
+def unread_reason(window_start: dt.date, window_end: dt.date) -> str | None:
+    """판정 구간 (예측일, 기한] 안에 받았지만 못 읽은 공식 발표가 있으면 그 사유, 없으면 None.
+
+    예측일 당일 이전 발표는 뺀다 — 채점이 선행(선언일 > 예측일)인 것만 세므로 결과를 바꾸지 못한다."""
+    rows = [r for r in db.list_ground_truth_unread(LIVE_SOURCE_TYPES)
+            if (d := _as_date(r.get("published"))) and window_start < d <= window_end]
+    if not rows:
+        return None
+    return (f"판정 구간 안에 나라·형식을 못 읽은 공식 발표 {len(rows)}건 — 이 나라였을 수 있어 "
+            f"'선언 없음'으로 닫지 않음")

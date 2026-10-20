@@ -237,6 +237,19 @@ CREATE TABLE IF NOT EXISTS ground_truth_coverage (
     basis         TEXT NOT NULL          -- 무엇을 근거로 '빠짐없다'고 했는지
 );
 
+-- 포괄 기간 안에서 받기는 했지만 나라·형식을 못 읽은 공식 발표 (2026-10-20). '보고 있었다'는 받았다는
+-- 뜻이지 읽었다는 뜻이 아니다 — 이 발표가 판정 구간에 있으면 그 예측을 오답으로 닫지 않는다.
+-- 나중에 읽히게 되면(파서 개선) 행을 지운다.
+CREATE TABLE IF NOT EXISTS ground_truth_unread (
+    source_type  TEXT NOT NULL,          -- who_don
+    item_key     TEXT NOT NULL,          -- 발표 식별자(없으면 제목+발행일)
+    published    TEXT NOT NULL,          -- 발행일
+    title        TEXT,
+    reason       TEXT NOT NULL,          -- 국가 못 읽음 · 제목 형식 모름
+    recorded_at  TEXT NOT NULL,
+    PRIMARY KEY (source_type, item_key)
+);
+
 -- 질병청 주간 값의 성숙도 측정 (2026-10-19, ⑥ 1단계). 같은 주의 값이 나중에 얼마나 늘어나는지
 -- 재려고, (질병, 주) 값이 **바뀐 순간만** 남긴다. 지우지 않는다.
 CREATE TABLE IF NOT EXISTS kdca_vintages (
@@ -731,6 +744,29 @@ def ground_truth_coverage(source_types: tuple[str, ...]) -> list[dict]:
     with get_connection() as conn:
         return [dict(r) for r in conn.execute(
             f"SELECT * FROM ground_truth_coverage WHERE source_type IN ({marks})", tuple(source_types))]
+
+
+def record_ground_truth_unread(source_type: str, unread: list[dict], readable_keys: list[str]) -> None:
+    """못 읽은 발표를 남기고(있으면 그대로), 이번에 읽힌 발표는 목록에서 뺀다. 응답에 없는 옛 행은 건드리지 않는다."""
+    now = datetime.now(timezone.utc).isoformat()
+    with get_connection() as conn:
+        for u in unread:
+            conn.execute("INSERT OR IGNORE INTO ground_truth_unread "
+                         "(source_type, item_key, published, title, reason, recorded_at) VALUES (?, ?, ?, ?, ?, ?)",
+                         (source_type, u["key"], u["published"], u.get("title"), u["reason"], now))
+        for key in readable_keys:
+            conn.execute("DELETE FROM ground_truth_unread WHERE source_type=? AND item_key=?", (source_type, key))
+        conn.commit()
+
+
+def list_ground_truth_unread(source_types: tuple[str, ...]) -> list[dict]:
+    if not source_types:
+        return []
+    marks = ",".join("?" for _ in source_types)
+    with get_connection() as conn:
+        return [dict(r) for r in conn.execute(
+            f"SELECT * FROM ground_truth_unread WHERE source_type IN ({marks}) ORDER BY published",
+            tuple(source_types))]
 
 
 def list_live_timeline_rows(source_types: tuple[str, ...]) -> list[dict]:

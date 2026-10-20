@@ -192,7 +192,7 @@ def resolve_due_predictions(today: dt.date | None = None) -> dict:
     반환: {"resolved": [...], "still_open": n, "checked": n,
            "blind": 기한이 지났으나 정답 경로가 못 보고 있어 판정을 보류한 수, "blind_reasons": {사유: 수}}
     """
-    from algorithms.ground_truth_channel import blind_reason
+    from algorithms.ground_truth_channel import blind_reason, unread_reason
 
     today = today or dt.date.today()
     horizon = _horizon_days()
@@ -254,6 +254,15 @@ def resolve_due_predictions(today: dt.date | None = None) -> dict:
                 "lead_days": lead_days, "event_id": hit.get("event_id"),
             })
             continue
+
+        # ②·③ 앞에서: 판정 구간에 받았지만 못 읽은 공식 발표가 있으면 닫지 않는다 — 그 발표가 이 나라·이
+        # 질병이었으면 결과가 달라진다(ground_truth_channel 머리말). 적중(①)은 이미 읽힌 선언으로 확정이라 막지 않는다.
+        if today > deadline:
+            unread = unread_reason(predicted, deadline)
+            if unread:
+                blind += 1
+                blind_reasons[unread] = blind_reasons.get(unread, 0) + 1
+                continue
 
         # ② 기한이 지났고 그 나라에 발병 선언은 있었는데 질병이 달랐다.
         # ★ 기한까지 기다렸다가 판정한다 ★ 국가만 맞는 선언을 보자마자 ambiguous 로

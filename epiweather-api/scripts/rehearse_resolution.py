@@ -141,7 +141,7 @@ def to_markdown(rep: dict) -> str:
                      f"{r.get('질병 불일치', 0)} | {d['blind']} | {d['still_open']} |")
     reasons = collections.Counter(rep["blind_reasons_at_end"])
     if reasons:
-        lines += ["", f"마지막 실행일 기준 판정 보류 {rep['blind_at_end']}건 — 사유(정답 경로가 그 기간을 못 봄, "
+        lines += ["", f"마지막 실행일 기준 판정 보류 {rep['blind_at_end']}건 — 사유(정답 경로가 그 기간을 못 봤거나 못 읽은 발표가 있음, "
                       "오답으로 닫지 않음):"]
         lines += [f"- {k}: {v}건" for k, v in reasons.most_common()]
     if rep["deadline_mismatches"]:

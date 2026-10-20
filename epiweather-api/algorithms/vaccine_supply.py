@@ -83,10 +83,16 @@ DISEASE_VACCINE_TERMS: dict[str, list[str]] = {
 }
 
 
+def _current_path() -> Path:
+    """주간작업이 볼륨에 받은 새 사본이 있으면 그쪽(reference_snapshots.newest)."""
+    from .reference_snapshots import newest
+    return newest(REFERENCE)
+
+
 @lru_cache(maxsize=1)
 def _snapshot() -> dict | None:
     try:
-        return json.loads(REFERENCE.read_text(encoding="utf-8"))
+        return json.loads(_current_path().read_text(encoding="utf-8"))
     except Exception:                                 # noqa: BLE001
         return None
 
