@@ -3,7 +3,7 @@
 BAIKAL 운영 알림은 서버 안에서 나간다 — 서버가 죽으면 같이 조용해진다. 이 스크립트는
 GitHub Actions 에서 바깥으로 본다. 고정하는 것: ① 서버 무응답·주기 멈춤·사이트 무응답을 구분해
 말한다 ② 첫 관측 전(available=False)은 고장으로 세지 않는다 ③ 바뀐 순간만 보내고, 계속되면
-6회마다, 복구도 한 번 ④ 값 이스케이프 ⑤ 워크플로가 이 스크립트를 실제로 부른다.
+RENOTIFY_EVERY 회마다, 복구도 한 번 ④ 값 이스케이프 ⑤ 워크플로가 이 스크립트를 실제로 부른다.
 """
 from __future__ import annotations
 
@@ -43,13 +43,13 @@ def test_site_down_is_separate():
     assert lc.evaluate(OK_HEALTH, FRESH, (503, "")) == ["웹사이트 응답 없음 (HTTP 503)"]
 
 
-def test_send_only_on_change_then_every_six_and_recovery_once():
+def test_send_only_on_change_then_every_n_and_recovery_once():
     probs = ["운영 서버 응답 없음 (/health HTTP 502)"]
     first = lc.decide(probs, prior_failures=0)
     assert first.startswith("🔴 <b>외부 생존 감시: 이상</b>") and "감염병 경보가 아님" in first
     assert lc.decide(probs, prior_failures=1) is None
-    assert lc.decide(probs, prior_failures=4) is None
-    assert "6회 연속 이상" in lc.decide(probs, prior_failures=5)
+    assert lc.decide(probs, prior_failures=lc.RENOTIFY_EVERY - 2) is None
+    assert f"{lc.RENOTIFY_EVERY}회 연속 이상" in lc.decide(probs, prior_failures=lc.RENOTIFY_EVERY - 1)
     assert lc.decide([], prior_failures=3).startswith("🟢 <b>외부 생존 감시: 복구</b>")
     assert lc.decide([], prior_failures=0) is None
 
@@ -63,3 +63,5 @@ def test_workflow_calls_the_script_hourly_with_prior_failures():
     wf = (ROOT.parent / ".github" / "workflows" / "liveness.yml").read_text(encoding="utf-8")
     assert "scripts/liveness_check.py" in wf and "--prior-failures" in wf
     assert "cron:" in wf and "TELEGRAM_BOT_TOKEN" in wf
+    # 예약 실행이 빠지므로(10-20 관측) 시간당 두 번 건다.
+    assert wf.count("- cron:") == 2

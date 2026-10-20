@@ -444,9 +444,18 @@ def _fn(name):
 
 
 def _awaited_calls(node) -> list[str]:
-    return [n.value.func.id for n in ast.walk(node)
-            if isinstance(n, ast.Await) and isinstance(n.value, ast.Call)
-            and isinstance(n.value.func, ast.Name)]
+    """await 하는 함수 이름(순서대로). 멈춤 감시(`_watched("이름", 단계())`)로 감싼 단계는 안쪽 이름으로 본다."""
+    out = []
+    for n in ast.walk(node):
+        if not (isinstance(n, ast.Await) and isinstance(n.value, ast.Call) and isinstance(n.value.func, ast.Name)):
+            continue
+        call = n.value
+        if call.func.id == "_watched" and len(call.args) == 2 and isinstance(call.args[1], ast.Call) \
+                and isinstance(call.args[1].func, ast.Name):
+            out.append(call.args[1].func.id)
+        else:
+            out.append(call.func.id)
+    return out
 
 
 def test_scheduler_runs_baikal_right_after_alert_cycle_every_hour():

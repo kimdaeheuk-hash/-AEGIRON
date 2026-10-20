@@ -35,6 +35,13 @@ import tempfile
 from pathlib import Path
 
 REFERENCE_DIR = Path(__file__).resolve().parent / "reference"
+# 실행 중에 받은 스냅샷은 볼륨(epiweather-api/data, Railway 볼륨 마운트)에 쓴다 (2026-10-20).
+# ★ 왜 ★ 예전엔 저장소 디렉터리(REFERENCE_DIR)에 썼는데, 그곳은 컨테이너 파일이라 **재배포마다 지워졌다.**
+# 저장소에 없는 `approved_products.json` 은 10-19 하루에만 배포 네 번마다 '기준 파일이 없다'가 찍히고
+# 2~10분 뒤 다시 받았다 — 그 사이 발할라 준비태세 줄에서 승인제품 축이 빠졌다. 저장소에 있는 스냅샷도
+# 주간작업이 갱신한 값이 배포 때 커밋된 옛 값으로 되돌아갔다.
+# 읽을 때는 볼륨 사본과 저장소 사본 중 snapshot_date 가 늦은 쪽을 쓴다(커밋으로 더 새 값을 넣으면 그쪽이 이긴다).
+RUNTIME_DIR = Path(__file__).resolve().parent.parent / "data" / "reference"
 
 # 새 수집이 기존보다 이 비율 밑으로 줄면 파서가 깨진 것으로 보고 거부한다.
 SHRINK_LIMIT = 0.8
@@ -112,8 +119,32 @@ def _now() -> dt.datetime:
     return dt.datetime.now(dt.timezone.utc)
 
 
+def _snapshot_date(path: Path) -> str:
+    try:
+        return str(json.loads(path.read_text(encoding="utf-8")).get("snapshot_date") or "")
+    except Exception:                                   # noqa: BLE001
+        return ""
+
+
+def newest(seed: Path) -> Path:
+    """저장소 사본(seed)과 같은 이름의 볼륨 사본 중 snapshot_date 가 늦은 쪽. 같으면 볼륨 쪽.
+    둘 다 없으면 seed 를 돌려준다(읽는 쪽이 '없다'를 말한다)."""
+    runtime = RUNTIME_DIR / seed.name
+    if not runtime.exists():
+        return seed
+    if not seed.exists():
+        return runtime
+    return seed if _snapshot_date(seed) > _snapshot_date(runtime) else runtime
+
+
 def path_for(name: str) -> Path:
-    return REFERENCE_DIR / SNAPSHOTS[name]["filename"]
+    """읽을 파일 — 볼륨 사본과 저장소 사본 중 새것."""
+    return newest(REFERENCE_DIR / SNAPSHOTS[name]["filename"])
+
+
+def write_path_for(name: str) -> Path:
+    """갱신을 쓸 파일 — 항상 볼륨. 재배포에 살아남는다."""
+    return RUNTIME_DIR / SNAPSHOTS[name]["filename"]
 
 
 def _load(name: str) -> dict | None:
@@ -273,7 +304,7 @@ def refresh(name: str, now=None) -> dict:
         return {"name": name, "refreshed": False, "reason": f"검증 거부 — {why}"}
 
     try:
-        _write_atomic(path_for(name), payload)
+        _write_atomic(write_path_for(name), payload)
     except Exception as exc:                            # noqa: BLE001
         detail = f"저장 실패 {type(exc).__name__}: {exc}"
         record(capability, ok=False, detail=detail)

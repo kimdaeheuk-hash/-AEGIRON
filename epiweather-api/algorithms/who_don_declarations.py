@@ -52,6 +52,13 @@ _ID_KEYS = ("DonId", "donId", "UrlName", "Id")
 # 주된 모양이 후자였다(`Marburg virus disease- Ethiopia`, `Avian Influenza A(H5N5)- United States of America`).
 # 뒤에 공백이 없는 하이픈(`Multi-locations`, `MERS-CoV`)은 구분자가 아니다.
 _SEPARATOR = re.compile(r"\s+[–—-]\s+|(?<=\S)[–—-]\s+")
+# 공백 없이 붙은 구분자 (2026-10-20 프로덕션 샘플): `Marburg Virus Disease–United Republic of Tanzania`,
+# `Human infection caused by avian Influenza A(H5N2)-Mexico`. 하이픈은 질병 이름 안에도 있어서(`MERS-CoV`,
+# `Crimean-Congo haemorrhagic fever`) **마지막 후보**로만 쓰고, 오른쪽이 질병 낱말 없이 나라로 읽힐 때만 쓴다.
+_TIGHT_SEPARATOR = re.compile(r"[–—-]")
+# 이 낱말이 든 문구는 나라 이름이 아니다 — `Crimean-Congo haemorrhagic fever` 의 오른쪽이 콩고로 읽히는 것을 막는다.
+_DISEASE_WORDS = re.compile(r"\b(?:haemorrhagic|hemorrhagic|fever|virus|disease|syndrome|infection|influenza|"
+                            r"outbreak|cov)\b", re.I)
 
 
 class DonError(RuntimeError):
@@ -99,6 +106,12 @@ def title_options(title: str | None) -> list[tuple[str, str]]:
     head, sep, tail = text.rpartition(", ")
     if sep and head.strip() and tail.strip():
         out.append((head.strip(), tail.strip()))
+    tight = list(_TIGHT_SEPARATOR.finditer(text))
+    if tight:
+        cut = tight[-1]
+        head, tail = text[:cut.start()].strip(), text[cut.end():].strip()
+        if head and tail and not _DISEASE_WORDS.search(tail) and (head, tail) not in out:
+            out.append((head, tail))
     return out
 
 
@@ -114,6 +127,10 @@ def parse_items(payload: object, today: dt.date | None = None) -> dict:
 
     skipped: dict[str, int] = {}
     samples: dict[str, list[str]] = {}
+    # 기간 안인데 못 읽은 발표 — 정답 경로가 '받았지만 못 읽은' 것이다. 판정 구간에 있으면 오답으로 닫지 않는다.
+    unread: list[dict] = []
+    readable_keys: list[str] = []
+    unread_fields: list[str] = []
 
     def skip(reason: str, title: str | None = None) -> None:
         skipped[reason] = skipped.get(reason, 0) + 1
@@ -128,16 +145,25 @@ def parse_items(payload: object, today: dt.date | None = None) -> dict:
             skip("항목 형식 아님")
             continue
         raw_title = _first(item, _TITLE_KEYS)
-        options = title_options(raw_title)
-        if not options:
-            skip("제목 형식 모름", raw_title)
-            continue
         when = _date(_first(item, _DATE_KEYS))
+        key = item_key(item)
+
+        def unreadable(reason: str) -> None:
+            skip(reason, raw_title)
+            unread.append({"key": key, "published": when.isoformat(), "title": str(raw_title or "")[:200],
+                           "reason": reason})
+            if not unread_fields:
+                unread_fields.extend(sorted(item.keys()))
+
+        options = title_options(raw_title)
         if when is None:
-            skip("날짜 못 읽음", raw_title)
+            skip("제목 형식 모름" if not options else "날짜 못 읽음", raw_title)
             continue
         if when < cutoff or when > today:
             skip("기간 밖")
+            continue
+        if not options:
+            unreadable("제목 형식 모름")
             continue
         # 후보 가운데 **국가 문구가 사전에서 나라로 읽히는 첫 번째**만 쓴다. 하나도 안 읽히면 추측하지 않는다.
         disease = place = None
@@ -148,8 +174,9 @@ def parse_items(payload: object, today: dt.date | None = None) -> dict:
                 disease, place = d, p
                 break
         if not isos:
-            skip("국가 못 읽음", raw_title)
+            unreadable("국가 못 읽음")
             continue
+        readable_keys.append(key)
         for iso3 in isos:
             declarations.append({
                 "disease": disease, "place": place, "iso3": iso3, "date": when,
@@ -160,7 +187,16 @@ def parse_items(payload: object, today: dt.date | None = None) -> dict:
             skipped.get("제목 형식 모름", 0) + skipped.get("날짜 못 읽음", 0) == len(items):
         raise DonError("DON 항목을 하나도 못 읽었다(제목·날짜 필드명 확인 필요): "
                        f"{str(items[0])[:200]}")
-    return {"declarations": declarations, "read": len(items), "skipped": skipped, "samples": samples}
+    return {"declarations": declarations, "read": len(items), "skipped": skipped, "samples": samples,
+            "unread": unread, "readable_keys": readable_keys, "unread_fields": unread_fields}
+
+
+def item_key(item: dict) -> str:
+    """발표 하나의 식별자 — API 의 ID, 없으면 제목+발행일."""
+    ident = _first(item, _ID_KEYS)
+    if ident:
+        return str(ident)
+    return f"{_first(item, _TITLE_KEYS) or ''}@{str(_first(item, _DATE_KEYS) or '')[:10]}"
 
 
 def _date(raw) -> dt.date | None:
@@ -212,6 +248,7 @@ def ingest_don(payload: object | None = None, today: dt.date | None = None) -> d
     covered, basis = archive_coverage(payload, today)
     if covered:
         covered = db.extend_ground_truth_coverage(SOURCE_TYPE, covered, basis)
+    db.record_ground_truth_unread(SOURCE_TYPE, parsed["unread"], parsed["readable_keys"])
     added = existing = 0
     for d in parsed["declarations"]:
         event_id = event_id_for(d["disease"], d["iso3"], d["date"])
@@ -232,7 +269,8 @@ def ingest_don(payload: object | None = None, today: dt.date | None = None) -> d
         )
         added += 1
     return {"등재": added, "이미있음": existing, "건너뜀": parsed["skipped"], "검토": parsed["read"],
-            "예시": parsed.get("samples") or {}, "포괄": covered, "포괄_근거": basis}
+            "예시": parsed.get("samples") or {}, "포괄": covered, "포괄_근거": basis,
+            "못읽음_필드": parsed.get("unread_fields") or []}
 
 
 def samples_line(result: dict) -> str | None:
@@ -240,8 +278,13 @@ def samples_line(result: dict) -> str | None:
     ex = result.get("예시") or {}
     if not ex:
         return None
-    return "WHO DON 못 읽은 제목 예: " + " · ".join(
+    line = "WHO DON 못 읽은 제목 예: " + " · ".join(
         f"{reason}[{' / '.join(titles)}]" for reason, titles in sorted(ex.items()))
+    # 제목 말고 나라를 읽을 수 있는 필드가 있는지 — 이 샌드박스는 who.int 에 못 나가서 응답 모양을 운영 로그로만 본다.
+    fields = result.get("못읽음_필드") or []
+    if fields:
+        line += " · 못 읽은 항목의 필드: " + ", ".join(fields)
+    return line
 
 
 def summary(result: dict) -> str:

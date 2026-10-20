@@ -135,3 +135,11 @@ def _no_real_network_in_pathogen_sentinel(monkeypatch):
     yield
     pathogen_sentinel._CACHE.update(at=0.0, titles=None)
     pathogen_sentinel._FAIL.update(at=0.0, err=None)
+
+
+@pytest.fixture(autouse=True)
+def _isolate_runtime_snapshots(tmp_path, monkeypatch):
+    """갱신된 기준 스냅샷은 볼륨(data/reference)에 쓴다(2026-10-20). 시험이 진짜 data/ 에 쓰지 않게 막는다."""
+    from algorithms import reference_snapshots
+    monkeypatch.setattr(reference_snapshots, "RUNTIME_DIR", tmp_path / "runtime_reference")
+    yield
