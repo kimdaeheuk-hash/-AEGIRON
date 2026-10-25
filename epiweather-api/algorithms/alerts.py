@@ -496,7 +496,8 @@ def collect_candidate_alerts(today: str, negative_space: dict | None = None) -> 
                 how += f" → 경보 점수 {score}점으로 제한({count_noise_reason(m['metric'])})"
             # ★ 한 주 사이 비현실적 점프는 경보 점수만 79 로 ★ (2026-10-17) NWSS 평균 26배 → critical 이 폰까지 갔다.
             # 지수(GAI)는 안 건드린다(측정값). 깎은 사실은 로그와 같은 줄 근거에 남긴다.
-            jump = implausible_jump(m["metric"], m.get("latest"), m.get("baseline_mean"), m.get("previous_distinct"))
+            jump = implausible_jump(m["metric"], m.get("latest"), m.get("baseline_mean"), m.get("previous_distinct"),
+                                    m.get("baseline_median"))
             if jump is not None and score > IMPLAUSIBLE_JUMP_CAP:
                 capped_to = IMPLAUSIBLE_JUMP_CAP
                 print(f"  🧢 [alerts] {m['metric']} — 관측값이 평소·직전 값의 {jump:.1f}배(문턱 초과) — 이상도 {score}점을 "

@@ -52,20 +52,41 @@ def _location_tokens(loc: str | None) -> set[str]:
     return {t for t in re.split(r"[·,\s]+", loc) if t}
 
 
+# 추출기가 질병을 못 정했을 때 쓰는 말 — 이 값은 '질병명'이 아니라 '모름'이다.
+_UNKNOWN_DISEASE = {"질병불명", "불명", "미상", "원인불명", "unknown", "undiagnosed", "n/a", "none"}
+
+
+def _known_disease(name: str | None) -> str:
+    core = _normalize_disease(name)
+    return "" if core.lower() in _UNKNOWN_DISEASE else core
+
+
+def _same_place(a: str | None, b: str | None) -> bool:
+    """지역 낱말이 하나라도 겹치거나, 같은 나라로 읽히면 같은 곳이다(`Irkutsk, Russia` ↔ `러시아 이르쿠츠크, 중국`)."""
+    if _location_tokens(a) & _location_tokens(b):
+        return True
+    from .country_resolve import resolve_countries
+    return bool(set(resolve_countries(a)) & set(resolve_countries(b)))
+
+
 def _is_duplicate_event(new: dict, recent: list[dict]) -> bool:
-    """같은 사건의 재탐지인지 판정 — 질병명 핵심 토큰이 서로 포함관계고
-    지역 토큰이 하나라도 겹치면 이미 아는 사건으로 본다."""
-    new_disease = _normalize_disease(new.get("disease"))
-    new_locs = _location_tokens(new.get("location"))
-    if not new_disease or not new_locs:
+    """같은 사건의 재탐지인지 판정 — 같은 곳(지역 낱말 또는 나라)이고, 질병명 핵심 토큰이 서로 포함관계면
+    이미 아는 사건으로 본다.
+
+    ★ 질병을 모르면 곳만 본다 ★ (2026-10-25, 소킹 10-22) 이르쿠츠크 사건이 `질병불명` 으로 다시 뽑히자
+    질병명이 비어 이 판정을 통째로 건너뛰었고(예전엔 `not new_disease → False`), 같은 사건이 '설명 불가 —
+    즉시경보'로 다시 저장돼 폰이 울렸다. 질병을 모른다는 건 다른 병이라는 뜻이 아니다 — 21일 안에 같은 곳에서
+    난 원인불명 보고는 같은 사건으로 본다. 대가: 그 사이 같은 곳의 정말 새로운 원인불명 사건도 21일간 묻힌다."""
+    new_disease = _known_disease(new.get("disease"))
+    if not _location_tokens(new.get("location")):
         return False
     for r in recent:
-        r_disease = _normalize_disease(r.get("disease"))
-        r_locs = _location_tokens(r.get("location"))
-        if not r_disease or not r_locs:
+        if not _location_tokens(r.get("location")) or not _same_place(new.get("location"), r.get("location")):
             continue
-        disease_match = new_disease in r_disease or r_disease in new_disease
-        if disease_match and (new_locs & r_locs):
+        r_disease = _known_disease(r.get("disease"))
+        if not new_disease or not r_disease:
+            return True
+        if new_disease in r_disease or r_disease in new_disease:
             return True
     return False
 

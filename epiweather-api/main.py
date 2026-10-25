@@ -588,6 +588,14 @@ async def _run_prediction_resolution() -> None:
         from algorithms.prediction_resolver import resolve_due_predictions
         outcome = await asyncio.to_thread(resolve_due_predictions)
         resolved = outcome["resolved"]
+        for r in outcome.get("regraded") or []:
+            # 이미 correct 로 닫혔던 것을 다시 매긴 것 — 성적표 숫자가 바뀌는 자리라 하나씩 남긴다.
+            collector.log(f"↩ 예측 재판정: {r['country']}/{r['disease']} 적중(선행 {r['was_lead_days']}일)→모호 — "
+                          f"예측 전 이미 선언된 발병({r['prior_event_id']} {r['prior_date']})")
+        prior_named = [r for r in resolved if r.get("already_declared")]
+        if prior_named:
+            collector.log(f"↩ 이미 선언된 발병을 지목한 예측 {len(prior_named)}건 모호로 닫음 — "
+                          + " · ".join(f"{r['country']}/{r['disease']}" for r in prior_named))
         if outcome.get("blind"):
             # 닫지 않고 연 채로 둔 것 — 오답으로 세지 않았다는 사실과 이유를 그대로 남긴다.
             reasons = " / ".join(f"{k} {v}건" for k, v in sorted(outcome["blind_reasons"].items()))

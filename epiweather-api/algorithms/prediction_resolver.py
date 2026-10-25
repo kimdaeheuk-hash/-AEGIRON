@@ -37,6 +37,16 @@
 4. 자동 해소는 `resolution_sources` 에 `auto:<event_id>` 를 남긴다 — 사람이 손으로
    넣은 판정과 섞이면 나중에 근거를 다시 못 가른다. (기존 `verify_prediction` 이
    이미 "무엇을 보고 판정했는지" 자리를 갖고 있어서 새 컬럼을 만들지 않았다.)
+5. **이미 선언된 발병을 다시 지목한 예측은 선행이 아니다 — 모호로 닫는다** (2026-10-25,
+   캡틴 결정 "모호로 하고 진행"). 2번은 '그 발표보다 늦게 적은 것'만 막았고, '같은 나라·질병이
+   예측 **전에** 이미 선언돼 있었는지'는 안 봤다. 10-23 첫 '선행일수 실측' 4건이 전부 그 구멍이었다:
+   DRC 에볼라는 PHEIC 상태(10-16 기준 확진 9,415명)였는데 그 뒤 WHO 발표 하나(`Ebola disease caused
+   by Bundibugyo virus`)가 '25일 선행'으로 세어졌다 — 질병 표기가 달라 같은 사건으로도 안 묶였다.
+   - 예측일 이전 ALREADY_DECLARED_LOOKBACK_DAYS 안에 국가·질병이 맞는 선언이 있으면 결과를 기다리지
+     않고 `ambiguous` 로 닫는다. 맞혀도 '먼저 안 것'이 아니고, 안 맞아도 '틀렸다'가 아니다.
+   - 질병은 표기가 달라도 같은 병이면 같다고 본다(`event_dedup.normalize_disease` — 분디부교 = 에볼라).
+   - 이미 `correct` 로 닫힌 자동 판정도 같은 기준으로 다시 본다(`regrade`). 덮어쓰지 않고 원판정을
+     판정 문구와 근거에 남긴다. 봉인(canonical_hash)은 예측 시점 필드만 덮으므로 깨지지 않는다.
 """
 from __future__ import annotations
 
@@ -104,6 +114,11 @@ MATCH_COUNTRY = "country"   # 국가만 맞음 → 계약상 ambiguous
 MATCH_FULL = "full"         # 국가·질병 둘 다 → correct
 
 
+# 예측일 이전 이 기간 안에 같은 나라·질병의 선언이 있으면 '이미 선언된 발병'으로 본다. 판단 상수다 —
+# 발병 하나가 몇 달씩 이어지고(2026 DRC 에볼라), 1년이 지나면 같은 나라의 새 유행일 수 있다.
+ALREADY_DECLARED_LOOKBACK_DAYS = 365
+
+
 def _overlaps(value: str, hay: str) -> bool:
     value = (value or "").strip().lower()
     if not value:
@@ -145,7 +160,81 @@ def match_kind(prediction: dict, event: dict) -> str:
     hay = " ".join(str(event.get(k) or "") for k in ("event_id", "event_name")).lower()
     if not _country_matches(prediction.get("country"), event, hay):
         return MATCH_NONE
-    return MATCH_FULL if _overlaps(prediction.get("disease"), hay) else MATCH_COUNTRY
+    return MATCH_FULL if _disease_matches(prediction.get("disease"), hay) else MATCH_COUNTRY
+
+
+def _disease_matches(disease: str | None, hay: str) -> bool:
+    """글자가 겹치거나, 표준 질병명(normalize_disease 의 별칭표)이 같으면 같은 병이다.
+    `Bundibugyo` 예측과 `Ebola virus disease … 에볼라` 사건이 같은 병인데 글자로는 안 겹친다."""
+    if _overlaps(disease, hay):
+        return True
+    from algorithms.event_dedup import normalize_disease
+    canonical = normalize_disease(disease)
+    if not canonical or canonical == (disease or "").strip():
+        return False                      # 별칭표에 없는 병 — 추측하지 않는다
+    return canonical.lower() in hay or normalize_disease(hay) == canonical
+
+
+def already_declared(prediction: dict, predicted: dt.date, declarations: list[dict]) -> dict | None:
+    """예측일 당일까지 ALREADY_DECLARED_LOOKBACK_DAYS 안에 나라·질병이 맞는 선언이 있었으면 가장 이른 것."""
+    since = predicted - dt.timedelta(days=ALREADY_DECLARED_LOOKBACK_DAYS)
+    prior = [e for e in declarations
+             if since <= e["_date"] <= predicted and match_kind(prediction, e) == MATCH_FULL]
+    return min(prior, key=lambda e: e["_date"]) if prior else None
+
+
+def _already_declared_result(prior: dict) -> str:
+    return (f"예측 전에 이미 같은 나라·질병의 공식 선언이 있었음: "
+            f"{prior.get('event_name') or prior.get('event_id')} ({prior['_date'].isoformat()}) — "
+            f"이미 선언된 발병을 다시 지목한 예측이라 선행으로 세지 않음(모호)")
+
+
+def _already_declared_source(prior: dict) -> str:
+    return (f"auto:already_declared:{prior.get('event_id')}:{prior.get('milestone')}"
+            f"@{prior['_date'].isoformat()}")
+
+
+def regrade(declarations: list[dict] | None = None) -> list[dict]:
+    """이미 `correct` 로 닫힌 **자동** 판정 중 이미 선언된 발병을 지목한 것을 `ambiguous` 로 다시 매긴다.
+
+    사람이 손으로 넣은 판정(auto: 근거가 없는 것)은 건드리지 않는다. 원판정은 지우지 않고 문구·근거에
+    남긴다 — 무엇이 왜 바뀌었는지 되짚을 수 있어야 한다."""
+    declarations = _declarations() if declarations is None else declarations
+    out = []
+    for pred in db.list_predictions(verified_only=True) or []:
+        if pred.get("outcome") != "correct":
+            continue
+        sources = _sources(pred)
+        if not any(str(s).startswith("auto:outbreak_timeline:") for s in sources):
+            continue
+        predicted = _parse_date(pred.get("predicted_at"))
+        prior = already_declared(pred, predicted, declarations) if predicted else None
+        if prior is None:
+            continue
+        original = (f"원판정 correct(선행 {pred.get('lead_days')}일) — "
+                    f"{pred.get('actual_result') or ''}")
+        db.verify_prediction(
+            pred["id"],
+            actual_result=f"재판정: {_already_declared_result(prior)} · {original}",
+            correct=None, lead_days=None, outcome="ambiguous",
+            resolution_sources=[*sources, _already_declared_source(prior), "regrade:already_declared"],
+        )
+        out.append({"prediction_id": pred["id"], "country": pred.get("country"),
+                    "disease": pred.get("disease"), "was_lead_days": pred.get("lead_days"),
+                    "prior_event_id": prior.get("event_id"), "prior_date": prior["_date"].isoformat()})
+    return out
+
+
+def _sources(pred: dict) -> list:
+    raw = pred.get("resolution_sources")
+    if isinstance(raw, list):
+        return raw
+    try:
+        import json
+        val = json.loads(raw or "[]")
+        return val if isinstance(val, list) else []
+    except (TypeError, ValueError):
+        return []
 
 
 def _matches(prediction: dict, event: dict) -> bool:
@@ -203,6 +292,7 @@ def resolve_due_predictions(today: dt.date | None = None) -> dict:
     checked = 0
     blind = 0
     blind_reasons: dict[str, int] = {}
+    regraded = regrade(declarations)
 
     for pred in db.list_predictions() or []:
         if pred.get("verified_at"):
@@ -212,6 +302,21 @@ def resolve_due_predictions(today: dt.date | None = None) -> dict:
             continue
         checked += 1
         deadline = predicted + dt.timedelta(days=horizon)
+
+        # ⓪ 이미 선언된 발병을 다시 지목했나 — 결과를 기다리지 않고 모호로 닫는다(머리말 5).
+        prior = already_declared(pred, predicted, declarations)
+        if prior is not None:
+            db.verify_prediction(
+                pred["id"], actual_result=_already_declared_result(prior),
+                correct=None, lead_days=None, outcome="ambiguous",
+                resolution_sources=[_already_declared_source(prior)],
+            )
+            resolved.append({
+                "prediction_id": pred["id"], "country": pred.get("country"),
+                "disease": pred.get("disease"), "correct": None,
+                "lead_days": None, "event_id": prior.get("event_id"), "already_declared": True,
+            })
+            continue
 
         # ① 기한 내 공식 선언이 있었는가
         hit = None        # 국가·질병 둘 다 맞음
@@ -322,7 +427,7 @@ def resolve_due_predictions(today: dt.date | None = None) -> dict:
         still_open += 1
 
     return {"resolved": resolved, "still_open": still_open, "checked": checked,
-            "blind": blind, "blind_reasons": blind_reasons}
+            "blind": blind, "blind_reasons": blind_reasons, "regraded": regraded}
 
 
 def lead_time_record() -> dict:
