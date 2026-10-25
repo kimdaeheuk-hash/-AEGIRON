@@ -226,6 +226,40 @@ def resolve_countries(location: str | None) -> list[str]:
     return out
 
 
+def countries_in_text(text: str | None) -> list[str]:
+    """긴 글(발표 본문 같은) 안의 나라를 **모두** 등장 순서로 찾는다.
+
+    `resolve_countries` 는 위치 칸용이다 — 쉼표 등으로 조각낸 뒤 조각마다 나라 **하나**만 고르고, 크루즈·선박 같은
+    말이 든 조각은 통째로 버린다. 문장에는 맞지 않는다: "아르헨티나 보건부가 크루즈선 집단발병을 알렸다" 에서
+    아르헨티나가 사라진다(2026-10-25 시험에서 확인). 여기서는 사전의 영문·한글 이름을 단어 경계로 모두 찾고,
+    긴 이름이 먼저 자리를 차지한다(`South Sudan` 이 `Sudan` 으로, `Niger` 가 `Nigeria` 안에서 잡히지 않게)."""
+    if not text:
+        return []
+    found: list[tuple[int, str]] = []
+    taken: list[tuple[int, int]] = []
+
+    def claim(start: int, end: int, iso: str) -> None:
+        if any(start < b and a < end for a, b in taken):
+            return
+        taken.append((start, end))
+        found.append((start, iso))
+
+    # 하이픈은 띄어쓰기로 — `Guinea-Bissau` 가 사전의 `guinea bissau` 로 읽히게. 글자 수는 그대로라 위치가 안 흔들린다.
+    lowered = re.sub(r"[-–—]", " ", _expand_paren_forms(text).lower())
+    for key in sorted(_EN, key=len, reverse=True):
+        pattern = r"\b" + r"\s+".join(re.escape(w) for w in key.split()) + r"\b"
+        for m in re.finditer(pattern, lowered):
+            claim(m.start(), m.end(), _EN[key])
+    for key in sorted(_KO, key=len, reverse=True):
+        for m in re.finditer(re.escape(key), lowered):
+            claim(m.start(), m.end(), _KO[key])
+    out: list[str] = []
+    for _, iso in sorted(found):
+        if iso not in out:
+            out.append(iso)
+    return out
+
+
 def resolve_country(location: str | None) -> str | None:
     """대표 국가 하나(첫 번째). 단일 컬럼(country_iso3)에 넣을 때 쓴다."""
     found = resolve_countries(location)
