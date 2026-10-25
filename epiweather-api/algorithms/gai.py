@@ -72,6 +72,20 @@ def _baseline_mean(series: list[float | None]) -> float | None:
     return round(statistics.mean(cleaned[:-1]), 4)
 
 
+def _baseline_median(series: list[float | None]) -> float | None:
+    """과거(최신값 제외) 관측의 **중앙값**. 표본 부족이면 None. 점수에는 영향이 없다(승격 자리만 쓴다).
+
+    ★ 왜 평균 말고 중앙값도 보나 ★ (2026-10-25, 소킹 10-23 16:01 NWSS critical 재발) 이상치 한 주(1,680,230)가
+    접힌 시계열에 '서로 다른 한 주'로 들어가자 평균이 67,594 → 152,470 으로 끌려 올라갔고, 다음 창도 이상치
+    (1,404,069)라 직전 값과는 비슷했다 — 두 비교점이 다 오염돼 배수 9.2(<10)로 상한이 풀렸다(#83 이 적어 둔 한계 ⓪).
+    중앙값은 이상치 한두 주로는 안 움직인다.
+    """
+    cleaned = [v for v in series if v is not None]
+    if len(cleaned) < MIN_HISTORY + 1:
+        return None
+    return round(statistics.median(cleaned[:-1]), 4)
+
+
 def _previous_distinct(series: list[float | None]) -> float | None:
     """최신값과 **다른** 가장 최근 관측값. 없으면 None.
 
@@ -132,6 +146,8 @@ def compute_gai() -> dict:
                 # 최신값과 다른 가장 최근 값 — 같은 주간 값이 매시간 다시 쌓여 평균이 끌려가도 흔들리지 않는 비교점.
                 # 경보 승격 자리의 비현실적 점프 판정(signal_metrics.implausible_jump)이 쓴다. 점수에는 영향이 없다.
                 "previous_distinct": _previous_distinct(series),
+                # 과거 중앙값 — 이상치 한두 주가 평균·직전 값을 다 오염시켜도 버티는 비교점(10-23 한계 ⓪ 재발).
+                "baseline_median": _baseline_median(series),
                 "raw_score": raw_score,
                 "trust": trust,
                 "trusted_score": round(raw_score * trust, 1),

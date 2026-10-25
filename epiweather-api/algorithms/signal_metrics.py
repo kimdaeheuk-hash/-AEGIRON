@@ -240,19 +240,21 @@ IMPLAUSIBLE_JUMP_CAP = 79.0
 
 
 def implausible_jump(metric_id: str, latest: float | None, baseline_mean: float | None,
-                     previous: float | None = None) -> float | None:
+                     previous: float | None = None, baseline_median: float | None = None) -> float | None:
     """관측값이 평소(또는 직전의 다른 값)의 몇 배인가 — 대상 지표에서 문턱을 넘었을 때만 배수를 돌려준다. 아니면 None.
 
     비교점은 둘이고 **더 큰 배수**를 쓴다(어느 쪽으로 봐도 비현실적이면 비현실적이다):
     - `baseline_mean`: 과거 평균. 값이 오래 높게 머무는 새 수준(단위 변경 등)에서도 한동안 문턱 위에 남는다.
     - `previous`: 최신값과 다른 가장 최근 값(지난 창). 같은 주간 값을 매시간 다시 기록해 평균이 끌려 올라가도
       흔들리지 않는다 — 평균만 보면 같은 주 안에서 배수가 저절로 줄어 상한이 풀리고 폰이 다시 울린다(10-18 자기검토).
+    - `baseline_median`: 과거 중앙값. 이상치가 두 주 연달아 오면 앞의 둘이 다 오염된다(10-23: 평균 152,470 ·
+      직전 1,680,230 → 1,404,069 가 9.2배로 상한 풀림). 중앙값은 그 정도로는 안 움직인다.
 
     관측값을 못 봤거나 쓸 비교점(양수)이 없으면 None — 이 함수는 점수를 *깎는* 쪽이라 모를 때는 깎지 않는다."""
     limit = IMPLAUSIBLE_JUMP_RATIO.get(metric_id)
     if limit is None or latest is None:
         return None
-    refs = [r for r in (baseline_mean, previous) if r is not None and r > 0]
+    refs = [r for r in (baseline_mean, previous, baseline_median) if r is not None and r > 0]
     if not refs:
         return None
     ratio = latest / min(refs)

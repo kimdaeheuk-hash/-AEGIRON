@@ -44,6 +44,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import re
 
 import db
 
@@ -57,6 +58,10 @@ OUTCOME_DECLARED = "declared"
 OUTCOME_NO_DECLARATION = "no_declaration"
 # 같은 선언에 걸린 두 번째 이후의 통과. 실측으로도, 오경보로도 세지 않는다.
 OUTCOME_DUPLICATE = "duplicate"
+# 문턱을 넘기 전에 같은 질병의 선언이 이미 있었다 — 이미 공개된 발병을 뒤따라 넘은 것이라 선행이 아니다
+# (2026-10-25, 예측 채점기와 같은 구멍 — prediction_resolver 머리말 5). 실측으로도, 오경보로도 세지 않는다.
+OUTCOME_ALREADY_DECLARED = "already_declared"
+ALREADY_DECLARED_LOOKBACK_DAYS = 365
 
 
 def _now() -> dt.datetime:
@@ -152,6 +157,16 @@ def _close(entry_id: int, outcome: str, now: dt.datetime,
         conn.commit()
 
 
+def _event_isos(event_id: str | None, event_name: str | None) -> set[str]:
+    """선언 사건이 가리키는 나라들 — 사건 키의 `_iso3_연도` 꼬리와 이름에서 읽힌 나라."""
+    from .country_resolve import resolve_countries
+    isos = set(resolve_countries(event_name or ""))
+    tail = re.search(r"_([a-z]{3})_\d{4}$", event_id or "")
+    if tail:
+        isos.add(tail.group(1).upper())
+    return isos
+
+
 def resolve_ledger(now: dt.datetime | None = None) -> dict:
     """열린 항목을 공식 선언과 맞춰 닫는다. 기한이 지나도 선언이 없으면 오경보.
 
@@ -173,6 +188,7 @@ def resolve_ledger(now: dt.datetime | None = None) -> dict:
                     "event_id": event["event_id"],
                     "disease": normalize_disease(timeline["event_name"]),
                     "date": _as_date(milestone["event_date"]),
+                    "isos": _event_isos(event["event_id"], timeline.get("event_name")),
                 })
                 break
 
@@ -186,7 +202,7 @@ def resolve_ledger(now: dt.datetime | None = None) -> dict:
         if row.get("event_id")
     }
 
-    closed_declared, closed_silent, duplicates, still_open = [], [], [], 0
+    closed_declared, closed_silent, duplicates, already, still_open = [], [], [], [], 0
     blind = 0
     blind_reasons: dict[str, int] = {}
     # 먼저 넘은 것부터 본다 — 가장 이른 기록이 그 사건의 선행일수다.
@@ -194,6 +210,20 @@ def resolve_ledger(now: dt.datetime | None = None) -> dict:
                         key=lambda e: e["crossed_at"]):
         crossed = _as_date(entry["crossed_at"])
         if crossed is None:
+            continue
+
+        prior = next(
+            (d for d in sorted(declarations, key=lambda d: d["date"] or dt.date.max)
+             if d["disease"] == entry["disease"] and d["date"]
+             and crossed - dt.timedelta(days=ALREADY_DECLARED_LOOKBACK_DAYS) <= d["date"] < crossed
+             # 나라를 아는 통과는 같은 나라의 선언만 본다 — 다른 나라에서 선언된 병은 이 나라의 선행을 막지 않는다.
+             and (not entry.get("country_iso3") or entry["country_iso3"] in d["isos"])),
+            None,
+        )
+        if prior:
+            _close(entry["id"], OUTCOME_ALREADY_DECLARED, now,
+                   event_id=prior["event_id"], declared_on=prior["date"].isoformat())
+            already.append(entry)
             continue
 
         # ★ 우리가 먼저 적은 뒤에 나온 선언만 찾는다 ★ 원장 기록보다 앞선
@@ -243,6 +273,7 @@ def resolve_ledger(now: dt.datetime | None = None) -> dict:
         "closed_declared": closed_declared,
         "closed_no_declaration": len(closed_silent),
         "closed_duplicate": len(duplicates),
+        "closed_already_declared": len(already),
         "still_open": still_open,
         "blind": blind,
         "blind_reasons": blind_reasons,
@@ -325,6 +356,8 @@ def ledger_record() -> dict:
         "open_crossings": len(open_now),
         # 같은 선언에 걸린 중복 통과. 실측에도 오경보에도 안 들어가지만 숨기지도 않는다.
         "duplicates": len(list_entries(outcome=OUTCOME_DUPLICATE, limit=1000)),
+        # 이미 선언된 발병을 뒤따라 넘은 것. 실측에도 오경보에도 안 들어가지만 숨기지도 않는다.
+        "already_declared": len(list_entries(outcome=OUTCOME_ALREADY_DECLARED, limit=1000)),
         "precision": (round(len(declared) / (len(declared) + len(silent)), 3)
                       if (declared or silent) else None),
         "horizon_days": RESOLUTION_HORIZON_DAYS,
