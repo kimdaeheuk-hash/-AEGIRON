@@ -23,6 +23,7 @@ DON 은 WHO 가 **사람이 쓴 공식 발표**라 AI 추출을 거치지 않는
 from __future__ import annotations
 
 import datetime as dt
+import html
 import re
 
 import requests
@@ -59,6 +60,42 @@ _TIGHT_SEPARATOR = re.compile(r"[–—-]")
 # 이 낱말이 든 문구는 나라 이름이 아니다 — `Crimean-Congo haemorrhagic fever` 의 오른쪽이 콩고로 읽히는 것을 막는다.
 _DISEASE_WORDS = re.compile(r"\b(?:haemorrhagic|hemorrhagic|fever|virus|disease|syndrome|infection|influenza|"
                             r"outbreak|cov)\b", re.I)
+
+
+# ── 본문에서 나라 읽기 (2026-10-25, 캡틴 지시 "국가 못 읽음 13건 본문에서 읽게") ─────────────────────────
+# 제목에 나라가 없는 발표(`Hantavirus … Multi-locations`, `Yellow fever - Global`, `Avian Influenza A(H9N2)`)가 매일
+# 13건씩 '국가 못 읽음'으로 정답에서 빠졌다. 운영 로그가 그 항목에 본문 필드(`Summary` · `Overview` · `Epidemiology`
+# …)가 있음을 보여 줬다. 본문은 이웃 나라·여행 경로·기관 이름(미국 CDC)도 말하므로 **보수적으로** 읽는다:
+#   - 본문 필드 하나의 **앞 두 문장**만 본다(발표의 주어 — "X 보건부가 WHO 에 알렸다" — 가 대개 거기 있다).
+#   - 기관 이름 속 나라는 지운다(`United States Centers for Disease Control` 의 미국은 발병국이 아니다).
+#   - 읽힌 나라가 BODY_MAX_COUNTRIES 를 넘으면 너무 넓다 — 읽지 않은 것으로 남긴다(Global 류).
+#   - 본문에서 읽은 선언은 출처에 `(본문)` 을 붙인다 — 제목에서 읽은 것과 나중에 갈라 볼 수 있게.
+BODY_KEYS = ("Summary", "Overview", "Epidemiology")
+BODY_SENTENCES = 2
+BODY_MAX_COUNTRIES = 5
+_TAG = re.compile(r"<[^>]+>")
+_AGENCY = re.compile(r"\b(?:the\s+)?(?:United States|US|U\.S\.)\s+(?:Centers?|Centres?)\s+for\s+Disease\s+Control"
+                     r"(?:\s+and\s+Prevention)?|\b(?:US|U\.S\.)\s*CDC\b", re.I)
+_SENTENCE_END = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9])")
+
+
+def body_text(item: dict) -> str:
+    """본문 필드 하나(BODY_KEYS 순서로 처음 비지 않은 것)의 앞 BODY_SENTENCES 문장. 태그·엔티티를 걷는다."""
+    for key in BODY_KEYS:
+        raw = item.get(key)
+        if not isinstance(raw, str) or not raw.strip():
+            continue
+        text = re.sub(r"\s+", " ", html.unescape(_TAG.sub(" ", raw))).strip()
+        if text:
+            return " ".join(_SENTENCE_END.split(text)[:BODY_SENTENCES])
+    return ""
+
+
+def body_countries(item: dict) -> list[str]:
+    """본문 앞부분에서 읽힌 나라(등장 순서). 기관 이름 속 나라는 뺀다. 못 읽으면 빈 목록."""
+    from .country_resolve import countries_in_text
+    text = _AGENCY.sub(" ", body_text(item))
+    return countries_in_text(text) if text else []
 
 
 class DonError(RuntimeError):
@@ -140,6 +177,23 @@ def parse_items(payload: object, today: dt.date | None = None) -> dict:
 
     cutoff = today - dt.timedelta(days=LOOKBACK_DAYS)
     declarations: list[dict] = []
+    from .country_resolve import korean_name
+
+    def _from_body(item: dict, disease: str, when: dt.date) -> bool:
+        """본문에서 나라를 읽어 선언을 낸다. 읽었으면 True. 너무 넓거나 못 읽으면 False(호출부가 못 읽음으로 센다)."""
+        isos = body_countries(item)
+        if not isos or len(isos) > BODY_MAX_COUNTRIES or not disease:
+            return False
+        readable_keys.append(item_key(item))
+        skipped["본문에서 나라 읽음"] = skipped.get("본문에서 나라 읽음", 0) + 1
+        place = ", ".join(korean_name(i) or i for i in isos)
+        for iso3 in isos:
+            declarations.append({
+                "disease": disease, "place": place, "iso3": iso3, "date": when,
+                "source": f"WHO DON {_first(item, _ID_KEYS) or ''} (본문)".strip(),
+            })
+        return True
+
     for item in items:
         if not isinstance(item, dict):
             skip("항목 형식 아님")
@@ -163,6 +217,9 @@ def parse_items(payload: object, today: dt.date | None = None) -> dict:
             skip("기간 밖")
             continue
         if not options:
+            # 제목에 나라가 없다(`Avian Influenza A(H9N2)`) — 본문에서 읽어 본다.
+            if _from_body(item, str(raw_title or "").strip(), when):
+                continue
             unreadable("제목 형식 모름")
             continue
         # 후보 가운데 **국가 문구가 사전에서 나라로 읽히는 첫 번째**만 쓴다. 하나도 안 읽히면 추측하지 않는다.
@@ -174,6 +231,9 @@ def parse_items(payload: object, today: dt.date | None = None) -> dict:
                 disease, place = d, p
                 break
         if not isos:
+            # 제목의 나라 자리가 나라가 아니다(`Multi-locations`, `Global`) — 본문에서 읽어 본다.
+            if _from_body(item, options[0][0], when):
+                continue
             unreadable("국가 못 읽음")
             continue
         readable_keys.append(key)
