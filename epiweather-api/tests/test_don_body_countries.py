@@ -80,3 +80,54 @@ def test_full_text_scanner_finds_every_country_and_prefers_long_names():
 def test_body_text_takes_two_sentences_and_strips_markup():
     text = don.body_text({"Summary": "<p>One &amp; two. Three.</p> <p>Four.</p>"})
     assert text == "One & two. Three."
+
+
+# ── 본문에서 읽은 나라를 로그에 남긴다 (2026-10-26, 캡틴 지시 "본문 나라 로그 남기게") ──────────────
+# 10-25 첫 운영에서 `본문에서 나라 읽음 3` 만 찍혀 어느 나라로 읽었는지 판정하지 못했다.
+
+def test_body_read_line_names_the_announcement_the_countries_and_the_evidence(isolated_db):
+    payload = {"value": [_item("Hantavirus outbreak linked to cruise ship travel, Multi-locations",
+                               "On 2 October 2026, the Ministry of Health of Argentina notified WHO. "
+                               "The ship had called at ports in Chile. Later text mentions Brazil.", i="DON600")]}
+    line = don.body_reads_line(don.ingest_don(payload, TODAY))
+    assert line.startswith("WHO DON 본문에서 읽은 나라: DON600 Hantavirus outbreak")
+    assert "→ 아르헨티나, 칠레 (근거: “On 2 October 2026, the Ministry of Health of Argentina" in line
+    # 근거는 실제로 읽은 앞 두 문장뿐이다 — 셋째 문장의 브라질은 근거에도 나라에도 없다.
+    assert "Brazil" not in line and "브라질" not in line
+
+
+def test_too_wide_body_read_is_logged_as_not_used():
+    many = "Cases were reported in Brazil, Peru, Colombia, Bolivia, Ecuador, Venezuela and Guyana."
+    out = don.parse_items({"value": [_item("Yellow fever - Global", many, i="DON601")]}, TODAY)
+    line = don.body_reads_line({"본문_읽음": out["body_reads"]})
+    assert out["declarations"] == [] and out["skipped"] == {"국가 못 읽음": 1}
+    # 가이아나는 나라 사전(_EN)에 없어 안 읽힌다 — 이 줄이 바로 그런 누락을 보이게 하려는 것이다.
+    assert "DON601 Yellow fever - Global → 6곳이라 너무 넓어 안 씀(브라질, 페루" in line
+
+
+def test_agency_country_is_not_in_the_evidence():
+    out = don.parse_items({"value": [_item("Measles - Multi-locations",
+                                           "WHO and the United States Centers for Disease Control and Prevention "
+                                           "are supporting Kenya.")]}, TODAY)
+    [read] = out["body_reads"]
+    assert read["countries"] == "케냐" and "United States" not in read["evidence"]
+
+
+def test_no_body_reads_means_no_line():
+    out = don.parse_items({"value": [{"Title": "Cholera – Angola", "PublicationDate": "2026-10-20",
+                                      "DonId": "D1"}]}, TODAY)
+    assert out["body_reads"] == [] and don.body_reads_line({"본문_읽음": []}) is None
+
+
+def test_line_is_capped_and_says_how_many_more():
+    reads = [{"id": f"D{i}", "title": "t", "countries": "케냐", "count": 1, "used": True, "evidence": "e"}
+             for i in range(don.BODY_LOG_ITEMS + 2)]
+    line = don.body_reads_line({"본문_읽음": reads})
+    assert line.count("→") == don.BODY_LOG_ITEMS and line.endswith("외 2건")
+
+
+def test_scheduler_logs_the_body_read_line():
+    from pathlib import Path
+    src = (Path(__file__).resolve().parent.parent / "main.py").read_text()
+    i = src.index("ingest_don)")
+    assert "collector.log(f\"   {body_reads_line(don_result)}\")" in src[i:i + 900]

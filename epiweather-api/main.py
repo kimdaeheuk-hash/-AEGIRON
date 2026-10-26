@@ -569,11 +569,16 @@ async def _run_prediction_resolution() -> None:
         # 그 자리를 채운다. 실패해도 채점은 돈다 — 다만 정답 경로가 눈이 멀면 채점기가 침묵을
         # 오답으로 세지 않고 판정을 보류한다(ground_truth_channel).
         try:
-            from algorithms.who_don_declarations import ingest_don, samples_line, summary as don_summary
+            from algorithms.who_don_declarations import (
+                body_reads_line, ingest_don, samples_line, summary as don_summary,
+            )
             don_result = await asyncio.to_thread(ingest_don)
             collector.log(f"📌 {don_summary(don_result)}")
             if samples_line(don_result):
                 collector.log(f"   {samples_line(don_result)}")
+            # 본문에서 어느 나라로 읽었는지 — 맞게 읽었는지를 로그로 판정하게 한다(2026-10-26).
+            if body_reads_line(don_result):
+                collector.log(f"   {body_reads_line(don_result)}")
         except Exception as e:
             collector.log(f"  ❌ WHO DON 정답 적재 실패 — {type(e).__name__}: {str(e)[:200]}")
             _log_error(f"who_don_declarations: {type(e).__name__}: {e}")

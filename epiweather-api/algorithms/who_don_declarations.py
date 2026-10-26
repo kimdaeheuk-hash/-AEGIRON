@@ -77,6 +77,11 @@ _TAG = re.compile(r"<[^>]+>")
 _AGENCY = re.compile(r"\b(?:the\s+)?(?:United States|US|U\.S\.)\s+(?:Centers?|Centres?)\s+for\s+Disease\s+Control"
                      r"(?:\s+and\s+Prevention)?|\b(?:US|U\.S\.)\s*CDC\b", re.I)
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9])")
+# 본문에서 무엇을 읽었는지 로그에 남긴다 (2026-10-26, 캡틴 지시 "본문 나라 로그 남기게") — 10-25 첫 운영에서
+# `본문에서 나라 읽음 3` 이 찍혔지만 **어느 나라로 읽었는지** 안 남아 맞는지 판정하지 못했다.
+# 한 줄에 BODY_LOG_ITEMS 건까지, 근거 문장은 BODY_EVIDENCE_CHARS 자까지.
+BODY_LOG_ITEMS = 5
+BODY_EVIDENCE_CHARS = 160
 
 
 def body_text(item: dict) -> str:
@@ -168,6 +173,8 @@ def parse_items(payload: object, today: dt.date | None = None) -> dict:
     unread: list[dict] = []
     readable_keys: list[str] = []
     unread_fields: list[str] = []
+    # 본문에서 나라를 읽어 본 발표 — 쓴 것과 너무 넓어 안 쓴 것 둘 다(body_reads_line).
+    body_reads: list[dict] = []
 
     def skip(reason: str, title: str | None = None) -> None:
         skipped[reason] = skipped.get(reason, 0) + 1
@@ -182,11 +189,19 @@ def parse_items(payload: object, today: dt.date | None = None) -> dict:
     def _from_body(item: dict, disease: str, when: dt.date) -> bool:
         """본문에서 나라를 읽어 선언을 낸다. 읽었으면 True. 너무 넓거나 못 읽으면 False(호출부가 못 읽음으로 센다)."""
         isos = body_countries(item)
-        if not isos or len(isos) > BODY_MAX_COUNTRIES or not disease:
+        if not isos or not disease:
+            return False
+        place = ", ".join(korean_name(i) or i for i in isos)
+        used = len(isos) <= BODY_MAX_COUNTRIES
+        body_reads.append({
+            "id": str(_first(item, _ID_KEYS) or item_key(item)), "title": str(_first(item, _TITLE_KEYS) or ""),
+            "countries": place, "count": len(isos), "used": used,
+            "evidence": _AGENCY.sub(" ", body_text(item))[:BODY_EVIDENCE_CHARS],
+        })
+        if not used:
             return False
         readable_keys.append(item_key(item))
         skipped["본문에서 나라 읽음"] = skipped.get("본문에서 나라 읽음", 0) + 1
-        place = ", ".join(korean_name(i) or i for i in isos)
         for iso3 in isos:
             declarations.append({
                 "disease": disease, "place": place, "iso3": iso3, "date": when,
@@ -248,7 +263,8 @@ def parse_items(payload: object, today: dt.date | None = None) -> dict:
         raise DonError("DON 항목을 하나도 못 읽었다(제목·날짜 필드명 확인 필요): "
                        f"{str(items[0])[:200]}")
     return {"declarations": declarations, "read": len(items), "skipped": skipped, "samples": samples,
-            "unread": unread, "readable_keys": readable_keys, "unread_fields": unread_fields}
+            "unread": unread, "readable_keys": readable_keys, "unread_fields": unread_fields,
+            "body_reads": body_reads}
 
 
 def item_key(item: dict) -> str:
@@ -330,7 +346,7 @@ def ingest_don(payload: object | None = None, today: dt.date | None = None) -> d
         added += 1
     return {"등재": added, "이미있음": existing, "건너뜀": parsed["skipped"], "검토": parsed["read"],
             "예시": parsed.get("samples") or {}, "포괄": covered, "포괄_근거": basis,
-            "못읽음_필드": parsed.get("unread_fields") or []}
+            "못읽음_필드": parsed.get("unread_fields") or [], "본문_읽음": parsed.get("body_reads") or []}
 
 
 def samples_line(result: dict) -> str | None:
@@ -345,6 +361,22 @@ def samples_line(result: dict) -> str | None:
     if fields:
         line += " · 못 읽은 항목의 필드: " + ", ".join(fields)
     return line
+
+
+def body_reads_line(result: dict) -> str | None:
+    """본문에서 읽은 나라 한 줄 — 발표 · 제목 → 나라 (근거 문장). 없으면 None.
+
+    쓴 것만이 아니라 너무 넓어 안 쓴 것도 싣는다 — '못 읽음'이 본문을 못 읽어서인지, 읽었는데 나라가 많아서인지
+    갈라 보게 한다. 근거 문장은 기관 이름을 지운 뒤의 것이다(나라를 읽은 바로 그 글)."""
+    reads = result.get("본문_읽음") or []
+    if not reads:
+        return None
+    parts = []
+    for r in reads[:BODY_LOG_ITEMS]:
+        verdict = r["countries"] if r["used"] else f"{r['count']}곳이라 너무 넓어 안 씀({r['countries']})"
+        parts.append(f"{r['id']} {r['title'][:SAMPLE_CHARS]} → {verdict} (근거: “{r['evidence']}”)")
+    more = f" · 외 {len(reads) - BODY_LOG_ITEMS}건" if len(reads) > BODY_LOG_ITEMS else ""
+    return "WHO DON 본문에서 읽은 나라: " + " · ".join(parts) + more
 
 
 def summary(result: dict) -> str:
