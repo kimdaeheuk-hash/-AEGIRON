@@ -131,3 +131,41 @@ def test_scheduler_logs_the_body_read_line():
     src = (Path(__file__).resolve().parent.parent / "main.py").read_text()
     i = src.index("ingest_don)")
     assert "collector.log(f\"   {body_reads_line(don_result)}\")" in src[i:i + 900]
+
+
+# ── 근거는 첫 나라가 나온 자리 둘레로 자른다 (2026-10-27, 캡틴 지시 "근거 잘림 고치게") ─────────────────
+# 10-26 운영: 근거를 앞 160자로 잘라 네 건 모두 나라 이름이 근거 밖이었다. 그 모양(긴 머리말 뒤의 나라)을 재현한다.
+_PREAMBLE = ("This is the fourth Disease Outbreak News report on the Andes hantavirus outbreak linked to cruise ship "
+             "travel, following the notification to the World Health Organization (WHO) on 2 May 2026 of severe "
+             "respiratory illness among passengers, after which cases were reported by Canada, the Netherlands "
+             "and Spain.")
+
+
+def test_evidence_shows_the_countries_even_after_a_long_preamble():
+    out = don.parse_items({"value": [_item("Hantavirus outbreak linked to cruise ship travel, Multi-locations",
+                                           _PREAMBLE, i="2026-DON604")]}, TODAY)
+    [read] = out["body_reads"]
+    assert read["countries"] == "캐나다, 네덜란드, 스페인"
+    assert "Canada" in read["evidence"] and "Spain" in read["evidence"]
+    assert read["evidence"].startswith("…")          # 앞을 잘랐다는 표시
+    assert not read["evidence"][1:].startswith(" ")  # 낱말 가운데·공백에서 시작하지 않는다
+
+
+def test_evidence_window_starts_at_the_beginning_when_the_country_is_early():
+    text = "Argentina notified WHO of a cluster. " + "x " * 200
+    window = don.evidence_window(text)
+    assert window.startswith("Argentina") and window.endswith("…")
+    assert len(window) <= don.BODY_EVIDENCE_CHARS + 2
+
+
+def test_evidence_window_finds_hyphenated_country_in_the_original_text():
+    text = "a " * 100 + "Cases were confirmed in Guinea-Bissau last week."
+    assert "Guinea-Bissau" in don.evidence_window(text)
+
+
+def test_country_mentions_agree_with_countries_in_text():
+    from algorithms.country_resolve import countries_in_text, country_mentions
+    text = "Guinea-Bissau, Guinea and Equatorial Guinea; also Nigeria and Niger."
+    isos = [m[2] for m in country_mentions(text)]
+    assert countries_in_text(text) == list(dict.fromkeys(isos)) == ["GNB", "GIN", "GNQ", "NGA", "NER"]
+    assert country_mentions(text)[0][3] == "guinea bissau"

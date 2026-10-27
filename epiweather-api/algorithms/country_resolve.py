@@ -233,19 +233,32 @@ def countries_in_text(text: str | None) -> list[str]:
     말이 든 조각은 통째로 버린다. 문장에는 맞지 않는다: "아르헨티나 보건부가 크루즈선 집단발병을 알렸다" 에서
     아르헨티나가 사라진다(2026-10-25 시험에서 확인). 여기서는 사전의 영문·한글 이름을 단어 경계로 모두 찾고,
     긴 이름이 먼저 자리를 차지한다(`South Sudan` 이 `Sudan` 으로, `Niger` 가 `Nigeria` 안에서 잡히지 않게)."""
+    out: list[str] = []
+    for _, _, iso, _ in country_mentions(text):
+        if iso not in out:
+            out.append(iso)
+    return out
+
+
+def country_mentions(text: str | None) -> list[tuple[int, int, str, str]]:
+    """countries_in_text 의 근거 — 찾은 자리마다 (시작, 끝, ISO3, 찾은 글자열), 등장 순서.
+
+    위치는 괄호 표기를 펼치고 소문자·하이픈을 띄어쓰기로 바꾼 글 기준이다(괄호 표기가 있으면 원문과 몇 글자 어긋날 수
+    있다). 원문에서 자리를 찾을 땐 찾은 글자열로 다시 찾는다(who_don_declarations.evidence_window)."""
     if not text:
         return []
-    found: list[tuple[int, str]] = []
+    found: list[tuple[int, int, str, str]] = []
     taken: list[tuple[int, int]] = []
+
+    # 하이픈은 띄어쓰기로 — `Guinea-Bissau` 가 사전의 `guinea bissau` 로 읽히게. 글자 수는 그대로라 위치가 안 흔들린다.
+    lowered = re.sub(r"[-–—]", " ", _expand_paren_forms(text).lower())
 
     def claim(start: int, end: int, iso: str) -> None:
         if any(start < b and a < end for a, b in taken):
             return
         taken.append((start, end))
-        found.append((start, iso))
+        found.append((start, end, iso, lowered[start:end]))
 
-    # 하이픈은 띄어쓰기로 — `Guinea-Bissau` 가 사전의 `guinea bissau` 로 읽히게. 글자 수는 그대로라 위치가 안 흔들린다.
-    lowered = re.sub(r"[-–—]", " ", _expand_paren_forms(text).lower())
     for key in sorted(_EN, key=len, reverse=True):
         pattern = r"\b" + r"\s+".join(re.escape(w) for w in key.split()) + r"\b"
         for m in re.finditer(pattern, lowered):
@@ -253,11 +266,7 @@ def countries_in_text(text: str | None) -> list[str]:
     for key in sorted(_KO, key=len, reverse=True):
         for m in re.finditer(re.escape(key), lowered):
             claim(m.start(), m.end(), _KO[key])
-    out: list[str] = []
-    for _, iso in sorted(found):
-        if iso not in out:
-            out.append(iso)
-    return out
+    return sorted(found)
 
 
 def resolve_country(location: str | None) -> str | None:

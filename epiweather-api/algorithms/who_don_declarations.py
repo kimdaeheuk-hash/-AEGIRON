@@ -80,8 +80,12 @@ _SENTENCE_END = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9])")
 # 본문에서 무엇을 읽었는지 로그에 남긴다 (2026-10-26, 캡틴 지시 "본문 나라 로그 남기게") — 10-25 첫 운영에서
 # `본문에서 나라 읽음 3` 이 찍혔지만 **어느 나라로 읽었는지** 안 남아 맞는지 판정하지 못했다.
 # 한 줄에 BODY_LOG_ITEMS 건까지, 근거 문장은 BODY_EVIDENCE_CHARS 자까지.
+# ★ 근거는 앞에서부터가 아니라 '첫 나라가 나온 자리' 둘레로 자른다 (2026-10-27, 캡틴 지시 "근거 잘림 고치게") ★
+# 10-26 첫 운영에서 앞 160자로 잘랐더니 네 건 모두 나라 이름이 160자 뒤에 있어 근거에 나라가 없었다 — 줄을 만든
+# 목적(맞게 읽었는지 판정)을 못 채웠다. 첫 나라 앞 BODY_EVIDENCE_LEAD 자부터 BODY_EVIDENCE_CHARS 자를 보인다.
 BODY_LOG_ITEMS = 5
-BODY_EVIDENCE_CHARS = 160
+BODY_EVIDENCE_CHARS = 200
+BODY_EVIDENCE_LEAD = 60
 
 
 def body_text(item: dict) -> str:
@@ -101,6 +105,27 @@ def body_countries(item: dict) -> list[str]:
     from .country_resolve import countries_in_text
     text = _AGENCY.sub(" ", body_text(item))
     return countries_in_text(text) if text else []
+
+
+def evidence_window(text: str) -> str:
+    """근거 문장 — 첫 나라가 나온 자리 앞 BODY_EVIDENCE_LEAD 자부터 BODY_EVIDENCE_CHARS 자. 잘린 쪽엔 `…`.
+
+    나라를 못 찾으면(있을 수 없지만) 앞에서부터 자른다. 자리는 찾은 글자열로 원문에서 다시 찾는다 —
+    country_mentions 의 위치는 괄호 표기를 펼친 글 기준이라 원문과 어긋날 수 있다."""
+    from .country_resolve import country_mentions
+    start = 0
+    mentions = country_mentions(text)
+    if mentions:
+        spaced = re.sub(r"[-–—]", " ", text.lower())
+        at = spaced.find(mentions[0][3])
+        if at >= 0:
+            start = max(0, at - BODY_EVIDENCE_LEAD)
+            # 낱말 가운데서 시작하지 않게 다음 공백까지 민다(첫 나라를 넘지는 않는다).
+            if start > 0:
+                gap = text.find(" ", start, at)
+                start = gap + 1 if gap >= 0 else start
+    end = start + BODY_EVIDENCE_CHARS
+    return ("…" if start > 0 else "") + text[start:end].strip() + ("…" if end < len(text) else "")
 
 
 class DonError(RuntimeError):
@@ -196,7 +221,7 @@ def parse_items(payload: object, today: dt.date | None = None) -> dict:
         body_reads.append({
             "id": str(_first(item, _ID_KEYS) or item_key(item)), "title": str(_first(item, _TITLE_KEYS) or ""),
             "countries": place, "count": len(isos), "used": used,
-            "evidence": _AGENCY.sub(" ", body_text(item))[:BODY_EVIDENCE_CHARS],
+            "evidence": evidence_window(re.sub(r"\s+", " ", _AGENCY.sub(" ", body_text(item))).strip()),
         })
         if not used:
             return False
