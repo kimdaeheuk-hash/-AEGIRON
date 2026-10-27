@@ -21,7 +21,8 @@ import db
 from .gai import compute_gai
 from .negative_space import scan_negative_space
 from .unexplained import scan_unexplained
-from .signal_metrics import (ALERT_MIN_COUNT, COUNT_MIN_SIGMA, IMPLAUSIBLE_JUMP_CAP, cap_count_noise_score,
+from .signal_metrics import (ALERT_MIN_COUNT, COUNT_MIN_SIGMA, IMPLAUSIBLE_JUMP_CAP, SEASONAL_ALERT_CAP,
+                             cap_count_noise_score, seasonal_cap_reason,
                              approx_baseline, count_noise_reason, count_significance, implausible_jump,
                              metric_unit, is_count_noise_metric, meets_alert_minimum,
                              meets_count_significance)
@@ -506,6 +507,14 @@ def collect_candidate_alerts(today: str, negative_space: dict | None = None) -> 
                 how += (f" → 경보 점수 {capped_to}점으로 제한(평소·직전 값의 {jump:.1f}배 — 표본 평균은 구성 변화·이상치에 "
                         "민감해 확인 전엔 단독으로 high 에 못 닿음. 진짜 급증이면 다른 층이 같이 올라 종합이 말함)")
                 score = capped_to
+            # ★ 계절 감시 합계는 경보 점수만 79 로 ★ (2026-10-27, 캡틴 지시) 일본 IDWR 합계의 가을 독감 상승이
+            # high 로 폰까지 갔다(10-19). 전년 동기와 견주지 않는 지수라 계절과 이상을 혼자서는 못 가른다.
+            seasonal = seasonal_cap_reason(m["metric"])
+            if seasonal and score > SEASONAL_ALERT_CAP:
+                print(f"  🧢 [alerts] {m['metric']} — 계절 감시 합계 — 이상도 {score}점을 경보 점수 "
+                      f"{SEASONAL_ALERT_CAP}점으로 제한(지수에는 그대로 반영됨)", flush=True)
+                how += f" → 경보 점수 {SEASONAL_ALERT_CAP}점으로 제한({seasonal})"
+                score = SEASONAL_ALERT_CAP
             evidence = [obs, how, f"{layer['label']} 계층 가중치 {layer['weight']}"]
             candidates.append({
                 "source": f"gai:{layer_key}.{m['metric']}",
