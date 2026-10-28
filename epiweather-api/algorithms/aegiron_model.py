@@ -14,8 +14,11 @@ provider_status는 nim_configured=true를 보고했다 — 설정은 됐지만 �
 호출 흐름(우선순위):
   aegiron_model.extract_signal(text)
     → ① NIM 추출(자체 GPU/온프렘 = 완전 주권 / NVIDIA 호스팅 = 준주권)
-    → ② transformers 로컬 모델(설정+로딩 가능 시)
-    → ③ 외부 LLM(nlp_extract, Claude)으로 폴백
+    → ② Meta Model API 추출(Muse Spark, Meta 호스팅 = 준주권)
+    → ③ transformers 로컬 모델(설정+로딩 가능 시)
+    → ④ 외부 LLM(nlp_extract, Claude)으로 폴백
+    → AEGIRON_META_FIRST=on이면 ②가 ①보다 먼저 간다(해커톤 데모 등 Meta
+       경로를 강제할 때 — 기본 off라 키 없는 기존 배포의 동작은 그대로다).
     → sensitive=True + AEGIRON_REQUIRE_LOCAL=on 이면 '주권 경로'가 아닌 처리는
        모두 '차단'(fail-closed) — 민감 텍스트를 외부로 '보내기 전에' 막는다.
 
@@ -41,6 +44,7 @@ REQUIRE_LOCAL_ENV = "AEGIRON_REQUIRE_LOCAL"
 # 키 규약은 algorithms/nvidia.py(단일 소스)에 정의 — 여기서 재노출만 한다.
 # 텍스트 추출은 AEGIRON_NIM_API_KEY(전용 오버라이드) → NVIDIA_API_KEY(공유) 순.
 from . import nvidia as _nvidia
+from . import meta_api as _meta
 
 NIM_API_KEY_ENVS = (_nvidia.TEXT_KEY_OVERRIDE_ENV, _nvidia.SHARED_KEY_ENV)
 NIM_BASE_URL_ENV = "AEGIRON_NIM_BASE_URL"      # 자체 호스팅이면 여기에 온프렘 URL
@@ -76,6 +80,15 @@ NIM_REASONING_EFFORT = "low"
 # 한도를 5배로 올리면 생성이 길어진다. 30초는 300토큰에 맞춰 잡은 값이라
 # 그대로 두면 ReadTimeout 으로 슬롯을 잃는다(사유는 보이지만 결과는 같다).
 NIM_TIMEOUT_SEC = 60
+
+# ── Meta Model API(OpenAI 호환) 설정 ──
+# 키·베이스·모델 규약은 algorithms/meta_api.py(단일 소스)에 정의 — 여기서 재노출만 한다.
+# Meta 호스팅(api.meta.ai)은 외부 클라우드라 준주권. REQUIRE_LOCAL 시 차단된다.
+META_FIRST_ENV = "AEGIRON_META_FIRST"      # on이면 Meta를 NIM보다 먼저 시도
+META_EXTRACT_ENV = "AEGIRON_META_EXTRACT"  # 텍스트 추출만 Meta에서 빼는 스위치(on/off, 기본 on)
+# NIM과 같은 한도·타임아웃 — 같은 프롬프트·같은 스키마라 토큰 분포가 같다.
+META_MAX_TOKENS = 1500
+META_TIMEOUT_SEC = 60
 
 _LOCAL_MODEL = None
 _LOCAL_TRIED = False
@@ -157,6 +170,32 @@ def _nim_config() -> dict | None:
         "model": os.environ.get(NIM_MODEL_ENV) or NIM_DEFAULT_MODEL,
         "sovereign": _nim_is_sovereign(base),
         "provider": "aegiron_nim_selfhosted" if _nim_is_sovereign(base) else "nvidia_nim_hosted",
+    }
+
+
+def _meta_first() -> bool:
+    return os.environ.get(META_FIRST_ENV, "off").lower() in ("on", "1", "true")
+
+
+def _meta_extract_enabled() -> bool:
+    return os.environ.get(META_EXTRACT_ENV, "on").lower() not in ("off", "0", "false")
+
+
+def _meta_config() -> dict | None:
+    """Meta 설정이 갖춰졌으면 dict, 아니면 None(→ Meta 경로 비활성)."""
+    if not _meta_extract_enabled():
+        return None
+    key = _meta.meta_key()
+    if not key:
+        return None
+    base = _meta.base_url()
+    sovereign = _meta.is_host_sovereign(base)
+    return {
+        "key": key,
+        "base_url": base,
+        "model": _meta.model(),
+        "sovereign": sovereign,
+        "provider": "meta_model_api",
     }
 
 
@@ -293,7 +332,8 @@ def nim_raw_detailed(text: str, conf: dict) -> tuple[str | None, str | None]:
 _SAFE_TOKEN = re.compile(r"^[A-Za-z0-9_.-]{1,32}$")
 
 
-def _empty_content_reason(choice: dict, content, usage: dict | None = None) -> str:
+def _empty_content_reason(choice: dict, content, usage: dict | None = None,
+                         cap: int = NIM_MAX_TOKENS) -> str:
     """본문 없는 200 응답의 사유. **응답의 모양만** 싣는다 — finish_reason 과
     message 의 키 이름, 그리고 토큰 숫자. 본문·URL·헤더는 안 싣는다(#28 판단 유지).
 
@@ -311,11 +351,14 @@ def _empty_content_reason(choice: dict, content, usage: dict | None = None) -> s
     keys = sorted(k for k in (message or {}) if isinstance(k, str) and _SAFE_TOKEN.match(k))
     kind = "null" if content is None else "빈문자열"
     return (f"빈응답(content={kind}, finish_reason={finish}, "
-            f"{_token_note(usage)}응답키={'·'.join(keys) or '없음'})")
+            f"{_token_note(usage, cap)}응답키={'·'.join(keys) or '없음'})")
 
 
-def _token_note(usage: dict | None) -> str:
+def _token_note(usage: dict | None, cap: int = NIM_MAX_TOKENS) -> str:
     """`출력토큰 1500/1500(추론 1480) · ` 또는 서버가 안 줬으면 빈 문자열.
+
+    cap은 분모(해당 경로의 max_tokens) — NIM이 아니면 그 경로의 한도를 넘긴다.
+    기본값이 NIM 한도라 기존 NIM 호출부의 출력은 글자 하나 안 바뀐다.
 
     **정수만 싣는다.** usage 는 서버가 채우는 칸이라 무엇이든 올 수 있다 —
     숫자가 아니면 그 조각을 버린다(사유가 로그·`/api/status` 로 나가는 자리라
@@ -329,7 +372,7 @@ def _token_note(usage: dict | None) -> str:
     thinking = detail.get("reasoning_tokens") if isinstance(detail, dict) else None
     tail = (f"(추론 {thinking})"
             if isinstance(thinking, int) and not isinstance(thinking, bool) else "")
-    return f"출력토큰 {out}/{NIM_MAX_TOKENS}{tail} · "
+    return f"출력토큰 {out}/{cap}{tail} · "
 
 
 def nim_raw(text: str, conf: dict) -> str | None:
@@ -359,6 +402,80 @@ def _nim_extract(text: str, source: str, conf: dict) -> dict | None:
     return _nim_extract_detailed(text, source, conf)[0]
 
 
+def _meta_attempt(text: str, conf: dict) -> tuple[dict | None, dict, str | None, int | None]:
+    """한 번의 Meta Model API 호출. (choice, usage, 실패 사유, HTTP 상태코드).
+    예외는 사유+코드로 접어 돌려준다(_nim_attempt와 같은 약속).
+
+    ★ NIM과 달리 chat_template_kwargs를 안 보낸다 ★ 그건 NVIDIA NIM 문서에만
+    있는 꼴이고 Meta가 받는지는 우리가 불러본 적이 없다 — 검증 안 된 파라미터를
+    보내면 400 물러섬 같은 분기를 타게 되는데, 그건 관측이 아니라 추측이다."""
+    import requests
+
+    from .common import http_status
+    from .nlp_extract import build_prompt, reason_with_detail
+
+    payload = {
+        "model": conf["model"],
+        "messages": [{"role": "user", "content": build_prompt(text)}],
+        "temperature": 0.0,
+        "max_tokens": META_MAX_TOKENS,
+    }
+    try:
+        resp = requests.post(
+            f"{conf['base_url']}/chat/completions",
+            headers={"Authorization": f"Bearer {conf['key']}",
+                     "Content-Type": "application/json"},
+            json=payload,
+            timeout=META_TIMEOUT_SEC,
+        )
+        resp.raise_for_status()
+        body = resp.json()
+        usage = body.get("usage") if isinstance(body, dict) else None
+        return body["choices"][0], (usage if isinstance(usage, dict) else {}), None, None
+    except Exception as e:
+        _meta.record_layer_call(conf["base_url"], ok=False,
+                                error=f"{type(e).__name__}: {e}")
+        return None, {}, reason_with_detail(e), http_status(e)
+
+
+def meta_raw_detailed(text: str, conf: dict) -> tuple[str | None, str | None]:
+    """(Meta 원시 응답, 실패 사유). 실패해도 '왜'를 들고 나온다."""
+    choice, usage, reason, _ = _meta_attempt(text, conf)
+    if choice is None:
+        return None, reason
+    content = choice.get("message") if isinstance(choice, dict) else None
+    content = content.get("content") if isinstance(content, dict) else None
+    # ★ HTTP 200이어도 쓸 본문이 없으면 성공이 아니다 (NIM 2026-10-07과 같은 판단) ★
+    if not isinstance(content, str) or not content.strip():
+        reason = _empty_content_reason(choice, content, usage, cap=META_MAX_TOKENS)
+        _meta.record_layer_call(conf["base_url"], ok=False, error=reason)
+        return None, reason
+    _meta.record_layer_call(conf["base_url"], ok=True)
+    return content, None
+
+
+def meta_raw(text: str, conf: dict) -> str | None:
+    """Meta 원시 응답 문자열. 실패 시 None."""
+    return meta_raw_detailed(text, conf)[0]
+
+
+def _meta_extract_detailed(text: str, source: str,
+                           conf: dict) -> tuple[dict | None, str | None]:
+    """Meta Model API(OpenAI 호환 chat/completions)로 추출. (레코드 | None, 실패 사유 | None).
+    프롬프트·파싱은 nlp_extract와 동일 헬퍼를 재사용해 스키마 일관성을 보장한다."""
+    from .nlp_extract import PARSE_FAILED, parse_extraction
+
+    content, reason = meta_raw_detailed(text, conf)
+    if content is None:
+        return None, reason
+    record = parse_extraction(content, text, source)
+    return record, None if record is not None else PARSE_FAILED
+
+
+def _meta_extract(text: str, source: str, conf: dict) -> dict | None:
+    return _meta_extract_detailed(text, source, conf)[0]
+
+
 def _blocked_sovereign(via: str) -> dict:
     return {
         "ai_provider": "local_required_unavailable",
@@ -382,25 +499,40 @@ def extract_signal_detailed(
     attempts: list[str] = []
 
     # ① NIM 경로(자체 GPU/온프렘 = 완전 주권, NVIDIA 호스팅 = 준주권).
-    conf = _nim_config()
-    if conf is not None:
-        # 주권 전용 모드인데 비주권(호스팅) NIM이면 '보내기 전에' 차단(국외유출 방지).
+    # ② Meta Model API 경로(Meta 호스팅 = 준주권, 사설 베이스 = 완전 주권).
+    # AEGIRON_META_FIRST=on이면 ②가 ①보다 먼저 간다. 키 없는 경로는 통째로
+    # 건너뛰므로 기존 배포(키 없음)의 동작은 그대로다.
+    _order = ("meta", "nim") if _meta_first() else ("nim", "meta")
+    _confs = {"nim": _nim_config(), "meta": _meta_config()}
+    _extract_fns = {"nim": _nim_extract_detailed, "meta": _meta_extract_detailed}
+    for _hop in _order:
+        conf = _confs[_hop]
+        if conf is None:
+            continue
+        # 주권 전용 모드인데 비주권(호스팅)이면 그 홉만 건너뛴다(국외유출 방지).
+        # 예전엔 여기서 바로 차단을 돌려줬는데, 그러면 뒤에 주권 로컬이 설정돼
+        # 있어도 못 쓰고 끝난다 — fail-closed는 '외부로 안 보낸다'지 '주권
+        # 경로까지 안 써본다'가 아니다. 아래 ④ 게이트가 주권 경로 전멸 시
+        # 최종 차단을 맡는다.
+        # ★ 건너뜀을 자취에 안 남긴다 ★ 차단은 고장이 아니라 정책이 동작한
+        # 것이다 — 자취에 섞으면 '고쳐야 할 것'과 '의도한 것'이 같은 목록에
+        # 들어간다(test_sovereign_block_is_not_counted_as_a_failed_path).
         if require_local and not conf["sovereign"]:
-            return _blocked_sovereign("NVIDIA 호스팅 NIM(외부 클라우드)"), attempts
-        result, reason = _nim_extract_detailed(text, source, conf)
+            continue
+        result, reason = _extract_fns[_hop](text, source, conf)
         if result is not None:
             result["ai_provider"] = conf["provider"]
             result["data_sovereign"] = conf["sovereign"]
             return result, attempts
-        # NIM 호출 실패 → 아래 경로로 폴백(단, 아래 게이팅 그대로 적용).
+        # 호출 실패 → 아래 경로로 폴백(단, 아래 게이팅 그대로 적용).
         attempts.append(f"{conf['provider']}: {reason or '실패'}")
 
-    # ② transformers 로컬 모델(완전 주권).
+    # ③ transformers 로컬 모델(완전 주권).
     local = _local_extract(text)
     if local is not None:
         return {**local, "ai_provider": "aegiron_local", "data_sovereign": True}, attempts
 
-    # ③ 주권 경로가 하나도 안 됐음: 주권 전용 모드면 외부 폴백 차단(fail-closed).
+    # ④ 주권 경로가 하나도 안 됐음: 주권 전용 모드면 외부 폴백 차단(fail-closed).
     #    공개 뉴스라도 미국 API로 안 나가게 — "완전 주권"의 실질 보장.
     if require_local:
         return _blocked_sovereign("외부 LLM 폴백"), attempts
@@ -409,7 +541,7 @@ def extract_signal_detailed(
     if not key:
         attempts.append("external_llm_fallback: 키없음")
         return {"ai_provider": "unavailable",
-                "reason": "NIM/로컬 모델 없음 + ANTHROPIC_API_KEY 없음"}, attempts
+                "reason": "NIM/Meta/로컬 없음 + ANTHROPIC_API_KEY 없음"}, attempts
 
     from .nlp_extract import extract_signal_detailed as llm_extract
     result, reason = llm_extract(text, source, key)
@@ -423,11 +555,11 @@ def extract_signal_detailed(
 
 def extract_signal(text: str, source: str = "aegiron_model",
                    api_key: str | None = None, sensitive: bool = False) -> dict | None:
-    """추출 단일 진입점. NIM/로컬 우선 → 외부 LLM 폴백.
-    AEGIRON_REQUIRE_LOCAL=on이면 '주권 전용 모드' — 비주권 경로(호스팅 NIM·외부
-    LLM)는 데이터를 보내기 전에 모두 fail-closed 차단(민감 여부 무관). sensitive는
-    감사·표시용으로만 유지. 반환 dict의 ai_provider로 처리 경로를 항상 표시한다.
-    실패 사유까지 필요하면 extract_signal_detailed를 쓸 것."""
+    """추출 단일 진입점. NIM → Meta → 로컬 우선 → 외부 LLM 폴백.
+    AEGIRON_REQUIRE_LOCAL=on이면 '주권 전용 모드' — 비주권 경로(호스팅 NIM·Meta·
+    외부 LLM)는 데이터를 보내기 전에 모두 fail-closed 차단(민감 여부 무관).
+    sensitive는 감사·표시용으로만 유지. 반환 dict의 ai_provider로 처리 경로를
+    항상 표시한다. 실패 사유까지 필요하면 extract_signal_detailed를 쓸 것."""
     return extract_signal_detailed(text, source, api_key, sensitive)[0]
 
 
@@ -452,6 +584,8 @@ def extraction_available(api_key: str | None = None) -> bool:
     """추출을 시도할 백엔드가 하나라도 있는지. 수집기 게이트용.
     예전엔 ANTHROPIC_API_KEY만 봐서, NIM 키만 있으면 추출 자체를 건너뛰었다."""
     if _nim_config() is not None:
+        return True
+    if _meta_config() is not None:
         return True
     if os.environ.get(LOCAL_MODEL_PATH_ENV):
         return True
@@ -496,24 +630,46 @@ def provider_status() -> dict:
     local_loaded = _load_local_model() is not None
     conf = _nim_config()
     nim_active = conf is not None
+    meta_conf = _meta_config()
+    meta_active = meta_conf is not None
 
     # ★ '활성'을 설정으로 정하지 않는다 ★ 아래 active_provider는 여전히 '설정상
     # 우선 경로'다. 그게 실제로 돌았는지는 장부(capability_ledger)만 안다.
     from .capability_ledger import status as _cap_status
     text_layer = _cap_status(_nvidia.LAYER_CAPABILITIES["text"], configured=nim_active)
+    meta_layer = _cap_status(_meta.LAYER_CAPABILITY, configured=meta_active)
 
-    if nim_active:
+    if meta_active and _meta_first():
+        active_provider = "meta_model_api"
+    elif nim_active:
         active_provider = conf["provider"]
+    elif meta_active:
+        active_provider = "meta_model_api"
     elif local_loaded:
         active_provider = "aegiron_local"
     else:
         active_provider = "external_llm_fallback"
 
     if nim_active and conf["sovereign"]:
-        sovereignty = "자체 호스팅 NIM 활성 — 민감 데이터가 국경을 넘지 않음(완전 주권)"
+        nim_posture = "자체 호스팅 NIM 활성 — 민감 데이터가 국경을 넘지 않음(완전 주권)"
     elif nim_active:
-        sovereignty = ("NVIDIA 호스팅 NIM 활성 — 추론은 자체 모델이나 데이터는 NVIDIA "
+        nim_posture = ("NVIDIA 호스팅 NIM 활성 — 추론은 자체 모델이나 데이터는 NVIDIA "
                        "클라우드를 경유(준주권). 완전 주권은 AEGIRON_NIM_BASE_URL을 온프렘으로.")
+    else:
+        nim_posture = None
+    if meta_active and meta_conf["sovereign"]:
+        meta_posture = "사설 베이스 Meta 활성 — 민감 데이터가 국경을 넘지 않음(완전 주권)"
+    elif meta_active:
+        meta_posture = ("Meta 호스팅 API 활성 — 데이터는 Meta 클라우드를 경유(준주권). "
+                        "완전 주권은 META_MODEL_API_BASE_URL을 온프렘으로.")
+    else:
+        meta_posture = None
+    _postures = [p for p in
+                 ((meta_posture, nim_posture) if _meta_first()
+                  else (nim_posture, meta_posture))
+                 if p]
+    if _postures:
+        sovereignty = _postures[0]
     elif local_loaded:
         sovereignty = "로컬 모델 활성 — 민감 데이터가 국외로 나가지 않음"
     else:
@@ -525,6 +681,10 @@ def provider_status() -> dict:
         "nim_configured": nim_active,
         "nim_sovereign": bool(conf["sovereign"]) if nim_active else False,
         "nim_model": conf["model"] if nim_active else None,
+        "meta_configured": meta_active,
+        "meta_sovereign": bool(meta_conf["sovereign"]) if meta_active else False,
+        "meta_model": meta_conf["model"] if meta_active else None,
+        "meta_first": "on" if _meta_first() else "off",
         "local_model_configured": local_configured,
         "local_model_loaded": local_loaded,
         "require_local_for_sensitive": _require_local(),
@@ -538,17 +698,26 @@ def provider_status() -> dict:
         "nim_claim_basis": text_layer["claim_basis"],
         "nim_last_success_at": text_layer["last_success_at"],
         "nim_last_error": text_layer["last_error"],
+        "meta_extract_switch": "on" if _meta_extract_enabled() else "off",
+        "meta_verified": meta_layer["verified"],
+        "meta_claim_basis": meta_layer["claim_basis"],
+        "meta_last_success_at": meta_layer["last_success_at"],
+        "meta_last_error": meta_layer["last_error"],
         "active_provider_basis": (
             "설정상 우선 경로다. 실제로 이 경로가 최근에 성공했는지는 "
             f"nim_verified={text_layer['verified']} / "
-            f"nim_claim_basis={text_layer['claim_basis']} 를 볼 것."
+            f"nim_claim_basis={text_layer['claim_basis']}, "
+            f"meta_verified={meta_layer['verified']} / "
+            f"meta_claim_basis={meta_layer['claim_basis']} 를 볼 것."
         ),
         "data_sovereignty": sovereignty,
         # 유전체(Evo2/MSA)·문서·텍스트 NIM을 같은 키 규약으로 묶어 보여줌(단일 소스).
         "nvidia": _nvidia.nvidia_status(),
+        "meta": _meta.meta_status(),
         "note": "NIM(NVIDIA_API_KEY/AEGIRON_NIM_API_KEY) 설정 시 수집기의 추출이 NIM으로 "
-                "전환된다(collector.py → nlp_extract → 이 모듈). 자체 호스팅 URL이면 완전 주권, "
-                "NVIDIA 호스팅이면 준주권. 각 신호가 어느 경로로 뽑혔는지는 "
+                "전환된다(collector.py → nlp_extract → 이 모듈). Meta 키(META_MODEL_API_KEY)가 "
+                "있으면 NIM 다음으로 Meta Model API(Muse Spark)를 시도한다. 자체 호스팅 URL이면 "
+                "완전 주권, NVIDIA·Meta 호스팅이면 준주권. 각 신호가 어느 경로로 뽑혔는지는 "
                 "extracted_signals.ai_provider에 건별로 남는다. 텍스트만 되돌리려면 "
-                "AEGIRON_NIM_EXTRACT=off.",
+                "AEGIRON_NIM_EXTRACT=off / AEGIRON_META_EXTRACT=off.",
     }

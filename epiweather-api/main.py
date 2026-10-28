@@ -862,6 +862,7 @@ def _capability_health_safe() -> dict | None:
     try:
         from algorithms.capability_ledger import report
         from algorithms import nvidia as _nv
+        from algorithms import meta_api as _meta
         from algorithms.nlp_extract import EXTERNAL_LLM_CAPABILITY
         from algorithms.notifier import ALERT_CAPABILITY, telegram_configured
 
@@ -878,6 +879,9 @@ def _capability_health_safe() -> dict | None:
             # 폴백까지 죽었을 때 "둘 다 죽었다"를 여기서 볼 수가 없었다.
             # 폴백은 마지막 방어선이라 그게 서 있는지가 특히 중요하다.
             EXTERNAL_LLM_CAPABILITY: bool(os.environ.get("ANTHROPIC_API_KEY")),
+            # Meta Model API 추출(2026-10-28). NIM 다음 홉이라 장부에 없으면
+            # "NIM이 죽고 Meta가 살렸다"를 /api/status에서 볼 수가 없다.
+            _meta.LAYER_CAPABILITY: bool(_meta.meta_key()),
             ALERT_CAPABILITY: telegram_configured(),
         }
         return report(configured)
