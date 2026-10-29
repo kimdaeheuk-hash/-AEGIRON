@@ -52,6 +52,9 @@ HEALTH_CONTEXT = re.compile(
 # 병원체 낱말이 같지만 건강 사건이 아닌 것.
 NOT_A_DISEASE = re.compile(
     r"plagued|plagues\b|plague of|plague tale|plague inc|plague doctor|"
+    # 2026-10-28 13:01 운영: `JoyToy opens pre-orders for Warhammer 40,000 Death Guard Typhus and Plague Marine figures`
+    # 가 'Death'(Death Guard) 로 건강 맥락에 걸려 페스트 보도 두 번째 매체로 세어졌다 — 장난감 피규어 기사다.
+    r"plague marine|death guard|warhammer|"
     r"scott ian|joey belladonna|\banthrax\b.{0,20}\b(band|album|tour|concert|guitarist|drummer|bassist|metal|thrash)\b|"
     r"\b(band|album|tour|concert|guitarist|drummer|bassist|metal|thrash)\b.{0,20}\banthrax\b",
     re.I)
