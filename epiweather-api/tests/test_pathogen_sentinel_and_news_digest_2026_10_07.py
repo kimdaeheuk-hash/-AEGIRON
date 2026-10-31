@@ -79,6 +79,8 @@ def test_publisher_is_never_guessed_when_missing():
     "Anthrax guitarist dies after tour concert - Rolling Stone",
     "Plague Inc. confirmed for new outbreak mode - Polygon",
     "Plague of locusts death toll for crops - Farm Weekly",
+    # 2026-10-28 13:01 운영: 'Death Guard' 의 Death 가 건강 맥락에 걸려 두 번째 매체로 세어졌다(장난감 피규어 기사).
+    "JoyToy opens pre-orders for Warhammer 40,000 Death Guard Typhus and Plague Marine figures - Toy News",
 ])
 def test_metaphors_games_and_bands_are_not_pathogens(title):
     assert ps.match_headlines([title]) == {}
@@ -257,3 +259,11 @@ def test_section_is_silent_when_there_is_no_fresh_summary(monkeypatch):
 def test_section_is_registered_last_so_it_never_leads_the_brief():
     from algorithms import brief_sections as bs
     assert bs._BUILDERS[-1][0] == "news_pulse"
+
+
+def test_the_1028_toy_headline_no_longer_makes_a_second_outlet():
+    """10-28 13:01~ 화면에 medium 으로 떴던 짝: 실제 보도 1건 + 장난감 피규어 기사 1건 → 이제 매체 1곳이라 후보 아님."""
+    titles = ["Russia\u2019s plague lab mystery: 3 lessons from history - Outlet A",
+              "JoyToy opens pre-orders for Warhammer 40,000 Death Guard Typhus and Plague Marine figures - Outlet B"]
+    assert ps.candidates(titles) == []
+    assert list(ps.match_headlines(titles[:1])) == ["plague"]   # 진짜 보도 쪽은 그대로 읽힌다

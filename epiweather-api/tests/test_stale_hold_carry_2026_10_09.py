@@ -172,3 +172,39 @@ def test_refresh_actually_calls_the_carry_and_the_marker():
     names = {n.func.id for n in ast.walk(ast.parse(inspect.getsource(refresh_alerts)))
              if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
     assert {"_carry_forward_undetermined", "stale_marker", "is_stale_marked"} <= names
+
+
+
+# ── 3. 이미 내려간 행은 붙들지도 잇지도 않는다 (2026-10-30 운영) ─────────────────────
+# 10-29 13:01 에 내려간 페스트 오탐이 10-30 11:05(Google 차단 → 판정 안 함)에 '마지막 상태'로 되살아나
+# 두 시간 화면에 다시 떴다. 마지막으로 안 상태는 '내려감'이었다.
+
+def test_a_retired_row_is_not_revived_by_an_undetermined_cycle(isolated_db, monkeypatch):
+    _stub(monkeypatch, [_cand()])
+    refresh_alerts("2026-10-30")
+    _stub(monkeypatch, [])                                   # 스캔 온전 · 후보 없음 → 내림
+    refresh_alerts("2026-10-30")
+    assert _row("2026-10-30")["suppressed"] == 1
+    _stub(monkeypatch, [], undetermined=["headline:"])       # 스캔 불완전
+    result = refresh_alerts("2026-10-30")
+    assert _row("2026-10-30")["suppressed"] == 1             # 되살아나지 않는다
+    assert result["undetermined"] == []
+
+
+def test_a_visible_row_is_still_held_by_an_undetermined_cycle(isolated_db, monkeypatch):
+    _stub(monkeypatch, [_cand()])
+    refresh_alerts("2026-10-30")
+    _stub(monkeypatch, [], undetermined=["headline:"])
+    result = refresh_alerts("2026-10-30")
+    assert _row("2026-10-30")["suppressed"] == 0 and len(result["undetermined"]) == 1
+
+
+def test_a_row_retired_yesterday_is_not_carried_into_today(isolated_db, monkeypatch):
+    _stub(monkeypatch, [_cand()])
+    refresh_alerts("2026-10-29")
+    _stub(monkeypatch, [])
+    refresh_alerts("2026-10-29")                             # 어제 안에 내려감
+    _stub(monkeypatch, [], undetermined=["headline:"])
+    refresh_alerts("2026-10-30")                             # 오늘 첫 주기가 판정 못 함
+    row = _row("2026-10-30")
+    assert row is None or row["suppressed"] == 1
