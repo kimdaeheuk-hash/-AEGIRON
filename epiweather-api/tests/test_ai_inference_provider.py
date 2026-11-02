@@ -131,3 +131,28 @@ def test_require_local_skips_meta_hosting(monkeypatch):
     m.assert_not_called()
     assert out["llm_provider"] == "anthropic"
     assert "REQUIRE_LOCAL" in (out["meta_error"] or "")
+
+
+class _HttpFail:
+    """상태코드+본문을 들고 실패하는 가짜 응답. 2026-11-03 실측: Meta가
+    400 본문에 거부 이유(모델명·파라미터)를 싣는다."""
+
+    status_code = 400
+    text = '{"error": {"message": "model not found: muse-spark-1.3", "code": "bad_model"}}'
+
+    def raise_for_status(self):
+        import requests
+        raise requests.exceptions.HTTPError("400 Client Error")
+
+
+def test_meta_http_failure_carries_status_and_body(monkeypatch):
+    """Meta HTTP 실패는 상태코드+서버 본문을 들고 Claude 폴백을 탄다."""
+    _reset(monkeypatch)
+    monkeypatch.setenv(meta_api.KEY_ENV, "meta-key")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "claude-key")
+    with patch("requests.post", return_value=_HttpFail()), \
+         patch("anthropic.Anthropic", _ClaudeClient):
+        out = ai.run_ai_inference(_situation())
+    assert out["llm_provider"] == "anthropic"
+    assert "Meta HTTP 400" in (out["meta_error"] or "")
+    assert "muse-spark-1.3" in (out["meta_error"] or "")

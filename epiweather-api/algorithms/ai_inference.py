@@ -83,6 +83,19 @@ def _call_meta(system_text: str, user_text: str) -> tuple[str, dict]:
     )
     try:
         resp.raise_for_status()
+    except Exception:
+        # ★ HTTP 실패는 서버 본문을 들고 나온다(2026-11-03) ★ 상태코드만으론
+        # 400의 이유(모델명 오류·파라미터 거부 등)를 알 수 없다. 본문 500자만
+        # 남긴다 — 키 값은 요청 헤더에만 있고 응답 본문엔 없으므로 안전하다.
+        try:
+            detail = (resp.text or "")[:500]
+        except Exception:
+            detail = ""
+        err = RuntimeError(
+            f"Meta HTTP {getattr(resp, 'status_code', '?')}: {detail}")
+        _meta.record_layer_call(base, ok=False, error=str(err))
+        raise err
+    try:
         body = resp.json()
         choice = body["choices"][0]
         content = (choice.get("message") or {}).get("content")
