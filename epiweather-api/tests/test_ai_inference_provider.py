@@ -145,6 +145,18 @@ class _HttpFail:
         raise requests.exceptions.HTTPError("400 Client Error")
 
 
+def test_meta_payload_starts_with_benign_use_preamble(monkeypatch):
+    """Meta 호출 본문은 합법 사용 고지로 시작한다(필터 오탐 대응)."""
+    _reset(monkeypatch)
+    monkeypatch.setenv(meta_api.KEY_ENV, "meta-key")
+    with patch("requests.post", return_value=_meta_resp()) as m:
+        ai.run_ai_inference(_situation())
+    msgs = m.call_args.kwargs["json"]["messages"]
+    assert msgs[0]["role"] == "system"
+    assert msgs[0]["content"].startswith("【작업 성격】")
+    assert "civilian public-health" in msgs[0]["content"]
+
+
 def test_meta_http_failure_carries_status_and_body(monkeypatch):
     """Meta HTTP 실패는 상태코드+서버 본문을 들고 Claude 폴백을 탄다."""
     _reset(monkeypatch)
