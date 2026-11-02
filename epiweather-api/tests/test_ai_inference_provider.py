@@ -157,6 +157,22 @@ def test_meta_payload_starts_with_benign_use_preamble(monkeypatch):
     assert "civilian public-health" in msgs[0]["content"]
 
 
+def test_meta_payload_avoids_filter_trigger_phrasing(monkeypatch):
+    """Meta 호출 본문에 필터 방아쇠 표현이 없다(2026-11-03 이분 탐색)."""
+    _reset(monkeypatch)
+    monkeypatch.setenv(meta_api.KEY_ENV, "meta-key")
+    with patch("requests.post", return_value=_meta_resp()) as m:
+        ai.run_ai_inference(_situation())
+    body = m.call_args.kwargs["json"]
+    full = body["messages"][0]["content"] + body["messages"][1]["content"]
+    for banned in ("가장 많은 생명을 살릴", "casualty reasoning",
+                   "통합 위협 평가", "결정적 개입 지점", "취약계층"):
+        assert banned not in full, f"방아쇠 표현이 돌아왔다 — {banned}"
+    for kept in ("의료 대응 효과", "통합 위험 평가", "고위험군",
+                 "수치 근거", "불확실성"):
+        assert kept in full, f"과업 문구가 빠졌다 — {kept}"
+
+
 def test_meta_http_failure_carries_status_and_body(monkeypatch):
     """Meta HTTP 실패는 상태코드+서버 본문을 들고 Claude 폴백을 탄다."""
     _reset(monkeypatch)
