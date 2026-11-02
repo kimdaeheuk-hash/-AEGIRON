@@ -146,6 +146,15 @@ RELATIONS: tuple[dict[str, Any], ...] = (
         # 결과는 원장에 기록될 뿐 예측 모델을 자동으로 고치지 않는다.
         "automatic": False,
     },
+    {
+        # ★ P0 읽기 간선(2026-11-02) ★ 발할라 브리핑 배선 — alerts 는
+        # 발할라 저장본을 관찰 요약으로만 싣는다(관측 전용). 경보 발화 조건·
+        # 임계에는 어떤 영향도 주지 않는다.
+        "id": "valhalla-forseti", "from": "VALHALLA", "to": "FORSETI", "kind": "data",
+        "label_ko": "준비태세 관찰 요약(경보 계산 미입력)", "cadence": "hourly",
+        "code_path": "alerts.valhalla_watch_line ← valhalla_state.json",
+        "observation_only": True,
+    },
 )
 
 # 피드백 루프 — 정답 적재 → 예측 → 채점. 세 고리가 다 돌아야 증거가 쌓인다
@@ -198,8 +207,9 @@ def ontology() -> dict[str, Any]:
         "isolated_systems": isolated_systems(),
         "note": (
             "간선은 코드에 실제로 있는 데이터 흐름만 적는다. VALHALLA 는 경보 계산에 "
-            "입력되지 않는 독립 축이다. 피드백 간선은 기록만 되고 예측 모델을 자동으로 "
-            "고치지 않는다. 이름은 내부 코드명이다."
+            "입력되지 않는다 — 관측 전용 간선 valhalla-forseti 로 요약만 싣는다. "
+            "피드백 간선은 기록만 되고 예측 모델을 자동으로 고치지 않는다. "
+            "이름은 내부 코드명이다."
         ),
     }
 

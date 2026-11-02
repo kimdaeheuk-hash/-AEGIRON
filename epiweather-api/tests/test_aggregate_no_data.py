@@ -79,6 +79,13 @@ def test_init_db_is_idempotent():
     db_mod.init_db()          # 예외가 나면 실패
 
 
+class _FakeCursor:
+    """버전 조회용 가짜 커서. 버전 0(구 DB)을 돌려 _migrate 경로로 진입시킨다."""
+
+    def fetchone(self):
+        return (0,)
+
+
 class _FakeConn:
     """ALTER TABLE만 실패시키는 가짜 연결. sqlite3.Connection은 불변이라 패치 불가."""
 
@@ -98,6 +105,11 @@ class _FakeConn:
         import sqlite3
         if sql.strip().upper().startswith("ALTER TABLE"):
             raise sqlite3.OperationalError(self.error)
+        # ★ 버전 조회 대응(2026-11-03) ★ init_db가 스키마 버전을 먼저 읽게
+        # 되면서(SELECT+fetchone), 버전 0을 돌려 _migrate까지 가게 한다.
+        # 기대 동작(진짜 실패는 터짐·컬럼 중복은 통과)은 그대로다.
+        if sql.strip().upper().startswith("SELECT"):
+            return _FakeCursor()
         return None
 
     def commit(self):

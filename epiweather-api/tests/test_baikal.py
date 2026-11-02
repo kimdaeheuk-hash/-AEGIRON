@@ -95,16 +95,30 @@ def test_every_relation_connects_known_systems():
 
 
 def test_valhalla_sends_no_flow_because_alert_path_never_reads_it():
-    """VALHALLA 는 경보 계산에 입력되지 않는 독립 축이다(2026-10-19 확인).
+    """VALHALLA 는 경보 계산에 입력되지 않는다 — 관측 전용 간선 하나뿐이다.
 
-    누가 경보 경로에 발할라를 연결하면 이 시험이 깨져서, 온톨로지에 간선을 추가하라고
-    알려 준다 — 그림과 코드가 말없이 갈라지지 않게."""
-    assert not [r for r in yggdrasil.RELATIONS if r["from"] == "VALHALLA"]
-    assert yggdrasil.isolated_systems() == ["VALHALLA"]
-    for name in ("alerts.py", "gai.py", "alert_intervention.py", "country_risk.py"):
+    2026-11-02 발할라 P0 브리핑 배선: alerts.py 가 발할라 저장본을 관찰 요약으로
+    싣게 되면서(테스트가 제 할 일을 해서 간선 추가를 요구했다), 새 계약은 이렇다 —
+    ① RELATIONS 에 VALHALLA 발신 간선이 valhalla-forseti 하나뿐이고
+    observation_only 가 True 이며 ② alerts.py 의 발할라 언급은
+    valhalla_watch 단일 진입점(함수 정의+모듈 임포트)뿐이고 ③ 다른 경보 경로는
+    여전히 발할라를 읽지 않는다. 그림과 코드가 말없이 갈라지지 않게
+    이 셋을 다 잡는다."""
+    out = [r for r in yggdrasil.RELATIONS if r["from"] == "VALHALLA"]
+    assert [r["id"] for r in out] == ["valhalla-forseti"]
+    assert out[0]["observation_only"] is True
+    assert "VALHALLA" not in yggdrasil.isolated_systems()
+    alerts_src = (ROOT / "algorithms" / "alerts.py").read_text(encoding="utf-8")
+    valhalla_lines = [ln for ln in alerts_src.splitlines()
+                      if "valhalla" in ln.lower()]
+    assert valhalla_lines, "간선은 있는데 alerts.py 가 발할라를 읽지 않는다"
+    for ln in valhalla_lines:
+        assert "valhalla_watch" in ln, (
+            f"발할라 읽기가 단일 진입점을 벗어났다 — {ln.strip()}")
+    for name in ("gai.py", "alert_intervention.py", "country_risk.py"):
         src = (ROOT / "algorithms" / name).read_text(encoding="utf-8").lower()
         assert "valhalla" not in src, (
-            f"{name} 이 발할라를 읽기 시작했다 — yggdrasil.RELATIONS 에 VALHALLA 간선을 추가하라")
+            f"{name} 이 발할라를 읽기 시작했다 — 온톨로지 계약을 먼저 고쳐라")
 
 
 def test_feedback_edge_is_record_only():

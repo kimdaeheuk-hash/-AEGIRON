@@ -34,9 +34,12 @@ jobs:
 
       - name: Scan image for CRITICAL vulnerabilities
         # v-prefix 필수 — bare 0.x 태그는 upstream에 없다(v0.36.0 확인).
+        # ★ image-ref 필수(2026-11-03) ★ input 은 타르볼 '파일 경로'용이라
+        # 이미지 이름을 넣으면 스캔이 에러로 죽고 SARIF 없이 exit 1 이 난다 —
+        # Trivy #1 실측(Path does not exist: trivy-results.sarif).
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          input: aegiron-api:${{ github.sha }}
+          image-ref: aegiron-api:${{ github.sha }}
           format: "sarif"
           output: "trivy-results.sarif"
           severity: "CRITICAL"

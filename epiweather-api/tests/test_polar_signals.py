@@ -86,9 +86,19 @@ def test_polar_watch_includes_antarctic_h5n1_region():
 
 def test_every_polar_slug_has_a_scope_term():
     """스코프 항목이 하나라도 빠지면 그 지역은 전역 뉴스를 받는다."""
-    from algorithms.local_news import COUNTRY_TERMS
+    from algorithms.local_news import POLAR_TERMS
     for (key, *_rest) in POLAR_REGIONS:
-        assert COUNTRY_TERMS.get(f"{key}_news"), key
+        assert POLAR_TERMS.get(f"{key}_news"), key
+
+
+def test_polar_terms_stay_out_of_country_terms():
+    """극지 8종이 COUNTRY_TERMS 로 새면 country_scoped_feeds 가 110 이 된다.
+
+    2026-11-03 실측: 한때 합쳐 두었더니 "179개 피드 중 102개 한정"이라는
+    정직한 수와 "없는 피드에 이름을 붙였다" 계약이 함께 깨졌다."""
+    from algorithms.local_news import COUNTRY_TERMS, POLAR_TERMS
+    assert len(COUNTRY_TERMS) == 102 and len(POLAR_TERMS) == 8
+    assert not (set(POLAR_TERMS) & set(COUNTRY_TERMS))
 
 
 def test_compute_region_sends_a_scoped_url():

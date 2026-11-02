@@ -133,7 +133,10 @@ def test_registered_as_snapshot_but_not_in_valhalla_report(tmp_path, monkeypatch
     names_all = [r["name"] for r in rs.report()["snapshots"]]
     names_valhalla = [r["name"] for r in rs.report(owner="VALHALLA")["snapshots"]]
     assert "kor_route_stats" in names_all and "kor_route_stats" not in names_valhalla
-    assert set(names_valhalla) == {"vaccine_supply", "ihr_capacity", "approved_products"}
+    # ★ 발할라 P1(2026-11-02) ★ 국내 허가 제품(식약처) 스냅샷이 넷째로 들었다.
+    # 이 시험의 본뜻(kor_route_stats 는 등록됐으되 발할라 보고엔 없다)은 그대로다.
+    assert set(names_valhalla) == {"vaccine_supply", "ihr_capacity",
+                                   "approved_products", "approved_products_domestic"}
     payload = {"snapshot_date": "2026-10-19", "by_country": {f"C{i:02d}": {"passengers": 1} for i in range(10)}}
     ok, why = rs.validate("kor_route_stats", payload)
     assert not ok and "하한 30건" in why, "국가가 너무 적으면 매핑이 깨진 것으로 본다"

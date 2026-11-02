@@ -123,7 +123,7 @@ def compute_region(region: tuple) -> dict:
     terms = POLAR_NEWS_TERMS.get(hl, POLAR_NEWS_TERMS["en"])
     # ★ 스코프를 걸어야 그 영토 신호다 ★ GL/AQ 처럼 뉴스판이 없는 지역은
     # 스코프 없이 물으면 전역 뉴스가 그대로 온다(되돌림). `_scoped` 가
-    # COUNTRY_TERMS의 극지 6종으로 질의에 영토 이름을 덧붙인다.
+    # POLAR_TERMS의 극지 8종으로 질의에 영토 이름을 덧붙인다.
     url = _scoped(_gnews(terms, hl, gl), f"{key}_news")
     keywords = terms + POLAR_ANCHOR_TERMS
     feed = fetch_local_feed(f"{key}_news", "polar", name, url, keywords)

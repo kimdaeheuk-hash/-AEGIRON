@@ -268,10 +268,20 @@ COUNTRY_TERMS: dict[str, str] = {
     "gn_af": "افغانستان", "gn_lk": '"Sri Lanka"', "gn_np": "नेपाल",
     "gn_cy": "Κύπρος", "gn_gr": "Ελλάδα", "gn_ir": "ایران", "gn_kh": "Cambodia",
     "gn_md": "Moldova", "gn_ro": "România", "gn_nl": "Nederland", "gn_sr": "Suriname",
-    # 극지 영토 (8) — 슬러그는 `{region_key}_news` (`polar_signals.compute_region`).
-    # GL/AQ 처럼 뉴스판이 없는 지역은 되돌림(전역 뉴스)이 오기 쉬워 스코프가 필수다.
-    # 이름은 그 피드의 언어로 적는다(위 실측 규칙과 동일). 스코프는 영토 단위로
-    # 건다 — 이누빅 관측점은 노스웨스트준주, 레졸루트는 북극군도다.
+}
+
+
+# 극지 영토 스코프 (8) — 슬러그는 `{region_key}_news`
+# (`polar_signals.compute_region`).
+# ★ COUNTRY_TERMS 와 분리한다(2026-11-03) ★ 한때 여기 들어 있었는데,
+# 그러면 `country_scoped_feeds` 가 110 이 되어 "179개 피드 중 102개 한정"이라는
+# 정직한 수가 깨지고, LOCAL_FEEDS 에 없는 슬러그가 "없는 피드에 이름을
+# 붙였다" 계약까지 깬다. 극지 슬러그는 LOCAL_FEEDS 를 거치지 않고
+# `polar_signals` 가 직접 `_scoped` 로 질의를 만든다.
+# GL/AQ 처럼 뉴스판이 없는 지역은 되돌림(전역 뉴스)이 오기 쉬워 스코프가 필수다.
+# 이름은 그 피드의 언어로 적는다(위 실측 규칙과 동일). 스코프는 영토 단위로
+# 건다 — 이누빅 관측점은 노스웨스트준주, 레졸루트는 북극군도다.
+POLAR_TERMS: dict[str, str] = {
     "siberia_yamal_news": "Ямал",
     "alaska_north_news": '"North Slope"',
     "canada_arctic_news": '"Northwest Territories"',
@@ -284,8 +294,8 @@ COUNTRY_TERMS: dict[str, str] = {
 
 
 def _scoped(url: str, slug: str) -> str:
-    """되돌림 피드면 질의에 나라 이름을 덧붙인다. 아니면 그대로."""
-    term = COUNTRY_TERMS.get(slug)
+    """되돌림 피드면 질의에 나라·영토 이름을 덧붙인다. 아니면 그대로."""
+    term = COUNTRY_TERMS.get(slug) or POLAR_TERMS.get(slug)
     if not term:
         return url
     from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
