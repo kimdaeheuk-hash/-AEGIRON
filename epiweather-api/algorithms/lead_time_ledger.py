@@ -289,6 +289,63 @@ def resolve_ledger(now: dt.datetime | None = None) -> dict:
 SCAN_WINDOW_DAYS = 14
 
 
+def scan_funnel(now: dt.datetime | None = None,
+                window_days: int = SCAN_WINDOW_DAYS,
+                top_n: int = 5) -> dict:
+    """★ 0건인 이유를 보이게 한다(P0) ★ 원장에 아무것도 안 열리면, 그게
+    '신호가 없어서'인지 '신뢰도가 없어서'인지 '문턱에 못 미쳐서'인지가
+    안 보인다. 단계별 깔때기 + 상위 그룹 점수를 낸다. 읽기만 하고 안 쓴다.
+
+    scan_and_record와 같은 주사위·같은 산식·같은 문턱 — 다르면 거짓말이다.
+    """
+    from .country_risk import SIGNAL_TYPE_SEVERITY
+    from .event_dedup import normalize_disease
+    from .historical_backtest import PRIMARY_THRESHOLD_SCORE
+
+    now = now or _now()
+    floor = now.date() - dt.timedelta(days=window_days)
+
+    funnel = {"scanned": 0, "no_date": 0, "no_disease": 0, "no_trust": 0}
+    groups: dict[tuple, list[tuple[float, float]]] = {}
+    for record in db.list_extracted_signals(limit=2000):
+        funnel["scanned"] += 1
+        day = _as_date(record.get("signal_date") or record.get("extracted_at"))
+        if day is None or day < floor:
+            funnel["no_date"] += 1
+            continue
+        disease = normalize_disease(record.get("disease"))
+        if not disease:
+            funnel["no_disease"] += 1
+            continue
+        trust = record.get("source_trust") or 0.0
+        if trust <= 0:
+            funnel["no_trust"] += 1
+            continue
+        severity = SIGNAL_TYPE_SEVERITY.get(record.get("signal_type"), 40)
+        key = (disease, record.get("country_iso3"))
+        groups.setdefault(key, []).append((severity, trust))
+
+    scored = []
+    for (disease, iso3), rows in groups.items():
+        weight = sum(t for _, t in rows)
+        if not weight:
+            continue
+        score = round(sum(s * t for s, t in rows) / weight, 1)
+        scored.append({"disease": disease, "country_iso3": iso3,
+                       "score": score, "n_signals": len(rows),
+                       "above_threshold": score >= PRIMARY_THRESHOLD_SCORE})
+    scored.sort(key=lambda g: g["score"], reverse=True)
+    return {
+        "threshold": PRIMARY_THRESHOLD_SCORE,
+        "window_days": window_days,
+        "window_floor": floor.isoformat(),
+        **funnel,
+        "groups": len(scored),
+        "groups_above_threshold": sum(1 for g in scored if g["above_threshold"]),
+        "top_groups": scored[:max(0, top_n)],
+    }
+
+
 def scan_and_record(now: dt.datetime | None = None,
                     window_days: int = SCAN_WINDOW_DAYS) -> list[dict]:
     """지금 우리가 가진 신호로 (질병, 국가)별 심각도를 재고, 문턱을 넘으면 적는다.

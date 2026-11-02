@@ -142,6 +142,21 @@ def notify_new_alerts(new_alerts: list[dict]) -> bool:
     return send_telegram_message(format_alert_message(new_alerts))
 
 
+def notify_lead_time_hit(hit: dict, first_ever: bool = False) -> bool:
+    """★ 선행일수 실측 1건을 운영 대화에 알린다(P0) ★
+
+    원장에 적힌 것만으로는 아무도 안 보면 모른다 — 실측이 처음 나오는 순간은
+    제품의 논지가 처음으로 증명되는 자리라 로그 한 줄로 묻히면 안 된다.
+    운영 대화(ops_chat_id)로 보낸다. 미설정이면 False(조용히 생략).
+    """
+    if not ops_configured():
+        return False
+    title = "★ 선행일수 첫 실측" if first_ever else "★ 선행일수 실측"
+    text = (f"{title}: {_esc(hit.get('disease'))} — 공식 선언보다 "
+            f"{hit.get('lead_days'):+d}일 ({_esc(hit.get('event_id'))})")
+    return send_telegram_message(text, chat_id=ops_chat_id())
+
+
 def _fmt_num(v, *, whole: bool = False) -> str:
     """숫자를 사람이 읽게. 없으면 '—' — 0으로 채우지 않는다.
 

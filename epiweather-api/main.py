@@ -952,11 +952,16 @@ def lead_time_ledger(outcome: Optional[str] = None, limit: int = 100):
     ★ 빗나간 것도 남긴다 ★ 문턱을 넘었는데 기한 내 선언이 없으면
     `no_declaration` 으로 닫는다. 맞은 것만 세면 정밀도만 남고 재현율이 사라진다.
     """
-    from algorithms.lead_time_ledger import list_entries
+    from algorithms.lead_time_ledger import list_entries, scan_funnel
 
     db.init_db()
+    try:
+        funnel = scan_funnel()
+    except Exception as e:
+        funnel = {"error": f"{type(e).__name__}: {e}"}
     return {
         "summary": _ledger_safe(),
+        "funnel": funnel,
         "entries": list_entries(outcome=outcome, limit=limit),
     }
 

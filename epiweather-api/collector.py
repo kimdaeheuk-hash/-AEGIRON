@@ -1203,19 +1203,40 @@ def collect_free_sources() -> dict:
     # 뒤에 온다. 그러면 crossed_at 이 선언보다 앞선다는 사실 자체가 증거다.
     try:
         from algorithms.lead_time_ledger import (
-            ledger_record, resolve_ledger, scan_and_record,
+            ledger_record, resolve_ledger, scan_and_record, scan_funnel,
         )
         import db
         db.init_db()
+        funnel = scan_funnel()
         opened = scan_and_record()
+        _top = funnel["top_groups"][0] if funnel["top_groups"] else None
+        log("  🔭 선행성 훑기: 주사위 %d건 → 그룹 %d개(문턱 위 %d개) · 최고 %s · 새로 열린 %d건"
+            % (funnel["scanned"], funnel["groups"],
+               funnel["groups_above_threshold"],
+               ("%s/%s %.1f점" % (_top["disease"], _top["country_iso3"] or "?",
+                                  _top["score"]) if _top else "없음"),
+               len(opened)))
         for entry in opened:
             log("  🔖 선행성 원장: %s / %s 문턱 통과(심각도 %.1f) — 선언 전 기록"
                 % (entry["disease"], entry["country_iso3"] or "국가미상", entry["severity"]))
+        from algorithms.lead_time_ledger import OUTCOME_DECLARED, list_entries as _listed
+        _prior_hits = len(_listed(outcome=OUTCOME_DECLARED, limit=1000))
         outcome = resolve_ledger()
-        for hit in outcome["closed_declared"]:
+        from algorithms.notifier import notify_lead_time_hit
+        for _i, hit in enumerate(outcome["closed_declared"]):
             # ★ 이 줄이 제품의 논지가 처음으로 실측되는 자리다 ★
             log("  ★ 선행일수 실측: %s — 공식 선언보다 %+d일 (%s)"
                 % (hit["disease"], hit["lead_days"], hit["event_id"]))
+            # ★ 장부에만 남기면 아무도 안 본다(P0) ★ 실측이 나오는 순간 운영
+            # 대화에 알린다. 처음 한 건은 '첫 실측'으로 구분한다.
+            _first = (_prior_hits == 0 and _i == 0)
+            try:
+                _sent = notify_lead_time_hit(hit, first_ever=_first)
+            except Exception as e:
+                log_error("LeadTimeNotify", e)
+            else:
+                if _sent:
+                    log("  ★ 선행일수 실측 텔레그램 전송: %s" % hit["disease"])
         if outcome["closed_no_declaration"]:
             # 빗나간 것도 말한다. 안 그러면 정밀도만 있는 성적표가 된다.
             log("  선행성 원장: 기한 내 선언 없음 %d건(오경보로 닫음)"
