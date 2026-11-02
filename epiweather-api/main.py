@@ -249,10 +249,25 @@ def _baikal_enabled() -> bool:
     return os.environ.get("EPIWEATHER_BAIKAL", "on").lower() != "off"
 
 
-async def _watched(step: str, coro) -> None:
-    """한 단계가 cycle_watch.STALL_WARN_SECONDS 를 넘기면 `⏳` 줄과 스레드 호출 위치를 찍는다. 끊지는 않는다."""
+async def _watched(step: str, coro, *, job: str | None = None,
+                 timeout: float | None = None) -> dict:
+    """한 단계가 cycle_watch.STALL_WARN_SECONDS 를 넘기면 `⏳` 줄과 스레드 호출 위치를 찍는다. 끊지는 않는다.
+
+    job 을 주면 프로세스 간 중복도 막는다(파일 락 선점 + 타임아웃) — uvicorn
+    워커 증설·재배포 신구 겹침 때 같은 작업이 두 번 도는 것을 방지. 락 보유
+    중이면 건너뛰고, timeout 을 넘기면 취소한다. 반환은 결과 요약 dict."""
     import collector
     from algorithms import cycle_watch
+    from algorithms import job_lock
+
+    locked = False
+    if job is not None:
+        if timeout is None:
+            raise ValueError("job 지정 시 timeout 필수")
+        if not job_lock.acquire(job, int(timeout) + 600):
+            collector.log(f"⏭ {step} 건너뜀 — 다른 프로세스가 실행 중")
+            return {"ok": False, "skipped": "locked", "step": step}
+        locked = True
     started = dt.datetime.now(dt.timezone.utc)
     done = asyncio.Event()
     stalled = False
@@ -268,13 +283,23 @@ async def _watched(step: str, coro) -> None:
 
     watcher = asyncio.create_task(_watch())
     try:
-        await coro
+        if timeout is None:
+            await coro
+        else:
+            try:
+                await asyncio.wait_for(coro, timeout=timeout)
+            except asyncio.TimeoutError:
+                collector.log_error(f"scheduler_timeout_{step}", TimeoutError(f"{timeout}초 초과"))
+                return {"ok": False, "skipped": "timeout", "step": step}
     finally:
         done.set()
         await watcher
         if stalled:
             took = (dt.datetime.now(dt.timezone.utc) - started).total_seconds()
             collector.log(f"⏳ {step} 끝남 — {took / 60:.1f}분 걸림")
+        if locked:
+            job_lock.release(job)
+    return {"ok": True, "step": step}
 
 
 async def _run_baikal_cycle() -> None:
@@ -684,16 +709,16 @@ async def _scheduler_loop() -> None:
     last_ai_run_date: dt.date | None = _load_last_ai_run()
     import collector
     collector.log(_weekly_state_line())
-    await _watched("무료 수집", _run_collector("free"))
-    await _watched("경보 주기", _run_alert_cycle())
-    await _watched("BAIKAL", _run_baikal_cycle())
-    await _maybe_run_daily_brief()
-    await _maybe_refresh_missing_snapshots()
+    await _watched("무료 수집", _run_collector("free"), job="free-collect", timeout=3300)
+    await _watched("경보 주기", _run_alert_cycle(), job="alert-cycle", timeout=900)
+    await _watched("BAIKAL", _run_baikal_cycle(), job="baikal", timeout=600)
+    await _watched("일일 브리핑", _maybe_run_daily_brief(), job="daily-brief", timeout=900)
+    await _watched("스냅샷 보충", _maybe_refresh_missing_snapshots(), job="snapshots", timeout=900)
 
     last_weekly = _load_last_weekly_run()
     now = dt.datetime.now(dt.timezone.utc)
     if last_weekly is None or (now - last_weekly).total_seconds() >= _WEEKLY_INTERVAL_SEC:
-        await _run_weekly_job()
+        await _watched("주간 작업", _run_weekly_job(), job="weekly", timeout=7200)
 
     while True:
         # ★ 다음 정시까지만 잔다 ★ 예전엔 sleep(3600) '뒤에' 수집을 돌려서, 수집에
@@ -704,13 +729,13 @@ async def _scheduler_loop() -> None:
         now = dt.datetime.now(dt.timezone.utc)
         next_hour = (now + dt.timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
         await asyncio.sleep(max(60.0, (next_hour - now).total_seconds()))
-        await _watched("무료 수집", _run_collector("free"))
+        await _watched("무료 수집", _run_collector("free"), job="free-collect", timeout=3300)
         # 수집 바로 뒤에 붙인다 — 방금 들어온 값으로 판정해야 "빨리 알린다"가
         # 실제로 지켜진다. 같은 source 재통보는 refresh_alerts가 막는다.
-        await _watched("경보 주기", _run_alert_cycle())
+        await _watched("경보 주기", _run_alert_cycle(), job="alert-cycle", timeout=900)
         # 경보 주기 뒤에 둔다 — 방금 갱신된 경보 표까지 읽어야 FORSETI 상태가 맞다.
-        await _watched("BAIKAL", _run_baikal_cycle())
-        await _maybe_refresh_missing_snapshots()
+        await _watched("BAIKAL", _run_baikal_cycle(), job="baikal", timeout=600)
+        await _watched("스냅샷 보충", _maybe_refresh_missing_snapshots(), job="snapshots", timeout=900)
 
         now = dt.datetime.utcnow()
         # ★ '정확히 21시'가 아니라 '21시 이후'로 판정한다 ★
@@ -723,20 +748,20 @@ async def _scheduler_loop() -> None:
         if now.hour >= _AI_HOUR_UTC and last_ai_run_date != now.date():
             last_ai_run_date = now.date()
             _save_last_ai_run(last_ai_run_date)
-            await _run_collector("ai")
+            await _watched("AI 수집", _run_collector("ai"), job="ai-collect", timeout=3300)
             # 같은 하루 1회 슬롯에서 함께 확인 — 새 회차가 없으면 비용이 들지 않는다.
-            await _run_bulletin_collection()
+            await _watched("불리틴 수집", _run_bulletin_collection(), job="bulletin", timeout=1800)
             # 학습셋 백필도 같은 슬롯에서. 커버리지가 차면 GDELT를 아예 안 부른다.
-            await _run_nowcast_maintenance()
+            await _watched("나우캐스트 정비", _run_nowcast_maintenance(), job="nowcast", timeout=1800)
             # ★ 예측 자동 채점 ★ 이게 없어서 성적표가 영원히 비어 있었다.
-            await _run_prediction_resolution()
+            await _watched("예측 채점", _run_prediction_resolution(), job="prediction-resolve", timeout=900)
 
-        await _maybe_run_daily_brief()
+        await _watched("일일 브리핑", _maybe_run_daily_brief(), job="daily-brief", timeout=900)
 
         last_weekly = _load_last_weekly_run()
         now_utc = dt.datetime.now(dt.timezone.utc)
         if last_weekly is None or (now_utc - last_weekly).total_seconds() >= _WEEKLY_INTERVAL_SEC:
-            await _run_weekly_job()
+            await _watched("주간 작업", _run_weekly_job(), job="weekly", timeout=7200)
 
 
 @app.on_event("startup")
