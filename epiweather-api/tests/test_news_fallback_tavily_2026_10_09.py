@@ -71,6 +71,13 @@ def _fresh_state(monkeypatch):
     ps._CACHE.update(at=0.0, titles=None, provider=ps.GOOGLE)
     nw._STATE["provider"] = nw.GOOGLE_NEWS
     monkeypatch.delenv("TAVILY_API_KEY", raising=False)
+    # 이 파일은 1차(Tavily)까지만 본다 — 2차(GDELT)는 이 파일에서 항상 죽어 있다고
+    # 고정한다. 안 그러면 실패 경로 테스트가 실제 GDELT 호출(가드 차단)에 매달린다.
+    # 2차 자체의 검증은 `test_news_fallback_gdelt_2026_10_28.py` 가 맡는다.
+    def _gdelt_dead(*a, **k):
+        raise nf.NewsFallbackError("gdelt ConnectionError (이 파일에서는 항상 실패로 고정)")
+    monkeypatch.setattr(ps, "gdelt_headlines", _gdelt_dead)
+    monkeypatch.setattr(nw, "gdelt_headlines", _gdelt_dead)
     yield
     ps._CACHE.update(at=0.0, titles=None, provider=ps.GOOGLE)
 

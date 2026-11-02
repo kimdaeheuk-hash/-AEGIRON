@@ -17,8 +17,9 @@
   건강 맥락 단어(사망·격리·발병 등)가 같은 제목에 있어야 한다.
 - **조회 실패는 '없다'가 아니라 '모른다'.** 실패하면 이 계열 행을 내리지 않고 `판정 안 함`으로 둔다
   (`alerts._mark_undetermined`).
-- **Google 이 막히면 Tavily 로 넘어간다**(2026-10-09, `news_fallback`). 그 경로는 관련도 순 검색이라 최근
-  1일을 빠짐없이 주지 않는다 — **대체 경로가 답한 주기에 후보가 없는 것은 '사건 없음'이 아니라 '모름'** 이다.
+- **Google 이 막히면 1차 Tavily(2026-10-09) → 2차 GDELT(2026-10-28)로 넘어간다**(`news_fallback`).
+  대체 경로는 최근 1일을 빠짐없이 주지 않는다 — **대체 경로가 답한 주기에 후보가 없는 것은 '사건 없음'이 아니라
+  '모름'** 이다.
   호출부(`alerts.py`)는 그 주기에 이 계열 행을 내리지 않고, 근거에 매체 수가 근사라고 적는다.
 - **라이브 검증 못 함.** 샌드박스가 news.google.com 에 못 나간다. RSS 파서는 179개 피드로 검증된
   `local_news.fetch_local_feed` 를 그대로 쓴다. 프로덕션 첫 주기 로그의 `📰 고위험 병원체 보도` 줄이 첫 검증이다.
@@ -32,7 +33,7 @@ import time
 import urllib.parse
 
 from .local_news import fetch_local_feed
-from .news_fallback import NewsFallbackError, tavily_headlines
+from .news_fallback import NewsFallbackError, gdelt_headlines, tavily_headlines
 
 # 병원체 → (정규식, 표시 이름). 전부 '단건이 곧 뉴스'인 병원체다. 에볼라·마르부르크·니파는 일부러 뺐다 —
 # 상시 보도되는 풍토 사건이 많아 매일 울리면 신호가 의미를 잃는다(경보 피로). 늘리려면 정책 결정이다.
@@ -67,14 +68,25 @@ QUERY_CONTEXT = ["death", "died", "dies", "quarantine", "outbreak", "lab leak"]
 RECENCY = "when:1d"
 CACHE_TTL_SEC = 20 * 60
 
-# Google 이 막혔을 때만 쓰는 Tavily 질의 — 한 번에 세 병원체를 묻는다(쿼터 1회). Google 연산자(OR·when:)는
-# 의미가 없어 평문으로 쓴다.
+# Google 이 막혔을 때만 쓰는 대체 질의(1차 Tavily · 2차 GDELT 공용) — 한 번에 세 병원체를 묻는다
+# (쿼터 1회). Google 연산자(OR·when:)는 의미가 없어 평문으로 쓴다. GDELT 로 보낼 때는
+# `gdelt_headlines` 가 낱말 OR 로 바꾼다.
 FALLBACK_QUERY = "plague anthrax smallpox outbreak death quarantine laboratory leak"
 FALLBACK_KEY_ENV = "TAVILY_API_KEY"
-GOOGLE, TAVILY = "google", "tavily"
+GOOGLE, TAVILY, GDELT = "google", "tavily", "gdelt"
+
+# 대체 경로가 답한 주기의 후보에 붙는 정직성 문구 — 키가 공급자다. Google 주기의
+# 숫자와 같은 종류의 측정인 척하지 않게 한다. 새 대체 공급자를 붙이면 여기에도
+# 한 줄을 붙여야 한다(안 그러면 그 공급자의 후보에 문구가 안 붙는다).
+_FALLBACK_NOTES = {
+    TAVILY: ("Google News 가 막혀 Tavily 대체 검색으로 얻은 제목 — 매체는 URL 도메인으로 읽은 근사이고, "
+             "검색 결과 상위 일부라 매체 수는 Google 주기와 같은 종류의 숫자가 아니다"),
+    GDELT: ("Google News·Tavily 가 막혀 GDELT 2차 대체 검색으로 얻은 제목 — 매체는 URL 도메인으로 읽은 근사이고, "
+            "최신순 상위 일부라 매체 수는 Google 주기와 같은 종류의 숫자가 아니다"),
+}
 
 _CACHE: dict = {"at": 0.0, "titles": None, "provider": GOOGLE}
-# 공급자 **둘 다** 실패했을 때의 쿨다운 — 10-08 22시대에는 5분 사이 네 번(22:03 · 22:03 · 22:05 · 22:07) 같은 실패를
+# 공급자 **셋 다** 실패했을 때의 쿨다운 — 10-08 22시대에는 5분 사이 네 번(22:03 · 22:03 · 22:05 · 22:07) 같은 실패를
 # 다시 불렀다(수동 호출·갱신이 겹침). 막힌 쪽을 두드릴수록 풀리는 데 오래 걸릴 수 있어, 쿨다운 안에는 같은
 # 사유를 그대로 올린다(네트워크 호출 없음).
 FAIL_COOLDOWN_SEC = 5 * 60
@@ -99,12 +111,24 @@ def _fetch_google() -> list[str]:
             if "Google News" not in t and " OR " not in t]
 
 
+def _fetch_secondary(google_err: SentinelError, first_reason: str) -> tuple[list[str], str]:
+    """2차 폴백(GDELT) 시도. 성공하면 (제목, GDELT), 실패하면 세 사유를 싣고 올린다."""
+    try:
+        titles = [html.unescape(t) for t in gdelt_headlines(FALLBACK_QUERY)]
+    except NewsFallbackError as g_err:
+        g = str(google_err).removeprefix("Google News RSS 수집 실패: ")[:40]
+        raise SentinelError(
+            f"Google News RSS 수집 실패: {g} · {first_reason} · 2차 {g_err}") from g_err
+    return titles, GDELT
+
+
 def fetch_titles(now: float | None = None) -> list[str]:
     """최근 24시간 제목. 실패는 종류를 담아 올린다. 20분 캐시(매시간 + 수동 호출이 겹쳐도 한 번만 부른다).
 
-    Google 이 실패하면 Tavily 로 한 번 넘어간다(`TAVILY_API_KEY` 가 있을 때). **누가 답했는지는
-    `last_provider()` 가 말한다** — 대체 경로의 '없음'은 '모름'이라 호출부가 달리 다뤄야 한다.
-    둘 다 실패하면 두 사유를 모두 싣는다(요약 줄이 120자에서 잘리므로 대체 사유를 앞쪽에 둔다).
+    Google 이 실패하면 1차 Tavily(`TAVILY_API_KEY` 가 있을 때), 그것도 안 되면 2차 GDELT
+    (키 불필요·무료)로 넘어간다. **누가 답했는지는 `last_provider()` 가 말한다** — 대체
+    경로의 '없음'은 '모름'이라 호출부가 달리 다뤄야 한다. 셋 다 실패하면 세 사유를 모두
+    싣는다(요약 줄이 120자에서 잘리므로 Google 사유는 앞 40자만).
     """
     now = time.time() if now is None else now
     if _CACHE["titles"] is not None and now - _CACHE["at"] < CACHE_TTL_SEC:
@@ -117,16 +141,17 @@ def fetch_titles(now: float | None = None) -> list[str]:
             titles = _fetch_google()
         except SentinelError as google_err:
             key = os.environ.get(FALLBACK_KEY_ENV)
-            if not key:
-                raise SentinelError(f"{google_err} · 대체 공급자 없음({FALLBACK_KEY_ENV} 미설정)") from google_err
-            try:
-                titles = [html.unescape(t) for t in tavily_headlines(FALLBACK_QUERY, key)]
-            except NewsFallbackError as fb_err:
-                g = str(google_err).removeprefix("Google News RSS 수집 실패: ")[:40]
-                raise SentinelError(f"Google News RSS 수집 실패: {g} · 대체 {fb_err}") from fb_err
-            provider = TAVILY
+            if key:
+                try:
+                    titles = [html.unescape(t) for t in tavily_headlines(FALLBACK_QUERY, key)]
+                    provider = TAVILY
+                except NewsFallbackError as fb_err:
+                    titles, provider = _fetch_secondary(google_err, f"대체 {fb_err}")
+            else:
+                titles, provider = _fetch_secondary(
+                    google_err, f"대체 공급자 없음({FALLBACK_KEY_ENV} 미설정)")
     except SentinelError as e:
-        _FAIL.update(at=now, err=str(e))            # 둘 다 실패 — 쿨다운 동안 다시 안 부른다
+        _FAIL.update(at=now, err=str(e))            # 셋 다 실패 — 쿨다운 동안 다시 안 부른다
         raise
     _CACHE.update(at=now, titles=titles, provider=provider)
     _FAIL.update(at=0.0, err=None)
@@ -134,7 +159,7 @@ def fetch_titles(now: float | None = None) -> list[str]:
 
 
 def last_provider() -> str:
-    """가장 최근 `fetch_titles()` 에 답한 공급자(`google` | `tavily`)."""
+    """가장 최근 `fetch_titles()` 에 답한 공급자(`google` | `tavily` | `gdelt`)."""
     return _CACHE.get("provider") or GOOGLE
 
 
@@ -168,8 +193,8 @@ def match_headlines(titles: list[str]) -> dict[str, list[dict]]:
 def candidates(titles: list[str] | None = None, provider: str = GOOGLE) -> list[dict]:
     """경보 후보. 서로 다른 매체 `MIN_PUBLISHERS` 곳 이상이 보도한 병원체만.
 
-    `provider` 가 `tavily` 면 근거에 '대체 검색이라 매체 수는 근사'라고 적는다 — 같은 줄의 숫자가
-    Google 주기의 숫자와 같은 종류의 측정인 척하지 않게."""
+    `provider` 가 대체 경로(`tavily`·`gdelt`)면 근거에 '대체 검색이라 매체 수는 근사'라고
+    적는다 — 같은 줄의 숫자가 Google 주기의 숫자와 같은 종류의 측정인 척하지 않게."""
     if titles is None:
         titles = fetch_titles()
         provider = last_provider()
@@ -190,9 +215,7 @@ def candidates(titles: list[str] | None = None, provider: str = GOOGLE) -> list[
                 "측정값이 아니라 헤드라인 키워드 일치 — 점수는 medium 고정 구간(이상도 아님). "
                 "사건의 진위·규모는 확인되지 않았다",
                 f"{name}은(는) 사건 하나가 곧 뉴스인 병원체라 카운트 지표로는 못 잡는다 — 그래서 별도 감시",
-                *(["Google News 가 막혀 Tavily 대체 검색으로 얻은 제목 — 매체는 URL 도메인으로 읽은 근사이고, "
-                   "검색 결과 상위 일부라 매체 수는 Google 주기와 같은 종류의 숫자가 아니다"]
-                  if provider == TAVILY else []),
+                *([_FALLBACK_NOTES[provider]] if provider in _FALLBACK_NOTES else []),
             ],
         })
     return cands

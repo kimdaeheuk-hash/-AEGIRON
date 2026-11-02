@@ -22,6 +22,16 @@ from algorithms import alerts as alerts_mod
 from algorithms import news_watch as nw
 from algorithms import pathogen_sentinel as ps
 from algorithms.alerts import classify_tier, refresh_alerts
+from algorithms.news_fallback import NewsFallbackError
+
+
+@pytest.fixture(autouse=True)
+def _gdelt_dead(monkeypatch):
+    """이 파일은 센티널·다이제스트 계약만 본다 — 2차(GDELT)는 항상 죽어 있다고 고정."""
+    def dead(*a, **k):
+        raise NewsFallbackError("gdelt ConnectionError (이 파일에서는 항상 실패로 고정)")
+    monkeypatch.setattr(ps, "gdelt_headlines", dead)
+
 
 IRKUTSK = [
     "Plague outbreak: Russia quarantines 200 after researcher dies in Siberia - Deccan Herald",

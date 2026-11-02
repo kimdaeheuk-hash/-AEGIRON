@@ -652,8 +652,12 @@ def build_news_pulse_section(lang: str = "ko") -> dict | None:
     # ★ 출처를 하드코딩하지 않는다 ★ (2026-10-09) Google 이 막혀 Tavily 대체 검색이 답한 요약에
     # "Google News RSS" 를 붙이면 출처가 거짓이 된다. `source` 의 접두가 답한 공급자다.
     src = str(pulse.get("source") or "")
-    origin = ("Tavily 뉴스 검색(Google News 막힘 — 대체 경로, 상위 일부)"
-              if src.startswith("tavily_news") else "Google News RSS")
+    if src.startswith("tavily_news"):
+        origin = "Tavily 뉴스 검색(Google News 막힘 — 대체 경로, 상위 일부)"
+    elif src.startswith("gdelt_news"):
+        origin = "GDELT 뉴스 검색(Google News·Tavily 막힘 — 2차 대체 경로, 상위 일부)"
+    else:
+        origin = "Google News RSS"
     return {
         "id": "news_pulse",
         "icon": "📰",

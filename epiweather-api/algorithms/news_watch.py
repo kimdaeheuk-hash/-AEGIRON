@@ -56,7 +56,7 @@ from .cerebras_classify import (
     WORST_CHARS_PER_TOKEN,
 )
 from .local_news import fetch_local_feed
-from .news_fallback import NewsFallbackError, tavily_headlines
+from .news_fallback import NewsFallbackError, gdelt_headlines, tavily_headlines
 
 # 전 세계 영어권 대상 질의. 국가별 현지어 피드(local_news)가 이미 179개 돌고
 # 있으므로, 이 층은 그 그물에 안 걸리는 **전 지구 규모 보도**를 노린다.
@@ -67,10 +67,11 @@ GLOBAL_TERMS = [
     # 채워 다른 질병 제목이 밀렸고, 요약이 16주기 중 13주기 `새 신호 없음`이 됐다(소킹 일지 10-07).
     # 고위험 병원체는 `pathogen_sentinel` 이 **전용 질의**로 전담한다 — 여기서 겹쳐 찾지 않는다.
 ]
-# Google 이 막혔을 때만 쓰는 Tavily 대체 질의(2026-10-09). Google 연산자(OR·when:)는 평문에서 의미가 없다.
+# Google 이 막혔을 때만 쓰는 대체 질의(1차 Tavily 2026-10-09 · 2차 GDELT 2026-10-28 공용).
+# Google 연산자(OR·when:)는 평문에서 의미가 없다. GDELT 로 보낼 때는 `gdelt_headlines` 가 낱말 OR 로 바꾼다.
 FALLBACK_QUERY = "disease outbreak epidemic ebola cholera dengue mpox measles bird flu H5N1 marburg"
 FALLBACK_KEY_ENV = "TAVILY_API_KEY"
-GOOGLE_NEWS, TAVILY_NEWS = "google_news", "tavily_news"
+GOOGLE_NEWS, TAVILY_NEWS, GDELT_NEWS = "google_news", "tavily_news", "gdelt_news"
 # 가장 최근 `fetch_headlines()` 에 답한 공급자. `fetch_news_pulse` 가 `source` 에 싣는다 —
 # 폴백이 조용히 도는 걸 막는다(모델 폴백이 `source` 에 이름을 남기는 것과 같은 이유).
 _STATE: dict = {"provider": GOOGLE_NEWS}
@@ -158,25 +159,40 @@ def fetch_headlines() -> list[str]:
     RSS 파싱은 `local_news.fetch_local_feed` 를 그대로 쓴다 — CDATA 처리까지
     이미 179개 피드로 검증된 코드다. 여기서 다시 짜면 같은 버그를 새로 만든다.
 
-    Google 이 실패하면 Tavily 로 한 번 넘어간다(`TAVILY_API_KEY` 가 있을 때, 2026-10-09 —
-    10-08 15:00 UTC 부터 Google 503 으로 이 층이 9주기 연속 `중단` 이었다). 누가 답했는지는
-    `_STATE["provider"]` → `fetch_news_pulse` 의 `source` 가 남긴다. 이 층은 경보 점수에 연결돼
-    있지 않아(위 GLOBAL_TERMS 주석) 대체 경로가 더 얕아도 거짓 경보로 번지지 않는다.
+    Google 이 실패하면 1차 Tavily(`TAVILY_API_KEY` 가 있을 때, 2026-10-09 —
+    10-08 15:00 UTC 부터 Google 503 으로 이 층이 9주기 연속 `중단` 이었다),
+    그것도 안 되면 2차 GDELT(키 불필요·무료, 2026-10-28)로 넘어간다.
+    누가 답했는지는 `_STATE["provider"]` → `fetch_news_pulse` 의 `source` 가 남긴다.
+    이 층은 경보 점수에 연결돼 있지 않아(위 GLOBAL_TERMS 주석) 대체 경로가 더 얕아도
+    거짓 경보로 번지지 않는다.
     """
     _STATE["provider"] = GOOGLE_NEWS
     try:
         titles = _fetch_headlines_google()
     except NewsWatchError as google_err:
         key = os.environ.get(FALLBACK_KEY_ENV)
-        if not key:
-            raise NewsWatchError(f"{google_err} · 대체 공급자 없음({FALLBACK_KEY_ENV} 미설정)") from google_err
-        try:
-            titles = tavily_headlines(FALLBACK_QUERY, key)
-        except NewsFallbackError as fb_err:
-            g = str(google_err).removeprefix("Google News RSS 수집 실패: ")[:40]
-            raise NewsWatchError(f"Google News RSS 수집 실패: {g} · 대체 {fb_err}") from fb_err
-        _STATE["provider"] = TAVILY_NEWS
+        if key:
+            try:
+                titles = tavily_headlines(FALLBACK_QUERY, key)
+                _STATE["provider"] = TAVILY_NEWS
+            except NewsFallbackError as fb_err:
+                titles = _fetch_headlines_secondary(google_err, f"대체 {fb_err}")
+        else:
+            titles = _fetch_headlines_secondary(
+                google_err, f"대체 공급자 없음({FALLBACK_KEY_ENV} 미설정)")
     return [t[:MAX_TITLE_CHARS] for t in titles[:MAX_HEADLINES]]
+
+
+def _fetch_headlines_secondary(google_err: NewsWatchError, first_reason: str) -> list[str]:
+    """2차 폴백(GDELT) 시도. 성공하면 `provider` 를 GDELT_NEWS 로 남기고 제목을 돌려준다."""
+    try:
+        titles = gdelt_headlines(FALLBACK_QUERY)
+    except NewsFallbackError as g_err:
+        g = str(google_err).removeprefix("Google News RSS 수집 실패: ")[:40]
+        raise NewsWatchError(
+            f"Google News RSS 수집 실패: {g} · {first_reason} · 2차 {g_err}") from g_err
+    _STATE["provider"] = GDELT_NEWS
+    return titles
 
 
 def groq_headlines(headlines: list[str]) -> list[str]:

@@ -1,13 +1,23 @@
-"""병원체 감시: 공급자 둘이 다 실패하면 쿨다운 동안 다시 안 부른다 (2026-10-09, 소킹 일지 10-08).
+"""병원체 감시: 공급자 셋이 다 실패하면 쿨다운 동안 다시 안 부른다 (2026-10-09, 소킹 일지 10-08).
 
 10-08 22시대에 5분 사이 네 번(22:03·22:03·22:05·22:07) 같은 실패를 다시 불렀다(갱신·수동 호출이 겹침).
 막힌 쪽을 두드릴수록 풀리는 데 오래 걸릴 수 있다.
+
+이 파일은 쿨다운 로직만 본다 — 2차(GDELT)는 항상 죽어 있다고 고정한다.
 """
 from __future__ import annotations
 
 import pytest
 
 from algorithms import pathogen_sentinel as ps
+from algorithms.news_fallback import NewsFallbackError
+
+
+@pytest.fixture(autouse=True)
+def _gdelt_dead(monkeypatch):
+    def dead(*a, **k):
+        raise NewsFallbackError("gdelt ConnectionError (이 파일에서는 항상 실패로 고정)")
+    monkeypatch.setattr(ps, "gdelt_headlines", dead)
 
 
 class Calls:
