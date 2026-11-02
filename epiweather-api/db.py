@@ -259,6 +259,25 @@ CREATE TABLE IF NOT EXISTS kdca_vintages (
     seen_at   TEXT NOT NULL,             -- 이 값을 처음 본 시각(UTC)
     PRIMARY KEY (disease, period, seen_at)
 );
+
+-- 스키마 버전(2026-11-02). init_db()가 매 호출마다 DDL 전문을 돌리지 않게
+-- 1행짜리 버전표로 판정한다. 스키마를 바꾸면 SCHEMA_VERSION을 올릴 것.
+CREATE TABLE IF NOT EXISTS _schema_version (
+    id       INTEGER PRIMARY KEY CHECK (id = 1),
+    version  INTEGER NOT NULL
+);
+
+-- 조회 패턴 실측 기반 인덱스(2026-11-02). 전부 IF NOT EXISTS라 기존 DB에도 안전.
+CREATE INDEX IF NOT EXISTS idx_extracted_signals_disease ON extracted_signals(disease);
+CREATE INDEX IF NOT EXISTS idx_extracted_signals_source_extracted ON extracted_signals(source, extracted_at);
+CREATE INDEX IF NOT EXISTS idx_predictions_unsealed ON predictions(ots_proof_hex) WHERE ots_proof_hex IS NULL;
+CREATE INDEX IF NOT EXISTS idx_predictions_country ON predictions(country);
+CREATE INDEX IF NOT EXISTS idx_alerts_date_score ON alerts(alert_date, score);
+CREATE INDEX IF NOT EXISTS idx_sentinel_status ON sentinel_queue(status);
+CREATE INDEX IF NOT EXISTS idx_outbreak_event ON outbreak_timeline(event_id);
+CREATE INDEX IF NOT EXISTS idx_gt_unread_source ON ground_truth_unread(source_type);
+CREATE INDEX IF NOT EXISTS idx_gt_coverage_source ON ground_truth_coverage(source_type);
+CREATE INDEX IF NOT EXISTS idx_api_usage_label_called ON api_key_usage(key_label, called_at);
 """
 
 
@@ -270,7 +289,22 @@ def get_connection() -> sqlite3.Connection:
     # busy_timeout: 그래도 쓰기가 겹치면 즉시 실패 대신 5초까지 재시도 대기.
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout=5000")
+    # FK 강제: 지금 선언된 FK는 없지만(값 연결 테이블이라), 앞으로 추가되는
+    # FK가 연결마다 반드시 강제되도록 기본 켜둔다. 기존 동작 변화 없음.
+    conn.execute("PRAGMA foreign_keys=ON")
     return conn
+
+
+# 스키마 버전 — SCHEMA·ALTER 목록을 바꾸면 1 올린다.
+SCHEMA_VERSION = 1
+
+
+def _db_version(conn: sqlite3.Connection) -> int:
+    try:
+        row = conn.execute("SELECT version FROM _schema_version WHERE id = 1").fetchone()
+    except sqlite3.OperationalError:
+        return 0  # 버전표 없음 = 구 DB
+    return row[0] if row else 0
 
 
 # 이 행의 경보가 사람에게 **실제로 전송된** 최고 등급(0 low · 1 medium · 2 high · 3 critical).
@@ -279,55 +313,66 @@ def get_connection() -> sqlite3.Connection:
 _NOTIFIED_RANK_DDL = "ALTER TABLE alerts ADD COLUMN notified_rank INTEGER"
 
 
+def _migrate(conn: sqlite3.Connection) -> None:
+    """DDL 전문 + ALTER 따라잡기 + 버전 기록. 버전 판정은 init_db가 한다."""
+    conn.executescript(SCHEMA)
+    # sentinel_queue에 verified_by/ai_status/ai_confidence 컬럼 도입 전에
+    # 이미 만들어진 DB(운영 중인 것 포함)에도 안전하게 추가.
+    # CREATE TABLE IF NOT EXISTS는 기존 테이블에 컬럼을 추가해주지 않으므로
+    # ALTER TABLE로 따로 처리 — 이미 있으면 OperationalError만 삼킴.
+    for ddl in (
+        "ALTER TABLE sentinel_queue ADD COLUMN verified_by TEXT",
+        "ALTER TABLE sentinel_queue ADD COLUMN ai_status TEXT",
+        "ALTER TABLE sentinel_queue ADD COLUMN ai_confidence REAL",
+        "ALTER TABLE alerts ADD COLUMN evidence TEXT",
+        _NOTIFIED_RANK_DDL,
+        "ALTER TABLE extracted_signals ADD COLUMN country_iso3 TEXT",
+        "ALTER TABLE extracted_signals ADD COLUMN ai_provider TEXT",
+        "ALTER TABLE predictions ADD COLUMN content_hash TEXT",
+        "ALTER TABLE predictions ADD COLUMN ots_proof_hex TEXT",
+        "ALTER TABLE predictions ADD COLUMN ots_submitted_at TEXT",
+        # ── 채점 가능한 예측(2026-08-09) ──────────────────────────
+        # 기존 스키마는 예측을 기록만 하고 채점은 사람이 참/거짓을 사후에
+        # 넣는 구조였다. 그건 채점이 아니라 자기평가다. 아래 컬럼이 있어야
+        # "확신한 만큼 맞았나"(보정)를 잴 수 있다 — 재보험사가 적중률보다
+        # 먼저 보는 지표다. 자세한 근거는 algorithms/prediction_scoring.py.
+        "ALTER TABLE predictions ADD COLUMN confidence REAL",
+        "ALTER TABLE predictions ADD COLUMN resolution_criteria TEXT",
+        "ALTER TABLE predictions ADD COLUMN resolves_by TEXT",
+        "ALTER TABLE predictions ADD COLUMN outcome TEXT",
+        "ALTER TABLE predictions ADD COLUMN resolution_sources TEXT",
+    ):
+        try:
+            conn.execute(ddl)
+            if ddl == _NOTIFIED_RANK_DDL:
+                # ★ 컬럼이 *방금 생긴* 이 한 번만 옛 행을 채운다 ★ 전송 여부를 기록하기 전
+                # 행은 보냈는지 알 수 없다. 옛 동작은 '오늘 잡힌 행 = 이미 본 것'이었으므로
+                # 그대로 전송된 것으로 **간주**한다 — 안 그러면 배포 직후 오늘의 critical/high
+                # 행이 전부 미전송으로 읽혀 한꺼번에 재전송된다. 간주이지 관측이 아니다.
+                conn.execute(
+                    "UPDATE alerts SET notified_rank = CASE tier "
+                    "WHEN 'critical' THEN 3 WHEN 'high' THEN 2 END "
+                    "WHERE tier IN ('critical', 'high')"
+                )
+        except sqlite3.OperationalError as e:
+            # '이미 있는 컬럼'만 정상으로 넘긴다. 예전엔 OperationalError를
+            # 전부 삼켜서, 오타난 테이블명("no such table")이나 잠금 실패처럼
+            # **진짜 실패한 마이그레이션도 똑같이 조용히 지나갔다.** 그러면
+            # 컬럼이 영영 안 생기고, 한참 뒤 엉뚱한 INSERT 에러로만 드러난다.
+            if "duplicate column name" not in str(e).lower():
+                print(f"  ❌ [db] 마이그레이션 실패 — {ddl!r}: {e}", flush=True)
+                raise
+    conn.execute("INSERT OR REPLACE INTO _schema_version (id, version) VALUES (1, ?)",
+                 (SCHEMA_VERSION,))
+    conn.commit()
+
+
 def init_db() -> None:
+    """DB 준비. 버전이 맞으면 DDL을 건너뛴다(요청·수집마다 전문 실행 방지)."""
     with get_connection() as conn:
-        conn.executescript(SCHEMA)
-        # sentinel_queue에 verified_by/ai_status/ai_confidence 컬럼 도입 전에
-        # 이미 만들어진 DB(운영 중인 것 포함)에도 안전하게 추가.
-        # CREATE TABLE IF NOT EXISTS는 기존 테이블에 컬럼을 추가해주지 않으므로
-        # ALTER TABLE로 따로 처리 — 이미 있으면 OperationalError만 삼킴.
-        for ddl in (
-            "ALTER TABLE sentinel_queue ADD COLUMN verified_by TEXT",
-            "ALTER TABLE sentinel_queue ADD COLUMN ai_status TEXT",
-            "ALTER TABLE sentinel_queue ADD COLUMN ai_confidence REAL",
-            "ALTER TABLE alerts ADD COLUMN evidence TEXT",
-            _NOTIFIED_RANK_DDL,
-            "ALTER TABLE extracted_signals ADD COLUMN country_iso3 TEXT",
-            "ALTER TABLE extracted_signals ADD COLUMN ai_provider TEXT",
-            "ALTER TABLE predictions ADD COLUMN content_hash TEXT",
-            "ALTER TABLE predictions ADD COLUMN ots_proof_hex TEXT",
-            "ALTER TABLE predictions ADD COLUMN ots_submitted_at TEXT",
-            # ── 채점 가능한 예측(2026-08-09) ──────────────────────────
-            # 기존 스키마는 예측을 기록만 하고 채점은 사람이 참/거짓을 사후에
-            # 넣는 구조였다. 그건 채점이 아니라 자기평가다. 아래 컬럼이 있어야
-            # "확신한 만큼 맞았나"(보정)를 잴 수 있다 — 재보험사가 적중률보다
-            # 먼저 보는 지표다. 자세한 근거는 algorithms/prediction_scoring.py.
-            "ALTER TABLE predictions ADD COLUMN confidence REAL",
-            "ALTER TABLE predictions ADD COLUMN resolution_criteria TEXT",
-            "ALTER TABLE predictions ADD COLUMN resolves_by TEXT",
-            "ALTER TABLE predictions ADD COLUMN outcome TEXT",
-            "ALTER TABLE predictions ADD COLUMN resolution_sources TEXT",
-        ):
-            try:
-                conn.execute(ddl)
-                if ddl == _NOTIFIED_RANK_DDL:
-                    # ★ 컬럼이 *방금 생긴* 이 한 번만 옛 행을 채운다 ★ 전송 여부를 기록하기 전
-                    # 행은 보냈는지 알 수 없다. 옛 동작은 '오늘 잡힌 행 = 이미 본 것'이었으므로
-                    # 그대로 전송된 것으로 **간주**한다 — 안 그러면 배포 직후 오늘의 critical/high
-                    # 행이 전부 미전송으로 읽혀 한꺼번에 재전송된다. 간주이지 관측이 아니다.
-                    conn.execute(
-                        "UPDATE alerts SET notified_rank = CASE tier "
-                        "WHEN 'critical' THEN 3 WHEN 'high' THEN 2 END "
-                        "WHERE tier IN ('critical', 'high')"
-                    )
-            except sqlite3.OperationalError as e:
-                # '이미 있는 컬럼'만 정상으로 넘긴다. 예전엔 OperationalError를
-                # 전부 삼켜서, 오타난 테이블명("no such table")이나 잠금 실패처럼
-                # **진짜 실패한 마이그레이션도 똑같이 조용히 지나갔다.** 그러면
-                # 컬럼이 영영 안 생기고, 한참 뒤 엉뚱한 INSERT 에러로만 드러난다.
-                if "duplicate column name" not in str(e).lower():
-                    print(f"  ❌ [db] 마이그레이션 실패 — {ddl!r}: {e}", flush=True)
-                    raise
+        if _db_version(conn) >= SCHEMA_VERSION:
+            return
+        _migrate(conn)
         conn.commit()
 
 
