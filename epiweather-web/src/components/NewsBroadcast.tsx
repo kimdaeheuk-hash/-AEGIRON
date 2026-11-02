@@ -18,6 +18,7 @@ export default function NewsBroadcast() {
   const [error, setError] = useState(false);
   const [idx, setIdx] = useState(0);
   const [lang, setLang] = useState<'ko' | 'en'>('ko');
+  const [briefKey, setBriefKey] = useState<string | undefined>(undefined);
   const idxRef = useRef(0);
 
   useEffect(() => {
@@ -38,6 +39,7 @@ export default function NewsBroadcast() {
   // 세그먼트 자동 순환 (텔레프롬프터처럼 한 꼭지씩)
   useEffect(() => {
     if (!brief || brief.segments.length <= 1) return;
+    idxRef.current = 0; // ref 리셋은 Effect에서 — 렌더 중 ref 접근 금지 규칙
     const t = setInterval(() => {
       idxRef.current = (idxRef.current + 1) % brief.segments.length;
       setIdx(idxRef.current);
@@ -45,7 +47,13 @@ export default function NewsBroadcast() {
     return () => clearInterval(t);
   }, [brief]);
 
-  useEffect(() => { idxRef.current = 0; setIdx(0); }, [brief?.date, brief?.format.id]);
+  // brief가 바뀌면 인덱스 리셋 — 렌더 중 비교 패턴(Effect 내 동기 setState 금지 대응).
+  // Effect보다 먼저(페인트 전) 리셋되므로 이전 인덱스가 새 brief에 닿는 프레임이 없다.
+  const curKey = `${brief?.date}|${brief?.format.id}`;
+  if (briefKey !== curKey) {
+    setBriefKey(curKey);
+    setIdx(0);
+  }
 
   if (error && !brief) return null; // 백엔드 미가동 시 홈 나머지는 정상 노출
 

@@ -21,6 +21,9 @@ export default function ValhallaPanel() {
     } catch (e) { setErr(String(e)); }
   }
 
+  // reload()는 await 뒤에만 setState하므로 동기 캐스케이드가 아니다. 린터는 간접 호출을
+  // 구분 못하므로 예외 처리한다.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { reload(); }, []);
 
   return (

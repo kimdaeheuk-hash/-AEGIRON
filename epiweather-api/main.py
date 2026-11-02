@@ -2374,19 +2374,13 @@ def bulletin_extract_tables(req: BulletinTableRequest):
     숫자를 신호로 쓸 수 없었다. VLM(nemotron-parse)으로 표 구조를 복원하고,
     뽑은 숫자를 pdftotext 원문과 교차검증해 오독 후보를 표시한다.
     기계 추출값이므로 is_machine_extracted=True — 사람 검증본이 아니다."""
-    import requests as _rq
     from algorithms.pdf_table_extract import extract_tables
+    from algorithms.safe_fetch import fetch_pdf_bytes_detailed
 
-    if not req.url.lower().startswith(("http://", "https://")):
-        raise HTTPException(status_code=422, detail="http(s) 주소만 허용")
-    try:
-        r = _rq.get(req.url, timeout=120, headers={"User-Agent": "Mozilla/5.0 (EpiWeather/1.0)"})
-        r.raise_for_status()
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"PDF 내려받기 실패: {e}")
-    if not r.content[:5].startswith(b"%PDF"):
-        raise HTTPException(status_code=422, detail="PDF 파일이 아님")
-    return extract_tables(r.content, max_pages=req.max_pages)
+    content, reason, status = fetch_pdf_bytes_detailed(req.url)
+    if content is None:
+        raise HTTPException(status_code=status, detail=reason)
+    return extract_tables(content, max_pages=req.max_pages)
 
 
 class BulletinIngestRequest(BaseModel):
@@ -2406,22 +2400,16 @@ def bulletin_ingest(req: BulletinIngestRequest):
     않는다 — known_disease가 '설명 불가 → 즉시경보'를 뜻하는 스키마라 그대로
     넣으면 가짜 경보가 나기 때문. 같은 보고서를 두 번 넣어도 중복은 걸러진다.
     신뢰도는 숫자 교차검증 결과에 따라 갈린다(전부 일치 0.90 / 미검증 섞임 0.70)."""
-    import requests as _rq
     from algorithms.pdf_table_extract import extract_tables
     from algorithms.bulletin_signals import extract_signals
     from algorithms.bulletin_ingest import ingest, to_extracted_signal
+    from algorithms.safe_fetch import fetch_pdf_bytes_detailed
 
-    if not req.url.lower().startswith(("http://", "https://")):
-        raise HTTPException(status_code=422, detail="http(s) 주소만 허용")
-    try:
-        r = _rq.get(req.url, timeout=120, headers={"User-Agent": "Mozilla/5.0 (EpiWeather/1.0)"})
-        r.raise_for_status()
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"PDF 내려받기 실패: {e}")
-    if not r.content[:5].startswith(b"%PDF"):
-        raise HTTPException(status_code=422, detail="PDF 파일이 아님")
+    content, reason, status = fetch_pdf_bytes_detailed(req.url)
+    if content is None:
+        raise HTTPException(status_code=status, detail=reason)
 
-    parsed = extract_tables(r.content, max_pages=req.max_pages)
+    parsed = extract_tables(content, max_pages=req.max_pages)
     if not parsed.get("ok"):
         return {"ok": False, "stage": "extract_tables", "reason": parsed.get("reason")}
     found = extract_signals(parsed, source=req.source, signal_date=req.signal_date)

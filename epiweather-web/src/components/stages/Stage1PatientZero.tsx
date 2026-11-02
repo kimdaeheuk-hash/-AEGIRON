@@ -23,8 +23,13 @@ export default function Stage1PatientZero() {
   }, []);
 
   const [local, setLocal] = useState<LocalSignal | null>(null);
-  useEffect(() => {
+  const [prevOrigin, setPrevOrigin] = useState(origin);
+  // origin이 바뀌면 이전 지역 데이터를 즉시 비운다 — 렌더 중 비교 패턴(Effect 내 동기 setState 금지 대응).
+  if (prevOrigin !== origin) {
+    setPrevOrigin(origin);
     setLocal(null);
+  }
+  useEffect(() => {
     fetch(`${API}/api/patient-zero/local-signal?origin_id=${origin}`)
       .then(r => { if (!r.ok) throw new Error(); return r.json(); })
       .then(setLocal)

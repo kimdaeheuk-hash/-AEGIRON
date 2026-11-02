@@ -204,7 +204,7 @@ export default function Stage8Biodefense() {
                   <b style={{ fontFamily: 'var(--disp)', fontSize: 13, color: '#76b900' }}>여기가 엔비디아 BioNeMo와 만나는 지점</b>
                   <p style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.6, marginTop: 5 }}>
                     지금은 결정론적 수식(위 항원 회피 곡선)이지만, 실제 운영 시 BioNeMo NIM 4단계 파이프라인으로 교체합니다 — 젠슨 황이
-                    "디지털 바이올로지"를 반도체·컴퓨팅에 버금가는 다음 혁명으로 꼽는 지점이 바로 이 계산 파이프라인입니다.
+                    &quot;디지털 바이올로지&quot;를 반도체·컴퓨팅에 버금가는 다음 혁명으로 꼽는 지점이 바로 이 계산 파이프라인입니다.
                   </p>
                 </div>
               </div>
