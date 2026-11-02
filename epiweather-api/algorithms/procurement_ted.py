@@ -9,15 +9,21 @@
 ## ★ 이 파일이 검증되지 않았다는 사실을 값에 담는다 ★
 
 개발 샌드박스의 외부 접속이 조직 정책으로 막혀 있어(403) **TED 엔드포인트를
-한 번도 실제로 부르지 못했다.** 응답 형식은 공개 문서 기준으로 짰고, 파싱을
-방어적으로 두고, 실패를 조용히 삼키지 않게 했다.
+개발 환경에서 실제로 부르지 못했다.** 응답 형식은 공개 문서 기준으로 짰고,
+파싱을 방어적으로 두고, 실패를 조용히 삼키지 않게 했다.
 
-그래서 이 모듈은 스스로를 `verified=False` 로 보고한다. 운영에서 처음 성공하면
-능력 장부(capability_ledger)에 `verified_run` 이 찍히고, 그전까지는
-`configuration_only` 로 남는다 — **안 되면 조용하지 않다.**
+## ★ 검증 절차(발할라 P2) — 손으로 뒤집지 않는다 ★
 
-이 표시를 지우지 마라. 첫 성공을 눈으로 확인하기 전까지 이 층의 숫자를 대외
-자료에 쓰면 안 된다.
+`is_verified`는 하드코딩이 아니라 능력 장부(`ted_procurement`)의 관측이다.
+`watch_ted`가 돌 때마다 성공/실패를 장부에 남기고, 장부가 `verified`를
+내릴 때(창 안에 성공 관측이 있을 때)만 True가 된다. 절차는 이렇다:
+
+  1. 운영 수집기가 6시간마다 `watch_ted`를 돈다(발할라 조달 조각).
+  2. 한 낱말이라도 물어오면 성공으로 기록된다(부분 실패도 성공 — 사유 별도).
+  3. 장부 `status("ted_procurement")`가 verified가 되면 그때부터 True.
+
+뒤집혔는지는 장부에서 확인한다 — 코드 상수를 고쳐서 뒤집으면 안 된다.
+첫 성공을 눈으로 확인하기 전까지 이 층의 숫자를 대외 자료에 쓰면 안 된다.
 
 ## ★ 국내 층에서 배운 것을 그대로 적용한다 ★
 
@@ -46,13 +52,31 @@ TED_SEARCH_URL = "https://api.ted.europa.eu/v3/notices/search"
 TIMEOUT = 45
 PAGE_SIZE = 50
 
-# ★ 이 층은 아직 실측되지 않았다 ★ 값에 실어 보낸다.
-IS_VERIFIED = False
+# 능력 장부 ID — 호출 결과를 매번 남긴다(성공/실패 모두).
+TED_CAPABILITY = "ted_procurement"
 UNVERIFIED_NOTE = (
-    "개발 환경의 외부 접속이 막혀 TED 엔드포인트를 실제로 호출해보지 못했다. "
-    "운영에서 첫 성공이 능력 장부에 남기 전까지 이 층의 숫자를 대외 자료에 "
-    "쓰지 말 것."
+    "TED 층이 아직 실측 성공을 관측하지 못했다. "
+    "운영에서 첫 성공이 능력 장부(ted_procurement)에 verified로 남기 전까지 "
+    "이 층의 숫자를 대외 자료에 쓰지 말 것."
 )
+
+
+def ted_verified() -> bool:
+    """장부 관측으로만 뒤집히는 검증 상태. 장부를 못 읽으면 False."""
+    try:
+        from .capability_ledger import status
+        return bool(status(TED_CAPABILITY).get("verified"))
+    except Exception:                                 # noqa: BLE001
+        return False
+
+
+def _record_outcome(ok: bool, detail: str | None) -> None:
+    """호출 1회의 결과를 장부에 남긴다. 기록 실패가 조회를 막지 않는다."""
+    try:
+        from .capability_ledger import record
+        record(TED_CAPABILITY, ok=ok, detail=detail, endpoint=TED_SEARCH_URL)
+    except Exception:                                 # noqa: BLE001
+        pass
 
 # 영문 검색어 — 국내 표(BIOSECURITY_KEYWORDS)와 같은 갈래를 영어로 옮긴 것.
 # ★ 너무 흔한 낱말은 뺐다 ★ 'health' 같은 걸 넣으면 하루치가 수천 건이 되고,
@@ -265,13 +289,20 @@ def watch_ted(days: int = 7, today: dt.datetime | None = None) -> dict:
     if len(failures) == total_words:
         # 첫 건만 예시로 보여주면 "전부 같은 이유인가, 제각각인가" 를 알 수 없다.
         # 사유별로 세서 낸다 — 추출층에서 배운 것과 같은 모양이다.
+        reason = (f"모든 낱말 조회 실패({len(failures)}건) — "
+                  f"{tally(f.split(': ', 1)[-1] for f in failures)}")
+        _record_outcome(False, reason)
+        verified = ted_verified()
         return {"available": False,
-                "reason": f"모든 낱말 조회 실패({len(failures)}건) — "
-                          f"{tally(f.split(': ', 1)[-1] for f in failures)}",
+                "reason": reason,
                 "lookup_failures": failures,
-                "is_verified": IS_VERIFIED, "unverified_note": UNVERIFIED_NOTE}
+                "is_verified": verified,
+                "unverified_note": None if verified else UNVERIFIED_NOTE}
 
     bids = sorted(found.values(), key=lambda b: (b["closes_at"] or "~", b["title"] or ""))
+    _record_outcome(True, f"{len(bids)}건/낱말실패 {len(failures)}건/"
+                          f"버림 {dropped}건")
+    verified = ted_verified()
     return {
         "available": True,
         "window_days": days,
@@ -285,9 +316,9 @@ def watch_ted(days: int = 7, today: dt.datetime | None = None) -> dict:
         # 구분이 안 된다 — 값 하나가 두 상태를 뭉개는 걸 또 만들지 않는다.
         "description_checked": not description_rejected,
         "source": "TED (EU Tenders Electronic Daily)",
-        # ★ 지우지 마라 ★ 첫 실측 성공 전까지 이 층은 검증되지 않았다.
-        "is_verified": IS_VERIFIED,
-        "unverified_note": UNVERIFIED_NOTE,
+        # ★ 장부 관측으로만 뒤집힌다 ★ 손으로 True를 박지 마라.
+        "is_verified": verified,
+        "unverified_note": None if verified else UNVERIFIED_NOTE,
         "limits": [
             "참가자격은 공고 문서 안에 있고 이 API 로는 안 보인다. "
             "'우리가 딸 수 있는 사업' 목록이 아니다.",

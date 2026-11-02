@@ -15,19 +15,58 @@ H3N2/H1N1 "2y" 빌드는 2024-04-23 이후 갱신이 멈춰있었다 — 이걸 
 넘기면 available=False로 명시한다.
 """
 from __future__ import annotations
+import concurrent.futures
 import datetime as dt
+import os
 
 import requests
 
 CHARON_URL = "https://nextstrain.org/charon/getDataset"
 USER_AGENT = {"User-Agent": "EpiWeather-Genomic/1.0 (epiweather.kr)"}
-TIMEOUT = 30
+
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+# 빌드 하나당 상한. Nextstrain 트리 JSON은 수MB라 30초로 빠듯한 경우가 있어
+# 45초로 올린다 — 병렬화 후 합계 대기 상한은 45초(직렬 90초+에서 단축).
+TIMEOUT = _env_float("AEGIRON_VARIANT_TIMEOUT_S", 45.0)
+MAX_WORKERS = _env_int("AEGIRON_VARIANT_WORKERS", 3)
 
 WATCHLIST = [
     ("/ncov/open/global/6m", "SARS-CoV-2(공개시퀀스)"),
     ("/mpox", "엠폭스"),
     ("/rsv/a/genome", "RSV-A"),
 ]
+
+
+def _watchlist() -> list[tuple[str, str]]:
+    """감시 빌드 목록. AEGIRON_VARIANT_BUILDS="/a|A,/b|B" 형식으로 교체 가능.
+    파싱 실패·빈값은 조용히 기본 목록으로 되돌린다(수집이 멈추면 안 되므로)."""
+    raw = (os.environ.get("AEGIRON_VARIANT_BUILDS") or "").strip()
+    if not raw:
+        return WATCHLIST
+    items: list[tuple[str, str]] = []
+    for chunk in raw.split(","):
+        if "|" not in chunk:
+            return WATCHLIST
+        prefix, label = chunk.split("|", 1)
+        prefix, label = prefix.strip(), label.strip()
+        if not prefix.startswith("/") or not label:
+            return WATCHLIST
+        items.append((prefix, label))
+    return items or WATCHLIST
 
 STALE_DAYS = 30           # 이보다 오래 안 갱신되면 빌드 정지로 간주
 RECENT_WINDOW_DAYS = 60   # "최근" 구간
@@ -124,13 +163,23 @@ def analyze_build(prefix: str, label: str) -> dict:
     }
 
 
+def _safe_analyze(prefix: str, label: str) -> dict:
+    try:
+        return analyze_build(prefix, label)
+    except Exception as e:
+        return {"label": label, "available": False, "reason": str(e)[:150]}
+
+
 def get_genomic_variant_signals() -> dict:
-    """감시 목록 전체를 분석. 빌드 하나가 실패해도 나머지는 계속 수집."""
+    """감시 목록 전체를 병렬 분석. 빌드 하나가 실패·지연돼도 나머지는 계속 수집.
+    스레드풀이라 requests 블로킹이 겹치지 않고, 결과 키 집합은 직렬 때와 동일."""
+    watch = _watchlist()
     out: dict[str, dict] = {}
-    for prefix, label in WATCHLIST:
-        slug = prefix.strip("/").replace("/", "_")
-        try:
-            out[slug] = analyze_build(prefix, label)
-        except Exception as e:
-            out[slug] = {"label": label, "available": False, "reason": str(e)[:150]}
+    workers = min(max(1, MAX_WORKERS), max(1, len(watch)))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
+        futs = {ex.submit(_safe_analyze, prefix, label): prefix
+                for prefix, label in watch}
+        for fut in concurrent.futures.as_completed(futs):
+            slug = futs[fut].strip("/").replace("/", "_")
+            out[slug] = fut.result()
     return out

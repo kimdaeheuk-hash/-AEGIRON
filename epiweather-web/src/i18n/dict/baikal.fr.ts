@@ -103,6 +103,7 @@ export const baikalFr: BaikalDict = {
   transitionsTitle: 'Registre des changements d’état',
   transitionsLead: `Un registre d’audit tenu uniquement aux instants où un état a changé. La première observation est marquée ${'«'}${NB}début d’observation${NB}${'»'} — aucun état antérieur n’est inventé.`,
   transitionsEmpty: 'Aucun changement d’état enregistré',
+  archiveTitle: 'Transitions de plus de 90 jours (archives d’audit)',
   observationStart: 'Début d’observation',
   flowsTitle: 'YGGDRASIL — flux de données entre systèmes',
   flowsLead: 'Seuls les flux qui existent réellement dans le code sont représentés. Aucune liaison simplement plausible n’est ajoutée.',

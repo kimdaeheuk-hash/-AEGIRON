@@ -24,7 +24,11 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install -r requirements.txt pytest-cov
 
       - name: Run pytest
-        run: pytest tests/ -v
+        # 갭 #11 — 커버리지 하한 75%. 2026-11-02 로컬 실측 78%(이 환경의
+        # 소켓 차단으로 TestClient 계열 다수가 실패한 상태의 값)라 CI(Linux,
+        # 소켓 정상)는 이보다 높게 나온다. 75는 큰 낙폭만 잡는 선이다 —
+        # 올리려면 CI 실측 후.
+        run: pytest tests/ -q --cov=algorithms --cov=db --cov=main --cov=collector --cov-report=term --cov-fail-under=75

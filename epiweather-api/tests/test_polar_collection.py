@@ -18,7 +18,8 @@ Open-Meteo 나 러시아어 뉴스가 막혀도 21개 소스 어디에도 안 �
 소스 헬스는 **매 주기 기록**을 전제로 돈다(record_cycle). 하루 한 번만 돌면
 나머지 23주기가 값없음으로 쌓여 **거짓 경보**가 된다.
 
-호출량은 6개 관측지 × (기후+뉴스) = 12건이고 실측 10.6초다. 이미 매시간
+호출량은 8개 관측지 × (기후+뉴스) = 시간당 16건 live에 기준선·추세 일 16건
+(디스크 캐시)이고 실측 10.6초다. 이미 매시간
 179개 현지어 피드를 받고 있으므로 부담이 아니다. 일관성이 미세 최적화보다
 중요하다.
 """
@@ -84,11 +85,30 @@ def test_polar_stays_a_watch_layer_not_an_alarm():
 
 
 def test_every_region_is_still_watched():
-    """관측지가 조용히 줄지 않는다 — 6곳은 설계다."""
+    """관측지가 조용히 줄지 않는다 — 8곳은 설계다(2026-11-02 북극군도·아이슬란드 추가)."""
     from algorithms.polar_signals import POLAR_REGIONS
 
     keys = {r[0] for r in POLAR_REGIONS}
     assert keys == {
         "siberia_yamal", "alaska_north", "canada_arctic",
         "greenland", "svalbard", "antarctic_peninsula",
+        "arctic_archipelago", "iceland",
     }
+
+
+def test_new_territories_carry_their_jurisdiction_in_the_name():
+    """영토 단위 관측 — 이름에 관할이 없으면 어느 영토 신호인지 모른다."""
+    from algorithms.polar_signals import POLAR_REGIONS
+
+    names = {r[0]: r[1] for r in POLAR_REGIONS}
+    assert "캐나다" in names["arctic_archipelago"] and "레졸루트" in names["arctic_archipelago"]
+
+
+def test_brief_region_names_cover_every_territory():
+    """브리핑 지역명 표가 관측 집합을 다 덮는다 — 빠지면 한국어가 섞인다."""
+    from algorithms.brief_sections import _REGION_NAME
+    from algorithms.polar_signals import POLAR_REGIONS
+
+    for (key, *_rest) in POLAR_REGIONS:
+        entry = _REGION_NAME.get(key)
+        assert entry and all(entry.get(lang) for lang in ("ko", "en", "fr")), key

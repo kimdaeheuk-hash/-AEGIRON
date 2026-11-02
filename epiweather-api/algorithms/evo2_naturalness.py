@@ -122,9 +122,10 @@ def _predict_next(prefix: str, n_tokens: int, api_key: str) -> tuple[str, list[f
         # 어느 호스트에 붙었는지를 장부에 남긴다 — 주권 주장은 설정이 아니라
         # 이 관측으로만 검증된다(nvidia.sovereignty_verification 참고).
         _nvidia.record_layer_call("genome", url, ok=False,
-                                  error=f"{type(e).__name__}: {e}")
+                                  error=f"{type(e).__name__}: {e}",
+                                  capability="nvidia_genome_evo2")
         raise
-    _nvidia.record_layer_call("genome", url, ok=True)
+    _nvidia.record_layer_call("genome", url, ok=True, capability="nvidia_genome_evo2")
     return (data.get("sequence") or "").upper(), (data.get("sampled_probs") or [])
 
 
@@ -250,6 +251,18 @@ def score_naturalness(raw: str, api_key: str | None = None, n_windows: int = 6,
         "suppressed_flags": None if applicable else (
             f"적용범위 밖이라 플래그를 올리지 않음(일치율 {match_rate:.1%}는 참고값). "
             f"{domain['note']}"
+        ),
+        # ★ 범위 밖 라우팅(헤임달 P2) ★ 진핵감염 바이러스는 Evo2로 판정 자체가
+        # 불가라 점수만 주고 끝내지 않고, 바이러스에 실측 검증된 MSA 상동성으로
+        # 보내라 안내한다. ESM-2 대체안은 NIM 500으로 막혀 있어(위 docstring)
+        # 확인되기 전까지 라우팅하지 않는다 — 안 되는 대안을 적으면 거짓말이다.
+        "recommended_alternative": (
+            {"engine": "msa_homology",
+             "via": "use_msa",
+             "reason": "진핵숙주 감염 바이러스는 Evo2 학습 제외라 이 점수로 판정 불가 — "
+                       "DB 검색 기반 MSA 상동성(코로나·독감·에볼라 포함 10종 실측 검증)으로 "
+                       "가라. genome-screen 호출 시 use_msa=true."}
+            if organism_domain == "eukaryotic_virus" else None
         ),
         "reference_ranges": _REF,
         "method": (

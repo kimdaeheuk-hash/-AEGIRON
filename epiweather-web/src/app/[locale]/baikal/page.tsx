@@ -6,7 +6,7 @@ import {
   LayerDiagram, SystemStatusGrid, LoopPanel, TransitionList, FlowList, SystemsTable,
 } from '@/components/live/BaikalWidgets';
 import { Unavailable } from '@/components/live/LiveWidgets';
-import { getBaikal } from '@/lib/live';
+import { getBaikal, getBaikalArchive } from '@/lib/live';
 import { pageMetadata } from '@/lib/meta';
 
 /**
@@ -33,6 +33,7 @@ export default async function BaikalPage(props: { params: Promise<{ locale: stri
   const page = x.pages.baikal;
   const B = x.baikal;
   const data = await getBaikal();
+  const archived = await getBaikalArchive();
 
   return (
     // overflowWrap: keep-all 은 공백 없는 긴 나열('A·B·C·…')을 한 낱말로 봐 휴대폰 화면 밖으로
@@ -74,6 +75,14 @@ export default async function BaikalPage(props: { params: Promise<{ locale: stri
           ? <TransitionList transitions={data.transitions} systems={x.systems} labels={B} />
           : <Unavailable text={B.unavailable} />}
       </Section>
+
+      {/* 90일 아카이브 — 비어 있거나 못 읽으면 섹션을 숨긴다. */}
+      {archived && archived.length > 0 && (
+        <Section>
+          <SectionHeading eyebrow="ARCHIVE" title={B.archiveTitle} lead="" />
+          <TransitionList transitions={archived} systems={x.systems} labels={B} />
+        </Section>
+      )}
 
       <Section pad="sm">
         <Card accent>

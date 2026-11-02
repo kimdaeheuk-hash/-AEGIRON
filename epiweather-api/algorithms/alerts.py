@@ -293,6 +293,40 @@ def negative_space_line(result: dict) -> str | None:
     return f"🔇 부정적 공간: {ns_summary(ns)}"
 
 
+def valhalla_watch_line() -> str | None:
+    """★ 경보층 → 발할라 읽기 간선(발할라 P0) ★ 경보 주기가 수집기가 쌓아둔
+    발할라를 읽어 한 줄로 요약한다. 관찰 요약이지 경보가 아니라 발화 로직을
+    건드리지 않는다 — 발할라는 관찰층이라 여기서 울리면 안 된다.
+
+    쌓인 게 없으면 None(조용히 생략). 조각마다 나이를 붙여 굳은 값을 새 값처럼
+    읽지 않는다."""
+    from .valhalla_watch import (
+        _age_hours, _load_state, _now, pipeline_summary,
+    )
+
+    try:
+        state = _load_state() or {}
+    except Exception:
+        return None
+    proc_entry, pipe_entry = state.get("procurement") or {}, state.get("pipeline") or {}
+    proc, pipe = proc_entry.get("value") or {}, pipe_entry.get("value") or {}
+    if not proc and not pipe:
+        return None
+    now = _now()
+    parts = []
+    if proc:
+        ted = (proc.get("ted") or {}).get("bid_count")
+        kor = proc.get("bid_count")
+        age = _age_hours(proc_entry.get("fetched_at"), now)
+        ted_txt = f"/EU {ted}건" if ted is not None else ""
+        parts.append(f"조달 {kor}건{ted_txt}({age}h 전 값)")
+    if pipe:
+        summary = pipeline_summary(pipe)
+        age = _age_hours(pipe_entry.get("fetched_at"), now)
+        parts.append(f"파이프라인 {summary or '요약 불가'}({age}h 전 값)")
+    return f"🛡️ 발할라: {' · '.join(parts)}" if parts else None
+
+
 def classify_tier(score: float) -> str:
     if score >= CRITICAL:
         return "critical"

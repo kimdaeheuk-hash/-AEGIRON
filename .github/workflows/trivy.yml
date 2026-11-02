@@ -1,0 +1,49 @@
+name: Trivy image scan
+
+# 갭 #12 — 이미지 취약점 게이트. Dockerfile이 바뀌거나 일주일에 한 번 돈다.
+# CRITICAL이 있으면 실패한다. HIGH는 보고만 한다 — 한 번에 다 막으면
+# 베이스 이미지 한 줄 때문에 배포가 서고, 그건 게이트가 아니라 발목이다.
+# SARIF는 코드 스캐닝 탭에 올라간다.
+
+on:
+  push:
+    paths:
+      - "Dockerfile"
+      - ".dockerignore"
+      - "epiweather-api/requirements.txt"
+      - ".github/workflows/trivy.yml"
+  pull_request:
+    paths:
+      - "Dockerfile"
+      - ".dockerignore"
+      - "epiweather-api/requirements.txt"
+  schedule:
+    - cron: "17 3 * * 1"
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t aegiron-api:${{ github.sha }} .
+
+      - name: Scan image for CRITICAL vulnerabilities
+        # v-prefix 필수 — bare 0.x 태그는 upstream에 없다(v0.36.0 확인).
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          input: aegiron-api:${{ github.sha }}
+          format: "sarif"
+          output: "trivy-results.sarif"
+          severity: "CRITICAL"
+          exit-code: "1"
+
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: "trivy-results.sarif"

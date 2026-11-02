@@ -234,12 +234,37 @@ def _is_held(row: dict) -> bool:
     return bool(is_stale_marked(ev if isinstance(ev, list) else None))
 
 
-def judge_forseti(alerts_today: list[dict] | None, now: dt.datetime) -> dict:
+def _calm_if_cycle_alive(silent: float | None, retired: int = 0,
+                         phone: str = "", readings: dict | None = None) -> dict | None:
+    """주기가 살아있는데 표가 비었으면 '평온' — 근거 등급은 estimated.
+
+    경보 행이 없다는 건 직접 측정이 아니라 '돌았는데 울릴 게 없었다'는
+    추론이라 measured 가 아니다. 주기 상태를 모르면(None) 판정을 못 하니
+    None 으로 돌려주고 호출부가 예전 undetermined 분기로 간다.
+    """
+    if silent is None or silent >= ALERT_TABLE_STALE_HOURS:
+        return None
+    retired_text = f"(내려간 행 {retired}건) " if retired else ""
+    return _system_result(
+        "FORSETI", "ok",
+        f"활성 경보 없음 {retired_text}— 수집 주기 {silent:.1f}시간 전 가동 확인, 평온{phone}",
+        scope_ko=_FORSETI_SCOPE, evidence_class="estimated",
+        readings={**(readings or {"tiers": {}, "active": 0}),
+                  "collector_silent_hours": silent})
+
+
+def judge_forseti(alerts_today: list[dict] | None, now: dt.datetime,
+                  collector_silent_hours: float | None = None) -> dict:
+    """경보 표 판정. `collector_silent_hours` 는 하트비트 — 표가 비었을 때
+    '평온'과 '주기 미가동'을 가른다. 모르면(None) 예전대로 판정 안 함."""
     if alerts_today is None:
         return _system_result("FORSETI", "undetermined", "경보 표를 못 읽음",
                               scope_ko=_FORSETI_SCOPE, readings={"tiers": {}, "active": 0})
     rows = alerts_today
     if not rows:
+        calm = _calm_if_cycle_alive(collector_silent_hours)
+        if calm is not None:
+            return calm
         return _system_result(
             "FORSETI", "undetermined",
             "오늘 경보 표가 비어 있음 — 평온인지 경보 주기 미가동인지 이 표만으로 가리지 않는다",
@@ -270,6 +295,9 @@ def judge_forseti(alerts_today: list[dict] | None, now: dt.datetime) -> dict:
     # 조용한 날이면 표 전체의 최신 시각이 몇 시간째 멈춰 있고, 그걸로 재면 '경보 주기 멎음'
     # 을 거짓으로 낸다(2026-10-19 작성 중 시험에서 발견). 활성 행이 없으면 가리지 않는다.
     if not active:
+        calm = _calm_if_cycle_alive(collector_silent_hours, len(rows), phone, readings)
+        if calm is not None:
+            return calm
         return _system_result(
             "FORSETI", "undetermined",
             f"오늘 활성 경보 없음(내려간 행 {len(rows)}건) — 평온인지 경보 주기 미가동인지 "
@@ -305,6 +333,10 @@ def judge_forseti(alerts_today: list[dict] | None, now: dt.datetime) -> dict:
 _SKULD_SCOPE = ("예측 원장 — 기록 존재와 최근 기록 시각. 새 기록이 없는 시간은 '기록할 이상 "
                 "국가 없음'일 수 있어 실패로 세지 않는다. 확산 트윈·유입 추정·개입 비교는 "
                 "요청 시 엔진이라 범위 밖")
+# 원장이 이 일수째 그대로면 정체인지 평온인지 구분이 안 된다 — 정상이라 우기지
+# 않고 판정 안 함으로 둔다. 봉인은 매시 주기가 하니 일주일 침묵은 '조용함'으로
+# 넘기기엔 길다(2026-11-02).
+SKULD_STALE_DAYS = 7
 
 
 def _unnamed_label() -> str:
@@ -335,6 +367,13 @@ def judge_skuld(predictions: list[dict] | None, now: dt.datetime) -> dict:
         "recorded_last_24h": recent,
         "latest_predicted_at": latest.isoformat() if latest else None,
     }
+    if latest is not None and (now - latest).total_seconds() > SKULD_STALE_DAYS * 86400:
+        days = (now - latest).total_seconds() / 86400
+        return _system_result(
+            "SKULD", "undetermined",
+            f"원장 {len(preds)}건 · 최근 기록 {days:.1f}일 전 — "
+            f"정체인지 평온인지 구분 불가({SKULD_STALE_DAYS}일 기준)",
+            scope_ko=_SKULD_SCOPE, readings=readings)
     age = f" · 최근 기록 {_hours_between(now, latest) / 24:.1f}일 전" if latest else ""
     return _system_result(
         "SKULD", "ok",
@@ -359,22 +398,73 @@ def _record_age_reason(record: dict | None, now: dt.datetime) -> str | None:
     return None
 
 
-def judge_heimdall(record: dict | None, now: dt.datetime) -> dict:
+_HEIMDALL_ON_REQUEST_LEDGER = {
+    # 요청시 엔진 → 능력 장부 ID. 층 집계(nvidia_genome)는 Evo2·MSA를 가리지
+    # 못해서 엔진별 ID에 이중 기록한다(nvidia.record_layer_call 참조).
+    "evo2_naturalness": "nvidia_genome_evo2",
+    "msa_homology": "nvidia_genome_msa",
+}
+
+_ON_REQUEST_STATE = {
+    "verified_run": "ok",
+    "observed_failure": "failed",
+    "verified_but_stale": "stale",
+    # configuration_only·not_configured → unverified(아래 기본값)
+}
+
+
+def heimdall_on_request_health(ledger_status: Callable[[str], dict]) -> list[dict]:
+    """요청시 3종의 건강을 능력 장부 관측 그대로 보고. 수집 주기 상태와는 별개라
+    HEIMDALL status에는 합산하지 않는다 — 요청할 때만 도는 엔진이 죽었다고 매시간
+    계통 추적까지 내리면 관측보다 많이 주장하는 게 된다."""
+    out: list[dict] = []
+    for engine, cap in _HEIMDALL_ON_REQUEST_LEDGER.items():
+        try:
+            st = ledger_status(cap) or {}
+        except Exception:
+            st = {}
+        basis = st.get("claim_basis")
+        out.append({
+            "engine": engine,
+            "ledger_capability": cap,
+            "state": _ON_REQUEST_STATE.get(basis, "unverified"),
+            "verified": bool(st.get("verified")),
+            "claim_basis": basis,
+            "last_success_at": st.get("last_success_at"),
+            "consecutive_failures": st.get("consecutive_failures", 0),
+            "last_error": st.get("last_error"),
+        })
+    # genome_signals는 순수 로컬 계산(외부 호출 없음)이라 장부에 관측이 없다 —
+    # '검증 안 됨'이 아니라 '관측 대상 아님'이다. unverified로 적으면 거짓말이다.
+    out.append({"engine": "genome_signals", "state": "local",
+                "note": "순수 로컬 계산 — 외부 의존이 없어 장부 관측 대상이 아님"})
+    return out
+
+
+def judge_heimdall(record: dict | None, now: dt.datetime,
+                   ledger_status: Callable[[str], dict] | None = None) -> dict:
+    if ledger_status is None:
+        from algorithms.capability_ledger import status as ledger_status
+    engines = heimdall_on_request_health(ledger_status)
     stale = _record_age_reason(record, now)
     if stale:
-        return _system_result("HEIMDALL", "undetermined", stale, scope_ko=_HEIMDALL_SCOPE)
+        return _system_result("HEIMDALL", "undetermined", stale, scope_ko=_HEIMDALL_SCOPE,
+                              readings={"on_request_engines": engines})
     # 수집기는 이 단계가 예외로 실패하면 키를 남기고 값을 None 으로 둔다(collector.py). 키가
     # 아예 없으면 실패가 아니라 이 기록으로는 모르는 것이다 — 중단과 판정 안 함을 가른다.
     if "genomic_variants" not in record:
         return _system_result("HEIMDALL", "undetermined", "수집 주기 기록에 계통 추적 항목이 없음",
-                              scope_ko=_HEIMDALL_SCOPE)
+                              scope_ko=_HEIMDALL_SCOPE,
+                              readings={"on_request_engines": engines})
     gv = record["genomic_variants"]
     if gv is None:
         return _system_result("HEIMDALL", "down", "계통 추적 단계 실패(수집 주기 기록상 값 없음)",
-                              scope_ko=_HEIMDALL_SCOPE)
+                              scope_ko=_HEIMDALL_SCOPE,
+                              readings={"on_request_engines": engines})
     if not gv:
         return _system_result("HEIMDALL", "undetermined", "추적 대상 병원체 없음",
-                              scope_ko=_HEIMDALL_SCOPE)
+                              scope_ko=_HEIMDALL_SCOPE,
+                              readings={"on_request_engines": engines})
     per: list[dict] = []
     # ★ 실패와 데이터 부재를 가른다 (2026-10-19 프로덕션 첫 관측) ★
     # genomic_variants 는 조회가 실패하거나 빌드가 멈추면 available=False 로 둔다 — 그건 실패다.
@@ -402,7 +492,8 @@ def judge_heimdall(record: dict | None, now: dt.datetime) -> dict:
     failed = [p for p in per if p["state"] == "failed"]
     no_data = [p for p in per if p["state"] == "no_data"]
     readings = {"pathogens": per, "ok": ok_n, "failed": len(failed),
-                "no_data": len(no_data), "total": len(per)}
+                "no_data": len(no_data), "total": len(per),
+                "on_request_engines": engines}
     parts = [f"계통 추적 {ok_n}/{len(per)} 정상"]
     parts += [f"{p['label']} 실패({p['reason']})" for p in failed]
     parts += [f"{p['label']} 판정 불가({p['reason']})" for p in no_data]
@@ -447,7 +538,10 @@ def judge_valhalla(record: dict | None, now: dt.datetime,
                          for n, p in parts)
         return _system_result("VALHALLA", "degraded", why,
                               scope_ko=_VALHALLA_SCOPE, readings=readings)
-    return _system_result("VALHALLA", "ok", "준비태세 스냅숏 신선",
+    fresh = (f"준비태세 스냅숏 신선(조달 입찰 {readings['procurement_bid_count']}건 · "
+             f"백신 단일공급 {readings['vaccine_single_source_count']}곳 · "
+             f"대응수단 {readings['countermeasure_count']}종)")
+    return _system_result("VALHALLA", "ok", fresh,
                           scope_ko=_VALHALLA_SCOPE, readings=readings)
 
 
@@ -455,7 +549,8 @@ _VAR_SCOPE = "예측 봉인 따라잡기(미봉인 수)와 채점·선행성 원
 
 
 def judge_var(unsealed: int | None, scorecard: dict | None, ledger: dict | None,
-              seal_batch: int = 10) -> dict:
+              seal_batch: int = 10, seal_batch_defaulted: bool = False) -> dict:
+    """`seal_batch_defaulted` 가 참이면 밀림 판정의 기준이 기본값이라 estimated."""
     if unsealed is None or scorecard is None:
         return _system_result("VAR", "undetermined", "봉인·채점 기록을 못 읽음",
                               scope_ko=_VAR_SCOPE)
@@ -478,16 +573,21 @@ def judge_var(unsealed: int | None, scorecard: dict | None, ledger: dict | None,
     # 원장을 못 읽었으면 'None' 을 찍지 않고 그 사실을 적는다.
     body += (" · 선행성 원장을 못 읽음" if ledger is None
              else f" · 원장 열린 기록 {readings['ledger_open']}")
+    ev = "estimated" if seal_batch_defaulted else "measured"
+    if seal_batch_defaulted:
+        body += " · 봉인 배치 기준 기본값(읽기 실패)"
     if unsealed > seal_batch:
         # 매시 주기가 한 번에 seal_batch 건씩 봉인한다. 그보다 많이 밀려 있으면 따라잡기가
         # 한 주기 안에 안 끝나는 상태다. 관측된 문제라 원장 읽기 실패보다 앞에 둔다.
         return _system_result("VAR", "degraded",
                               f"{body} — 매시 {seal_batch}건 봉인보다 많이 밀림",
-                              scope_ko=_VAR_SCOPE, readings=readings)
+                              scope_ko=_VAR_SCOPE, readings=readings,
+                              evidence_class=ev)
     if ledger is None:
         # 상태 범위(scope)의 절반을 못 봤다 — 정상이라 하지 않는다.
         return _system_result("VAR", "undetermined", body, scope_ko=_VAR_SCOPE, readings=readings)
-    return _system_result("VAR", "ok", body, scope_ko=_VAR_SCOPE, readings=readings)
+    return _system_result("VAR", "ok", body, scope_ko=_VAR_SCOPE, readings=readings,
+                          evidence_class=ev)
 
 
 def weekly_loop_state(card: dict | None) -> dict:
@@ -520,6 +620,37 @@ def weekly_loop_state(card: dict | None) -> dict:
 # 피로가 된다. 전이는 '바뀐 순간'만 생기므로 같은 상태로는 두 번 울리지 않는다.
 # 이 알림은 **시스템 자체의 운영 상태**이지 감염병 경보가 아니다 — 본문에 그렇게 쓴다.
 _OPS_ICON = {"down": "🔴", "recovered": "🟢"}
+
+# ★ 같은 중단은 6시간에 한 번만 운다 (2026-11-02) ★
+# down↔degraded 를 오가는 시스템은 전이가 매번 새로 생겨 매시간 울린다.
+# 같은 주제의 중단 진입이 6시간 안에 이미 있었으면 이번 건은 기록에만 남기고
+# 알림에서는 뺀다. 복구(from down)는 흔들림의 끝이니 항상 울린다.
+NOTICE_COOLDOWN_HOURS = 6
+
+
+def suppressible_by_cooldown(transitions: list[dict], recent: list[dict],
+                             now: dt.datetime | None = None) -> list[dict]:
+    """쿨다운에 안 걸리는 전이만 돌려준다(순수 함수).
+
+    `recent` 은 DB의 최근 전이 목록(observed_at·subject·to_status).
+    복구 전이(from down)는 절대 안 걸러진다.
+    """
+    now = now or _now()
+    window = dt.timedelta(hours=NOTICE_COOLDOWN_HOURS)
+    cooldown_subjects = set()
+    for r in recent or []:
+        if r.get("to_status") != "down":
+            continue
+        t = _parse_iso(r.get("observed_at"))
+        if t is not None and dt.timedelta(0) <= now - t < window:
+            cooldown_subjects.add(r.get("subject"))
+    kept = []
+    for t in transitions or []:
+        if (t.get("to_status") == "down"
+                and t.get("subject") in cooldown_subjects):
+            continue
+        kept.append(t)
+    return kept
 
 
 def ops_notice_text(transitions: list[dict]) -> str | None:
@@ -703,18 +834,28 @@ def gather_inputs(now: dt.datetime) -> dict:
 
 def observe(now: dt.datetime | None = None, inputs: dict | None = None) -> dict:
     """한 시점의 생태계 상태. 저장하지 않는다(저장은 run_cycle)."""
+    import time as _time
     now = now or _now()
     i = inputs if inputs is not None else gather_inputs(now)
-    systems = [
-        judge_huginn(i.get("health"), i.get("quality")),
-        judge_mimir(i.get("quality"), i.get("extracted_24h")),
-        judge_forseti(i.get("alerts_today"), now),
-        judge_skuld(i.get("predictions"), now),
-        judge_heimdall(i.get("cycle_record"), now),
-        judge_valhalla(i.get("cycle_record"), now),
-        judge_var(i.get("unsealed"), i.get("scorecard"), i.get("ledger"),
-                  seal_batch=i.get("seal_batch") or 10),
+    health = i.get("health") or {}
+    silent = health.get("collector_silent_hours")
+    errors = i.get("errors") or {}
+    calls = [
+        ("HUGINN", lambda: judge_huginn(i.get("health"), i.get("quality"))),
+        ("MIMIR", lambda: judge_mimir(i.get("quality"), i.get("extracted_24h"))),
+        ("FORSETI", lambda: judge_forseti(i.get("alerts_today"), now, silent)),
+        ("SKULD", lambda: judge_skuld(i.get("predictions"), now)),
+        ("HEIMDALL", lambda: judge_heimdall(i.get("cycle_record"), now)),
+        ("VALHALLA", lambda: judge_valhalla(i.get("cycle_record"), now)),
+        ("VAR", lambda: judge_var(i.get("unsealed"), i.get("scorecard"), i.get("ledger"),
+                                 seal_batch=i.get("seal_batch") or 10,
+                                 seal_batch_defaulted="seal_batch" in errors)),
     ]
+    systems, judge_ms = [], {}
+    for key, fn in calls:
+        start = _time.perf_counter()
+        systems.append(fn())
+        judge_ms[key] = round((_time.perf_counter() - start) * 1000, 1)
     counts = {s: sum(1 for x in systems if x["status"] == s) for s in STATUSES}
     loop = loop_state(i.get("scorecard"), i.get("predictions"), i.get("ground_truth"),
                       now.date())
@@ -724,7 +865,8 @@ def observe(now: dt.datetime | None = None, inputs: dict | None = None) -> dict:
         "summary": {"counts": counts, "total": len(systems)},
         "loop": loop,
         "weekly_loop": weekly_loop_state(i.get("weekly")),
-        "read_errors": i.get("errors") or {},
+        "read_errors": errors,
+        "judge_ms": judge_ms,
         "ontology": "YGGDRASIL",
     }
 
@@ -769,7 +911,17 @@ def run_cycle(now: dt.datetime | None = None, inputs: dict | None = None) -> dic
                                     t["to_status"], t["reason"], t["evidence_class"])
     cutoff = (now - dt.timedelta(days=db.BAIKAL_SNAPSHOT_RETENTION_DAYS)).isoformat()
     db.prune_baikal_snapshots(cutoff)
-    return {**snap, "transitions": transitions}
+    archive_cutoff = (now - dt.timedelta(days=db.BAIKAL_TRANSITION_ARCHIVE_DAYS)).isoformat()
+    db.archive_baikal_transitions(archive_cutoff, now.isoformat())
+    # ★ 간선 유량 (2026-11-02) ★ 24시간 안에 주제별 전이가 몇 건 있었는지.
+    # 어느 시스템이 흔들리는지(진동) 한눈에 보인다. 전이는 드물어 상위 500건이면
+    # 24시간 창을 덮는다 — 창 밖은 세지 않는다.
+    flow_cutoff = (now - dt.timedelta(hours=24)).isoformat()
+    flow: dict[str, int] = {}
+    for row in db.list_baikal_transitions(limit=500):
+        if row["observed_at"] >= flow_cutoff:
+            flow[row["subject"]] = flow.get(row["subject"], 0) + 1
+    return {**snap, "transitions": transitions, "flow_24h": flow}
 
 
 def summary_line(result: dict) -> str:

@@ -413,6 +413,37 @@ def test_biodefense_readiness_computes_gaps_from_input(client_with_key):
     assert body["coverage"]["uncovered_threats"] == ["MERS"]
 
 
+def test_genome_screen_rejects_oversized_request_with_413(client_with_key):
+    """상한 초과는 413 — 조용히 자르면 리딩프레임·문맥이 깨진다."""
+    import main
+    client, key = client_with_key
+    resp = client.post("/api/synthetic-threat/genome-screen",
+                       headers={"X-API-Key": key},
+                       json={"sequence": "A" * (main.GENOME_SCREEN_MAX_SEQUENCE_CHARS + 1)})
+    assert resp.status_code == 413
+    assert "나눠 보내라" in resp.json().get("detail", "")
+
+
+def test_genome_screen_limit_check_direct():
+    """상한 검사 직접 호출 — TestClient 는 샌드박스에서 막히니 로직만 여기서 본다."""
+    import pytest
+    from fastapi import HTTPException
+    import main
+    ok = main.GenomeScreenRequest(sequence="ATGC" * 20)
+    main._check_genome_screen_limits(ok)
+    big = main.GenomeScreenRequest(
+        sequence="A" * (main.GENOME_SCREEN_MAX_SEQUENCE_CHARS + 1))
+    with pytest.raises(HTTPException) as e:
+        main._check_genome_screen_limits(big)
+    assert e.value.status_code == 413
+    many = main.GenomeScreenRequest(
+        sequence="ATGC" * 20,
+        reference_sequences=["ATGC"] * (main.GENOME_SCREEN_MAX_REFERENCES + 1))
+    with pytest.raises(HTTPException) as e:
+        main._check_genome_screen_limits(many)
+    assert e.value.status_code == 413
+
+
 def test_genome_screen_attaches_heimdall_classification(client_with_key):
     """Stage 0(HEIMDALL)은 R&D 연구센터 관리·최고 보안등급 메타데이터가 붙어야 함."""
     client, key = client_with_key

@@ -40,7 +40,9 @@ Open-Meteo 과거 재분석(archive-api)에서 같은 지점 10년치를 받아,
 from __future__ import annotations
 
 import datetime as dt
+import json
 import statistics
+from pathlib import Path
 
 import requests
 
@@ -52,9 +54,63 @@ TIMEOUT = 45
 # 그 자체는 정상이므로 실패로 보지 않는다.
 ARCHIVE_LAG_DAYS = 5
 
+# ★ 과거 자료는 하루에 한 번만 받는다 (2026-11-02) ★
+# 기준선·추세는 10~16년치 재분석을 매시간 다시 받았다(8곳 × 2층 = 시간당 16요청).
+# 같은 날 안에서는 요청 구간이 똑같고 재분석은 과거 확정값이라, 하루가 바뀌기
+# 전에는 다시 받아도 같은 답이다. 월 단위 키는 안 쓴다 — 이번 달 `current` 가
+# 날짜가 지남에 따라 자라므로 월키로 묶으면 월중 값이 얼어붙는다.
+# 캐시가 깨지거나 없어도 실시간 조회로 떨어진다 — 캐시는 절약용이지 의존이 아니다.
+_CACHE_FILE = Path(__file__).resolve().parent.parent / "data" / "polar_archive_cache.json"
+_CACHE_KEEP_DAYS = 2
+
+
+def _cache_key(lat: float, lng: float, start: dt.date, end: dt.date) -> str:
+    return f"{lat},{lng},{start.isoformat()},{end.isoformat()}"
+
+
+def _cache_load(key: str) -> list[tuple[str, float]] | None:
+    """히트면 행 목록, 아니면 None. 캐시 고장은 라이브 조회로 떨어진다."""
+    try:
+        payload = json.loads(_CACHE_FILE.read_text(encoding="utf-8"))
+    except Exception:                                        # noqa: BLE001
+        return None
+    entry = payload.get(key) if isinstance(payload, dict) else None
+    if not isinstance(entry, dict) or not isinstance(entry.get("rows"), list):
+        return None
+    try:
+        return [(str(d), float(t)) for d, t in entry["rows"]]
+    except Exception:                                        # noqa: BLE001
+        return None
+
+
+def _cache_store(key: str, rows: list[tuple[str, float]]) -> None:
+    """저장 + 이틀 지난 항목 정리. 실패해도 호출은 살린다."""
+    try:
+        payload = (json.loads(_CACHE_FILE.read_text(encoding="utf-8"))
+                   if _CACHE_FILE.exists() else {})
+        if not isinstance(payload, dict):
+            payload = {}
+        today = dt.date.today().isoformat()
+        payload = {k: v for k, v in payload.items()
+                   if isinstance(v, dict) and v.get("at", "") >= _cutoff(today)}
+        payload[key] = {"at": today, "rows": [[d, t] for d, t in rows]}
+        _CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _CACHE_FILE.write_text(json.dumps(payload), encoding="utf-8")
+    except Exception:                                        # noqa: BLE001
+        pass
+
+
+def _cutoff(today_iso: str) -> str:
+    day = dt.date.fromisoformat(today_iso) - dt.timedelta(days=_CACHE_KEEP_DAYS)
+    return day.isoformat()
+
 
 def _fetch_daily_max(lat: float, lng: float, start: dt.date, end: dt.date) -> list[tuple[str, float]]:
     """(날짜, 일최고기온) 목록. 값이 빈 날은 버린다 — 0 으로 채우지 않는다."""
+    key = _cache_key(lat, lng, start, end)
+    cached = _cache_load(key)
+    if cached is not None:
+        return cached
     resp = requests.get(
         ARCHIVE_URL,
         params={
@@ -67,7 +123,9 @@ def _fetch_daily_max(lat: float, lng: float, start: dt.date, end: dt.date) -> li
     resp.raise_for_status()
     daily = (resp.json() or {}).get("daily") or {}
     times, temps = daily.get("time") or [], daily.get("temperature_2m_max") or []
-    return [(d, t) for d, t in zip(times, temps) if t is not None]
+    rows = [(d, t) for d, t in zip(times, temps) if t is not None]
+    _cache_store(key, rows)
+    return rows
 
 
 def month_baseline(lat: float, lng: float, today: dt.date | None = None) -> dict:

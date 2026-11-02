@@ -19,6 +19,8 @@ RSS 를 못 읽으면 woah_rss_items 가 None 이고 사유가 rss_reason 에 �
 """
 from __future__ import annotations
 
+import re
+
 import requests
 
 from .common import brief_reason
@@ -34,11 +36,13 @@ WOAH_RSS_URL = "https://www.woah.org/en/feed/"
 API_RETIRED_NOTE = ("WAHIS API 은퇴(2026-10-19 캡틴 결정) — 키 없이 HTTP 400, "
                     "WOAH RSS 만 사용 · 30일 발병 건수는 판정 안 함")
 
+# H5N1 언급 판정어. WOAH 는 영어 채널이라 영어만 본다 — 다른 언어 제목에
+# 같은 철자가 있어도(드묾) WOAH 공식 영문 RSS 라는 출처가 의미를 고정한다.
+H5N1_TERMS = ("h5n1", "bird flu", "avian influenza")
 
-def fetch_woah_rss_count() -> tuple[int | None, str | None]:
-    """WOAH 공식 RSS 최신 항목 수. 반환: (항목 수, 못 읽은 사유).
 
-    예전엔 실패를 None 하나로만 돌려줘 왜 실패했는지가 사라졌다 — 사유를 함께 준다."""
+def _fetch_rss_text() -> tuple[str | None, str | None]:
+    """RSS 본문 한 번 읽기. 반환: (본문, 못 읽은 사유)."""
     try:
         resp = requests.get(WOAH_RSS_URL, headers=USER_AGENT, timeout=TIMEOUT)
     except Exception as e:
@@ -48,7 +52,37 @@ def fetch_woah_rss_count() -> tuple[int | None, str | None]:
     if "<rss" not in resp.text and "<feed" not in resp.text:
         # 200 인데 RSS 가 아닌 페이지(차단·점검 안내 등)를 '항목 0건'으로 읽지 않는다.
         return None, "RSS 형식 아님"
-    return resp.text.count("<item>"), None
+    return resp.text, None
+
+
+def fetch_woah_rss_count() -> tuple[int | None, str | None]:
+    """WOAH 공식 RSS 최신 항목 수. 반환: (항목 수, 못 읽은 사유).
+
+    예전엔 실패를 None 하나로만 돌려줘 왜 실패했는지가 사라졌다 — 사유를 함께 준다."""
+    text, reason = _fetch_rss_text()
+    if text is None:
+        return None, reason
+    return text.count("<item>"), None
+
+
+def count_h5n1_mentions(rss_text: str) -> int:
+    """RSS 항목 제목 중 H5N1 언급 수(순수 함수 — 네트워크 없음).
+
+    남극 H5N1(2023~24 실재)의 동물 채널 보조 신호다. 제목에 판정어가
+    하나라도 있으면 1건으로 센다. 채널 제목(첫 title)도 같이 세는데,
+    WOAH 채널명에 판정어가 들어간 적은 없어 결과에 영향이 없다.
+    """
+    titles = re.findall(r"<title>(.*?)</title>", rss_text, re.S | re.I)
+    return sum(1 for t in titles
+               if any(term in t.lower() for term in H5N1_TERMS))
+
+
+def fetch_woah_h5n1() -> tuple[int | None, str | None]:
+    """WOAH RSS 의 H5N1 언급 수. 반환: (언급 수, 못 읽은 사유)."""
+    text, reason = _fetch_rss_text()
+    if text is None:
+        return None, reason
+    return count_h5n1_mentions(text), None
 
 
 def get_animal_signal() -> dict:
@@ -56,12 +90,14 @@ def get_animal_signal() -> dict:
 
     - woah_rss_items: WOAH RSS 최신 항목 수 — 못 읽었으면 None
     - rss_reason: 못 읽은 사유(읽었으면 None)
+    - h5n1_hits: RSS 항목 제목의 H5N1 언급 수 — 못 읽었으면 None
     - outbreaks_30d · watch_hits: WAHIS API 은퇴로 늘 None(판정 안 함) — 하위 호환 키
     """
-    count, reason = fetch_woah_rss_count()
+    text, reason = _fetch_rss_text()
     return {
-        "woah_rss_items": count,
+        "woah_rss_items": text.count("<item>") if text is not None else None,
         "rss_reason": reason,
+        "h5n1_hits": count_h5n1_mentions(text) if text is not None else None,
         "outbreaks_30d": None,
         "watch_hits": None,
         "api_status": "retired",

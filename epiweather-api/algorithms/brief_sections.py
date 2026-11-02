@@ -37,7 +37,7 @@ def _pick(bundle: dict, lang: str) -> str:
 
 
 # 극지 지역명 — polar_signals 는 한국어 이름만 준다. 영어/프랑스어 브리핑에
-# 한국어가 섞이지 않게 여기서 갈아끼운다(지역 집합이 고정 6개라 표로 충분하다).
+# 한국어가 섞이지 않게 여기서 갈아끼운다(지역 집합이 고정 8개라 표로 충분하다).
 _REGION_NAME = {
     "siberia_yamal": {"ko": "시베리아 야말(러시아)", "en": "Yamal, Siberia (Russia)",
                       "fr": "Yamal, Sibérie (Russie)"},
@@ -48,6 +48,10 @@ _REGION_NAME = {
     "antarctic_peninsula": {"ko": "남극 반도", "en": "Antarctic Peninsula",
                             "fr": "Péninsule Antarctique"},
     "svalbard": {"ko": "스발바르(노르웨이)", "en": "Svalbard (Norway)", "fr": "Svalbard (Norvège)"},
+    "arctic_archipelago": {"ko": "북극군도(레졸루트, 캐나다)",
+                           "en": "Arctic Archipelago (Resolute, Canada)",
+                           "fr": "Archipel arctique (Resolute, Canada)"},
+    "iceland": {"ko": "아이슬란드", "en": "Iceland", "fr": "Islande"},
 }
 
 
@@ -672,12 +676,136 @@ def build_news_pulse_section(lang: str = "ko") -> dict | None:
     }
 
 
+# ─── 🛡️ 발할라(대응 준비태세) ──────────────────────────────────────────────
+
+_VALHALLA_TITLE = {
+    "ko": "대응 준비태세", "en": "Countermeasure readiness",
+    "fr": "Préparation des contremesures",
+}
+_VALHALLA_PROC = {
+    "ko": "한국 조달 공고 {kor}건(EU {ted}건, {age}시간 전 값)",
+    "en": "{kor} Korean procurement notices (EU {ted}, values from {age}h ago)",
+    "fr": "{kor} avis de marchés coréens (UE {ted}, valeurs d’il y a {age} h)",
+}
+_VALHALLA_PROC_NO_TED = {
+    "ko": "한국 조달 공고 {kor}건({age}시간 전 값)",
+    "en": "{kor} Korean procurement notices (values from {age}h ago)",
+    "fr": "{kor} avis de marchés coréens (valeurs d’il y a {age} h)",
+}
+_VALHALLA_PIPE = {
+    "ko": "임상 파이프라인: {summary}({age}시간 전 값)",
+    "en": "Clinical pipeline: {summary} (values from {age}h ago)",
+    "fr": "Pipeline clinique : {summary} (valeurs d’il y a {age} h)",
+}
+_VALHALLA_READY = {
+    "ko": "등록 대응제 {n}종 중 {covered}종 커버({uncovered}종 미커버·{unrated}종 판정불가)",
+    "en": "{covered} of {n} listed countermeasures covered "
+          "({uncovered} uncovered, {unrated} unrated)",
+    "fr": "{covered} contremesures couvertes sur {n} "
+          "({uncovered} non couvertes, {unrated} non évaluées)",
+}
+_VALHALLA_HONESTY = {
+    "ko": "관찰 요약이지 경보가 아니다. 조달은 한국 나라장터+EU TED만 보고, "
+          "‘등록 연구 없음’은 개발이 없다는 뜻이 아니라 이 등록부에 없다는 뜻이다. "
+          "비축 ‘있음’은 충분하다는 뜻이 아니다.",
+    "en": "An observation summary, not an alert. Procurement covers Korean "
+          "Nara Jangteo and EU TED only; ‘no registered trial’ means absent from "
+          "this registry, not absent development. Stockpile ‘present’ does not "
+          "mean sufficient.",
+    "fr": "Résumé d’observation, non une alerte. Les marchés couvrent le Nara "
+          "Jangteo coréen et TED (UE) ; « aucun essai enregistré » signifie "
+          "absent de ce registre, non sans développement. Un stock « présent » "
+          "n’est pas un stock suffisant.",
+}
+
+
+def build_valhalla_section(lang: str = "ko") -> dict | None:
+    """발할라 관찰 층. 수집기가 쌓아둔 값을 읽기만 한다(브리핑 시점에 바깥 호출 없음).
+
+    무거운 조각(조달·파이프라인)은 valhalla_state.json에서 나이와 함께 읽고,
+    가벼운 조각(백신 공급·준비태세)은 네트워크 없이 그 자리에서 계산한다.
+    쌓인 게 하나도 없으면 None(말없이 뺀다). 갱신 주기의 2배를 넘긴 조각은
+    stale로 찍는다 — 굳은 값을 새 값처럼 내지 않는다."""
+    from .valhalla_watch import (
+        PIPELINE_EVERY_HOURS, PROCUREMENT_EVERY_HOURS, _age_hours,
+        _light_layers, _load_state, _now, pipeline_summary as _pipe_line,
+    )
+
+    state = _load_state() or {}
+    proc = (state.get("procurement") or {}).get("value") or {}
+    pipe = (state.get("pipeline") or {}).get("value") or {}
+    if not proc and not pipe:
+        return None
+    now = _now()
+    proc_age = _age_hours((state.get("procurement") or {}).get("fetched_at"), now)
+    pipe_age = _age_hours((state.get("pipeline") or {}).get("fetched_at"), now)
+    proc_stale = proc_age is None or proc_age > 2 * PROCUREMENT_EVERY_HOURS
+    pipe_stale = pipe_age is None or pipe_age > 2 * PIPELINE_EVERY_HOURS
+
+    lead_parts, rows = [], []
+    if proc:
+        ted = proc.get("ted") or {}
+        kor = proc.get("bid_count")
+        if ted.get("bid_count") is not None:
+            lead_parts.append(_pick(_VALHALLA_PROC, lang).format(
+                kor=kor, ted=ted.get("bid_count"), age=proc_age))
+        else:
+            lead_parts.append(_pick(_VALHALLA_PROC_NO_TED, lang).format(
+                kor=kor, age=proc_age))
+        rows.append({"part": "procurement", "bid_count": kor,
+                     "ted_bid_count": ted.get("bid_count"),
+                     "coverage": proc.get("coverage"),
+                     "age_hours": proc_age, "stale": proc_stale})
+    if pipe:
+        summary = _pipe_line(pipe)
+        if summary:
+            lead_parts.append(_pick(_VALHALLA_PIPE, lang).format(
+                summary=summary, age=pipe_age))
+        rows.append({"part": "pipeline", "summary": summary,
+                     "no_registered_trial": pipe.get("no_registered_trial"),
+                     "lookup_failed": pipe.get("lookup_failed"),
+                     "age_hours": pipe_age, "stale": pipe_stale})
+    if not lead_parts:
+        return None
+
+    light = _light_layers() or {}
+    ready = light.get("readiness") or {}
+    if ready.get("countermeasure_count"):
+        lead_parts.append(_pick(_VALHALLA_READY, lang).format(
+            n=ready.get("countermeasure_count"), covered=ready.get("covered"),
+            uncovered=ready.get("uncovered"), unrated=ready.get("unrated")))
+        rows.append({"part": "readiness",
+                     "countermeasure_count": ready.get("countermeasure_count"),
+                     "covered": ready.get("covered"),
+                     "uncovered": ready.get("uncovered"),
+                     "unrated": ready.get("unrated"),
+                     "coverage_rate": ready.get("coverage_rate")})
+    choke = light.get("vaccine_chokepoints") or {}
+    if choke.get("single_source_count") is not None:
+        rows.append({"part": "vaccine_chokepoints",
+                     "single_source_count": choke.get("single_source_count"),
+                     "vaccine_type_count": choke.get("vaccine_type_count")})
+
+    return {
+        "id": "valhalla",
+        "icon": "🛡️",
+        "title": _pick(_VALHALLA_TITLE, lang),
+        "lead": " ".join(lead_parts),
+        "rows": rows,
+        "grade": "watch",
+        "honesty": _pick(_VALHALLA_HONESTY, lang),
+        "data_source": f"수집기 적재(valhalla_state.json, 조달 {proc_age}h·"
+                       f"파이프라인 {pipe_age}h 전 값)",
+    }
+
+
 _BUILDERS = (
     ("silence", build_silence_section),          # 조용해진 곳이 제일 앞 — 아무도 안 보는 각도
     ("disaster_watch", build_disaster_watch_section),   # 지금 열려 있는 창 — 가장 현재형이다
     ("polar", build_polar_section),
     ("forecast", build_forecast_section),
     ("unexplained", build_unexplained_section),
+    ("valhalla", build_valhalla_section),        # 대응 준비태세 — 쌓아둔 값 읽기만, 경보 아님
     ("news_pulse", build_news_pulse_section),    # 점수에 연결되지 않은 AI 요약 — 맨 뒤, 경보가 아님
 )
 

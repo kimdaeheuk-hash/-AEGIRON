@@ -234,7 +234,7 @@ export const fr: Dictionary = {
             id: 'polar_signals',
             name: 'Veille du territoire polaire',
             body: 'Observe l’Arctique, l’Antarctique et 27 régions montagneuses glaciaires avec ligne de base et tendance. À mesure que le pergélisol fond — révélant des pathogènes et la grippe aviaire polaire —, elle surveille, à l’échelle du territoire, les nouvelles conditions d’épidémie qu’ouvre le changement climatique.',
-            mode: 'daily',
+            mode: 'hourly',
             caveat: 'Un objet d’observation, non une alerte. Un signal polaire ne signifie pas en soi une épidémie.',
           },
           {

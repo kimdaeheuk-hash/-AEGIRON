@@ -19,8 +19,9 @@ provider_status는 nim_configured=true를 보고했다 — 설정은 됐지만 �
     → ④ 외부 LLM(nlp_extract, Claude)으로 폴백
     → AEGIRON_META_FIRST=on이면 ②가 ①보다 먼저 간다(해커톤 데모 등 Meta
        경로를 강제할 때 — 기본 off라 키 없는 기존 배포의 동작은 그대로다).
-    → sensitive=True + AEGIRON_REQUIRE_LOCAL=on 이면 '주권 경로'가 아닌 처리는
-       모두 '차단'(fail-closed) — 민감 텍스트를 외부로 '보내기 전에' 막는다.
+    → sensitive=True 또는 AEGIRON_REQUIRE_LOCAL=on 이면 '주권 경로'가 아닌
+       처리는 모두 '차단'(fail-closed, OR 게이팅) — 민감 텍스트를 외부로
+       '보내기 전에' 막는다. 둘 중 무엇이 막았는지는 차단 사유에 남는다.
 
 ★ 정직성 ★
 - NIM에도 두 종류가 있다: (a) NVIDIA 호스팅(integrate.api.nvidia.com) — 데이터가
@@ -113,14 +114,39 @@ def _load_local_model():
     return _LOCAL_MODEL
 
 
-def _local_extract(text: str) -> dict | None:
-    """자체 모델로 추출. 모델 없으면 None(→ 폴백). 실제 추론은 모델 준비 후 구현."""
+# 로컬 파이프라인 생성 한도. NIM/Meta와 같은 프롬프트라 토큰 분포가 같다.
+LOCAL_MAX_TOKENS_ENV = "AEGIRON_LOCAL_MAX_TOKENS"
+LOCAL_MAX_TOKENS_DEFAULT = 1500
+
+
+def _local_extract(text: str, source: str = "aegiron_model") -> dict | None:
+    """자체 모델(transformers 파이프라인)로 추출. 모델 없으면 None(→ 폴백).
+
+    프롬프트·파싱은 NIM/Meta와 동일 헬퍼라 스키마가 같다. text-generation
+    파이프라인은 프롬프트를 되뇌는 경우가 있어 앞부분을 걷어내고 파싱한다.
+    파싱 실패도 None — 호출 흐름이 다음 경로로 넘어간다."""
+    from .nlp_extract import build_prompt, parse_extraction
+
     model = _load_local_model()
     if model is None:
         return None
     try:
-        # TODO: 자체 모델 출력 파싱(학습셋 스키마와 동일). 준비되면 채운다.
-        return None
+        max_tokens = int(os.environ.get(LOCAL_MAX_TOKENS_ENV,
+                                        LOCAL_MAX_TOKENS_DEFAULT))
+    except (TypeError, ValueError):
+        max_tokens = LOCAL_MAX_TOKENS_DEFAULT
+    try:
+        prompt = build_prompt(text)
+        out = model(prompt, max_new_tokens=max_tokens, truncation=True)
+        if isinstance(out, list) and out:
+            content = (out[0] or {}).get("generated_text", "")
+        elif isinstance(out, dict):
+            content = out.get("generated_text", "")
+        else:
+            content = ""
+        if content.startswith(prompt):
+            content = content[len(prompt):]
+        return parse_extraction(content, text, source)
     except Exception:
         return None
 
@@ -476,11 +502,11 @@ def _meta_extract(text: str, source: str, conf: dict) -> dict | None:
     return _meta_extract_detailed(text, source, conf)[0]
 
 
-def _blocked_sovereign(via: str) -> dict:
+def _blocked_sovereign(via: str, trigger: str) -> dict:
     return {
         "ai_provider": "local_required_unavailable",
         "blocked": True,
-        "reason": f"완전 주권 모드(AEGIRON_REQUIRE_LOCAL=on) — 주권 경로만 허용. {via} 차단.",
+        "reason": f"주권 경로만 허용({trigger}) — {via} 차단.",
     }
 
 
@@ -495,7 +521,15 @@ def extract_signal_detailed(
     폴백으로 넘어갔는데 폴백도 죽으면, 예전엔 그냥 None 하나였다. 그러면
     "8B가 문제니 모델을 올려라" 같은 잘못된 처방이 나온다 — 실제로는 폴백 쪽
     키가 죽은 것일 수도 있다. 어디까지 갔다가 무엇 때문에 멈췄는지를 남긴다."""
+    # ★ sensitive OR 게이팅(갭 #7) ★ 예전엔 sensitive 인자를 읽지 않아서,
+    # 호출자가 민감 표시를 해도 외부로 나갔다. 이제 둘 중 하나라도 켜지면
+    # 주권 경로(자체호스팅 NIM/Meta·로컬)만 쓰고 외부는 fail-closed 차단이다.
+    # sensitive=True를 보내는 호출자는 아직 없어서(전수 확인) 기존 동작 불변.
     require_local = _require_local()
+    fail_closed = require_local or bool(sensitive)
+    trigger = " · ".join(
+        t for t, on in (("AEGIRON_REQUIRE_LOCAL=on", require_local),
+                        ("sensitive=True", bool(sensitive))) if on)
     attempts: list[str] = []
 
     # ① NIM 경로(자체 GPU/온프렘 = 완전 주권, NVIDIA 호스팅 = 준주권).
@@ -509,7 +543,7 @@ def extract_signal_detailed(
         conf = _confs[_hop]
         if conf is None:
             continue
-        # 주권 전용 모드인데 비주권(호스팅)이면 그 홉만 건너뛴다(국외유출 방지).
+        # fail-closed인데 비주권(호스팅)이면 그 홉만 건너뛴다(국외유출 방지).
         # 예전엔 여기서 바로 차단을 돌려줬는데, 그러면 뒤에 주권 로컬이 설정돼
         # 있어도 못 쓰고 끝난다 — fail-closed는 '외부로 안 보낸다'지 '주권
         # 경로까지 안 써본다'가 아니다. 아래 ④ 게이트가 주권 경로 전멸 시
@@ -517,7 +551,7 @@ def extract_signal_detailed(
         # ★ 건너뜀을 자취에 안 남긴다 ★ 차단은 고장이 아니라 정책이 동작한
         # 것이다 — 자취에 섞으면 '고쳐야 할 것'과 '의도한 것'이 같은 목록에
         # 들어간다(test_sovereign_block_is_not_counted_as_a_failed_path).
-        if require_local and not conf["sovereign"]:
+        if fail_closed and not conf["sovereign"]:
             continue
         result, reason = _extract_fns[_hop](text, source, conf)
         if result is not None:
@@ -528,14 +562,15 @@ def extract_signal_detailed(
         attempts.append(f"{conf['provider']}: {reason or '실패'}")
 
     # ③ transformers 로컬 모델(완전 주권).
-    local = _local_extract(text)
+    local = _local_extract(text, source)
     if local is not None:
         return {**local, "ai_provider": "aegiron_local", "data_sovereign": True}, attempts
 
-    # ④ 주권 경로가 하나도 안 됐음: 주권 전용 모드면 외부 폴백 차단(fail-closed).
-    #    공개 뉴스라도 미국 API로 안 나가게 — "완전 주권"의 실질 보장.
-    if require_local:
-        return _blocked_sovereign("외부 LLM 폴백"), attempts
+    # ④ 주권 경로가 하나도 안 됐음: fail-closed면 외부 폴백 차단.
+    #    주권 전용 모드에선 공개 뉴스라도 미국 API로 안 나가게 — "완전 주권"의
+    #    실질 보장. sensitive 단독 표시도 같은 차단(민감 텍스트 국외유출 방지).
+    if fail_closed:
+        return _blocked_sovereign("외부 LLM 폴백", trigger), attempts
 
     key = api_key or os.environ.get("ANTHROPIC_API_KEY")
     if not key:
@@ -556,10 +591,10 @@ def extract_signal_detailed(
 def extract_signal(text: str, source: str = "aegiron_model",
                    api_key: str | None = None, sensitive: bool = False) -> dict | None:
     """추출 단일 진입점. NIM → Meta → 로컬 우선 → 외부 LLM 폴백.
-    AEGIRON_REQUIRE_LOCAL=on이면 '주권 전용 모드' — 비주권 경로(호스팅 NIM·Meta·
-    외부 LLM)는 데이터를 보내기 전에 모두 fail-closed 차단(민감 여부 무관).
-    sensitive는 감사·표시용으로만 유지. 반환 dict의 ai_provider로 처리 경로를
-    항상 표시한다. 실패 사유까지 필요하면 extract_signal_detailed를 쓸 것."""
+    AEGIRON_REQUIRE_LOCAL=on 또는 sensitive=True면 fail-closed — 비주권 경로
+    (호스팅 NIM·Meta·외부 LLM)는 데이터를 보내기 전에 모두 차단한다. 반환
+    dict의 ai_provider로 처리 경로를 항상 표시한다. 실패 사유까지 필요하면
+    extract_signal_detailed를 쓸 것."""
     return extract_signal_detailed(text, source, api_key, sensitive)[0]
 
 

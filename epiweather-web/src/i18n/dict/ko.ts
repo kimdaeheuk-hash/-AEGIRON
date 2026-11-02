@@ -230,7 +230,7 @@ export const ko: Dictionary = {
             id: 'polar_signals',
             name: '극지 영토 감시',
             body: '북극·남극·27개 빙하 산맥 지역 기준선·추세 관찰 · 영구동토 해빙 노출 병원체·극지 조류인플루엔자 등 기후 변화 발 새 발병 여건 영토 단위 관측',
-            mode: 'daily',
+            mode: 'hourly',
             caveat: '경보 아닌 관찰 대상 · 극지 신호 ≠ 발병',
           },
           {

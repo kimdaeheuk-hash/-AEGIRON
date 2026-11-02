@@ -107,6 +107,7 @@ export const baikalKo: BaikalDict = {
   transitionsTitle: '상태 변화 기록',
   transitionsLead: '상태가 바뀐 순간만 남긴 감사 기록임. 첫 관측은 "관측 시작"으로 표기하며 이전 상태를 지어내지 않음.',
   transitionsEmpty: '기록된 상태 변화 없음',
+  archiveTitle: '90일 넘긴 전이(감사 아카이브)',
   observationStart: '관측 시작',
   flowsTitle: 'YGGDRASIL — 시스템 간 데이터 흐름',
   flowsLead: '코드에 실제로 존재하는 흐름만 연결함. 그럴듯해 보이는 연결은 추가하지 않음.',

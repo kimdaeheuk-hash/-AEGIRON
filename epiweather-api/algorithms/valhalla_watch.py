@@ -236,7 +236,7 @@ def _fetch_pipeline() -> dict:
     )
     from .countermeasure_stockpile import stockpile_status
 
-    stages, stage_ko, study_counts = {}, {}, {}
+    stages, stage_ko, study_counts, details = {}, {}, {}, {}
     failed_pathogens = []
     for name_ko, query in PATHOGEN_QUERIES.items():
         pipeline = fetch_pipeline(query)
@@ -250,6 +250,17 @@ def _fetch_pipeline() -> dict:
         stages[name_ko] = stage["stage"]
         stage_ko[name_ko] = stage["stage_ko"]
         study_counts[name_ko] = pipeline.get("study_count")
+        # ★ 적재값에서 posture를 복원하려면 단계 키만으로 모자란다 ★
+        # /api/biodefense/posture가 실시간 17연속 조회를 걷어내고 적재값을
+        # 읽게 되면서(발할라 P1), 단계 판정에 쓴 재료(최고상·후기완료 수)도
+        # 같이 쌓는다. 없으면 furthest_phase_ko가 통째로 빠진다.
+        details[name_ko] = {
+            "study_count": pipeline.get("study_count"),
+            "furthest_phase": pipeline.get("furthest_phase"),
+            "furthest_phase_ko": pipeline.get("furthest_phase_ko"),
+            "completed_late_phase": pipeline.get("completed_late_phase"),
+            "available": bool(pipeline.get("available")),
+        }
 
     if len(failed_pathogens) == len(PATHOGEN_QUERIES):
         raise RuntimeError("모든 병원체 조회 실패")
@@ -261,6 +272,7 @@ def _fetch_pipeline() -> dict:
         "stages": stages,
         "stage_ko": stage_ko,
         "study_counts": study_counts,
+        "details": details,
         "stage_counts": counts,
         "lookup_failed": len(failed_pathogens),
         "failed_pathogens": failed_pathogens,
@@ -354,15 +366,20 @@ def _readiness_scopes(pipeline_part: dict | None) -> dict:
         # 때리지 않는다. 파일이 없으면 approved_scope 가 available=False 로
         # 정직하게 답한다(0%로 내지 않는다).
         approved = None
+        domestic = None
         try:
             from .reference_snapshots import _load
             approved = _load("approved_products")
+            # 국내 허가(식약처) — 활용신청 승인 전까지 파일이 없어 None이다.
+            # 그럼 domestic=unknown으로 돈다(모른다고 말한다).
+            domestic = _load("approved_products_domestic")
         except Exception:                                 # noqa: BLE001
             approved = None
+            domestic = None
 
         return readiness_by_scope(
             _db.list_countermeasures(), DEFAULT_THREATS,
-            (pipeline_part or {}).get("value"), approved)
+            (pipeline_part or {}).get("value"), approved, domestic)
     except Exception as exc:                              # noqa: BLE001
         return {"error": type(exc).__name__}
 

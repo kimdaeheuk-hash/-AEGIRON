@@ -394,6 +394,7 @@ FREE_SOURCE_HEALTH_KEYS = {
     "GenomicVariants": "genomic_variants", "SocialSignal": "social_signal",
     "Mobility": "mobility", "LocalNews": "local_news", "SupplyChain": "supply_chain",
     "ExtraSources": "extra_sources", "WAHIS": "wahis", "GroqWatch": "groq_pulse",
+    "LocalSignal": "local_signal",
     # NewsWatch — GroqWatch 를 대체해 정식 소스가 됐다(2026-09-01). 나란히 돌린
     # 나흘간 GroqWatch 0% 대 NewsWatch 100% 였다. 실험층일 때는 죽어도 아무도
     # 몰랐는데, 이제 이 층이 죽으면 소스 헬스에서 보인다.
@@ -408,8 +409,9 @@ FREE_SOURCE_HEALTH_KEYS = {
     #
     # ★ 하루 한 번이 아니라 매시간인 이유 ★ 소스 헬스는 **매 주기 기록**을 전제로
     # 돈다. 하루 한 번만 돌면 나머지 23주기가 값없음으로 쌓여 거짓 경보가 된다.
-    # 호출량은 6개 관측지 × (기후+뉴스) = 12건으로, 이미 매시간 179개 피드를
-    # 받는 현지어 뉴스에 비하면 무시할 수준이다.
+    # 호출량은 8개 관측지 × (기후+뉴스) = 시간당 16건 live에 기준선·추세
+    # 일 16건(디스크 캐시)이다. 이미 매시간 179개 피드를 받는 현지어 뉴스에
+    # 비하면 무시할 수준이다.
     "PolarWatch": "polar_watch",
     # 발할라 관찰층(2026-09-03 수집 편입). 그전까지는 엔드포인트를 **부를 때만**
     # 계산됐다 — 극지층과 같은 문제였다. 쌓이는 게 없으니 어제와 비교할 수 없고,
@@ -419,6 +421,9 @@ FREE_SOURCE_HEALTH_KEYS = {
     # 조각(준비태세·백신 공급)이 로컬이라 항상 값이 있기 때문이다. 그래서
     # 6시간·24시간 주기를 쓰면서도 헬스에 거짓 값없음이 쌓이지 않는다.
     "Valhalla": "valhalla",
+    # 행동 신호(HIRA·서울, 갭 #8b 수집 편입). 키 없음은 값(no_key)으로 남고
+    # 예외만 None이다 — 키 미발급이 수집 실패로 잡히면 안 된다.
+    "Behavioral": "behavioral",
 }
 
 
@@ -749,6 +754,23 @@ def collect_free_sources() -> dict:
         result["social_signal"] = None
         log_error("SocialSignal", e)
 
+    # ★ 행동 신호 주기 편입(갭 #8b) ★ HIRA 약품 청구·서울 응급실은 그전까지
+    # /api/behavioral을 **부를 때만** 계산됐다 — 극지·발할라와 같은 문제였다.
+    # 키 없이는 HIRA RSS 1회 + 서울 no_key라 주기 부담이 없고, 키가 있으면
+    # 시간당 7회다. 키 없음은 수집 실패가 아니라 값(no_key)으로 남는다.
+    try:
+        from algorithms.behavioral_data import get_behavioral_signal
+        result["behavioral"] = get_behavioral_signal()
+        _hira = (result["behavioral"] or {}).get("hira_drug_claims") or {}
+        _seoul = (result["behavioral"] or {}).get("seoul_er") or {}
+        log(f"  행동신호 HIRA: {_hira.get('status')}"
+            f"{'(' + _hira.get('note', '') + ')' if _hira.get('status') != 'ok' else ''}")
+        log(f"  행동신호 서울응급실: {_seoul.get('status')}"
+            f"{'(' + _seoul.get('note', '') + ')' if _seoul.get('status') != 'ok' else ''}")
+    except Exception as e:
+        result["behavioral"] = None
+        log_error("Behavioral", e)
+
     # ★ 추적에서 뺀 소스는 부르지도 않는다 (2026-08-28) ★
     # 닿지 않는 게 확인된 곳이라 매 주기 20초(토큰 10초 + 첫 공항 10초)를 통째로
     # 버리게 되고, 뒤에 오는 소스가 전부 그만큼 밀린다. 뺀 사실은 로그 한 줄과
@@ -997,6 +1019,23 @@ def collect_free_sources() -> dict:
         result["polar_watch"] = None
         log(f"  ❌ 극지 관찰 실패: {type(e).__name__}: {e}")
         log_error("PolarWatch", e)
+
+    # ── 현지어 위키 신호 (2026-11-02 수집 편입) ─────────────────────────
+    # ★ 부를 때만 계산하면 추세가 안 쌓인다 ★ 극지(09-01)·발할라(09-03)와
+    # 같은 이유다. 8도시 × 2문서 = 16요청이지만 일키 캐시라 하루 16건이다.
+    # 8도시 전부 못 받으면 이 소스는 이번 주기 실패다.
+    try:
+        from algorithms.local_signal import fetch_all_signals
+        result["local_signal"] = fetch_all_signals()
+        ls = result["local_signal"]
+        ok = sum(1 for v in ls.values() if v.get("available"))
+        if ok == 0:
+            raise RuntimeError("8도시 전부 조회 실패")
+        log(f"  현지어 위키: {ok}/{len(ls)}개 도시 수집")
+    except Exception as e:
+        result["local_signal"] = None
+        log(f"  ❌ 현지어 위키 실패: {type(e).__name__}: {e}")
+        log_error("LocalSignal", e)
 
     # ── 발할라 관찰층 (2026-09-03 수집 편입) ───────────────────────────
     # ★ 점검에서 드러난 것 ★ 발할라는 **부를 때만** 계산됐다. 극지층이

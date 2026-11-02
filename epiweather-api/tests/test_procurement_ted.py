@@ -13,8 +13,22 @@ from __future__ import annotations
 import datetime as dt
 from unittest.mock import patch
 
+import pytest
+
 from algorithms import procurement_ted as ted
 from algorithms.procurement_watch import procurement_summary
+
+
+@pytest.fixture(autouse=True)
+def _ledger_isolated(monkeypatch):
+    """watch_ted는 호출 결과를 장부에 남긴다 — 테스트가 운영 장부 파일을
+    더럽히지 않게 기록을 막고, 읽기는 '미검증'으로 고정한다(장부 파일 내용과
+    무관하게 결정적). 뒤집힘 검사는 별도 테스트에서 status를 덮어쓴다."""
+    monkeypatch.setattr("algorithms.capability_ledger.record",
+                        lambda *a, **k: None)
+    monkeypatch.setattr("algorithms.capability_ledger.status",
+                        lambda cap: {"verified": False,
+                                     "claim_basis": "configuration_only"})
 
 
 def _notice(title, **over):
@@ -29,8 +43,11 @@ def _notice(title, **over):
 # ── 검증 안 됨을 값에 담는다 ─────────────────────────────────────
 def test_layer_reports_itself_as_unverified():
     """★핵심★ 첫 실측 성공 전까지 이 층의 숫자를 대외 자료에 쓰면 안 된다.
-    그 사실이 주석이 아니라 값에 실려야 한다 — 숫자만 떼어 가도 따라가게."""
-    assert ted.IS_VERIFIED is False
+    그 사실이 주석이 아니라 값에 실려야 한다 — 숫자만 떼어 가도 따라가게.
+
+    검증 상태는 하드코딩이 아니라 장부 관측이다(발할라 P2). 장부에 성공이
+    없으면 False다 — 손으로 뒤집을 상수가 없다."""
+    assert ted.ted_verified() is False
     with patch.object(ted, "_search", return_value=[_notice("Vaccine procurement")]):
         out = ted.watch_ted(days=7)
     assert out["is_verified"] is False

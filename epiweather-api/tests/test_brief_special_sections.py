@@ -223,7 +223,26 @@ def test_every_section_carries_its_limits():
          "open_windows": [{"country": "네팔", "disaster_type": "FL",
                            "days_since_disaster": 12, "closes_in_days": 18}]}]}
 
-    with patch("algorithms.negative_space.scan_negative_space", return_value=payload_silence),          patch("algorithms.disaster_watch.disaster_watch_report", return_value=payload_disaster),          patch("algorithms.polar_signals.polar_watch_all", return_value=payload_polar),          patch("algorithms.forecast_engine.forecast_summary", return_value=payload_forecast),          patch("algorithms.unexplained.scan_unexplained", return_value=payload_unexplained),          patch("algorithms.news_watch.latest_pulse", return_value=payload_news_pulse):
+    # ★ 발할라 층도 채운다(2026-11-02 배선) ★ 빌더는 수집기 적재값 읽기+로컬
+    # 계산이라 _load_state·_light_layers 두 함수만 붙이고, 바깥 호출은 없다.
+    payload_valhalla_state = {
+        "procurement": {"fetched_at": "2026-11-02T00:00:00+00:00",
+                        "value": {"bid_count": 5, "ted": {"bid_count": 3},
+                                  "coverage": ["KOR/나라장터", "EU/TED(미검증)"]}},
+        "pipeline": {"fetched_at": "2026-11-02T00:00:00+00:00",
+                     "value": {"stages": {"X": "late_trial"},
+                               "stage_counts": {"late_trial": 1},
+                               "no_registered_trial": [], "lookup_failed": 0}},
+    }
+    payload_valhalla_light = {
+        "readiness": {"countermeasure_count": 5, "covered": ["a", "b"],
+                      "uncovered": ["c"], "unrated": ["d", "e"],
+                      "coverage_rate": 0.4},
+        "vaccine_chokepoints": {"single_source_count": 2,
+                                "vaccine_type_count": 5},
+    }
+
+    with patch("algorithms.negative_space.scan_negative_space", return_value=payload_silence),          patch("algorithms.disaster_watch.disaster_watch_report", return_value=payload_disaster),          patch("algorithms.polar_signals.polar_watch_all", return_value=payload_polar),          patch("algorithms.forecast_engine.forecast_summary", return_value=payload_forecast),          patch("algorithms.unexplained.scan_unexplained", return_value=payload_unexplained),          patch("algorithms.news_watch.latest_pulse", return_value=payload_news_pulse),          patch("algorithms.valhalla_watch._load_state", return_value=payload_valhalla_state),          patch("algorithms.valhalla_watch._light_layers", return_value=payload_valhalla_light):
         sections = bs.build_special_sections("ko")
 
     # 개수를 손으로 적지 않는다 — 층이 늘면 이 검사도 같이 늘어야 한다.

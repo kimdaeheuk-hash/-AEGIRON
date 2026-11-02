@@ -32,12 +32,35 @@ def _sigmoid(z: float) -> float:
     return 1.0 / (1.0 + math.exp(-max(-30.0, min(30.0, z))))
 
 
+def calibrate_prob(p: float, pos_total: int, neg_total: int) -> float:
+    """클래스 가중 학습의 확률을 실제 유병률 기준으로 되돌린다(사전 보정).
+
+    train_baseline은 balanced 가중치로 학습한다 — 안 그러면 희귀 발병을 통째로
+    놓친다. 대가로 sigmoid 출력이 '확률'이 아니라 '순위 점수'가 된다(양성 쪽으로
+    부풀려짐). 순서가 바뀌는 게 아니라서 운영점 곡선·FAR 예산 선택에는 영향이
+    없지만, "발병 확률 73%"처럼 절댓값으로 읽으면 거짓말이다.
+
+    보정은 case-control 절편 조정(King & Zeng): 가중치가 준 log(neg/pos)만큼
+    선형예측에서 빼는 것과 같다. p가 0/1 경계면 그대로 둔다."""
+    if pos_total <= 0 or neg_total <= 0:
+        return p
+    if p <= 0.0 or p >= 1.0:
+        return p
+    odds = p / (1.0 - p)
+    corrected_odds = odds * (pos_total / neg_total)
+    return corrected_odds / (1.0 + corrected_odds)
+
+
 def score_rows(rows: list[dict], model: dict) -> list[tuple[float, int]]:
     """(예측확률, 실제라벨) 목록. 학습 때와 **같은 특징 순서·같은 표준화**를 적용한다.
 
     특징 순서를 전역 상수로 고정하면 확장 특징을 학습해 놓고 채점에선 통째로 무시해,
     특징을 추가해도 성능이 안 변하는 것처럼 보인다. 그래서 모델이 학습 때 쓴
-    feature_order를 따른다(없으면 구형 모델이므로 기본 6개)."""
+    feature_order를 따른다(없으면 구형 모델이므로 기본 6개).
+
+    ★ 여기서 나오는 '확률'은 순위 점수다 ★ balanced 가중치 때문에 절댓값이
+    부풀려져 있다. 운영점·FAR 예산(순위만 씀)에는 그대로 쓰고, 사람에게
+    확률로 보여줄 때만 calibrate_prob로 되돌린다."""
     weights = model.get("weights") or {}
     means = model.get("feature_means") or {}
     stds = model.get("feature_stds") or {}

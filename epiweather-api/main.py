@@ -219,10 +219,13 @@ async def _run_alert_cycle() -> None:
     try:
         from algorithms.alerts import (
             already_notified_line, negative_space_line, refresh_alerts, retired_alerts_line,
-            summary_line, undetermined_alerts_line,
+            summary_line, undetermined_alerts_line, valhalla_watch_line,
         )
         result = await asyncio.to_thread(refresh_alerts)
         collector.log(f"🚨 경보 주기: {summary_line(result)}")
+        v_line = valhalla_watch_line()
+        if v_line:
+            collector.log(v_line)
         try:
             cycle_watch.save_done(_ALERT_CYCLE_FILE, dt.datetime.now(dt.timezone.utc))
         except OSError as e:
@@ -325,9 +328,13 @@ async def _run_baikal_cycle() -> None:
     if os.environ.get("EPIWEATHER_BAIKAL_NOTIFY", "on").strip().lower() in ("off", "0", "false"):
         return
     try:
-        from algorithms.baikal import ops_notice_text
+        from algorithms.baikal import ops_notice_text, suppressible_by_cooldown
         from algorithms.notifier import ops_chat_id, ops_configured, send_telegram_message
-        notice = ops_notice_text(result.get("transitions") or [])
+        fresh = suppressible_by_cooldown(
+            result.get("transitions") or [],
+            db.list_baikal_transitions(limit=200),
+        )
+        notice = ops_notice_text(fresh)
         if notice:
             if not ops_configured():
                 status = "채널 미설정"
@@ -1881,6 +1888,7 @@ def biodefense_capacity_gap():
             "year": capacity["year"],
             "behind_world_count": capacity["behind_world_count"],
             "behind_world": capacity["behind_world"],
+            "behind_world_codes": capacity.get("behind_world_codes", []),
         })
     rows.sort(key=lambda r: (-r["behind_world_count"], r["iso3"]))
 
@@ -1897,7 +1905,7 @@ def biodefense_capacity_gap():
 
 
 @app.get("/api/biodefense/procurement", tags=["Stage 8: 바이오방어"])
-def biodefense_procurement(days: int = 7):
+def biodefense_procurement(days: int = 7, live: bool = False):
     """★ 국가 조달 감시 ★ 정부가 지금 무엇을 사려고 하는가.
 
     국가사업은 어느 날 갑자기 오지 않는다 — **입찰공고로 먼저 나오고** 보통
@@ -1909,14 +1917,41 @@ def biodefense_procurement(days: int = 7):
 
     ★ '우리가 딸 수 있는 사업' 목록이 아니다 ★ 참가자격·실적요건은 공고문
     HWP 안에 있고 이 API 로는 보이지 않는다. 금액도 배정예산이지 낙찰가가 아니다.
-    """
-    from algorithms.procurement_watch import watch_bids
 
-    return watch_bids(days=days)
+    ★ 기본은 수집기 적재값(발할라 P1) ★ 예전엔 요청마다 나라장터를 66번
+    불러 47초가 걸렸다. 이제 수집기가 6시간마다 쌓아둔 값을 읽고 나이를
+    붙인다. 갱신 주기의 2배(12시간)를 넘기면 stale. 당장 새 값이 필요하면
+    live=true(느림, days 적용).
+    """
+    from algorithms.valhalla_watch import (
+        PROCUREMENT_EVERY_HOURS, PROCUREMENT_WINDOW_DAYS, _age_hours,
+        _load_state, _now,
+    )
+
+    if live:
+        from algorithms.procurement_watch import watch_bids
+
+        out = watch_bids(days=days)
+        out["mode"] = "live"
+        return out
+    state = _load_state() or {}
+    entry = state.get("procurement") or {}
+    value = entry.get("value") or {}
+    if not value:
+        return {"available": False, "mode": "cached",
+                "reason": "수집기가 아직 조달을 한 번도 쌓지 않았다"}
+    now = _now()
+    age = _age_hours(entry.get("fetched_at"), now)
+    return {**value, "mode": "cached", "fetched_at": entry.get("fetched_at"),
+            "age_hours": age,
+            "stale": age is None or age > 2 * PROCUREMENT_EVERY_HOURS,
+            "stacked_window_days": PROCUREMENT_WINDOW_DAYS,
+            "note": f"수집기가 {PROCUREMENT_EVERY_HOURS}시간마다 쌓아둔 값이다. "
+                    "days 파라미터는 live=true일 때만 적용된다."}
 
 
 @app.get("/api/biodefense/posture", tags=["Stage 8: 바이오방어"])
-def biodefense_posture():
+def biodefense_posture(live: bool = False):
     """
     ★ 국가 바이오안보 대비 태세 ★ 병원체별로 **어디까지 와 있는가** 를 낸다.
 
@@ -1931,44 +1966,116 @@ def biodefense_posture():
     근거가 우리에게 없다. 임상시험 수도 준비도가 아니다 — 관심의 양이지
     물량이 아니고, 등록부에 없다고 개발이 없는 것도 아니다(군사·기밀 프로그램은
     등재되지 않는다).
+
+    ★ 기본은 수집기 적재값(발할라 P1) ★ 예전엔 요청마다 17개 병원체를
+    실시간으로 조회했다. 이제 수집기가 24시간마다 쌓아둔 파이프라인 값을
+    읽어 행으로 복원하고 나이를 붙인다. 갱신 주기의 2배(48시간)를 넘기면
+    stale. 당장 새 값이 필요하면 live=true(느림).
     """
     from algorithms.countermeasure_pipeline import (
         PATHOGEN_QUERIES, fetch_pipeline, readiness_stage,
     )
     from algorithms.countermeasure_stockpile import stockpile_status
 
-    rows, failed = [], 0
-    for name_ko, query in PATHOGEN_QUERIES.items():
-        pipeline = fetch_pipeline(query)
-        if not pipeline.get("available"):
-            failed += 1
-        status = stockpile_status(name_ko)
-        has = bool(status.get("has_global_stockpile"))
-        rows.append({
-            "pathogen": name_ko,
-            "has_global_stockpile": has,
-            "study_count": pipeline.get("study_count"),
-            "furthest_phase_ko": pipeline.get("furthest_phase_ko"),
-            **readiness_stage(pipeline, has),
-        })
-
+    limits = [
+        "임상시험 수는 준비도가 아니다 — 관심의 양이지 물량이 아니다.",
+        "3상을 통과해도 생산·비축은 전혀 다른 문제다.",
+        "등록부에 없다고 개발이 없는 것이 아니다(군사·기밀 프로그램 미등재).",
+        "한국 국가 비축은 비공개이며 이 보고에 포함되지 않는다.",
+        "이 목록은 위험 순위가 아니다.",
+    ]
     order = {"stockpiled": 0, "approved_path": 1, "late_trial": 2,
              "early_trial": 3, "research_only": 4,
              "no_registered_trial": 5, "unknown": 6}
+
+    if live:
+        rows, failed = [], 0
+        for name_ko, query in PATHOGEN_QUERIES.items():
+            pipeline = fetch_pipeline(query)
+            if not pipeline.get("available"):
+                failed += 1
+            status = stockpile_status(name_ko)
+            has = bool(status.get("has_global_stockpile"))
+            rows.append({
+                "pathogen": name_ko,
+                "has_global_stockpile": has,
+                "study_count": pipeline.get("study_count"),
+                "furthest_phase_ko": pipeline.get("furthest_phase_ko"),
+                **readiness_stage(pipeline, has),
+            })
+        rows.sort(key=lambda r: (order.get(r["stage"], 9), r["pathogen"]))
+        return {
+            "pathogens": rows,
+            "pathogen_count": len(rows),
+            "lookup_failed": failed,
+            "mode": "live",
+            "sources": ["WHO ICG (국제 비상 비축)",
+                        "ClinicalTrials.gov API v2 (미국 NIH)"],
+            "is_readiness_score": False,
+            "limits": limits,
+        }
+
+    from algorithms.valhalla_watch import (
+        PIPELINE_EVERY_HOURS, _age_hours, _load_state, _now,
+    )
+
+    state = _load_state() or {}
+    entry = state.get("pipeline") or {}
+    value = entry.get("value") or {}
+    stages = value.get("stages") or {}
+    if not stages:
+        return {"available": False, "mode": "cached",
+                "reason": "수집기가 아직 파이프라인을 한 번도 쌓지 않았다"}
+    details = value.get("details") or {}
+    study_counts = value.get("study_counts") or {}
+    stage_ko = value.get("stage_ko") or {}
+    rows = []
+    for name_ko in stages:
+        det = details.get(name_ko) or {}
+        has = bool(stockpile_status(name_ko).get("has_global_stockpile"))
+        if det:
+            # 신 모양 적재값 — 판정 재료를 그대로 복원해 단계까지 다시 잰다.
+            pipeline = {"available": det.get("available", True),
+                        "study_count": det.get("study_count"),
+                        "furthest_phase": det.get("furthest_phase"),
+                        "furthest_phase_ko": det.get("furthest_phase_ko"),
+                        "completed_late_phase": det.get("completed_late_phase")}
+            rows.append({
+                "pathogen": name_ko,
+                "has_global_stockpile": has,
+                "study_count": det.get("study_count"),
+                "furthest_phase_ko": det.get("furthest_phase_ko"),
+                **readiness_stage(pipeline, has),
+            })
+        else:
+            # 옛 모양 적재값(details 없이 stages만) — 단계 키를 그대로 읽는다.
+            # 볼륨에 옛 값이 최대 하루 남는다(valhalla_watch 주석 참조).
+            rows.append({
+                "pathogen": name_ko,
+                "has_global_stockpile": has,
+                "study_count": study_counts.get(name_ko),
+                "furthest_phase_ko": None,
+                "stage": stages[name_ko],
+                "stage_ko": stage_ko.get(name_ko),
+                "meaning": None,
+            })
     rows.sort(key=lambda r: (order.get(r["stage"], 9), r["pathogen"]))
+    age = _age_hours(entry.get("fetched_at"), _now())
     return {
         "pathogens": rows,
         "pathogen_count": len(rows),
-        "lookup_failed": failed,
-        "sources": ["WHO ICG (국제 비상 비축)", "ClinicalTrials.gov API v2 (미국 NIH)"],
+        "lookup_failed": value.get("lookup_failed"),
+        "failed_pathogens": value.get("failed_pathogens"),
+        "mode": "cached",
+        "fetched_at": entry.get("fetched_at"),
+        "age_hours": age,
+        "stale": age is None or age > 2 * PIPELINE_EVERY_HOURS,
+        "sources": ["WHO ICG (국제 비상 비축)",
+                    "ClinicalTrials.gov API v2 (미국 NIH, 수집기 적재값)"],
         "is_readiness_score": False,
-        "limits": [
-            "임상시험 수는 준비도가 아니다 — 관심의 양이지 물량이 아니다.",
-            "3상을 통과해도 생산·비축은 전혀 다른 문제다.",
-            "등록부에 없다고 개발이 없는 것이 아니다(군사·기밀 프로그램 미등재).",
-            "한국 국가 비축은 비공개이며 이 보고에 포함되지 않는다.",
-            "이 목록은 위험 순위가 아니다.",
-        ],
+        "limits": limits,
+        "note": f"수집기가 {PIPELINE_EVERY_HOURS}시간마다 쌓아둔 값이다. "
+                "당장 새 값이 필요하면 live=true.",
     }
 
 
@@ -2325,6 +2432,14 @@ def synthetic_threat_who():
     return {"items": fetch_who()}
 
 
+# ★ 요청 상한 (2026-11-02) ★ Evo2(윈도당 호출)·MSA(번역+검색) 비용이 길이에
+# 비례해 긴 서열은 HTTP 타임아웃 안에 못 끝난다. 상한을 넘기면 413으로 돌려주고
+# 구간을 나눠 보내라고 말한다(조용히 자르면 리딩프레임·문맥이 깨진다).
+# 429(호출 빈도 제한)는 별도 과제 — 단독 프로세스+쓰기 인증이라 남용 경로가 좁다.
+GENOME_SCREEN_MAX_SEQUENCE_CHARS = 1_000_000
+GENOME_SCREEN_MAX_REFERENCES = 50
+
+
 class GenomeScreenRequest(BaseModel):
     sequence: str = Field(..., description="뉴클레오타이드 서열(FASTA 헤더·공백 허용, U→T 자동)")
     reference_sequences: Optional[list[str]] = Field(
@@ -2350,6 +2465,24 @@ class GenomeScreenRequest(BaseModel):
                                "보고하고 플래그는 올리지 않음. 미선언(unknown)도 같게 처리.")
 
 
+def _check_genome_screen_limits(req: GenomeScreenRequest) -> None:
+    if len(req.sequence) > GENOME_SCREEN_MAX_SEQUENCE_CHARS:
+        raise HTTPException(
+            status_code=413,
+            detail=(f"서열 {len(req.sequence)}자 — 상한 {GENOME_SCREEN_MAX_SEQUENCE_CHARS}자 초과. "
+                    "구간을 나눠 보내라(서버가 임의로 자르지 않는다)"))
+    refs = req.reference_sequences or []
+    if len(refs) > GENOME_SCREEN_MAX_REFERENCES:
+        raise HTTPException(
+            status_code=413,
+            detail=(f"레퍼런스 {len(refs)}개 — 상한 {GENOME_SCREEN_MAX_REFERENCES}개 초과"))
+    for i, ref in enumerate(refs):
+        if len(ref) > GENOME_SCREEN_MAX_SEQUENCE_CHARS:
+            raise HTTPException(
+                status_code=413,
+                detail=(f"레퍼런스 {i + 1}번 {len(ref)}자 — 상한 초과. 구간을 나눠 보내라"))
+
+
 @app.post("/api/synthetic-threat/genome-screen", tags=["Stage 0: 합성위협 탐지"], dependencies=_auth)
 def synthetic_threat_genome_screen(req: GenomeScreenRequest):
     """방어적 유전체 스크리닝 — 서열의 자연스러움 통계(CAI·CpG O/E·엔트로피·
@@ -2359,6 +2492,7 @@ def synthetic_threat_genome_screen(req: GenomeScreenRequest):
     리딩프레임이 안 맞아도 6-frame 최장 ORF를 자동탐지해 CAI를 계산하고,
     모호 염기(N 등)는 조용히 삭제·이어붙이지 않고 가장 긴 연속 구간만 분석함.
     [사내 R&D 프로그램] HEIMDALL — 아이기론 R&D 연구센터, 사내 최고 보안등급."""
+    _check_genome_screen_limits(req)
     from algorithms.genome_signals import screen_sequence
     from algorithms.classified_programs import classification
     result = screen_sequence(req.sequence, reference_sequences=req.reference_sequences)
@@ -2949,6 +3083,13 @@ def baikal_current(transitions: int = 50):
                        if stale and age is not None else
                        "관측 시각을 못 읽음 — 지금 상태로 읽지 않는다" if stale else None),
     }
+
+
+@app.get("/api/baikal/transitions/archive", tags=["BAIKAL"])
+def baikal_transitions_archive(limit: int = 50):
+    """90일 넘긴 전이의 아카이브(감사 보존). live 테이블에서는 빠졌지만 여기서 읽힌다."""
+    rows = db.list_baikal_transitions_archive(limit=max(1, min(limit, 500)))
+    return {"archived": rows, "count": len(rows)}
 
 
 @app.get("/api/baikal/history", tags=["BAIKAL"])

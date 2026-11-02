@@ -169,6 +169,7 @@ export function SystemStatusGrid({
                   )}
                   <p style={{ fontFamily: 'var(--mono)', fontSize: 10.5, marginTop: 8, color: 'var(--muted2)' }}>
                     {labels.evidenceLabels[s.evidence_class] ?? s.evidence_class}
+                    {typeof data.judge_ms?.[code] === 'number' && ` · ${data.judge_ms[code]} ms`}
                   </p>
                 </>
               )}

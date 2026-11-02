@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import datetime as dt
 import html as htmllib
+import os
 import re
 import time
 
@@ -302,6 +303,144 @@ def fetch_approved_products() -> dict:
             "허가가 있다는 것이지 물량이 있다는 뜻이 아니다. 생산량·재고·수출통제는 "
             "이 자료에 없다.",
             "적응증 낱말 검색이라, 라벨 표현이 다르면 안 걸린다. 없다고 승인 제품이 "
+            "없는 것은 아니다.",
+        ],
+    }
+
+
+# ══════════════════════════════════════════════
+# 국내 허가 제품 (식약처, 공공데이터포털) — 발할라 P1
+# ══════════════════════════════════════════════
+# ★ 2026-09-02 실측: "등록되지 않은 서비스키" ★ 활용신청이 안 돼 있어 국내
+# 허가 여부는 그동안 무조건 unknown이었다. 키 승인이 나면 이 fetcher가
+# 돌아가게 배선만 미리 깔아둔다 — 키 없이는 RuntimeError로 실패하고, 주간
+# 갱신은 기존 스냅샷을 유지한다(빈 값으로 덮지 않는다).
+#
+# ★ 이 샌드박스에서 엔드포인트를 실제로 찔러보지 못했다 ★ openFDA fetcher와
+# 같은 사유(외부 차단) + 활용신청 미승인. 그래서 URL·조회 파라미터는 환경변수로
+# 받고(추측 하드코딩 금지), 응답 파싱은 방어적으로 짠다. data.go.kr 표준
+# 봉투(response.header.resultCode/body/items)만 가정한다 — 이 봉투는 포털
+# 전체 공통이라 procurement_watch가 이미 같은 모양으로 읽는다.
+# 운영에서 처음 도는 날 능력 장부(snapshot_approved_products_domestic)에
+# 성공/실패가 남으므로, 안 되면 조용하지 않다.
+MFDS_API_URL_ENV = "EPIWEATHER_MFDS_API_URL"
+MFDS_QUERY_PARAM_ENV = "EPIWEATHER_MFDS_QUERY_PARAM"
+MFDS_DEFAULT_QUERY_PARAM = "itemName"   # 미검증 기본값 — 승인 명세 보고 확정
+MFDS_KEY_NAMES = ("DATA_GO_KR_KEY",)    # 포털 키 하나가 여러 서비스를 연다
+MFDS_NUM_ROWS = 20
+MFDS_SLEEP = 0.4
+MFDS_TIMEOUT = 30
+
+
+def _mfds_key() -> str | None:
+    for name in MFDS_KEY_NAMES:
+        value = (os.environ.get(name) or "").strip()
+        if value:
+            return value
+    return None
+
+
+def _mfds_products(term: str, base_url: str, key: str,
+                   query_param: str) -> tuple[int, list[str]]:
+    """그 낱말이 들어간 국내 허가 제품 수와 이름 몇 개. (총건수, 예시)."""
+    resp = requests.get(
+        base_url,
+        params={"serviceKey": key, "type": "json", "pageNo": 1,
+                "numOfRows": MFDS_NUM_ROWS, query_param: term},
+        timeout=MFDS_TIMEOUT,
+        headers={"User-Agent": "AEGIRON/1.0"},
+    )
+    resp.raise_for_status()
+    envelope = resp.json() or {}
+    response = envelope.get("response") or {}
+    header = response.get("header") or {}
+    if header.get("resultCode") not in (None, "00", "0", 0):
+        # resultCode가 있고 00이 아니면 조회 실패(키 미승인·쿼터 등).
+        # '없음'으로 접으면 키 문제를 '국내 허가 없음'이라는 발견으로 둔갑시킨다.
+        raise RuntimeError(f"식약처 API 오류 {header.get('resultCode')}: "
+                           f"{header.get('resultMsg')}")
+    body = response.get("body") or {}
+    if "totalCount" not in body:
+        raise RuntimeError("식약처 응답에 totalCount가 없음(형식 변경 의심)")
+    total = body.get("totalCount") or 0
+    raw_items = body.get("items")
+    if raw_items is None:
+        items: list = []
+    elif isinstance(raw_items, dict):
+        inner = raw_items.get("item", [])
+        items = inner if isinstance(inner, list) else [inner]
+    elif isinstance(raw_items, list):
+        items = raw_items
+    else:
+        items = []
+    names: list[str] = []
+    for row in items:
+        if not isinstance(row, dict):
+            continue
+        name = (row.get("ITEM_NAME") or row.get("itemName")
+                or row.get("ITEMNAME"))
+        if name and name not in names:
+            names.append(name)
+    return int(total), names[:5]
+
+
+def fetch_approved_products_domestic() -> dict:
+    """위협별 국내 허가 제품 현황 payload. openFDA 스냅샷과 같은 모양.
+
+    ★ 조회 실패를 '없음'으로 접지 않는다 ★ 실패한 위협은 by_threat에 아예
+    넣지 않는다. 소비자가 unknown으로 센다."""
+    from .approved_products import DOMESTIC_THREAT_TERMS
+
+    base_url = (os.environ.get(MFDS_API_URL_ENV) or "").strip()
+    if not base_url:
+        raise RuntimeError(
+            f"{MFDS_API_URL_ENV} 미설정 — 승인된 식약처 API의 오퍼레이션 "
+            "URL을 지정해야 한다(추측 하드코딩 금지)")
+    key = _mfds_key()
+    if not key:
+        raise RuntimeError(
+            "DATA_GO_KR_KEY 없음 — 식약처 활용신청 승인 후 포털 키로 조회된다")
+    query_param = (os.environ.get(MFDS_QUERY_PARAM_ENV)
+                   or MFDS_DEFAULT_QUERY_PARAM).strip() or MFDS_DEFAULT_QUERY_PARAM
+
+    by_threat: dict[str, dict] = {}
+    failed: list[str] = []
+    for pathogen, terms in DOMESTIC_THREAT_TERMS.items():
+        if not terms:
+            continue                       # 정의상 검색 불가(Novel) — 조회 안 함
+        total, examples = 0, []
+        ok = False
+        for term in terms:
+            try:
+                count, names = _mfds_products(term, base_url, key, query_param)
+            except Exception:              # noqa: BLE001
+                continue                   # 이 낱말만 실패 — 다음 낱말로
+            ok = True
+            total = max(total, count)
+            for n in names:
+                if n not in examples:
+                    examples.append(n)
+            time.sleep(MFDS_SLEEP)
+        if not ok:
+            failed.append(pathogen)
+            continue
+        by_threat[pathogen] = {"product_count": total, "examples": examples[:5],
+                               "terms": terms}
+
+    if not by_threat:
+        raise RuntimeError("모든 위협 조회 실패 — 스냅샷을 만들지 않는다")
+
+    return {
+        "source": "식약처 의약품 허가정보(공공데이터포털)",
+        "source_url": base_url,
+        "snapshot_date": dt.date.today().isoformat(),
+        "query_param": query_param,
+        "by_threat": by_threat,
+        "threat_count": len(by_threat),
+        "lookup_failed": failed,
+        "limits": [
+            "국내 허가다. 허가가 있다는 것이지 물량이 있다는 뜻이 아니다.",
+            "품목명 낱말 검색이라, 명칭이 다르면 안 걸린다. 없다고 국내 허가가 "
             "없는 것은 아니다.",
         ],
     }

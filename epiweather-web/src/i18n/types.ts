@@ -153,6 +153,8 @@ export type BaikalDict = {
   transitionsTitle: string;
   transitionsLead: string;
   transitionsEmpty: string;
+  /** 90일 아카이브 섹션 제목 — 비어 있으면 섹션을 숨긴다. */
+  archiveTitle: string;
   observationStart: string;
   flowsTitle: string;
   flowsLead: string;

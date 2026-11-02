@@ -99,6 +99,18 @@ SNAPSHOTS: dict[str, dict] = {
         "fetch": "fetch_approved_products",
         "owner": "VALHALLA",
     },
+    "approved_products_domestic": {
+        "label": "국내 허가 제품(식약처)",
+        "filename": "approved_products_domestic.json",
+        # 활용신청 승인 전까지 fetcher가 매번 실패한다 — refresh()가 실패를
+        # 장부에 남기고 기존 파일을 유지하므로, 승인 전엔 스냅샷 없이
+        # domestic=unknown으로 돈다(신청되면 그 주부터 쌓인다).
+        "max_age_days": 60,
+        "min_records": 3,
+        "count": _approved_count,
+        "fetch": "fetch_approved_products_domestic",
+        "owner": "VALHALLA",
+    },
     "kor_route_stats": {
         "label": "한국 국제선 국가별 운송 실적(공공데이터포털 파일)",
         "filename": "kor_route_stats.json",

@@ -98,6 +98,7 @@ export const baikalEn: BaikalDict = {
   transitionsTitle: 'State-change record',
   transitionsLead: 'An audit record kept only at the moments a state changed. The first observation is marked “observation start” — no prior state is invented.',
   transitionsEmpty: 'No state changes recorded',
+  archiveTitle: 'Transitions older than 90 days (audit archive)',
   observationStart: 'Observation start',
   flowsTitle: 'YGGDRASIL — data flows between systems',
   flowsLead: 'Only flows that actually exist in the code are drawn. Plausible-looking connections are not added.',

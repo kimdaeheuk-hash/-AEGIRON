@@ -99,14 +99,18 @@ def country_capacity(iso3: str, year: int | None = None) -> dict:
 
     medians = world_medians(year) or {}
     names = snap["capacities"]
-    rows, behind = [], []
+    rows, behind, behind_codes = [], [], []
     for code in sorted(names):
         if code not in scores:
             continue
         value, median = scores[code], medians.get(code)
         is_behind = median is not None and value < median - BEHIND_MARGIN
         if is_behind:
+            # ★ 이름만 내보내면 코드로 못 잇는다(발할라 P2, C05 정합) ★
+            # '감시'가 뒤처졌는지 알려면 한글명을 문자열 매칭해야 했다.
+            # 코드를 같이 내면 C05 같은 식별자로 바로 가를 수 있다.
             behind.append(names[code])
+            behind_codes.append(code)
         rows.append({
             "code": code, "name_ko": names[code],
             "reported_score": value,
@@ -122,6 +126,7 @@ def country_capacity(iso3: str, year: int | None = None) -> dict:
         # ★ 합산 점수를 만들지 않는다 ★ 셀 수 있는 사실만 낸다.
         "behind_world_count": len(behind),
         "behind_world": behind,
+        "behind_world_codes": behind_codes,
         "capacity_count": len(rows),
         "is_self_assessed": True,
         "source": snap["source"],

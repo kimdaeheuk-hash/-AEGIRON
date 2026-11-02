@@ -41,9 +41,31 @@
 """
 from __future__ import annotations
 
+import datetime as dt
+
 # ── WHO ICG 국제 비상 비축 (공개 정보) ──────────────────────────────────────
 # 근거: WHO ICG on Vaccine Provision(1997년 설립) · Gavi 자금 지원.
 # 확인일 2026-09-01. 비축 종류가 늘면 여기에 추가한다.
+#
+# ★ 수기 표는 묵는다 ★ ICG 비축 '존재 여부'를 주는 공개 API는 없다(위 docstring).
+# 그래서 이 표는 손으로 들고 가는 수밖에 없는데, 손으로 들고 가면 갱신을 깜빡한다.
+# 갱신을 깜빡한 표를 새 표처럼 내지 않게 확인일+재검토 주기를 박고, 주기를 넘기면
+# 모든 판정에 stale을 붙인다. 재검토는 사람이 WHO ICG 발표를 보고 손으로 한다.
+TABLE_VERIFIED_AS_OF = "2026-09-01"
+TABLE_REVIEW_DAYS = 90
+
+
+def table_age(today: dt.date | None = None) -> dict:
+    """수기 표의 나이. 재검토 주기를 넘기면 stale — 판정값이 아니라 표 자체의 상태."""
+    today = today or dt.date.today()
+    try:
+        verified = dt.date.fromisoformat(TABLE_VERIFIED_AS_OF)
+    except ValueError:
+        return {"verified_as_of": TABLE_VERIFIED_AS_OF, "age_days": None,
+                "stale": True, "reason": "확인일 파싱 불가 — 표 재검토 필요"}
+    age = (today - verified).days
+    return {"verified_as_of": TABLE_VERIFIED_AS_OF, "age_days": age,
+            "stale": age < 0 or age > TABLE_REVIEW_DAYS}
 ICG_STOCKPILES: dict[str, dict] = {
     "yellow_fever": {
         "name_ko": "황열", "since": 1997,
@@ -108,6 +130,9 @@ def stockpile_status(disease: str | None) -> dict:
                 "known": True, "has_global_stockpile": True,
                 "stockpile_id": sid, "name_ko": entry["name_ko"],
                 "since": entry["since"], "mechanism": "WHO ICG",
+                # ★ 판정에 표 나이를 붙인다 ★ '비축 있음'이라는 답이 몇 달 전
+                # 확인한 수기 표에 근거하면, 그 답을 새 답처럼 내면 안 된다.
+                "table": table_age(),
             }
 
     for name, aliases in KNOWN_GAP_ALIASES.items():
@@ -133,6 +158,20 @@ def gap_report(diseases: list[str | None]) -> dict:
         else:
             gaps.append(s["name_ko"])
 
+    age = table_age()
+    limits = [
+        "비축이 '있다'는 것이지 '충분하다'가 아니다 — ICG 비축도 대형 발병에서 "
+        "모자란 적이 있다.",
+        "한국 국가 비축은 비공개다. 이 보고는 국제 비상 비축 체계만 본다.",
+        "효능·변이 회피를 예측하지 않는다. 그건 구조·면역 모델링의 영역이다.",
+        "격차 목록은 위험 순위가 아니다. 여기 없는 병이 안전한 것도 아니다.",
+    ]
+    if age["stale"]:
+        limits.append(
+            f"수기 표가 재검토 주기({TABLE_REVIEW_DAYS}일)를 넘겼다"
+            f"(확인일 {age['verified_as_of']}, {age['age_days']}일 전) — "
+            "WHO ICG 발표를 보고 사람이 재확인해야 한다.")
+
     return {
         "covered": sorted(set(covered)),
         "gaps": sorted(set(gaps)),
@@ -141,11 +180,8 @@ def gap_report(diseases: list[str | None]) -> dict:
         "unclassified_count": len(unknown),
         "stockpile_mechanism": "WHO ICG (International Coordinating Group), Gavi 자금",
         "stockpile_list": [v["name_ko"] for v in ICG_STOCKPILES.values()],
-        "limits": [
-            "비축이 '있다'는 것이지 '충분하다'가 아니다 — ICG 비축도 대형 발병에서 "
-            "모자란 적이 있다.",
-            "한국 국가 비축은 비공개다. 이 보고는 국제 비상 비축 체계만 본다.",
-            "효능·변이 회피를 예측하지 않는다. 그건 구조·면역 모델링의 영역이다.",
-            "격차 목록은 위험 순위가 아니다. 여기 없는 병이 안전한 것도 아니다.",
-        ],
+        "table_verified_as_of": age["verified_as_of"],
+        "table_age_days": age["age_days"],
+        "table_stale": age["stale"],
+        "limits": limits,
     }

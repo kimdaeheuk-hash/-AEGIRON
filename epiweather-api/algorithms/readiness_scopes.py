@@ -186,7 +186,8 @@ def clinical_scope(threats: list[dict], pipeline_value: dict | None) -> dict:
 
 def readiness_by_scope(countermeasures: list[dict], threats: list[dict],
                        pipeline_value: dict | None = None,
-                       approved_snapshot: dict | None = None) -> dict:
+                       approved_snapshot: dict | None = None,
+                       domestic_snapshot: dict | None = None) -> dict:
     """네 범위를 나란히. **합친 점수를 내지 않는다.**
 
     합치는 순간 서로 다른 종류의 사실이 한 숫자가 된다 — 창고에 있는 것,
@@ -203,7 +204,8 @@ def readiness_by_scope(countermeasures: list[dict], threats: list[dict],
         "scopes": {
             "national_stockpile": national_scope(countermeasures, threats),
             "international_stockpile": international_scope(threats),
-            "approved_products": approved_scope(threats, approved_snapshot),
+            "approved_products": approved_scope(threats, approved_snapshot,
+                                                      domestic_snapshot),
             "clinical_pipeline": clinical_scope(threats, pipeline_value),
         },
         "threat_count": len(threats),

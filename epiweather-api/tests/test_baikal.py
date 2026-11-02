@@ -18,6 +18,7 @@ import asyncio
 import datetime as dt
 import json
 import os
+import pathlib
 from pathlib import Path
 
 import pytest
@@ -534,6 +535,31 @@ def test_api_returns_stored_snapshot_and_transitions(client):
     assert hist["hours"] == 24
 
 
+def test_api_archive_serves_moved_transitions(client):
+    import db
+    db.insert_baikal_transition("2026-06-01T00:00:00+00:00", "HUGINN", "ok", "down",
+                                "사유", "measured")
+    assert db.archive_baikal_transitions("2026-09-01T00:00:00+00:00") == 1
+    body = client.get("/api/baikal/transitions/archive").json()
+    assert body["count"] == 1
+    assert body["archived"][0]["subject"] == "HUGINN"
+    assert body["archived"][0]["archived_at"]
+    live = client.get("/api/baikal").json()
+    assert all(t["observed_at"] >= "2026-09-01" for t in live["transitions"])
+
+
+def test_archive_endpoint_logic_direct_call(isolated_db):
+    """핸들러 직접 호출 — TestClient 는 샌드박스에서 막히니 로직만 여기서 본다."""
+    import db
+    import main
+    db.insert_baikal_transition("2026-06-01T00:00:00+00:00", "HUGINN", "ok", "down",
+                                "사유", "measured")
+    db.archive_baikal_transitions("2026-09-01T00:00:00+00:00")
+    body = main.baikal_transitions_archive()
+    assert body["count"] == 1 and body["archived"][0]["subject"] == "HUGINN"
+    assert main.baikal_transitions_archive(limit=0)["count"] == 1   # 하한 클램프
+
+
 def test_api_ontology_plain_and_jsonld(client):
     plain = client.get("/api/yggdrasil").json()
     assert plain["name"] == "YGGDRASIL" and len(plain["systems"]) == 7
@@ -807,7 +833,8 @@ def test_send_telegram_message_uses_given_chat(monkeypatch):
     assert sent["chat_id"] == "alerts", "chat_id 를 안 주면 예전처럼 경보 대화"
 
 
-def _run_with(monkeypatch, transitions, configured=True, send_ok=True, notify="on"):
+def _run_with(monkeypatch, transitions, configured=True, send_ok=True, notify="on",
+              history=None):
     import collector
     import main
     from algorithms import baikal as b
@@ -823,6 +850,8 @@ def _run_with(monkeypatch, transitions, configured=True, send_ok=True, notify="o
                         lambda text, chat_id=None: sent.append((text, chat_id)) or send_ok)
     monkeypatch.setattr(collector, "log", logs.append)
     monkeypatch.setattr(collector, "log_error", lambda ctx, e: logs.append(f"ERR {ctx}"))
+    # 쿨다운 조회는 기본 빈 이력 — 실제 DB 내용에 테스트가 흔들리면 안 된다.
+    monkeypatch.setattr(main.db, "list_baikal_transitions", lambda **k: history or [])
     asyncio.run(main._run_baikal_cycle())
     return logs, sent
 
@@ -858,3 +887,134 @@ def test_notify_failure_never_breaks_the_scheduler(monkeypatch):
     monkeypatch.setattr(b, "ops_notice_text", boom)
     logs, sent = _run_with(monkeypatch, [_t("VAR", "ok", "down")])
     assert "ERR scheduler_baikal_notify" in logs and sent == []
+
+
+# ── P0: 원장 정체·알림 쿨다운·전이 아카이브 (2026-11-02) ────────────
+
+def test_skuld_stale_ledger_is_undetermined_not_ok():
+    """7일째 그대로면 정체인지 평온인지 모른다 — 정상이라 우기지 않는다."""
+    old = (NOW - dt.timedelta(days=10)).isoformat()
+    preds = [{"predicted_at": old, "disease": "에볼라",
+              "correct": None, "resolves_by": "2026-12-31"}]
+    res = baikal.judge_skuld(preds, NOW)
+    assert res["status"] == "undetermined" and "구분 불가" in res["reason"]
+
+
+def test_skuld_fresh_ledger_stays_ok():
+    assert baikal.judge_skuld(_inputs()["predictions"], NOW)["status"] == "ok"
+    edge = (NOW - dt.timedelta(days=7)).isoformat()
+    preds = [{"predicted_at": edge, "disease": "에볼라",
+              "correct": None, "resolves_by": "2026-12-31"}]
+    assert baikal.judge_skuld(preds, NOW)["status"] == "ok"   # 경계(7일)는 정상
+
+
+def _hist(subject, to_status, hours_ago):
+    return {"subject": subject, "to_status": to_status,
+            "observed_at": (NOW - dt.timedelta(hours=hours_ago)).isoformat()}
+
+
+def test_cooldown_suppresses_repeat_down_but_never_recovery():
+    fresh = [_t("HUGINN", "degraded", "down"), _t("VAR", "down", "ok")]
+    recent = [_hist("HUGINN", "down", 2)]
+    kept = baikal.suppressible_by_cooldown(fresh, recent, NOW)
+    assert [t["subject"] for t in kept] == ["VAR"]   # 복구는 항상 산다
+
+
+def test_cooldown_ignores_old_and_other_subject_history():
+    fresh = [_t("HUGINN", "ok", "down")]
+    assert baikal.suppressible_by_cooldown(
+        fresh, [_hist("HUGINN", "down", 7)], NOW) == fresh
+    assert baikal.suppressible_by_cooldown(
+        fresh, [_hist("VAR", "down", 1)], NOW) == fresh
+    assert baikal.suppressible_by_cooldown(fresh, [], NOW) == fresh
+
+
+def test_cycle_suppresses_flapping_down_end_to_end(monkeypatch):
+    logs, sent = _run_with(monkeypatch, [_t("HUGINN", "degraded", "down")])
+    assert len(sent) == 1  # 이력 없음 → 운다
+    recent_iso = (dt.datetime.now(dt.timezone.utc)
+                  - dt.timedelta(hours=1)).isoformat()
+    history = [{"subject": "HUGINN", "to_status": "down", "observed_at": recent_iso}]
+    logs, sent = _run_with(monkeypatch, [_t("HUGINN", "degraded", "down")],
+                           history=history)
+    assert sent == []      # 1시간 전 중단 있음 → 기록만, 울지 않음
+
+
+def test_notify_path_filters_cooldown_before_text():
+    """배선: 전송 전에 쿨다운 필터를 거친다 (AST — asyncio.run 은 샌드박스 차단이라 CI 위임)."""
+    import main as main_mod
+    src = pathlib.Path(main_mod.__file__).read_text(encoding="utf-8")
+    assert "suppressible_by_cooldown(" in src
+    assert src.index("suppressible_by_cooldown(") < src.index("ops_notice_text(fresh)")
+
+
+# ── P1: 하트비트·소요 관측·유량·근거 등급 (2026-11-02) ─────────────
+
+def test_empty_alerts_with_fresh_cycle_is_calm_estimated():
+    """주기가 도는데 울릴 게 없으면 평온 — 직접 측정이 아니라 추론이라 estimated."""
+    res = baikal.judge_forseti([], NOW, 0.1)
+    assert res["status"] == "ok" and "평온" in res["reason"]
+    assert res["evidence_class"] == "estimated"
+
+
+def test_empty_alerts_without_heartbeat_stays_undetermined():
+    assert baikal.judge_forseti([], NOW, None)["status"] == "undetermined"
+    assert baikal.judge_forseti([], NOW, 5.0)["status"] == "undetermined"
+
+
+def test_observe_passes_the_heartbeat_through():
+    inputs = _inputs(alerts_today=[])
+    res = [s for s in baikal.observe(NOW, inputs)["systems"] if s["key"] == "FORSETI"][0]
+    assert res["status"] == "ok" and "평온" in res["reason"]   # silent 0.1h
+
+
+def test_observe_reports_judge_ms_for_every_system():
+    r = baikal.observe(NOW, _inputs())
+    assert set(r["judge_ms"]) == set(yggdrasil.SYSTEM_KEYS)
+    assert all(isinstance(v, float) and v >= 0 for v in r["judge_ms"].values())
+
+
+def test_var_with_defaulted_batch_is_estimated():
+    i = _inputs()
+    res = baikal.judge_var(0, i["scorecard"], i["ledger"], seal_batch_defaulted=True)
+    assert res["status"] == "ok" and res["evidence_class"] == "estimated"
+    assert "기본값" in res["reason"]
+    plain = baikal.judge_var(0, i["scorecard"], i["ledger"])
+    assert plain["evidence_class"] == "measured"
+
+
+def test_valhalla_ok_reason_carries_the_counts():
+    i = _inputs()
+    res = baikal.judge_valhalla(i["cycle_record"], NOW)
+    assert res["status"] == "ok"
+    assert "조달 입찰" in res["reason"] and "백신 단일공급" in res["reason"]
+
+
+def test_run_cycle_reports_24h_flow_per_subject(isolated_db):
+    import db
+    now = dt.datetime(2026, 10, 19, 1, 0, tzinfo=dt.timezone.utc)
+    db.insert_baikal_transition("2026-10-18T20:00:00+00:00", "HUGINN", "ok", "down",
+                                "사유", "measured")
+    db.insert_baikal_transition("2026-10-10T00:00:00+00:00", "HUGINN", "down", "ok",
+                                "복구", "measured")
+    out = baikal.run_cycle(now, _inputs())
+    # 10-10 건은 창 밖이라 제외 · 10-18 20시 1건 + 이번 주기 9건(7시스템+2루프)
+    assert out["flow_24h"]["HUGINN"] == 2
+    assert sum(out["flow_24h"].values()) == 10
+
+
+def test_transitions_archive_moves_without_losing(isolated_db):
+    import db
+    old = "2026-06-01T00:00:00+00:00"
+    new = "2026-10-19T00:00:00+00:00"
+    db.insert_baikal_transition(old, "HUGINN", "ok", "down", "사유", "measured")
+    db.insert_baikal_transition(new, "HUGINN", "down", "ok", "복구", "measured")
+    moved = db.archive_baikal_transitions("2026-09-01T00:00:00+00:00",
+                                          "2026-11-02T00:00:00+00:00")
+    assert moved == 1
+    live = db.list_baikal_transitions()
+    assert [r["observed_at"] for r in live] == [new]
+    archived = db.list_baikal_transitions_archive()
+    assert len(archived) == 1 and archived[0]["observed_at"] == old
+    assert archived[0]["archived_at"] == "2026-11-02T00:00:00+00:00"
+    assert archived[0]["reason"] == "사유"   # 이동이지 삭제가 아니다

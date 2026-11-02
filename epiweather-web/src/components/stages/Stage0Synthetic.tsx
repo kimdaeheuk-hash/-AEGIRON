@@ -1,18 +1,21 @@
 'use client';
 import { useState } from 'react';
 import {
-  calcCAI, calcCpG, calcEnt, calcGC,
-  pCAI, pCpG, pEnt, pGC, pOrigin, pRate, pDens,
+  pOrigin, pRate, pDens,
   fisherCombine, calcCI, threatColor, threatLabel,
   fetchNCBI, fetchPubMed, fetchBioRxiv, fetchWHO,
   NCBIResult, PubMedPaper, BioRxivPaper, WHOItem,
 } from '@/lib/syntheticThreat';
+import { fetchGenomeScreen } from '@/lib/api';
 import HeimdallPanel from './HeimdallPanel';
 
 interface ScanResult {
   total: number; ci: { lo: number; hi: number };
   gScore: number; eScore: number; intelScore: number;
-  cai: number; cpgR: number; ent: number; gc: number;
+  /** 서버 실측값 — null이면 서버가 못 잼(비코딩 등). 프론트 자가계산 금지. */
+  cai: number | null; cpgR: number | null; ent: number | null; gc: number | null;
+  gPs: number[];
+  genomeFlags: { metric: string; note: string }[];
   originCount: number; spreadRate: number; densCorr: number;
   ncbi: NCBIResult; pubmed: PubMedPaper[]; biorxiv: BioRxivPaper[]; who: WHOItem[];
 }
@@ -25,6 +28,7 @@ export default function Stage0Synthetic() {
   const [dens, setDens] = useState('0.82');
   const [scanning, setScanning] = useState(false);
   const [result, setResult] = useState<ScanResult | null>(null);
+  const [scanErr, setScanErr] = useState('');
   const [aiStatus, setAiStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const [aiText, setAiText] = useState('');
 
@@ -32,7 +36,9 @@ export default function Stage0Synthetic() {
     setScanning(true);
     setResult(null);
     setAiStatus('idle');
+    setScanErr('');
 
+    try {
     const originCount = Math.max(1, parseInt(origins) || 1);
     const d7 = Math.max(1, parseInt(day7) || 22);
     const d1 = Math.max(1, parseInt(day1) || 1);
@@ -44,9 +50,26 @@ export default function Stage0Synthetic() {
       fetchNCBI(accession), fetchPubMed(), fetchBioRxiv(), fetchWHO(),
     ]);
 
+    // ★ 유전체 4지표는 서버 실측 단일 진실원천 ★ 예전엔 프론트가 코돈-엔트로피를
+    // 자체 계산했는데 서버(뉴클레오타이드 Shannon)와 정의가 달라 같은 서열이 두 값이
+    // 됐다. 이제 genome-screen을 불러 값도 p도 서버 판정에서만 낸다. CAI·GC는
+    // 서버에 참고범위가 없어 중립(0.7)으로 두고 그 사실을 적는다 — 임계 날조 금지.
+    // Evo2·MSA는 느려서 스캔에 안 넣는다(아래 HEIMDALL 패널에서 선택 실행).
     const seq = ncbi.seq || 'ATGGAGAGCCTTGTCCCTGGT';
-    const cai = calcCAI(seq), cpgR = calcCpG(seq), ent = calcEnt(seq), gc = calcGC(seq);
-    const gPs = [pCAI(cai), pCpG(cpgR), pEnt(ent), pGC(gc)];
+    const screen = await fetchGenomeScreen(seq);
+    if (!screen.ok) throw new Error(screen.reason || '유전체 스크리닝 실패');
+    const flagged = new Set((screen.flags ?? []).map(f => f.metric));
+    const cai = screen.cai_human?.cai ?? null;
+    const cpgR = screen.cpg_observed_expected ?? null;
+    const ent = screen.shannon_entropy_bits ?? null;
+    const gc = screen.gc_content ?? null;
+    const gPs = [
+      0.7,
+      flagged.has('cpg_oe') ? 0.01 : 0.7,
+      flagged.has('shannon_entropy') ? 0.01 : 0.7,
+      0.7,
+    ];
+    const genomeFlags = screen.flags ?? [];
     const gScore = fisherCombine(gPs);
 
     const ePs = [pOrigin(originCount), pRate(spreadRate), pDens(densCorr)];
@@ -61,8 +84,12 @@ export default function Stage0Synthetic() {
     const total = fisherCombine([...gPs, ...ePs, ...intelPsRaw]);
     const ci = calcCI(total, gPs.length + ePs.length + intelPsRaw.length);
 
-    setResult({ total, ci, gScore, eScore, intelScore, cai, cpgR, ent, gc, originCount, spreadRate, densCorr, ncbi, pubmed, biorxiv, who });
-    setScanning(false);
+    setResult({ total, ci, gScore, eScore, intelScore, cai, cpgR, ent, gc, gPs, genomeFlags, originCount, spreadRate, densCorr, ncbi, pubmed, biorxiv, who });
+    } catch (e) {
+      setScanErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setScanning(false);
+    }
   }
 
   async function runAI() {
@@ -92,11 +119,12 @@ export default function Stage0Synthetic() {
 
   const c = result ? threatColor(result.total) : 'var(--muted)';
 
+  const flaggedMetrics = new Set((result?.genomeFlags ?? []).map(f => f.metric));
   const sevenSignals = result ? [
-    { lbl: 'CAI', val: result.cai.toFixed(3), note: result.cai > 0.45 ? '과최적화 ⚠' : result.cai > 0.28 ? '정상' : '낮음', sc: pCAI(result.cai) },
-    { lbl: 'CpG 억제', val: result.cpgR.toFixed(3), note: result.cpgR > 0.80 ? '억제없음 ⚠' : result.cpgR < 0.25 ? '강억제' : '정상', sc: pCpG(result.cpgR) },
-    { lbl: '엔트로피', val: result.ent.toFixed(2), note: result.ent < 2.8 ? '너무균일 ⚠' : result.ent > 5.9 ? '과복잡' : '자연', sc: pEnt(result.ent) },
-    { lbl: 'GC 편향', val: (result.gc * 100).toFixed(0) + '%', note: result.gc > 0.65 ? '편향↑' : result.gc < 0.33 ? '편향↓' : '정상', sc: pGC(result.gc) },
+    { lbl: 'CAI', val: result.cai == null ? '—' : result.cai.toFixed(3), note: result.cai == null ? '비코딩(판정 없음)' : '서버 참고범위 없음', sc: result.gPs[0] },
+    { lbl: 'CpG 억제', val: result.cpgR == null ? '—' : result.cpgR.toFixed(3), note: flaggedMetrics.has('cpg_oe') ? '극단적 억제 ⚠' : '정상', sc: result.gPs[1] },
+    { lbl: '엔트로피', val: result.ent == null ? '—' : result.ent.toFixed(2), note: flaggedMetrics.has('shannon_entropy') ? '저복잡도 ⚠' : '자연', sc: result.gPs[2] },
+    { lbl: 'GC 편향', val: result.gc == null ? '—' : (result.gc * 100).toFixed(0) + '%', note: '서버 참고범위 없음', sc: result.gPs[3] },
   ] : [];
 
   return (
@@ -135,7 +163,12 @@ export default function Stage0Synthetic() {
         </button>
       </div>
 
-      {!result && !scanning && (
+      {scanErr && !scanning && (
+        <div className="card" style={{ marginTop: 12, color: '#ff8080', fontFamily: 'var(--mono)', fontSize: 11, padding: '14px 12px' }}>
+          스캔 실패: {scanErr} — 유전체 지표는 서버 실측만 쓰므로 프론트 계산으로 대체하지 않습니다.
+        </div>
+      )}
+      {!result && !scanning && !scanErr && (
         <div className="card" style={{ marginTop: 12, textAlign: 'center', color: 'var(--muted)', fontFamily: 'var(--mono)', fontSize: 11, padding: '24px 0' }}>
           GenBank 접근번호와 역학 파라미터를 입력하고 전체 스캔을 실행하세요.
         </div>
@@ -178,7 +211,10 @@ export default function Stage0Synthetic() {
           {/* 좌: 유전체+역학 */}
           <div>
             <div className="card">
-              <div className="card-h"><span className="lbl">유전체 분석 (4신호)</span><span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--cold,#00c8ff)' }}>{result.ncbi.acc} · {result.ncbi.seq.length}bp · {result.ncbi.source === 'NCBI_REAL' ? '실시간' : '폴백'}</span></div>
+              <div className="card-h"><span className="lbl">유전체 분석 (4신호 · 서버 실측)</span><span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--cold,#00c8ff)' }}>{result.ncbi.acc} · {result.ncbi.seq.length}bp · {result.ncbi.source === 'NCBI_REAL' ? '실시간' : '폴백'}</span></div>
+              {result.genomeFlags.filter(f => !['cpg_oe', 'shannon_entropy'].includes(f.metric)).map((f, i) => (
+                <div key={i} style={{ fontFamily: 'var(--kr)', fontSize: 10.5, color: '#fb923c', padding: '6px 10px', marginBottom: 6, borderRadius: 7, background: 'rgba(251,146,60,.08)', border: '1px solid rgba(251,146,60,.25)' }}>⚠ {f.note}</div>
+              ))}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                 {sevenSignals.map((s, i) => {
                   const pc = s.sc < 0.01 ? '#ff2d55' : s.sc < 0.1 ? '#ffcc00' : '#00ff88';
@@ -282,7 +318,7 @@ export default function Stage0Synthetic() {
       </>)}
 
       <div style={{ marginTop: 16, fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted2)', lineHeight: 1.7, borderTop: '1px solid var(--line)', paddingTop: 12 }}>
-        <b style={{ color: 'var(--muted)' }}>※ 0단계 — 합성위협 탐지</b>: CAI·CpG억제비율·엔트로피·GC편향(유전체 4신호) + 발원지수·전파율·밀도상관(역학 3신호) + PubMed·bioRxiv·WHO(인텔 3신호) 를 Fisher&apos;s 결합. NCBI·PubMed·bioRxiv·WHO 모두 실시간 API 연동 (WHO는 전용 DON RSS가 폐지되어 일반 뉴스 피드를 발생 키워드로 필터링 — 위험도는 WHO 공식 등급이 아닌 키워드 기반 휴리스틱). AI 분석은 서버(FastAPI) 경유로 Claude 호출.
+        <b style={{ color: 'var(--muted)' }}>※ 0단계 — 합성위협 탐지</b>: CAI·CpG억제비율·엔트로피·GC편향(유전체 4신호 · 서버 실측 단일원천) + 발원지수·전파율·밀도상관(역학 3신호) + PubMed·bioRxiv·WHO(인텔 3신호) 를 Fisher&apos;s 결합. NCBI·PubMed·bioRxiv·WHO 모두 실시간 API 연동 (WHO는 전용 DON RSS가 폐지되어 일반 뉴스 피드를 발생 키워드로 필터링 — 위험도는 WHO 공식 등급이 아닌 키워드 기반 휴리스틱). AI 분석은 서버(FastAPI) 경유로 Claude 호출.
       </div>
     </div>
   );

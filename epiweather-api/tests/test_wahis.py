@@ -71,6 +71,37 @@ def test_signal_carries_rss_failure_reason():
     assert sig["woah_rss_items"] is None and sig["rss_reason"] == "HTTP 503"
 
 
+# ── H5N1 언급 수 (2026-11-02) ─────────────────────────────────────
+
+H5N1_RSS = ('<?xml version="1.0"?><rss version="2.0"><channel>'
+            "<title>WOAH news</title>"
+            "<item><title>H5N1 detected in seals</title></item>"
+            "<item><title>Avian influenza update</title></item>"
+            "<item><title>rabies workshop</title></item>"
+            "</channel></rss>")
+
+
+def test_h5n1_mentions_counted_from_titles():
+    assert wahis.count_h5n1_mentions(H5N1_RSS) == 2
+    assert wahis.count_h5n1_mentions(RSS) == 0
+
+
+def test_signal_carries_h5n1_hits_from_the_same_fetch():
+    """항목 수와 같은 한 번 읽기로 — 호출이 두 배가 되면 안 된다."""
+    calls = []
+    with patch("algorithms.wahis.requests.get",
+               side_effect=lambda url, **kw: (calls.append(url), _resp(text=H5N1_RSS))[1]):
+        sig = wahis.get_animal_signal()
+    assert calls == [wahis.WOAH_RSS_URL]
+    assert sig["h5n1_hits"] == 2
+
+
+def test_unreadable_rss_is_h5n1_unknown_not_zero():
+    with patch("algorithms.wahis.requests.get", return_value=_resp(status=503, text="")):
+        sig = wahis.get_animal_signal()
+    assert sig["h5n1_hits"] is None
+
+
 def test_index_metrics_read_none_not_zero():
     # 지수 층의 실제 추출기가 None 을 그대로 받아야 지수·부정적 공간이 '판정 안 함'으로 둔다.
     from algorithms import signal_metrics

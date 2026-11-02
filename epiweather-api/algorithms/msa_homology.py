@@ -35,6 +35,7 @@
 from __future__ import annotations
 
 import os
+import time
 
 import requests
 
@@ -45,6 +46,55 @@ from . import nvidia as _nvidia
 MSA_URL = "https://health.api.nvidia.com/v1/biology/colabfold/msa-search/predict"
 TIMEOUT = 900          # 검색 1회에 약 40초. 여유를 크게 둔다.
 MIN_AA = 50            # 너무 짧으면 상동성 검색이 의미 없음
+
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+# ★ 운영 노브(환경변수로 교체 가능) ★ 아래 5개는 장애 대응 방식이라 외부화한다.
+# 과학적 임계(_REF 커버리지)는 실측 검증값이라 코드에 고정 — 근거는 위 docstring.
+CONNECT_TIMEOUT = _env_float("AEGIRON_MSA_CONNECT_TIMEOUT", 10.0)  # 연결만 빨리 끊는다
+RETRIES = _env_int("AEGIRON_MSA_RETRIES", 2)          # 일시 장애(5xx·타임아웃) 재시도
+RETRY_BACKOFF_S = _env_float("AEGIRON_MSA_RETRY_BACKOFF_S", 2.0)   # 선형 백오프
+BREAKER_THRESHOLD = _env_int("AEGIRON_MSA_BREAKER_THRESHOLD", 3)   # 연속 실패 N회면 개방
+BREAKER_COOLDOWN_S = _env_float("AEGIRON_MSA_BREAKER_COOLDOWN_S", 300.0)
+
+_sleep = time.sleep    # 테스트에서 무력화용
+
+# 프로세스 내 서킷브레이커. 멀티워커면 워커마다 따로 센다(게이트웨이 앞단이 여러
+# 프로세스면 개방이 늦게 걸림) — 공유가 필요해지면 Redis/DB로 옮긴다(갭 #3 후속).
+_BREAKER = {"consecutive_fails": 0, "open_until": 0.0}
+
+
+def _breaker_open() -> bool:
+    return time.monotonic() < _BREAKER["open_until"]
+
+
+def _breaker_record(ok: bool) -> None:
+    if ok:
+        _BREAKER["consecutive_fails"] = 0
+        _BREAKER["open_until"] = 0.0
+    else:
+        _BREAKER["consecutive_fails"] += 1
+        if _BREAKER["consecutive_fails"] >= max(1, BREAKER_THRESHOLD):
+            _BREAKER["open_until"] = time.monotonic() + max(0.0, BREAKER_COOLDOWN_S)
+
+
+def _retryable(status: int | None) -> bool:
+    """재시도할 HTTP 상태인가. 5xx만 재시도 — 429(쿼터)·4xx(인증·입력)는
+    다시 보내도 결과가 같아서(또는 쿼터를 더 태워서) 즉시 실패로 돌린다."""
+    return status is not None and 500 <= status <= 599
 
 # 실측 기반 참고범위(위 docstring의 2라운드 검증값).
 _REF = {
@@ -124,22 +174,47 @@ def protein_from_nucleotide(raw: str) -> dict:
 
 
 def _search(protein: str, api_key: str) -> dict:
+    """MSA 검색 1회. 5xx·타임아웃·연결실패는 RETRIES번 재시도(선형 백오프),
+    4xx(인증·쿼터·입력)는 재시도 없이 즉시 실패. 원장 기록은 논리 호출당 1회."""
     url = _nvidia.msa_url()
-    try:
-        r = requests.post(
-            url,
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={"sequence": protein},
-            timeout=TIMEOUT,
-        )
-        r.raise_for_status()
-        payload = r.json()
-    except Exception as e:
-        _nvidia.record_layer_call("genome", url, ok=False,
-                                  error=f"{type(e).__name__}: {e}")
-        raise
-    _nvidia.record_layer_call("genome", url, ok=True)
-    return payload
+    last: Exception | None = None
+    for attempt in range(max(0, RETRIES) + 1):
+        try:
+            r = requests.post(
+                url,
+                headers={"Authorization": f"Bearer {api_key}",
+                         "Content-Type": "application/json"},
+                json={"sequence": protein},
+                timeout=(CONNECT_TIMEOUT, TIMEOUT),
+            )
+            r.raise_for_status()   # 2xx 통과, 4xx·5xx는 아래 except에서 판정
+            payload = r.json()
+        except requests.HTTPError as e:
+            status = e.response.status_code if e.response is not None else None
+            if not _retryable(status):
+                _nvidia.record_layer_call("genome", url, ok=False,
+                                          error=f"{type(e).__name__}: {e}",
+                                          capability="nvidia_genome_msa")
+                raise
+            last = e
+        except (requests.Timeout, requests.ConnectionError) as e:
+            last = e
+        except Exception:
+            _nvidia.record_layer_call("genome", url, ok=False,
+                                      error="non_http_error",
+                                      capability="nvidia_genome_msa")
+            raise
+        else:
+            _nvidia.record_layer_call("genome", url, ok=True,
+                                      capability="nvidia_genome_msa")
+            return payload
+        if attempt < max(0, RETRIES):
+            _sleep(RETRY_BACKOFF_S * (attempt + 1))
+    assert last is not None
+    _nvidia.record_layer_call("genome", url, ok=False,
+                              error=f"{type(last).__name__}: {last}",
+                              capability="nvidia_genome_msa")
+    raise last
 
 
 def _parse_hits(payload: dict) -> tuple[float, list[dict], dict[str, int]]:
@@ -188,12 +263,19 @@ def assess_homology(protein: str, api_key: str | None = None) -> dict:
     if len(protein) < MIN_AA:
         return {"ok": False, "reason": f"단백질이 {MIN_AA}aa 미만 — 상동성 검색 불가",
                 "is_screening_only": True}
+    if _breaker_open():
+        return {"ok": False,
+                "reason": (f"MSA 서킷브레이커 개방 중(연속 {BREAKER_THRESHOLD}회 실패) — "
+                           "죽은 NIM에 요청을 보내지 않고 즉시 실패 반환. 쿨다운 후 자동 복구."),
+                "is_screening_only": True, "breaker_open": True}
 
     try:
         payload = _search(protein, key)
     except Exception as e:
+        _breaker_record(False)
         return {"ok": False, "reason": f"MSA 검색 실패({type(e).__name__}) — 네트워크·키·쿼터 확인",
                 "is_screening_only": True}
+    _breaker_record(True)
 
     coverage, top_hits, counts = _parse_hits(payload)
     total_hits = sum(counts.values())

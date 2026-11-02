@@ -190,6 +190,8 @@ export type BaikalTransition = {
   from_status: string | null;
   to_status: string;
   reason: string | null;
+  /** 아카이브 행에만 있다. */
+  archived_at?: string;
 };
 
 export type BaikalSnapshot = {
@@ -212,6 +214,8 @@ export type BaikalSnapshot = {
   transitions: BaikalTransition[];
   snapshot_age_minutes: number | null;
   stale: boolean;
+  /** 시스템별 판정 소요(ms) — 2026-11-02 이후 스냅숏에만 있다. */
+  judge_ms?: Record<string, number>;
 };
 
 export type BaikalResult =
@@ -226,6 +230,13 @@ export async function getBaikal(): Promise<BaikalResult | null> {
   }
   if (!Array.isArray(d.systems) || !d.loop) return null;
   return d as unknown as BaikalSnapshot;
+}
+
+/** 90일 아카이브 전이. 못 읽으면 null — 빈 아카이브([])와 구분한다. */
+export async function getBaikalArchive(limit = 20): Promise<BaikalTransition[] | null> {
+  const d = await getJson<Record<string, unknown>>(`/api/baikal/transitions/archive?limit=${limit}`);
+  if (!d || !Array.isArray(d.archived)) return null;
+  return d.archived as BaikalTransition[];
 }
 
 // ── 주간 추세 예측 · 대한민국 유입 주간 보고서 (2026-10-19) ─────────

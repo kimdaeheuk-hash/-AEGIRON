@@ -1,3 +1,15 @@
+# ── 빌드 스테이지: 의존성 설치 전용 ─────────────────────────────
+# 멀티스테이지(갭 #12): 최종 이미지에 pip 캐시·빌드 도구를 안 싣는다.
+# Debian slim 계열이라 컴파일이 필요하면 여기서 build-essential을 얹고
+# 런타임엔 복사본만 간다.
+FROM python:3.11-slim AS builder
+
+WORKDIR /app
+
+COPY epiweather-api/requirements.txt epiweather-api/requirements.txt
+RUN pip install --no-cache-dir --prefix=/install -r epiweather-api/requirements.txt
+
+# ── 런타임 스테이지: 실행에 필요한 것만 ────────────────────────────
 FROM python:3.11-slim
 
 # ★ 로그를 버퍼에 가두지 않는다 (2026-08-28) ★
@@ -8,7 +20,7 @@ FROM python:3.11-slim
 # 실측(2026-08-28 배포): 같은 프로세스·같은 시각인데 둘이 갈렸다.
 #   04:54:59  INFO: Application startup complete.   ← uvicorn(stderr) 즉시 도착
 #   04:55:30  이동성(OpenSky) 전멸 — …              ← collector(stdout) **65분 뒤** 도착
-# 관측되던 "2~3시간 배치"(16:00 → 19:00 → 21:01 → 00:00 → 03:00)는 Railway 의
+# 관측되던 "2~3시간 배치"(16:00 → 19:00 → 21:00 → 00:00 → 03:00)는 Railway 의
 # 전송 주기가 아니라 **8KB 가 차는 데 걸리는 시간**이었다.
 #
 # 이게 왜 중요한가: 2026-08-23 에 `📊 소스 건강` 한 줄을 넣은 이유가
@@ -22,8 +34,8 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-COPY epiweather-api/requirements.txt epiweather-api/requirements.txt
-RUN pip install --no-cache-dir -r epiweather-api/requirements.txt
+# 빌드 스테이지에서 설치된 패키지만 복사한다.
+COPY --from=builder /install /usr/local
 
 COPY epiweather-api epiweather-api
 

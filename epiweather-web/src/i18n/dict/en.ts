@@ -232,7 +232,7 @@ export const en: Dictionary = {
             id: 'polar_signals',
             name: 'Polar-territory surveillance',
             body: 'Observes the Arctic, the Antarctic and 27 glacier mountain regions with baseline and trend. As permafrost thaws — exposing pathogens and polar avian influenza — it watches, at the territory level, the new outbreak conditions a changing climate opens.',
-            mode: 'daily',
+            mode: 'hourly',
             caveat: 'An object of observation, not an alert. A polar signal does not by itself mean an outbreak.',
           },
           {

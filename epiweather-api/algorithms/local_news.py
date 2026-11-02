@@ -268,6 +268,18 @@ COUNTRY_TERMS: dict[str, str] = {
     "gn_af": "افغانستان", "gn_lk": '"Sri Lanka"', "gn_np": "नेपाल",
     "gn_cy": "Κύπρος", "gn_gr": "Ελλάδα", "gn_ir": "ایران", "gn_kh": "Cambodia",
     "gn_md": "Moldova", "gn_ro": "România", "gn_nl": "Nederland", "gn_sr": "Suriname",
+    # 극지 영토 (8) — 슬러그는 `{region_key}_news` (`polar_signals.compute_region`).
+    # GL/AQ 처럼 뉴스판이 없는 지역은 되돌림(전역 뉴스)이 오기 쉬워 스코프가 필수다.
+    # 이름은 그 피드의 언어로 적는다(위 실측 규칙과 동일). 스코프는 영토 단위로
+    # 건다 — 이누빅 관측점은 노스웨스트준주, 레졸루트는 북극군도다.
+    "siberia_yamal_news": "Ямал",
+    "alaska_north_news": '"North Slope"',
+    "canada_arctic_news": '"Northwest Territories"',
+    "greenland_news": "Greenland",
+    "svalbard_news": "Svalbard",
+    "antarctic_peninsula_news": '"Antarctic Peninsula"',
+    "arctic_archipelago_news": '"Arctic Archipelago"',
+    "iceland_news": "Iceland",
 }
 
 
@@ -452,6 +464,12 @@ def fetch_feeds_with_probe(feeds: list[tuple], sleep=None) -> tuple[list[dict], 
     **호출하지 않고** `호출생략` 사유로 채운다. 그 피드들은 status="error" 라
     active_feeds 에서 빠지고 소스 건강이 값없음으로 센다 — 기존 전멸과 같은 취급.
     프로브가 조절이 아닌 이유(연결 실패 등)로 죽으면 막힘이 아니므로 그대로 전부 시도한다.
+
+    ★ 이게 뉴스 경로의 서킷브레이커다(갭 #8, 2026-11-02) ★ 별도 브레이커를 안
+    다는 것은 빠뜨린 게 아니라 프로브+조절스킵이 같은 일을 해서다: 막힌
+    호스트에 나머지 100+ 피드를 쏘지 않는다. GDELT 폴백도 자체 스로틀을
+    둔다(news_fallback). MSA 같은 장시간 단일 호출은 모듈별 브레이커를 둔다
+    (msa_homology 참조) — 중앙 브레이커 하나로 못 묶는다.
     """
     # 기본값을 정의 시점에 묶지 않는다(`sleep=time.sleep`) — 그러면 시험의
     # patch 가 안 먹어 진짜로 45초를 쉰다.

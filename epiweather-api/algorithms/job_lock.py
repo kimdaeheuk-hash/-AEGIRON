@@ -12,6 +12,14 @@ stale 로 보일 수 없다.
 
 해제(release)는 자기 pid 가 owner 일 때만 — 남이 stale-break 로 뺏은 락을
 늦게 끝난 예전 주인이 지우면 두 프로세스가 동시에 돌게 된다.
+
+## ★ 단일 호스트 경계(갭 #3, 2026-11-02) ★
+
+이 락은 한 호스트 안의 프로세스들(uvicorn 워커·재배포 신구 겹침)만 가른다.
+배포가 단일 인스턴스(Railway 1개, 워커 1개)라 지금은 이것으로 충분하고,
+전 스케줄 잡이 job+timeout으로 걸려 있다(main.py _watched 전수 확인).
+인스턴스를 둘 이상으로 늘리면 파일 락이 안 통해 DB/Redis 분산락이 필요하다 —
+그때 이 docstring이 아니라 락 구현을 갈아야 한다.
 """
 from __future__ import annotations
 

@@ -3,6 +3,22 @@
 인수인계서 Part1 ⑧: "우리가 72% 맞췄다"를 증명하려면 예측 시점과
 검증 시점을 분리해서 기록해야 함. predicted_at에 근거 3가지와 함께
 기록하고, 나중에 실제 결과가 나오면 verify로 채점.
+
+## ★ FK 감사 결과(갭 #5, 2026-11-02) ★
+
+선언된 FK가 없는 것은 맞지만, 무작정 붙이면 정상 쓰기가 깨진다. 후보 전수:
+- lead_time_ledger.event_id → outbreak_timeline.event_id: 부모가 한 사건에
+  여러 마일스톤(UNIQUE(event_id, milestone))이라 event_id 단독으론 FK 불가.
+  정규화(이벤트/마일스톤 분리)는 전 리더를 고쳐야 해서 보류.
+- lead_time_ledger.signal_ids → extracted_signals.id: JSON 배열이라 FK 불가.
+- weekly_forecasts → weekly_observations: 아직 안 나온 미래 주를 봉인하므로
+  부모행이 없어 FK를 걸면 정당 봉인이 거부된다. 절대 금지.
+- ground_truth_unread → ground_truth_coverage: 포괄표 없이도 unread 행이
+  먼저 생길 수 있어 순서 보장이 안 된다.
+- 나머지 표들은 서로 참조가 없는 독립 표다.
+
+그래서 FK는 선언하지 않고 PRAGMA foreign_keys=ON만 유지한다(미래 FK 대비).
+무결성은 UNIQUE/PK + 쓰기 함수의 명시적 검증으로 지킨다.
 """
 from __future__ import annotations
 import sqlite3
@@ -180,6 +196,22 @@ CREATE TABLE IF NOT EXISTS baikal_transitions (
 );
 CREATE INDEX IF NOT EXISTS idx_baikal_transitions_observed ON baikal_transitions(observed_at);
 
+-- ── 전이 아카이브 (2026-11-02) ─────────────────────────────────────
+-- 전이는 감사 추적이라 지우지 않는다(정책 유지). 대신 90일이 지나면 여기서
+-- 빼서 아카이브로 옮긴다 — live 테이블은 가볍게, 기록은 전부 보존.
+CREATE TABLE IF NOT EXISTS baikal_transitions_archive (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    observed_at     TEXT NOT NULL,
+    subject         TEXT NOT NULL,
+    from_status     TEXT,
+    to_status       TEXT NOT NULL,
+    reason          TEXT,
+    evidence_class  TEXT,
+    archived_at     TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_baikal_transitions_archive_observed
+    ON baikal_transitions_archive(observed_at);
+
 -- ── 주간 추세 예측 (2026-10-19) ───────────────────────────────────
 -- 공식 주간 표본감시 값의 '다음 주 증감'을 매주 봉인하고 다음 주 공식 값으로 채점한다.
 -- 90일 발병 예측(predictions)과 **섞지 않는다** — 맞히기 쉬운 방향 예측이 발병 예측의
@@ -296,7 +328,8 @@ def get_connection() -> sqlite3.Connection:
 
 
 # 스키마 버전 — SCHEMA·ALTER 목록을 바꾸면 1 올린다.
-SCHEMA_VERSION = 1
+# v2 (2026-11-02): baikal_transitions_archive 추가.
+SCHEMA_VERSION = 2
 
 
 def _db_version(conn: sqlite3.Connection) -> int:
@@ -1110,11 +1143,46 @@ def list_baikal_snapshots(since_iso: str, limit: int = 1000) -> list[dict]:
 
 
 def prune_baikal_snapshots(before_iso: str) -> int:
-    """보관 기간이 지난 스냅숏만 지운다. 전이(baikal_transitions)는 건드리지 않는다."""
+    """보관 기간이 지난 스냅숏만 지운다. 전이는 아카이브로 옮긴다(아래)."""
     with get_connection() as conn:
         cur = conn.execute("DELETE FROM baikal_snapshots WHERE observed_at < ?", (before_iso,))
         conn.commit()
         return cur.rowcount
+
+
+BAIKAL_TRANSITION_ARCHIVE_DAYS = 90
+
+
+def archive_baikal_transitions(before_iso: str, archived_at: str | None = None) -> int:
+    """`before_iso` 보다 오래된 전이를 아카이브 테이블로 옮긴다. 반환: 옮긴 건수.
+
+    전이는 감사 추적이라 **지우지 않는다** — live 테이블에서 빼서 아카이브에
+    넣는다(이동이지 삭제가 아니다). 같은 트랜잭션이라 중간에 죽어도 안 잃는다.
+    """
+    archived_at = archived_at or datetime.now(timezone.utc).isoformat()
+    with get_connection() as conn:
+        cur = conn.execute(
+            "INSERT INTO baikal_transitions_archive "
+            "(observed_at, subject, from_status, to_status, reason, evidence_class, archived_at) "
+            "SELECT observed_at, subject, from_status, to_status, reason, evidence_class, ? "
+            "FROM baikal_transitions WHERE observed_at < ?",
+            (archived_at, before_iso),
+        )
+        moved = cur.rowcount
+        conn.execute("DELETE FROM baikal_transitions WHERE observed_at < ?", (before_iso,))
+        conn.commit()
+        return moved
+
+
+def list_baikal_transitions_archive(limit: int = 50) -> list[dict]:
+    """아카이브된 전이(오래된 순으로 최신부터). /baikal 화면의 과거 조회용."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM baikal_transitions_archive "
+            "ORDER BY observed_at DESC, id DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        return [dict(r) for r in rows]
 
 
 def insert_baikal_transition(observed_at: str, subject: str, from_status: str | None,
