@@ -173,6 +173,40 @@ def test_meta_payload_avoids_filter_trigger_phrasing(monkeypatch):
         assert kept in full, f"과업 문구가 빠졌다 — {kept}"
 
 
+def test_meta_system_omits_full_kb_dump_but_keeps_rag(monkeypatch):
+    """Meta 시스템엔 지식베이스 덤프가 없고 RAG 맥락은 사용자 메시지에 있다."""
+    _reset(monkeypatch)
+    monkeypatch.setenv(meta_api.KEY_ENV, "meta-key")
+    with patch("requests.post", return_value=_meta_resp()) as m:
+        ai.run_ai_inference(_situation())
+    msgs = m.call_args.kwargs["json"]["messages"]
+    assert "한국 방역 지식베이스" not in msgs[0]["content"]
+    assert msgs[0]["content"].startswith("【작업 성격】")
+    assert "관련 가이드라인" in msgs[1]["content"]
+
+
+def test_claude_system_keeps_full_kb_dump(monkeypatch):
+    """Claude 경로는 전체 지식베이스+캐싱 그대로(동작 변경 없음)."""
+    _reset(monkeypatch)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "claude-key")
+    sent = {}
+
+    class _CapClient:
+        def __init__(self, *a, **kw):
+            pass
+
+        class messages:
+            @staticmethod
+            def create(**kw):
+                sent.update(kw)
+                return _ClaudeResp()
+
+    with patch("anthropic.Anthropic", _CapClient):
+        ai.run_ai_inference(_situation())
+    assert "한국 방역 지식베이스" in sent["system"][0]["text"]
+    assert sent["system"][0].get("cache_control") == {"type": "ephemeral"}
+
+
 def test_meta_http_failure_carries_status_and_body(monkeypatch):
     """Meta HTTP 실패는 상태코드+서버 본문을 들고 Claude 폴백을 탄다."""
     _reset(monkeypatch)

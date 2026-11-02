@@ -4,8 +4,9 @@ AI 통합 추론 — Meta Model API 우선·Claude 폴백 + RAG.
 설계:
   1. 의사결정 트리로 즉시 권고 생성 (LLM 없이)
   2. RAG로 관련 한국 방역 가이드라인 검색
-  3. LLM 호출 — Meta Model API(Muse Spark) 우선, 실패 시 Claude 폴백
-     (시스템 프롬프트 + 지식베이스, Claude 경로만 프롬프트 캐싱)
+  3. LLM 호출 — Meta Model API(Muse Spark) 우선, 실패 시 Claude 폴백.
+     Meta 시스템은 고지+역할만 싣고 지식베이스 덤프를 뺀다(아래 이유).
+     Claude 시스템은 고지+역할+지식베이스+캐싱 그대로 둔다.
   4. 구조화된 정책 권고 반환
 
 프롬프트 캐싱(Claude 경로만):
@@ -206,6 +207,12 @@ def run_ai_inference(
     knowledge_text = get_all_as_text()
     system_text = (BENIGN_USE_PREAMBLE + SYSTEM_PROMPT
                    + "\n\n【한국 방역 지식베이스】\n" + knowledge_text)
+    # ★ Meta 시스템은 덤프를 뺀다(2026-11-03) ★ 직접 호출 이분 탐색(T1~T10)
+    # 결과 짧은 프롬프트는 전부 통과하고 2000토큰 실전 프롬프트만 차단된다.
+    # 방아쇠가 미확인 단어(개입·취약지역·격리 등)든 역학 밀도 자체든, 덤프를
+    # 빼면 둘 다 줄어든다. 근거는 사용자 메시지의 RAG 선별 3종이 이미 싣고
+    # 있어 빠지는 정보가 없다. Claude 경로는 동작 중이라 손대지 않는다.
+    meta_system_text = BENIGN_USE_PREAMBLE + SYSTEM_PROMPT
 
     # ★ 필터 실측 반영 문구(2026-11-03) ★ Meta 직접 호출 이분 탐색 결과:
     # 사상자 수치 자체(T7: Predicted deaths 50 → 200)는 통과하고, 사상자
@@ -245,7 +252,7 @@ def run_ai_inference(
     meta_error: str | None = None
     if meta_key:
         try:
-            llm_text, usage = _call_meta(system_text, user_content)
+            llm_text, usage = _call_meta(meta_system_text, user_content)
             return {
                 "alert_level": alert_level,
                 "decision_tree": tree_result,
