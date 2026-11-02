@@ -1,20 +1,33 @@
 """
-AI 통합 추론 — Claude API + 프롬프트 캐싱 + RAG.
+AI 통합 추론 — Meta Model API 우선·Claude 폴백 + RAG.
 
 설계:
   1. 의사결정 트리로 즉시 권고 생성 (LLM 없이)
   2. RAG로 관련 한국 방역 가이드라인 검색
-  3. Claude API 호출 (시스템 프롬프트 + 지식베이스 캐싱)
+  3. LLM 호출 — Meta Model API(Muse Spark) 우선, 실패 시 Claude 폴백
+     (시스템 프롬프트 + 지식베이스, Claude 경로만 프롬프트 캐싱)
   4. 구조화된 정책 권고 반환
 
-프롬프트 캐싱:
+프롬프트 캐싱(Claude 경로만):
   - 시스템 프롬프트 + 전체 지식베이스에 cache_control 적용
   - 동일 지식베이스로 반복 호출 시 캐시 히트 → 비용·속도 최적화
+  - Meta(OpenAI 호환)는 캐시 파라미터를 검증한 적이 없어 보내지 않는다 —
+    검증 안 된 파라미터를 보내면 관측이 아니라 추측이다(aegiron_model과 같은 약속).
+
+★ 누가 썼는지를 돌려준다 ★ 응답의 llm_provider·llm_model이 그 증거다.
+Meta가 죽고 Claude가 살렸으면 그렇게 적는다 — 폴백을 숨기고 Meta 성과를
+주장하지 않는다.
 """
 from __future__ import annotations
 import os
 from .knowledge_base import retrieve, get_all_as_text
 from .decision_tree import classify_alert_level, get_priority_actions
+from . import meta_api as _meta
+
+_CLAUDE_MODEL = "claude-sonnet-4-6"
+# Claude 경로와 같은 출력 상한 — 경로를 바꿨다고 분량이 바뀌면 안 된다.
+_META_MAX_TOKENS = 1200
+_META_TIMEOUT_SEC = 60
 
 SYSTEM_PROMPT = """당신은 대한민국 감염병 방역 정책 전문가입니다.
 
@@ -37,22 +50,107 @@ SYSTEM_PROMPT = """당신은 대한민국 감염병 방역 정책 전문가입�
 - 수치 근거 포함"""
 
 
+def _require_local() -> bool:
+    """주권 전용 모드 — aegiron_model._require_local과 같은 읽기."""
+    return os.environ.get("AEGIRON_REQUIRE_LOCAL", "off").lower() in ("on", "1", "true")
+
+
+def _call_meta(system_text: str, user_text: str) -> tuple[str, dict]:
+    """Meta Model API(OpenAI 호환) 1회 호출. (본문, 정규화 사용량).
+
+    실패는 예외로 — 호출자가 Claude 폴백을 탄다. 성공·실패 모두 능력 장부에
+    남긴다(추출 경로 aegiron_model._meta_attempt와 같은 약속)."""
+    import requests
+
+    key = _meta.meta_key()
+    base = _meta.base_url()
+    if _require_local() and not _meta.is_host_sovereign(base):
+        raise RuntimeError(
+            f"주권 경로만 허용(AEGIRON_REQUIRE_LOCAL=on) — Meta 호스팅({base}) 차단")
+    resp = requests.post(
+        _meta.chat_url(),
+        headers={"Authorization": f"Bearer {key}",
+                 "Content-Type": "application/json"},
+        json={
+            "model": _meta.model(),
+            "messages": [
+                {"role": "system", "content": system_text},
+                {"role": "user", "content": user_text},
+            ],
+            "max_tokens": _META_MAX_TOKENS,
+        },
+        timeout=_META_TIMEOUT_SEC,
+    )
+    try:
+        resp.raise_for_status()
+        body = resp.json()
+        choice = body["choices"][0]
+        content = (choice.get("message") or {}).get("content")
+        if not isinstance(content, str) or not content.strip():
+            raise RuntimeError("Meta 응답 본문 없음(HTTP 200이어도 성공이 아니다)")
+        usage = body.get("usage") if isinstance(body, dict) else None
+        usage = usage if isinstance(usage, dict) else {}
+        _meta.record_layer_call(base, ok=True)
+        return content.strip(), {
+            "input_tokens": usage.get("prompt_tokens", 0),
+            "output_tokens": usage.get("completion_tokens", 0),
+            "cache_creation_tokens": 0,
+            "cache_read_tokens": 0,
+        }
+    except Exception as e:
+        _meta.record_layer_call(base, ok=False, error=f"{type(e).__name__}: {e}")
+        raise
+
+
+def _call_claude(system_text: str, user_text: str, key: str,
+                 use_cache: bool) -> tuple[str, dict, bool]:
+    """Claude 1회 호출. (본문, 사용량, 캐시 히트 여부)."""
+    import anthropic
+    client = anthropic.Anthropic(api_key=key)
+
+    system_blocks: list = [{"type": "text", "text": system_text}]
+    if use_cache:
+        system_blocks[0]["cache_control"] = {"type": "ephemeral"}
+
+    response = client.messages.create(
+        model=_CLAUDE_MODEL,
+        max_tokens=1200,
+        system=system_blocks,
+        messages=[{"role": "user", "content": user_text}],
+    )
+    llm_text = "".join(
+        block.text for block in response.content if block.type == "text"
+    ).strip()
+    usage = response.usage
+    cache_stats = {
+        "input_tokens": usage.input_tokens,
+        "output_tokens": usage.output_tokens,
+        "cache_creation_tokens": getattr(usage, "cache_creation_input_tokens", 0),
+        "cache_read_tokens": getattr(usage, "cache_read_input_tokens", 0),
+    }
+    return llm_text, cache_stats, cache_stats["cache_read_tokens"] > 0
+
+
 def run_ai_inference(
     situation: dict,
     api_key: str | None = None,
     use_cache: bool = True,
 ) -> dict:
     """
-    7단계 상황 데이터 → Claude 통합 정책 추론.
+    7단계 상황 데이터 → 통합 정책 추론(Meta 우선·Claude 폴백).
 
     situation 키:
       rt, threat, origin_nm, origin_note, arrival_day, detect_lead,
       civic_lead, pz_top_prob, pz_top_cell, levers,
       saved_lives, deaths, peak_infected, hosp_overflow_days
+
+    api_key는 Claude 키(하위 호환) — Meta 키는 환경변수(META_MODEL_API_KEY
+    또는 MODEL_API_KEY)에서만 읽는다(meta_api 규약).
     """
-    key = api_key or os.environ.get("ANTHROPIC_API_KEY")
-    if not key:
-        raise ValueError("ANTHROPIC_API_KEY 환경변수 또는 api_key 파라미터 필요")
+    claude_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+    meta_key = _meta.meta_key()
+    if not meta_key and not claude_key:
+        raise ValueError("META_MODEL_API_KEY(또는 MODEL_API_KEY)·ANTHROPIC_API_KEY가 모두 없다")
 
     # ── Step 1: 의사결정 트리 ────────────────────────────────
     rt = situation.get("rt", 1.0)
@@ -79,11 +177,9 @@ def run_ai_inference(
         f"[{doc['title']}]\n{doc['content'].strip()}" for doc in rag_docs
     )
 
-    # ── Step 3: Claude API 호출 (프롬프트 캐싱) ──────────────
-    import anthropic
-    client = anthropic.Anthropic(api_key=key)
-
+    # ── Step 3: LLM 호출 — Meta 우선·Claude 폴백 ──────────
     knowledge_text = get_all_as_text()
+    system_text = SYSTEM_PROMPT + "\n\n【한국 방역 지식베이스】\n" + knowledge_text
 
     user_content = f"""다음은 역병예보 통합 관제센터의 7단계 추론 결과입니다.
 
@@ -111,42 +207,41 @@ def run_ai_inference(
 
 제목 없이 1~4 번호만."""
 
-    # 시스템 프롬프트 + 지식베이스에 캐시 적용
-    system_blocks: list = [
-        {
-            "type": "text",
-            "text": SYSTEM_PROMPT + "\n\n【한국 방역 지식베이스】\n" + knowledge_text,
-        }
-    ]
-    if use_cache:
-        system_blocks[0]["cache_control"] = {"type": "ephemeral"}
-
-    response = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=1200,
-        system=system_blocks,
-        messages=[{"role": "user", "content": user_content}],
-    )
-
-    llm_text = "".join(
-        block.text for block in response.content if block.type == "text"
-    ).strip()
-
-    # 캐시 사용 통계
-    usage = response.usage
-    cache_stats = {
-        "input_tokens": usage.input_tokens,
-        "output_tokens": usage.output_tokens,
-        "cache_creation_tokens": getattr(usage, "cache_creation_input_tokens", 0),
-        "cache_read_tokens": getattr(usage, "cache_read_input_tokens", 0),
-    }
-    cache_hit = cache_stats["cache_read_tokens"] > 0
+    # ★ Meta가 먼저 쓰고, 죽으면 Claude가 잇는다 ★ 누가 썼는지를
+    # llm_provider·llm_model에 남긴다. Meta 실패 사유(meta_error)도 숨기지
+    # 않는다 — 폴백이 일어난 줄 모르면 다음 장애 때 같은 데서 맞는다.
+    meta_error: str | None = None
+    if meta_key:
+        try:
+            llm_text, usage = _call_meta(system_text, user_content)
+            return {
+                "alert_level": alert_level,
+                "decision_tree": tree_result,
+                "rag_documents_used": [d["title"] for d in rag_docs],
+                "llm_analysis": llm_text,
+                "llm_provider": "meta_model_api",
+                "llm_model": _meta.model(),
+                "meta_error": None,
+                "cache_hit": False,
+                "usage": usage,
+            }
+        except Exception as e:
+            meta_error = f"{type(e).__name__}: {e}"
+    if not claude_key:
+        # Meta 키만 있고 Meta가 죽은 경우 — Claude 폴백이 없어 그대로 터진다.
+        # main.py가 decision_tree_fallback으로 받아 트리 결과는 살린다.
+        raise RuntimeError(f"Meta 호출 실패·Claude 키 없음 — {meta_error}")
+    llm_text, cache_stats, cache_hit = _call_claude(
+        system_text, user_content, claude_key, use_cache)
 
     return {
         "alert_level": alert_level,
         "decision_tree": tree_result,
         "rag_documents_used": [d["title"] for d in rag_docs],
         "llm_analysis": llm_text,
+        "llm_provider": "anthropic",
+        "llm_model": _CLAUDE_MODEL,
+        "meta_error": meta_error,
         "cache_hit": cache_hit,
         "usage": cache_stats,
     }

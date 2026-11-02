@@ -2377,7 +2377,7 @@ def ai_infer(req: AIInferRequest):
     7단계 통합 AI 역학 추론.
     1. 의사결정 트리 → 즉시 권고 (LLM 없이)
     2. RAG → 한국 방역 가이드라인 검색
-    3. Claude API → 통합 정책 권고 (프롬프트 캐싱)
+    3. Meta Model API 우선·Claude 폴백 → 통합 정책 권고 (Claude 경로만 캐싱)
     API 키 없이도 의사결정 트리 결과는 반환됨.
     """
     if req.threat not in ("flu", "novel", "severe"):
@@ -2403,12 +2403,15 @@ def ai_infer(req: AIInferRequest):
         arrival_day=req.arrival_day, saved_lives=req.saved_lives, threat=req.threat,
     )
 
+    # ★ Meta 우선·Claude 폴백(2026-11-03) ★ req.api_key는 Claude 키(하위 호환),
+    # Meta 키는 환경변수에서만 읽는다(meta_api 규약 — ai_inference가 직접 본다).
+    from algorithms import meta_api as _meta
     key = req.api_key or os.environ.get("ANTHROPIC_API_KEY")
-    if not key:
+    if not key and not _meta.meta_key():
         return {
             "mode": "decision_tree_only", "alert_level": alert_level,
             "decision_tree": tree_result, "llm_analysis": None,
-            "note": "ANTHROPIC_API_KEY 없음 — 의사결정 트리 결과만 반환",
+            "note": "META_MODEL_API_KEY·ANTHROPIC_API_KEY 없음 — 의사결정 트리 결과만 반환",
         }
 
     try:

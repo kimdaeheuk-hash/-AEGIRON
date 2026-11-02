@@ -25,10 +25,23 @@ interface InferResponse {
   alert_level: string;
   decision_tree: DecisionTree;
   llm_analysis: string | null;
+  /** 누가 썼는지 — meta_model_api | anthropic. 없으면(옛 서버) Claude로 본다. */
+  llm_provider?: string;
+  llm_model?: string;
+  meta_error?: string | null;
   note?: string;
   error?: string;
   cache_hit?: boolean;
   usage?: { input_tokens: number; output_tokens: number; cache_creation_tokens: number; cache_read_tokens: number };
+}
+
+/** 제공자 표시 — 폴백이면 그 사실도 숨기지 않는다. */
+function providerLabel(r: InferResponse): string {
+  if (r.llm_provider === 'meta_model_api') return `Meta ${r.llm_model ?? ''}`.trim();
+  if (r.llm_provider === 'anthropic') {
+    return r.meta_error ? 'Claude (Meta 실패 후 폴백)' : 'Claude';
+  }
+  return 'Claude';
 }
 
 const ALERT_COLOR: Record<string, string> = {
@@ -113,7 +126,7 @@ export default function Stage7AI() {
     <div style={{ animation: 'fade .25s' }}>
       <div className="ptitle">AI 통합 역학 추론</div>
       <div className="psub">
-        7단계 전체 상황을 FastAPI 추론 엔진(의사결정 트리 + RAG + Claude)으로 종합 분석.
+        7단계 전체 상황을 FastAPI 추론 엔진(의사결정 트리 + RAG + Meta Model API 우선)으로 종합 분석.
       </div>
 
       {/* 요약 카드 */}
@@ -149,7 +162,7 @@ export default function Stage7AI() {
 
         {status === 'idle' && (
           <div style={{ color: 'var(--muted2)', fontFamily: 'var(--mono)', fontSize: 11.5, textAlign: 'center', padding: '18px 0', lineHeight: 1.6 }}>
-            7단계 전체 신호·예측·대응 효과를 근거로<br />의사결정 트리 + Claude RAG가 통합 정책 권고를 추론합니다.
+            7단계 전체 신호·예측·대응 효과를 근거로<br />의사결정 트리 + RAG + LLM(Meta 우선·Claude 폴백)이 통합 정책 권고를 추론합니다.
           </div>
         )}
 
@@ -173,7 +186,7 @@ export default function Stage7AI() {
                 {result.alert_level}
               </div>
               <div style={{ color: 'var(--muted)', fontFamily: 'var(--mono)', fontSize: 11 }}>
-                {result.mode === 'full_rag_llm' ? '✓ RAG + Claude 분석 완료' :
+                {result.mode === 'full_rag_llm' ? `✓ RAG + ${providerLabel(result)} 분석 완료` :
                  result.mode === 'decision_tree_only' ? '의사결정 트리 (API 키 없음)' :
                  '의사결정 트리 (LLM 오류 시 대체)'}
               </div>
@@ -225,10 +238,10 @@ export default function Stage7AI() {
               </div>
             )}
 
-            {/* Claude LLM 분석 */}
+            {/* LLM 분석 — 누가 썼는지 표시 */}
             {result.llm_analysis ? (
               <div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'var(--mono)', marginBottom: 8 }}>Claude 통합 분석</div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'var(--mono)', marginBottom: 8 }}>{providerLabel(result)} 통합 분석</div>
                 <div style={{ fontSize: 13, lineHeight: 1.75, whiteSpace: 'pre-wrap', color: '#dfe6ef' }}>
                   {result.llm_analysis}
                 </div>
