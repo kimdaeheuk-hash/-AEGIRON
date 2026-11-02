@@ -26,8 +26,11 @@ from .decision_tree import classify_alert_level, get_priority_actions
 from . import meta_api as _meta
 
 _CLAUDE_MODEL = "claude-sonnet-4-6"
-# Claude 경로와 같은 출력 상한 — 경로를 바꿨다고 분량이 바뀌면 안 된다.
-_META_MAX_TOKENS = 1200
+# ★ Meta 상한 8000(2026-11-03) ★ muse-spark-1.3은 추론 모델이라 max_tokens를
+# 생각+답이 나눠 쓴다. 직접 호출 실측: "Say hello."에 추론 354 + 답 18 토큰.
+# 1200으론 실전 프롬프트의 생각이 상한을 다 먹어 답이 null로 온다(HTTP 200).
+# 답변 분량은 프롬프트 지시(항목당 2-3문장)가 잡으므로 상한을 넉넉히 둔다.
+_META_MAX_TOKENS = 8000
 _META_TIMEOUT_SEC = 60
 
 # ★ 합법 사용 고지(2026-11-03) ★ Meta 콘텐츠 필터가 역학 정책 프롬프트를
@@ -116,12 +119,17 @@ def _call_meta(system_text: str, user_text: str) -> tuple[str, dict]:
             raise RuntimeError("Meta 응답 본문 없음(HTTP 200이어도 성공이 아니다)")
         usage = body.get("usage") if isinstance(body, dict) else None
         usage = usage if isinstance(usage, dict) else {}
+        details = usage.get("completion_tokens_details")
+        details = details if isinstance(details, dict) else {}
         _meta.record_layer_call(base, ok=True)
         return content.strip(), {
             "input_tokens": usage.get("prompt_tokens", 0),
             "output_tokens": usage.get("completion_tokens", 0),
             "cache_creation_tokens": 0,
             "cache_read_tokens": 0,
+            # ★ 생각 토큰(2026-11-03) ★ 추론 모델은 답 외에 생각을 쓰는데
+            # 그게 과금·지연의 본체다("hello"에 354). 안 보이면 모른다.
+            "reasoning_tokens": details.get("reasoning_tokens", 0),
         }
     except Exception as e:
         _meta.record_layer_call(base, ok=False, error=f"{type(e).__name__}: {e}")

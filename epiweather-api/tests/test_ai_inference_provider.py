@@ -72,18 +72,22 @@ def test_meta_first_when_key_present(monkeypatch):
     _reset(monkeypatch)
     monkeypatch.setenv(meta_api.KEY_ENV, "meta-key")
     with patch("requests.post", return_value=_meta_resp(
-            usage={"prompt_tokens": 10, "completion_tokens": 5})) as m:
+            usage={"prompt_tokens": 10, "completion_tokens": 372,
+                   "completion_tokens_details": {"reasoning_tokens": 354}})) as m:
         out = ai.run_ai_inference(_situation())
     assert out["llm_provider"] == "meta_model_api"
     assert out["llm_model"] == "muse-spark-1.3"
     assert out["meta_error"] is None
     assert out["cache_hit"] is False
     assert out["usage"]["input_tokens"] == 10
-    assert out["usage"]["output_tokens"] == 5
+    assert out["usage"]["output_tokens"] == 372
+    assert out["usage"]["reasoning_tokens"] == 354
     assert "1) 평가" in out["llm_analysis"]
     url = m.call_args.args[0]
     assert url == "https://api.meta.ai/v1/chat/completions"
     assert m.call_args.kwargs["json"]["model"] == "muse-spark-1.3"
+    # ★ 추론 모델은 생각+답이 상한을 나눈다 — 1200으론 답이 null로 온다.
+    assert m.call_args.kwargs["json"]["max_tokens"] == 8000
 
 
 def test_meta_failure_falls_back_to_claude(monkeypatch):
