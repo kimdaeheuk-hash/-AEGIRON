@@ -122,6 +122,24 @@ def require_api_key(
 _auth = [Depends(require_api_key)]
 
 
+# ★ 임시 진단 끝점(2026-11-03, 진단 후 즉시 삭제) ★ 401이 "저장값 불일치"인지
+# "다른 환경·서비스 응답"인지를 가린다. 키 값 자체는 절대 안 내보내고
+# SHA-256 앞 12자리(지문)만 낸다 — 지문으론 키를 복원할 수 없다.
+@app.get("/api/debug/key-fingerprint", tags=["임시진단"])
+def debug_key_fingerprint():
+    import hashlib
+    keys = _valid_api_keys()
+    fps = sorted(hashlib.sha256(k.encode()).hexdigest()[:12] for k in keys)
+    return {
+        "service": os.environ.get("RAILWAY_SERVICE_NAME"),
+        "environment": os.environ.get("RAILWAY_ENVIRONMENT_NAME"),
+        "deployment": os.environ.get("RAILWAY_DEPLOYMENT_ID"),
+        "keys_count": len(keys),
+        "fingerprints": fps,
+        "note": "임시 진단용. 확인 후 삭제한다.",
+    }
+
+
 # ── 대시보드 WebSocket ────────────────────────────────────────
 # 기존 30초 폴링 대신 실시간 푸시. 수집기(스케줄러)가 새 신호를 쌓을 때마다
 # 연결된 클라이언트에 최신 /api/dashboard 페이로드를 브로드캐스트한다.
