@@ -21,7 +21,8 @@ import db
 from .gai import compute_gai
 from .negative_space import scan_negative_space
 from .unexplained import scan_unexplained
-from .signal_metrics import (ALERT_MIN_COUNT, COUNT_MIN_SIGMA, IMPLAUSIBLE_JUMP_CAP, cap_count_noise_score,
+from .signal_metrics import (ALERT_MIN_COUNT, COUNT_MIN_SIGMA, IMPLAUSIBLE_JUMP_CAP, SEASONAL_ALERT_CAP,
+                             cap_count_noise_score, seasonal_cap_reason,
                              approx_baseline, count_noise_reason, count_significance, implausible_jump,
                              metric_unit, is_count_noise_metric, meets_alert_minimum,
                              meets_count_significance)
@@ -506,6 +507,14 @@ def collect_candidate_alerts(today: str, negative_space: dict | None = None) -> 
                 how += (f" → 경보 점수 {capped_to}점으로 제한(평소·직전 값의 {jump:.1f}배 — 표본 평균은 구성 변화·이상치에 "
                         "민감해 확인 전엔 단독으로 high 에 못 닿음. 진짜 급증이면 다른 층이 같이 올라 종합이 말함)")
                 score = capped_to
+            # ★ 계절 감시 합계는 경보 점수만 79 로 ★ (2026-10-27, 캡틴 지시) 일본 IDWR 합계의 가을 독감 상승이
+            # high 로 폰까지 갔다(10-19). 전년 동기와 견주지 않는 지수라 계절과 이상을 혼자서는 못 가른다.
+            seasonal = seasonal_cap_reason(m["metric"])
+            if seasonal and score > SEASONAL_ALERT_CAP:
+                print(f"  🧢 [alerts] {m['metric']} — 계절 감시 합계 — 이상도 {score}점을 경보 점수 "
+                      f"{SEASONAL_ALERT_CAP}점으로 제한(지수에는 그대로 반영됨)", flush=True)
+                how += f" → 경보 점수 {SEASONAL_ALERT_CAP}점으로 제한({seasonal})"
+                score = SEASONAL_ALERT_CAP
             evidence = [obs, how, f"{layer['label']} 계층 가중치 {layer['weight']}"]
             candidates.append({
                 "source": f"gai:{layer_key}.{m['metric']}",
@@ -646,8 +655,10 @@ def _carry_forward_undetermined(today: str, yesterday_rows: list[dict], prefixes
     made = 0
     for r in yesterday_rows:
         src = r["source"]
+        # 어제 이미 내려간(suppressed) 행은 잇지 않는다 — 판정 못 한 주기는 '마지막으로 안 상태'를 지키는 것이지
+        # 이미 내린 판정을 되돌리는 게 아니다(2026-10-30 11:05: 전날 13:01 에 내려간 페스트 오탐이 되살아났다).
         if (not src.startswith(tuple(prefixes)) or src in live_sources or src in have
-                or not _within_carry_age(r.get("updated_at"), now)):
+                or r.get("suppressed") or not _within_carry_age(r.get("updated_at"), now)):
             continue
         ev = list(r.get("evidence") or [])
         if not is_stale_marked(ev):
@@ -718,9 +729,13 @@ def refresh_alerts(today: str | None = None) -> dict:
     # 후보가 없는 것은 값이 내려간 것이 아니라 못 본 것이다. 그 행은 마지막으로 안 상태 그대로
     # 두고(= 새로 주장도, 지우지도 않는다) 따로 센다. 수집 실패가 진짜 경보를 조용히 내리는
     # 경로를 막는다(09-30 BLZ·AZE 가설).
+    # ★ 붙드는 건 직전 주기에 보이던 행뿐이다 (2026-10-30) ★ 이미 내려간 행(suppressed)까지 붙들면 판정 못 한
+    # 주기가 그 행을 되살린다 — 10-29 13:01 에 내려간 페스트 오탐(장난감 기사)이 10-30 11:05 Google 차단 주기에
+    # `⏸ 판정 안 함` 으로 두 시간 다시 떴다. '마지막으로 안 상태'는 '내려감'이다.
+    # 대가: 등급 캡에 밀려 숨겨져 있던 행은 판정 못 한 주기에 '내림'으로 센다(어차피 화면에 없던 행이다).
     def _held(r: dict) -> bool:
         return (bool(undetermined_prefixes) and r["source"] not in live_sources
-                and r["source"].startswith(tuple(undetermined_prefixes)))
+                and r["source"].startswith(tuple(undetermined_prefixes)) and not r.get("suppressed"))
 
     held_rows = [r for r in rows if _held(r)]
     for r in held_rows:

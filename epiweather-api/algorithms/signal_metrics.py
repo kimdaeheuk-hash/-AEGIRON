@@ -261,6 +261,31 @@ def implausible_jump(metric_id: str, latest: float | None, baseline_mean: float 
     return ratio if ratio > limit else None
 
 
+# ── 계절 감시 합계의 경보 상한 (2026-10-27, 캡틴 지시 "일본 계절 상한 79로 걸어") ─────────────
+#
+# ★ 관측 (2026-10-19 17:28 UTC) ★ 폰에 high 가 나갔다:
+#
+#     공식신호 · japan_idwr_total 82.4점(관측값 67357(평소 약 40,534))
+#
+# 관측값은 실측(IDWR 2026년 40주, 독감 전국 42,320건 포함 11종 합)이고 인공물이 아니다. 다만 이 지수는
+# **전년 동기와 견주지 않는다** — 평소는 최근 몇 주의 평균이라, 해마다 오는 가을·겨울 독감 상승이 그대로
+# '평소의 1.66배'로 읽힌다. 계절성인지 이상인지 이 층 혼자서는 가르지 못한다. 그래서 무역·사회 카운트·NWSS
+# 와 같은 원칙으로 **경보 점수만** 79(medium) 로 제한한다 — 지수(GAI)는 측정값이라 그대로 두고, 깎은 사실은
+# 로그(`🧢`)와 근거에 남는다. 진짜 이상 유행이면 뉴스·공식 발표 층이 같이 올라 종합(gai:overall)이 말한다.
+# 막는 목록이지 허용 목록이 아니다 — 늘릴 때는 '해마다 오는 계절 상승이 high 로 폰까지 갔다'는 관측을 먼저 본다.
+# 되돌리려면 표에서 한 줄 뺀다. 대가: 일본 감시 합계가 계절을 넘어 진짜로 치솟아도 이 지표 혼자서는 폰을 안 울린다.
+SEASONAL_ALERT_CAP = 79.0
+SEASONAL_ALERT_METRICS: dict[str, str] = {
+    "japan_idwr_total": "계절 감시 합계 — 전년 동기와 견주지 않아 해마다 오는 가을·겨울 독감 상승도 "
+                        "평소 대비 급증으로 읽힘. 다른 층과 겹칠 때 등급이 올라감",
+}
+
+
+def seasonal_cap_reason(metric_id: str) -> str | None:
+    """계절 상한 대상이면 깎는 이유, 아니면 None."""
+    return SEASONAL_ALERT_METRICS.get(metric_id)
+
+
 def cap_count_noise_score(metric_id: str, score: float) -> float:
     """대상 카운트 지표의 **경보 점수**를 상한으로 깎는다. 대상이 아니면 그대로."""
     if is_count_noise_metric(metric_id):
