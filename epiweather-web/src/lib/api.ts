@@ -1,31 +1,12 @@
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 export const API_BASE = BASE;
 
-// ⚠️ 2026-08-19: 이 키가 지키는 대상이 바뀌었다. 아래 전제를 다시 읽을 것.
-//
-// 원래 의도는 "빌드타임에 공개되는 값이니 진짜 비밀이 아니라, 신뢰 클라이언트가
-// 봇/스크래퍼와 구분되는 최소 게이트"였다. 쓰기 몇 개만 막던 시절엔 맞는 말이었다.
-//
-// 그런데 이제 같은 키가 **돈이 나가는 엔드포인트**도 지킨다 —
-// /api/global-watch(Perplexity+Tavily+Claude), /api/threats/semantic(Claude).
-// NEXT_PUBLIC_* 는 브라우저 번들에 그대로 박히므로, Vercel에
-// NEXT_PUBLIC_API_KEY를 채우는 순간 그 키는 전 세계에 공개되고 누구든
-// 유료 엔드포인트를 무한히 호출할 수 있다. 오늘 잠근 게 그대로 풀린다.
-//
-// 현재 상태: Vercel 운영에 이 값이 **비어 있다**(배포 번들 9개를 직접 검사해 확인,
-// 2026-08-19). 그래서 지금은 새지 않는다. 채우지 말 것.
-//
-// 대시보드 쓰기 기능이 운영에서 필요해지면 둘 중 하나로 간다:
-//   ① Next.js 서버 라우트(route handler)에서 키를 서버측에 두고 프록시한다. ← 권장
-//   ② 쓰기 전용 저권한 키를 따로 발급한다(EPIWEATHER_API_KEYS 라벨 분리).
-//      유료 읽기 엔드포인트에는 절대 안 통하는 키여야 한다.
-export function apiWriteHeaders(json = true): HeadersInit {
-  const headers: Record<string, string> = {};
-  if (json) headers['Content-Type'] = 'application/json';
-  const key = process.env.NEXT_PUBLIC_API_KEY;
-  if (key) headers['X-API-Key'] = key;
-  return headers;
-}
+// ✅ 2026-11-02 해결: 인증 필요 호출은 서버 라우트 프록시로 전환됐다.
+// 예전엔 X-API-Key를 NEXT_PUBLIC_API_KEY로 브라우저 번들에 박았는데, 그 값이
+// 전 세계에 공개돼 유료 엔드포인트가 무한 호출될 수 있었다(2026-08-19 발견).
+// 이제 브라우저는 동일 출처 /api/* 만 부르고, 키는 서버 환경변수
+// EPIWEATHER_API_KEY에만 둔다. 프록시 본체는 src/lib/server-api.ts + 각
+// src/app/api/**/route.ts. 클라이언트 코드에서 X-API-Key를 직접 다루지 말 것.
 
 // ── 공통 타입 ────────────────────────────────────────────────
 export interface Country {
@@ -297,7 +278,7 @@ export async function fetchDailyBrief(lang: 'ko' | 'en' = 'ko', format?: string)
 }
 
 // ── 기밀 프로그램(HEIMDALL / VALHALLA) — 실측 결과 ──────────────────
-// 두 엔드포인트 모두 인증 필수(apiWriteHeaders가 X-API-Key 부착). 응답에
+// 두 함수 모두 서버 프록시 경유(키는 서버에만 존재). 응답에
 // classification(program_code·담당센터·보안등급)이 붙는다.
 export interface Classification {
   program_code: string; program_name_ko: string; stage: number;
@@ -376,8 +357,8 @@ export interface GenomeScreenOptions {
 
 export async function fetchGenomeScreen(sequence: string, opts: GenomeScreenOptions = {}): Promise<GenomeScreen> {
   const { referenceSequences, useEvo2, useMsa, organismDomain } = opts;
-  const res = await fetch(`${BASE}/api/synthetic-threat/genome-screen`, {
-    method: 'POST', headers: apiWriteHeaders(),
+  const res = await fetch('/api/synthetic-threat/genome-screen', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       sequence,
       reference_sequences: referenceSequences?.length ? referenceSequences : undefined,
@@ -422,8 +403,8 @@ export interface BiodefenseReadiness {
 }
 
 export async function fetchBiodefenseReadiness(): Promise<BiodefenseReadiness> {
-  const res = await fetch(`${BASE}/api/biodefense/readiness`, {
-    method: 'POST', headers: apiWriteHeaders(), body: JSON.stringify({}),
+  const res = await fetch('/api/biodefense/readiness', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}),
   });
   if (!res.ok) throw new Error(`API ${res.status}`);
   return res.json() as Promise<BiodefenseReadiness>;
@@ -450,16 +431,16 @@ export async function fetchStockpile(): Promise<CountermeasureItem[]> {
 }
 
 export async function createStockpileItem(item: CountermeasureCreateInput): Promise<CountermeasureItem> {
-  const res = await fetch(`${BASE}/api/biodefense/stockpile`, {
-    method: 'POST', headers: apiWriteHeaders(), body: JSON.stringify(item),
+  const res = await fetch('/api/biodefense/stockpile', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(item),
   });
   if (!res.ok) throw new Error(`API ${res.status}`);
   return res.json() as Promise<CountermeasureItem>;
 }
 
 export async function deleteStockpileItem(id: number): Promise<void> {
-  const res = await fetch(`${BASE}/api/biodefense/stockpile/${id}`, {
-    method: 'DELETE', headers: apiWriteHeaders(),
+  const res = await fetch(`/api/biodefense/stockpile/${id}`, {
+    method: 'DELETE', headers: { 'Content-Type': 'application/json' },
   });
   if (!res.ok) throw new Error(`API ${res.status}`);
 }

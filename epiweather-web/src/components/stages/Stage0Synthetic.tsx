@@ -7,7 +7,6 @@ import {
   fetchNCBI, fetchPubMed, fetchBioRxiv, fetchWHO,
   NCBIResult, PubMedPaper, BioRxivPaper, WHOItem,
 } from '@/lib/syntheticThreat';
-import { API_BASE as API, apiWriteHeaders } from '@/lib/api';
 import HeimdallPanel from './HeimdallPanel';
 
 interface ScanResult {
@@ -77,8 +76,8 @@ export default function Stage0Synthetic() {
         인텔: { PubMed건수: result.pubmed.length, 점수: result.intelScore },
         접근번호: result.ncbi.acc,
       };
-      const res = await fetch(`${API}/api/synthetic-threat/analyze`, {
-        method: 'POST', headers: apiWriteHeaders(),
+      const res = await fetch('/api/synthetic-threat/analyze', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ summary }),
       });
       if (!res.ok) throw new Error(`서버 오류 (${res.status})`);

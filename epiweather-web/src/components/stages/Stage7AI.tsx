@@ -2,7 +2,6 @@
 import { useState } from 'react';
 import { useStore } from '@/lib/store';
 import { THREAT, CIVIC, currentRt } from '@/lib/algorithms';
-import { API_BASE as API, apiWriteHeaders } from '@/lib/api';
 
 interface PriorityAction {
   priority: number;
@@ -93,9 +92,9 @@ export default function Stage7AI() {
     };
 
     try {
-      const res = await fetch(`${API}/api/ai/infer`, {
+      const res = await fetch('/api/ai/infer', {
         method: 'POST',
-        headers: apiWriteHeaders(),
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error(`서버 오류 (${res.status})`);
