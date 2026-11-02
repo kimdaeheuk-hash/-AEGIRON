@@ -4,6 +4,7 @@ from __future__ import annotations
 from unittest.mock import patch
 
 import algorithms.aegiron_model as am
+from algorithms import meta_api
 
 
 def _reset(monkeypatch):
@@ -17,6 +18,13 @@ def _reset(monkeypatch):
     monkeypatch.delenv(am._nvidia.ONPREM_BASE_ENV, raising=False)
     for env in am.NIM_API_KEY_ENVS:
         monkeypatch.delenv(env, raising=False)
+    # ★ main 임포트가 .env를 읽어들인다 ★ main을 먼저 임포트한 테스트와 같이
+    # 돌면 META 키가 환경에 남아 active_provider가 meta가 된다(순서 의존).
+    # '깨끗한 판'이라는 이 함수의 약속을 지키려면 Meta·폴백 키도 지운다.
+    for env in (am.META_FIRST_ENV, am.META_EXTRACT_ENV, meta_api.KEY_ENV,
+                meta_api.DOC_KEY_ENV, meta_api.BASE_URL_ENV, meta_api.MODEL_ENV,
+                "ANTHROPIC_API_KEY"):
+        monkeypatch.delenv(env, raising=False)
 
 
 def test_provider_status_falls_back_when_no_local(monkeypatch):
@@ -25,6 +33,17 @@ def test_provider_status_falls_back_when_no_local(monkeypatch):
     assert s["active_provider"] == "external_llm_fallback"
     assert s["local_model_configured"] is False
     assert s["local_model_loaded"] is False
+
+
+def test_provider_status_reports_meta_when_key_set(monkeypatch):
+    """Meta 키가 있으면 상태도 Meta 활성 — 상태와 추출 경로가 어긋나면
+    '/api/status는 Meta인데 실제는 Claude' 같은 거짓 표시가 된다."""
+    _reset(monkeypatch)
+    monkeypatch.setenv(meta_api.KEY_ENV, "meta-key")
+    s = am.provider_status()
+    assert s["active_provider"] == "meta_model_api"
+    assert s["meta_configured"] is True
+    assert s["meta_model"] == "muse-spark-1.3"
 
 
 def test_extract_uses_llm_fallback_and_tags_provider(monkeypatch):

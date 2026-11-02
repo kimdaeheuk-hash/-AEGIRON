@@ -29,10 +29,22 @@ interface InferResponse {
   llm_provider?: string;
   llm_model?: string;
   meta_error?: string | null;
+  /** 성공 캐시(2026-11-03) — 없으면(옛 서버) 시간 표시를 생략한다. */
+  cached?: boolean;
+  cached_at?: string | null;
+  situation_hash?: string;
   note?: string;
   error?: string;
   cache_hit?: boolean;
   usage?: { input_tokens: number; output_tokens: number; cache_creation_tokens: number; cache_read_tokens: number };
+}
+
+/** 분석 시점 표시 — 캐시 적중이면 몇 분 전 것인지 밝힌다. */
+function ageLabel(r: InferResponse): string {
+  if (!r.cached_at) return '';
+  const m = Math.max(0, Math.round((Date.now() - new Date(r.cached_at).getTime()) / 60000));
+  const when = m <= 0 ? '방금 분석' : `${m}분 전 분석`;
+  return ` · ${when}${r.cached ? '(캐시)' : ''}`;
 }
 
 /** 제공자 표시 — 폴백이면 그 사실도 숨기지 않는다. */
@@ -241,7 +253,7 @@ export default function Stage7AI() {
             {/* LLM 분석 — 누가 썼는지 표시 */}
             {result.llm_analysis ? (
               <div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'var(--mono)', marginBottom: 8 }}>{providerLabel(result)} 통합 분석</div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'var(--mono)', marginBottom: 8 }}>{providerLabel(result)} 통합 분석{ageLabel(result)}</div>
                 <div style={{ fontSize: 13, lineHeight: 1.75, whiteSpace: 'pre-wrap', color: '#dfe6ef' }}>
                   {result.llm_analysis}
                 </div>

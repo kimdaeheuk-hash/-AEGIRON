@@ -11,7 +11,7 @@ Next.js 프론트엔드(epiweather-web)와 연동 가능.
 Swagger UI: http://localhost:8000/docs
 """
 from __future__ import annotations
-import sys, os, json, secrets
+import sys, os, json, secrets, time, hashlib
 import asyncio
 import datetime as dt
 from pathlib import Path
@@ -122,6 +122,63 @@ def require_api_key(
 _auth = [Depends(require_api_key)]
 
 
+# ── 응답 캐시: 느린 것 두 가지 (2026-11-03) ──────────────────────
+# ① /api/ai/infer — Meta 추론 모델이 답 전에 수천 토큰을 생각한다(실측:
+#    실전 프롬프트에 생각 2793). 60~120초라 Vercel 무료 한도(60초)를 넘겨
+#    브라우저가 504로 죽는다. 같은 상황의 재요청은 저장된 답을 즉시 낸다.
+# ② /api/dashboard — 요청마다 7엔진 전체 재계산이라 화면이 무한 로딩처럼
+#    보인다. 데이터가 시간 단위로만 바뀌니 수 분짜리 스냅샷으로 낸다.
+#
+# 약속 3개. (1) 성공만 캐시한다 — 실패·폴백은 절대 안 남긴다. 같은 입력에
+# 같은 답이므로(결정적 입력→출력) 캐시가 답을 바꾸지 않는다. (2) 캐시임을
+# 숨기지 않는다 — cached/cached_at을 응답에 싣는다. (3) 프로세스 내
+# 딕셔너리다 — Dockerfile CMD에 --workers가 없어 1프로세스라 맞다.
+# 워커를 늘리면 공유 캐시(Redis 등)로 바꿔야 한다.
+_INFER_CACHE: dict[str, tuple[float, dict]] = {}
+_INFER_CACHE_TTL_SEC = 1800            # 30분 — 상황 입력이 바뀌면 해시가 달라져 새로 돈다
+_DASHBOARD_CACHE: dict = {"at": 0.0, "payload": None}
+_DASHBOARD_CACHE_TTL_SEC = 300         # 5분 — 수집 주기(1시간)보다 짧고 폴링(30초)보다 길다
+_INFER_CACHE_MAX_ENTRIES = 200         # 상한 — 넘치면 가장 오래된 것부터 버린다
+
+
+def _situation_hash(situation: dict) -> str:
+    """상황 사전의 정적 지문 — 키 순서가 달라도 같은 입력은 같은 해시."""
+    canonical = json.dumps(situation, sort_keys=True, ensure_ascii=True, default=str)
+    return hashlib.sha256(canonical.encode()).hexdigest()[:16]
+
+
+def _infer_cache_get(shash: str) -> dict | None:
+    hit = _INFER_CACHE.get(shash)
+    if hit is None:
+        return None
+    at, result = hit
+    if time.time() - at >= _INFER_CACHE_TTL_SEC:
+        _INFER_CACHE.pop(shash, None)
+        return None
+    return {**result, "cached": True}
+
+
+def _infer_cache_put(shash: str, result: dict) -> None:
+    while len(_INFER_CACHE) >= _INFER_CACHE_MAX_ENTRIES:
+        oldest = min(_INFER_CACHE.items(), key=lambda kv: kv[1][0])[0]
+        _INFER_CACHE.pop(oldest, None)
+    _INFER_CACHE[shash] = (time.time(), result)
+
+
+def _dashboard_cached(*, force_refresh: bool = False) -> dict:
+    """대시보드 스냅샷 — REST·WS 접속은 캐시, 수집 완료 브로드캐스트는 강제 갱신."""
+    now = time.time()
+    if (not force_refresh and _DASHBOARD_CACHE["payload"] is not None
+            and now - _DASHBOARD_CACHE["at"] < _DASHBOARD_CACHE_TTL_SEC):
+        payload = _DASHBOARD_CACHE["payload"]
+        return {**payload, "cached": True}
+    payload = _build_dashboard()
+    payload["cached"] = False
+    _DASHBOARD_CACHE["at"] = now
+    _DASHBOARD_CACHE["payload"] = payload
+    return payload
+
+
 # ── 대시보드 WebSocket ────────────────────────────────────────
 # 기존 30초 폴링 대신 실시간 푸시. 수집기(스케줄러)가 새 신호를 쌓을 때마다
 # 연결된 클라이언트에 최신 /api/dashboard 페이로드를 브로드캐스트한다.
@@ -135,7 +192,7 @@ async def ws_dashboard(websocket: WebSocket) -> None:
     try:
         # 연결 직후 최신 스냅샷을 바로 보내서, 다음 수집 주기까지 안 기다려도
         # 화면을 그릴 수 있게 함(REST 초기 로드와 동등한 경험).
-        await websocket.send_json(_build_dashboard())
+        await websocket.send_json(_dashboard_cached())
         while True:
             # 클라이언트가 보내는 메시지는 쓰지 않지만, 연결이 끊기면
             # WebSocketDisconnect가 여기서 발생하도록 계속 대기한다.
@@ -149,7 +206,7 @@ async def ws_dashboard(websocket: WebSocket) -> None:
 async def _broadcast_dashboard() -> None:
     if not _ws_clients:
         return
-    payload = _build_dashboard()
+    payload = _dashboard_cached(force_refresh=True)
     dead: list[WebSocket] = []
     for ws in list(_ws_clients):
         try:
@@ -2414,10 +2471,22 @@ def ai_infer(req: AIInferRequest):
             "note": "META_MODEL_API_KEY·ANTHROPIC_API_KEY 없음 — 의사결정 트리 결과만 반환",
         }
 
+    # ★ 성공 캐시(2026-11-03) ★ Meta 실측 60~120초라 캐시 없인 브라우저가
+    # 504로 죽는다. 같은 상황 해시면 저장된 답을 즉시 낸다. 실패·폴백은
+    # 절대 안 남긴다 — 일시 장애가 30분짜리 답이 되면 안 된다.
+    shash = _situation_hash(situation)
+    hit = _infer_cache_get(shash)
+    if hit is not None:
+        return hit
+
     try:
         from algorithms.ai_inference import run_ai_inference
         result = run_ai_inference(situation, api_key=key)
         result["mode"] = "full_rag_llm"
+        result["cached"] = False
+        result["cached_at"] = dt.datetime.now(dt.timezone.utc).isoformat()
+        result["situation_hash"] = shash
+        _infer_cache_put(shash, result)
         return result
     except Exception as e:
         return {
@@ -2955,7 +3024,7 @@ def _build_dashboard() -> dict:
 
 @app.get("/api/dashboard", tags=["대시보드"])
 def dashboard():
-    return _build_dashboard()
+    return _dashboard_cached()
 
 
 @app.post("/api/digital-twin/simulate", tags=["Phase3"], dependencies=_auth)
