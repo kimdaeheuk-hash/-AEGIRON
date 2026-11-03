@@ -169,7 +169,62 @@ def compute_region(region: tuple) -> dict:
         "watch_grade": True,                 # 경보 아님 — classify_tier와 절대 안 섞음
         "is_leading_indicator": True,
         "low_probability_high_impact": True,
+        "yamal_index": yamal_index(thaw, news),
     }
+
+
+# 야말형 재발 조건 (2016 시베리아 탄저 실증: 폭염 + 해빙 + 순록 폐사 + 보도).
+# 각 조건은 기존 조각 재사용(신규 비용 0). 점수는 충족률 — 위험 확률이 아니다.
+YAMAL_HEAT_C = 2.0       # 기록적 폭염 프록시(평년 대비 편차)
+YAMAL_THAW_DAYS = 20     # 30일 중 해빙일
+YAMAL_NEWS_SIGNAL = 50.0  # 뉴스 관찰 신호
+
+
+def yamal_index(thaw: dict, news: dict) -> dict:
+    """야말형 재발 조건 충족도 0~100. 모르는 조건은 분모에서 뺀다."""
+    met_state: list[tuple[str, bool]] = []
+    unknown: list[str] = []
+    if thaw.get("data_available"):
+        met_state.append(("heat_anomaly", (thaw.get("heat_trend_c") or 0) >= YAMAL_HEAT_C))
+        met_state.append(("thaw_days", (thaw.get("thaw_days_30d") or 0) >= YAMAL_THAW_DAYS))
+    else:
+        unknown.extend(["heat_anomaly", "thaw_days"])
+    signal = news.get("signal")
+    if signal is None:
+        unknown.append("dieoff_news")
+    else:
+        met_state.append(("dieoff_news", signal >= YAMAL_NEWS_SIGNAL))
+    met = [name for name, ok in met_state if ok]
+    known = len(met_state)
+    return {
+        "score": round(100 * len(met) / known, 1) if known else None,
+        "conditions_met": met,
+        "conditions_unknown": unknown,
+        "thresholds": {"heat_anomaly_c": YAMAL_HEAT_C,
+                       "thaw_days_30d": YAMAL_THAW_DAYS,
+                       "dieoff_news_signal": YAMAL_NEWS_SIGNAL},
+        "basis": "2016 야말 탄저(폭염+해빙+순록폐사) 재발 조건 충족률. 점수는 위험 확률이 아니다.",
+    }
+
+
+def _h5n1_cross(regions: list[dict], aux: dict) -> dict:
+    """남극 뉴스 신호 + WOAH H5N1 교차. 둘 다 있으면 주목, 하나면 관찰 유지."""
+    ant = next((r for r in regions if r.get("region") == "antarctic_peninsula"), {})
+    news_sig = (ant.get("news") or {}).get("signal")
+    hits = aux.get("woah_h5n1_hits")
+    return {"antarctic_news_signal": news_sig, "woah_h5n1_hits": hits,
+            "both_present": news_sig is not None and hits is not None,
+            "note": "남극 뉴스 + WOAH H5N1 교차. 둘 다 있으면 주목, 하나면 관찰 유지."}
+
+
+def _duplicate_groups(regions: list[dict]) -> list[list[str]]:
+    """같은 피드를 받은 지역 묶음 — 되돌림 대응. 점수 계산은 안 건드리고 표시만."""
+    groups: list[tuple] = []
+    for r in regions:
+        g = tuple((r.get("news") or {}).get("duplicate_of") or ())
+        if g and g not in groups:
+            groups.append(g)
+    return [list(g) for g in groups]
 
 
 def _titles_hash(titles: list[str] | None) -> str | None:
@@ -231,7 +286,7 @@ def polar_watch_all() -> dict:
 
     return {
         "regions": scored + unscored,
-        "h5n1_aux": _h5n1_aux(),
+        "h5n1_aux": (_h5n1 := _h5n1_aux()),
         "grade": "watch",
         "note": "이 층은 저확률·고충격 '관찰(watch)'이지 '경보(alert)'가 아니다 — 경보 파이프라인과 "
                 "섞지 않는다. 값은 발병 위험 측정이 아니라 관찰용 선행 신호 추정.",
@@ -239,5 +294,7 @@ def polar_watch_all() -> dict:
                      "(2023~24 H5N1 남극 도달)이라는 두 실재 경로를 관찰한다.",
         "disclaimer": "대부분의 동토 미생물은 사람을 감염 못 시키며, 이 위험은 토지이용 동인보다 "
                       "과대평가 경향도 있음. 해빙일 수는 기후 정상값 대비 이상이 아니라 해빙 활동 프록시.",
+        "h5n1_cross": _h5n1_cross(scored + unscored, _h5n1),
+        "duplicate_groups": _duplicate_groups(scored + unscored),
         "data_source": "Open-Meteo(기온) + Google News(극지 질병 뉴스)",
     }

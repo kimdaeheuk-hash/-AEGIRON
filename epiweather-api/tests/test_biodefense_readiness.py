@@ -369,3 +369,14 @@ def test_cbrn_sentinel_layer_is_named():
     assert cbrn["tracked"] is True
     assert cbrn["layer"] == "pathogen_sentinel"
     assert "탄저" in cbrn["covers"]
+
+
+def test_novel_playbook_present_when_novel_threatened():
+    """Novel 위협이 있으면 플레이북 문구가 붙는다."""
+    from algorithms.biodefense_readiness import compute_readiness
+
+    out = compute_readiness([], [{"pathogen": "Novel"}])
+    assert out["novel_playbook"] is not None
+    assert len(out["novel_playbook"]["steps"]) == 4
+    out2 = compute_readiness([], [{"pathogen": "H5N1"}])
+    assert out2["novel_playbook"] is None

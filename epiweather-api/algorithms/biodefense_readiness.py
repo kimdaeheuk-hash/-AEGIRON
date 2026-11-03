@@ -222,6 +222,22 @@ def _cbrn_sentinel_status() -> dict:
     }
 
 
+# Novel 플레이북 (2026-11-03) — severity 독립 행동 지침 문구.
+# Novel은 정의상 과거 CFR이 없어 심각도 기반 우선순위에서 빠지는데, 빠진다고
+# 손 놓고 있으면 안 되므로 severity와 무관한 행동 순서를 못 박는다.
+# 문구(지침)이지 계산값이 아니다 — broad-spectrum 비축 항목과 연결해 읽는다.
+NOVEL_PLAYBOOK = {
+    "trigger": "Novel(신종) 위협 — severity 독립. 과거 CFR이 없어 심각도순에서 빠짐.",
+    "steps": [
+        "서열 확보 — 병원체 동정 즉시 유전체 확보 경로 가동",
+        "탐지 시그니처 패스트트랙 — 신생 계통용 진단 시그니처 후보 선행 준비",
+        "플랫폼 100일 — mRNA 등 플랫폼 대응 가동(CEPI 100일 미션)",
+        "광범위 비축 점검 — broad-spectrum 항목 가용성 확인",
+    ],
+    "basis": "고대바이러스·신종 시나리오 트랙 설계(2026-11-03). 가정 기반 시나리오용.",
+}
+
+
 def compute_readiness(countermeasures: list[dict], threats: list[dict]) -> dict:
     """대응제(비축) × 위협 커버리지 매트릭스와 격차를 계산.
 
@@ -366,6 +382,8 @@ def compute_readiness(countermeasures: list[dict], threats: list[dict]) -> dict:
         "international_reference_systems": REFERENCE_SYSTEMS,
         "amr_watch": _amr_watch_status(),
         "cbrn_sentinel": _cbrn_sentinel_status(),
+        "novel_playbook": (NOVEL_PLAYBOOK if any(
+            t.get("pathogen") == "Novel" for t in threats) else None),
         "disclaimer": (
             "효능은 '예측'이 아니라 각 대응제의 선언(라벨/문헌) 효능 집계다. 변이별 분자 "
             "중화 예측(escape)은 구조·면역 모델(BioNeMo·CEPI 표준) 연동이 필요한 Phase 2 "

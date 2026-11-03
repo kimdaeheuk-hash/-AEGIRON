@@ -224,3 +224,58 @@ def test_heat_falls_back_to_trailing_window_without_baseline():
         out = compute_region(POLAR_REGIONS[1])
     assert out["thaw"]["heat_trend_c"] == 7.0       # 2.0 − (−5.0)
     assert out["thaw"]["heat_basis"] == "trailing_window"
+
+
+def test_yamal_index_scores_known_conditions():
+    """야말지수 — 충족률. 모르는 조건은 분모에서 뺀다."""
+    from algorithms.polar_signals import yamal_index
+
+    full = yamal_index(
+        {"data_available": True, "heat_trend_c": 3.5, "thaw_days_30d": 25},
+        {"signal": 80.0})
+    assert full["score"] == 100.0
+    assert full["conditions_met"] == ["heat_anomaly", "thaw_days", "dieoff_news"]
+    part = yamal_index(
+        {"data_available": True, "heat_trend_c": 0.5, "thaw_days_30d": 25},
+        {"signal": None})
+    assert part["score"] == 50.0
+    assert part["conditions_unknown"] == ["dieoff_news"]
+    assert part["conditions_met"] == ["thaw_days"]
+    empty = yamal_index({"data_available": False}, {"signal": None})
+    assert empty["score"] is None
+    assert len(empty["conditions_unknown"]) == 3
+
+
+def test_h5n1_cross_and_duplicate_groups():
+    """H5N1 교차 + 되돌림 묶음 표시."""
+    from algorithms.polar_signals import _duplicate_groups, _h5n1_cross
+
+    regions = [
+        {"region": "antarctic_peninsula",
+         "news": {"signal": 40.0, "duplicate_of": ["a", "b"]}},
+        {"region": "a", "news": {"duplicate_of": ["a", "b"]}},
+        {"region": "c", "news": {}},
+    ]
+    cross = _h5n1_cross(regions, {"woah_h5n1_hits": 3})
+    assert cross["both_present"] is True
+    assert cross["antarctic_news_signal"] == 40.0
+    assert cross["woah_h5n1_hits"] == 3
+    assert _duplicate_groups(regions) == [["a", "b"]]
+
+
+def test_compute_region_carries_yamal_index():
+    """compute_region 출력에 야말지수가 붙는다."""
+    from unittest.mock import patch
+    from algorithms.polar_signals import POLAR_REGIONS, compute_region
+
+    with patch("algorithms.polar_signals.fetch_climate",
+               return_value={"temps": [5.0] * 40}), \
+         patch("algorithms.polar_signals.fetch_local_feed",
+               return_value={"status": "ok", "hit_ratio": 0.5, "item_count": 30,
+                             "keyword_hits": {}, "sample_titles": []}), \
+         patch("algorithms.polar_signals.month_baseline",
+               return_value={"available": False}), \
+         patch("algorithms.polar_signals.month_trend",
+               return_value={"available": False}):
+        out = compute_region(POLAR_REGIONS[0])
+    assert out["yamal_index"]["conditions_met"] == ["thaw_days", "dieoff_news"]
