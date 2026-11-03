@@ -1122,6 +1122,21 @@ def relief_watch(limit: int = 20):
         ) from e
 
 
+@app.get("/api/valhalla/refutation", tags=["Stage 8: 바이오방어"])
+def valhalla_refutation(pathogen: str):
+    """반증 질문 — "이 판정을 뒤집으려면 어떤 증거?" (규칙 기반·결정적).
+
+    매칭 판정 + 준비태세를 읽어 판정을 바꿀 수 있는 증거를 질문으로 낸다.
+    """
+    from algorithms.refutation import questions_for_threat
+    try:
+        return questions_for_threat(pathogen)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"반증 질문 생성 실패({type(e).__name__}): {e}"
+        ) from e
+
+
 @app.get("/api/lead-time-ledger", tags=["후향 검증"])
 def lead_time_ledger(outcome: Optional[str] = None, limit: int = 100):
     """★ 선행성 원장 ★ "우리가 언제 알았나" 를 **선언 전에** 적어둔 기록.
