@@ -1089,6 +1089,39 @@ def valhalla_country_posture(iso3: str = "KOR"):
         ) from e
 
 
+@app.get("/api/remote-watch", tags=["오지 감시"])
+def remote_watch(territory: Optional[str] = None):
+    """원격·의료취약지 관찰(watch) — 프록시 융합 + 희소성 가드.
+
+    표본이 모자라면 undetermined(판정 불가) — 조용함을 안전으로 읽지 않는다.
+    수집기 미편입(온디맨드) — 호출 시에만 계산한다.
+    """
+    from algorithms.remote_area import assess_all, assess_territory
+    try:
+        entries = [assess_territory(territory)] if territory else assess_all()
+        return {"entries": entries, "count": len(entries), "grade": "watch",
+                "note": "프록시 융합 관찰 — 발병 측정이 아님."}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"오지 관찰 조회 실패({type(e).__name__}): {e}"
+        ) from e
+
+
+@app.get("/api/relief-watch", tags=["구호망"])
+def relief_watch(limit: int = 20):
+    """구호망 2차 확인층 — ReliefWeb 최신 상황보고 중 질병 관련 선별.
+
+    전부 보도자료 등급(검증 아님). 정밀 위치는 들고 오지 않는다.
+    """
+    from algorithms.reliefweb import fetch_reports
+    try:
+        return fetch_reports(limit=limit)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"구호망 조회 실패({type(e).__name__}): {e}"
+        ) from e
+
+
 @app.get("/api/lead-time-ledger", tags=["후향 검증"])
 def lead_time_ledger(outcome: Optional[str] = None, limit: int = 100):
     """★ 선행성 원장 ★ "우리가 언제 알았나" 를 **선언 전에** 적어둔 기록.
