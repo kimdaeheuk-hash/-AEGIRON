@@ -196,6 +196,26 @@ CREATE TABLE IF NOT EXISTS baikal_transitions (
 );
 CREATE INDEX IF NOT EXISTS idx_baikal_transitions_observed ON baikal_transitions(observed_at);
 
+-- ── 변이 상태원장 (2026-11-03) ─────────────────────────────────────
+-- 매 수집 주기 Nextstrain 빌드별 (우세 계통, 구성비, 신규 계통) 한 행.
+-- BAIKAL이 시스템 상태 전이를 적는다면, 여기는 병원체 자체의 상태 전이를
+-- 적는다. available=False 주기는 적지 않는다(없는 관측을 "변화 없음"으로
+-- 적으면 거짓말). 전이는 지우지 않는다(감사 기록).
+CREATE TABLE IF NOT EXISTS variant_ledger (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    observed_at     TEXT NOT NULL,       -- UTC ISO, 수집 주기 시각
+    build           TEXT NOT NULL,       -- Nextstrain 빌드 slug
+    label           TEXT NOT NULL,       -- 표시명
+    dominant_clade  TEXT,                -- 우세 계통
+    dominant_share  REAL,                -- 우세 계통 구성비
+    n_recent        INTEGER,             -- 최근 구간 시퀀스 수
+    new_clades      TEXT NOT NULL,       -- JSON 배열 — 직전 구간 대비 신규
+    prev_dominant   TEXT,                -- 직전 주기 우세 계통(NULL=첫 기록)
+    transition      TEXT NOT NULL,       -- none / first_seen / dominant_changed / new_clade
+    build_updated   TEXT                 -- Nextstrain 빌드 갱신일
+);
+CREATE INDEX IF NOT EXISTS idx_variant_ledger_build_observed ON variant_ledger(build, observed_at);
+
 -- ── 전이 아카이브 (2026-11-02) ─────────────────────────────────────
 -- 전이는 감사 추적이라 지우지 않는다(정책 유지). 대신 90일이 지나면 여기서
 -- 빼서 아카이브로 옮긴다 — live 테이블은 가볍게, 기록은 전부 보존.

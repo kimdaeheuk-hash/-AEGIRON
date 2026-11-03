@@ -179,6 +179,31 @@ def _dashboard_cached(*, force_refresh: bool = False) -> dict:
     return payload
 
 
+# ── 라이브 fetch 캐시: 느린 것 두 가지 추가 (2026-11-03) ──────
+# ③ /api/genomic-variants — 요청마다 Nextstrain 3빌드 라이브 fetch(빌드당
+#    수MB JSON, 상한 45초 병렬). 빌드는 하루에 한 번도 안 바뀌는 날이 많아
+#    1시간 스냅샷으로 낸다(수집기 주기와 동일).
+# ④ /api/social-signal — Mastodon 8태그 직렬 호출(태그당 상한 15초라 최악
+#    120초). 7일 누적 집계라 수 분 단위 차이가 무의미해 15분 스냅샷으로 낸다.
+# 위 "약속 3개" 동일. 성공 판정은 "하나라도 available" — 전멸이면 장애라서
+# 안 남기고, 일부 성공은 성공으로 낸다(수집기와 같은 관대함).
+_LIVE_CACHE: dict[str, tuple[float, dict]] = {}
+_LIVE_CACHE_TTL_SEC = {"genomic-variants": 3600, "social-signal": 900}
+
+
+def _live_cached(key: str, builder) -> dict:
+    """라이브 fetch 한 건을 TTL 스냅샷으로 감싼다. builder는 인자 없는 함수."""
+    now = time.time()
+    hit = _LIVE_CACHE.get(key)
+    if hit is not None and now - hit[0] < _LIVE_CACHE_TTL_SEC[key]:
+        return {**hit[1], "cached": True}
+    payload = builder()
+    entries = [v for v in payload.values() if isinstance(v, dict)]
+    if any(v.get("available") for v in entries):
+        _LIVE_CACHE[key] = (now, payload)
+    return {**payload, "cached": False}
+
+
 # ── 대시보드 WebSocket ────────────────────────────────────────
 # 기존 30초 폴링 대신 실시간 푸시. 수집기(스케줄러)가 새 신호를 쌓을 때마다
 # 연결된 클라이언트에 최신 /api/dashboard 페이로드를 브로드캐스트한다.
@@ -992,6 +1017,27 @@ def _ledger_safe() -> dict | None:
         return ledger_record()
     except Exception as e:
         return {"error": f"{type(e).__name__}: {e}", "measured_events": 0}
+
+
+@app.get("/api/variant-ledger", tags=["후향 검증"])
+def variant_ledger(build: Optional[str] = None,
+                   transitions_only: bool = False, limit: int = 100):
+    """변이 상태원장 — 매 수집 주기 Nextstrain 빌드별 우세 계통·신규 계통 기록.
+
+    BAIKAL이 시스템 상태 전이를 적는다면, 여기는 병원체 자체의 상태 전이를
+    적는다. transitions_only면 전이가 있었던 주기만 (none 제외).
+    """
+    from algorithms.variant_ledger import list_entries, list_transitions
+    try:
+        if transitions_only:
+            entries = list_transitions(limit=limit)
+        else:
+            entries = list_entries(build=build, limit=limit)
+        return {"entries": entries, "count": len(entries)}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"변이원장 조회 실패({type(e).__name__}): {e}"
+        ) from e
 
 
 @app.get("/api/lead-time-ledger", tags=["후향 검증"])
@@ -3347,7 +3393,7 @@ def genomic_variants():
     구성비를 반환. 무료·인증 불필요. 빌드가 오래 갱신 안 됐으면 available=False.
     """
     from algorithms.genomic_variants import get_genomic_variant_signals
-    return get_genomic_variant_signals()
+    return _live_cached("genomic-variants", get_genomic_variant_signals)
 
 
 @app.get("/api/social-signal", tags=["Phase2"])
@@ -3359,7 +3405,7 @@ def social_signal():
     유일한 접근 가능 무료 실시간 SNS 소스 — mastodon.social 단일 인스턴스 표본)
     """
     from algorithms.social_signal import get_social_signal
-    return get_social_signal()
+    return _live_cached("social-signal", get_social_signal)
 
 
 @app.get("/api/groq-pulse", tags=["Phase2"])

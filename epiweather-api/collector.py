@@ -738,6 +738,21 @@ def collect_free_sources() -> dict:
         result["genomic_variants"] = None
         log_error("GenomicVariants", e)
 
+    # ★ 변이원장 (2026-11-03) ★ 이번 주기 변이 스냅샷을 원장에 적고 전이만
+    # 로그에 남긴다. 원장 실패가 수집을 깨면 안 되므로 별도 try.
+    if result.get("genomic_variants"):
+        try:
+            from algorithms.variant_ledger import record_cycle
+            for _entry in record_cycle(result["genomic_variants"]):
+                if _entry["transition"] == "dominant_changed":
+                    log(f"  🧬 변이원장 {_entry['label']}: 우세 "
+                        f"{_entry['prev_dominant']}→{_entry['dominant_clade']}")
+                elif _entry["transition"] == "new_clade":
+                    log(f"  🧬 변이원장 {_entry['label']}: "
+                        f"신규계통 {','.join(_entry['new_clades'])}")
+        except Exception as e:
+            log_error("VariantLedger", e)
+
     try:
         from algorithms.social_signal import get_social_signal
         result["social_signal"] = get_social_signal()
