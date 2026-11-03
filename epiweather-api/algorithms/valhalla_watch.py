@@ -221,6 +221,13 @@ def _fetch_procurement() -> dict:
         value["ted"] = {"available": False,
                         "reason": f"{type(exc).__name__}: {exc}",
                         "is_verified": False}
+    try:
+        from .procurement_velocity import record as _record_velocity
+        from .procurement_velocity import velocity as _bid_velocity
+        _record_velocity(value["bid_count"], (value.get("ted") or {}).get("bid_count"))
+        value["velocity"] = _bid_velocity()
+    except Exception:                                # noqa: BLE001
+        value["velocity"] = {"assessed": False, "reason": "기록 실패"}
     return value
 
 

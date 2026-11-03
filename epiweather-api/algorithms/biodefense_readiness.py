@@ -191,6 +191,37 @@ REFERENCE_SYSTEMS = [
 ]
 
 
+# AMR 감시 상태 — 편입된 데이터원 없음(2026-11-03). HERA 3대 위협군 중
+# 유일한 공백이라 선언으로 못 박는다(숫자로 메우지 않음). WHO GLASS 등
+# 유력 원천은 무료 API 실측 전이라 편입 조건만 둔다.
+AMR_ENTRY_CRITERIA = [
+    "무료·키 불필요 접근 실측(스크립트로 재현 가능)",
+    "국가·병원체·내성률 3축 중 2축 이상 식별",
+    "갱신 주기 선언(연 1회 이상) — 묵은 값을 새 값처럼 내지 않기 위함",
+]
+
+
+def _amr_watch_status() -> dict:
+    return {
+        "tracked": False,
+        "reason": "편입된 AMR 데이터원 없음 — HERA 3대 위협군 중 유일한 공백",
+        "entry_criteria": AMR_ENTRY_CRITERIA,
+        "sentinel_note": ("헤드라인 센티넬 확장은 경보 피로 정책상 보류 "
+                          "(pathogen_sentinel PATHOGENS 주석 참조)"),
+    }
+
+
+def _cbrn_sentinel_status() -> dict:
+    """CBRN 생물 인자의 단건 보도 감시 — 실재하는 층이라 명시한다."""
+    return {
+        "tracked": True,
+        "layer": "pathogen_sentinel",
+        "covers": ["페스트", "탄저", "두창"],
+        "method": "단건 보도 키워드 일치 — medium 고정(측정 아님), 2매체 이상",
+        "limits": "사건 진위·규모 미확인. Google 차단 시 대체경로는 '모름' 처리.",
+    }
+
+
 def compute_readiness(countermeasures: list[dict], threats: list[dict]) -> dict:
     """대응제(비축) × 위협 커버리지 매트릭스와 격차를 계산.
 
@@ -333,6 +364,8 @@ def compute_readiness(countermeasures: list[dict], threats: list[dict]) -> dict:
         "genomic_screening_capability": genomic_screening_capability(threats),
         "international_benchmark": international_benchmark(countermeasures),
         "international_reference_systems": REFERENCE_SYSTEMS,
+        "amr_watch": _amr_watch_status(),
+        "cbrn_sentinel": _cbrn_sentinel_status(),
         "disclaimer": (
             "효능은 '예측'이 아니라 각 대응제의 선언(라벨/문헌) 효능 집계다. 변이별 분자 "
             "중화 예측(escape)은 구조·면역 모델(BioNeMo·CEPI 표준) 연동이 필요한 Phase 2 "

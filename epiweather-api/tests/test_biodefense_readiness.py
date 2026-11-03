@@ -347,3 +347,25 @@ def test_disclaimer_explains_the_three_states():
     assert "판정 불가" in disclaimer
     assert "분모에서 뺀다" in disclaimer
     assert "과소 보고" in disclaimer
+
+
+def test_amr_gap_is_declared_not_filled():
+    """AMR 공백은 선언으로 못 박는다 — 숫자로 메우지 않는다."""
+    from algorithms.biodefense_readiness import compute_readiness
+
+    out = compute_readiness([], [])
+    amr = out["amr_watch"]
+    assert amr["tracked"] is False
+    assert len(amr["entry_criteria"]) >= 3
+    assert "유일한 공백" in amr["reason"]
+
+
+def test_cbrn_sentinel_layer_is_named():
+    """CBRN 단건 보도 감시층을 명시한다."""
+    from algorithms.biodefense_readiness import compute_readiness
+
+    out = compute_readiness([], [])
+    cbrn = out["cbrn_sentinel"]
+    assert cbrn["tracked"] is True
+    assert cbrn["layer"] == "pathogen_sentinel"
+    assert "탄저" in cbrn["covers"]
