@@ -193,3 +193,46 @@ def test_plausibility_flags_implausible_output():
 def test_plausibility_skips_unknown_disease():
     from algorithms.disease_params import plausibility
     assert plausibility(None, 1000)["checked"] is False
+
+
+def _seed_stockpile(dbmod):
+    dbmod.create_countermeasure(
+        "타미플루 비축", "antiviral", ["H5N1"], 0.55, True,
+        10_000_000, 51_000_000, 0.30,
+    )
+
+
+def test_countermeasure_context_reads_stockpile(isolated_db):
+    """VALHALLA 결선 — 등록 비축으로 커버리지를 읽는다."""
+    import db as dbmod
+    from algorithms.alert_intervention import countermeasure_context
+
+    _seed_stockpile(dbmod)
+    got = countermeasure_context("H5N1")
+    assert got["assessed"] is True
+    assert got["coverage_status"] == "covered"
+    assert got["best_declared_efficacy"] == 0.55
+    assert got["domestic_production"] is True
+    missing = countermeasure_context("MERS")
+    assert missing["assessed"] is True
+    assert missing["coverage_status"] == "uncovered"
+
+
+def test_countermeasure_context_empty_stockpile(isolated_db):
+    """비축 없으면 assessed=False — 예시로 채우지 않는다."""
+    from algorithms.alert_intervention import countermeasure_context
+
+    got = countermeasure_context("H5N1")
+    assert got == {"assessed": False, "reason": "등록된 비축 없음"}
+
+
+def test_intervention_brief_carries_countermeasure_context(isolated_db):
+    """브리프에 대응제 맥락이 붙고, 없어도 본문은 깨지지 않는다."""
+    import db as dbmod
+    from algorithms.alert_intervention import intervention_brief
+
+    _seed_stockpile(dbmod)
+    brief = intervention_brief("H5N1", "KOR", "high", 85.0)
+    assert brief["countermeasure_readiness"]["assessed"] is True
+    assert brief["countermeasure_readiness"]["coverage_status"] == "covered"
+    assert brief["recommended"] in ("mild", "strong")

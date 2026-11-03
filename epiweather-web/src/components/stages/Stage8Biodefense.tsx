@@ -1,5 +1,6 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { fetchBiodefenseReadiness, fetchVariantTransitions } from '@/lib/api';
 import ValhallaPanel from './ValhallaPanel';
 
 type Strategy = 'stockpile' | 'platform' | 'hybrid';
@@ -94,6 +95,22 @@ export default function Stage8Biodefense() {
   const [platDays, setPlatDays] = useState(100);
   const [horizon, setHorizon] = useState(365);
   const [strategy, setStrategy] = useState<Strategy>('hybrid');
+  // 실측 융합 — 준비태세 주권율 + 변이원장 전이. 실패하면 기본값 + 출처 표기.
+  const [liveSov, setLiveSov] = useState<number | null>(null);
+  const [transCount, setTransCount] = useState<number | null>(null);
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => {
+    fetchBiodefenseReadiness()
+      .then(r => setLiveSov(r.sovereignty.sovereignty_rate ?? null))
+      .catch(() => setLiveSov(null));
+    fetchVariantTransitions()
+      .then(ts => {
+        const weekAgo = Date.now() - 7 * 864e3;
+        setTransCount(ts.filter(t => Date.parse(t.observed_at) >= weekAgo).length);
+      })
+      .catch(() => setTransCount(null));
+  }, []);
 
   const strats: { id: Strategy; nm: string; ic: string; d: string; col: string }[] = [
     { id: 'stockpile', nm: '순수 비축', ic: '📦', d: '즉시 가용, 변이로 약화', col: '#eab308' },
@@ -104,13 +121,14 @@ export default function Stage8Biodefense() {
   const escape = variantEscape(horizon, mutRate);
   const platReady = Math.max(0, Math.min(1, 1 - (platDays - 60) / 240));
   const hybridAvg = avgEff('hybrid', mutRate, platDays, horizon);
-  const sovereignty = 0.55;
+  const sovereignty = liveSov ?? 0.55;
+  const sovLive = liveSov != null;
 
   const pillars = [
     { ic: '🧬', nm: '변이 예측', v: (escape * 100).toFixed(0) + '%', d: '1년 항원 회피율', bar: escape, col: '#f43f5e' },
     { ic: '🏭', nm: '플랫폼 준비', v: 'D+' + platDays, d: '맞춤 대응 소요', bar: platReady, col: '#76b900' },
     { ic: '🛡', nm: '방어 견고성', v: (hybridAvg * 100).toFixed(0) + '%', d: '혼합전략 효과', bar: hybridAvg, col: '#34d399' },
-    { ic: '🇰🇷', nm: '생산 주권', v: (sovereignty * 100).toFixed(0) + '%', d: '국내 자립도', bar: sovereignty, col: '#eab308' },
+    { ic: '🇰🇷', nm: '생산 주권', v: (sovereignty * 100).toFixed(0) + '%', d: sovLive ? '국내 자립도(실측)' : '국내 자립도(기본값)', bar: sovereignty, col: '#eab308' },
   ];
 
   const checkDay = Math.round(horizon * 0.5);
@@ -320,6 +338,24 @@ export default function Stage8Biodefense() {
           <div style={{ fontFamily: 'var(--mono)', fontSize: 9.5, color: 'var(--muted2)', marginTop: 10, lineHeight: 1.6 }}>
             비축은 reactive, 생산능력은 proactive. 긴급 시 직접 만들 수 있는가가 진짜 안보. 빨강=수입의존(취약), 초록=국내자립.
           </div>
+        </div>
+      </div>
+
+      <div className="card" style={{ marginTop: 14 }}>
+        <div className="card-h"><span className="lbl">실측 기준값 · 슬라이더와 대조용</span></div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontFamily: 'var(--kr)', fontSize: 11.5, padding: '6px 12px', borderRadius: 7, background: 'var(--panel2)', border: '1px solid var(--line)' }}>
+            변이 전이(최근 7일) <b style={{ fontFamily: 'var(--mono)' }}>{transCount ?? '—'}건</b>
+            <span style={{ color: 'var(--muted2)', fontSize: 10 }}> · 출처: 변이원장</span>
+          </span>
+          <span style={{ fontFamily: 'var(--kr)', fontSize: 11.5, padding: '6px 12px', borderRadius: 7, background: 'var(--panel2)', border: '1px solid var(--line)' }}>
+            생산 주권 <b style={{ fontFamily: 'var(--mono)' }}>{(sovereignty * 100).toFixed(0)}%</b>
+            <span style={{ color: 'var(--muted2)', fontSize: 10 }}> · 출처: {sovLive ? 'VALHALLA 준비태세' : '기본값(API 미연결)'}</span>
+          </span>
+          <span style={{ fontFamily: 'var(--kr)', fontSize: 11.5, padding: '6px 12px', borderRadius: 7, background: 'var(--panel2)', border: '1px solid var(--line)' }}>
+            플랫폼 소요일 <b style={{ fontFamily: 'var(--mono)' }}>가정 입력</b>
+            <span style={{ color: 'var(--muted2)', fontSize: 10 }}> · 임상 단계는 범주형이라 일수 환산 불가</span>
+          </span>
         </div>
       </div>
 

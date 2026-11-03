@@ -68,6 +68,39 @@ DISCLAIMER_GENERIC = ("표준 SEIR 모델 시나리오 — R0·CFR·개입효과
                       "‘구할 생명’은 모델 가정 하 추정이며 실측·보장이 아니다.")
 
 
+def countermeasure_context(disease: str | None) -> dict:
+    """개입 브리프용 대응제 맥락 — VALHALLA 결선 (2026-11-03).
+
+    권장 행동이 비축·생산 격차를 읽게 한다: 등록된 실비축으로 이 질병의
+    커버리지 상태를 계산하고, 매칭원장의 최근 판정을 붙인다. 실데이터가
+    없으면 assessed=False — 예시로 채우지 않는다. 절대 raise하지 않는다
+    (브리핑 본문을 깨면 안 되므로).
+    """
+    try:
+        import db
+        from .biodefense_readiness import compute_readiness
+        from .match_ledger import list_verdicts
+        stored = db.list_countermeasures()
+        if not stored:
+            return {"assessed": False, "reason": "등록된 비축 없음"}
+        if not disease:
+            return {"assessed": False, "reason": "질병 미지정"}
+        res = compute_readiness(stored, [{"pathogen": disease}])
+        row = res["matrix"][0]
+        recent = list_verdicts(days=7, pathogen=disease, limit=1)
+        return {
+            "assessed": True,
+            "coverage_status": row["coverage_status"],
+            "best_declared_efficacy": row.get("best_declared_efficacy"),
+            "covering_countermeasures": row.get("covering_countermeasures", []),
+            "domestic_production": row.get("domestic_production"),
+            "latest_match_verdict": recent[0]["verdict"] if recent else None,
+            "latest_match_date": recent[0]["verdict_date"] if recent else None,
+        }
+    except Exception as e:                               # noqa: BLE001
+        return {"assessed": False, "reason": f"{type(e).__name__}: {e}"[:150]}
+
+
 def intervention_brief(disease: str | None, country: str | None,
                        tier: str, score: float, threat: str | None = None) -> dict:
     """경보 → 무대응/mild/strong 반사실 브리핑. threat 미지정이면 질병에서 추정.
@@ -162,6 +195,7 @@ def intervention_brief(disease: str | None, country: str | None,
         # 역사 대조 결과를 숫자와 같이 실어 보낸다 — 경고가 docstring에만 있으면
         # 숫자만 떨어져 나가 화면·자료에서 그대로 쓰인다.
         "plausibility": plaus,
+        "countermeasure_readiness": countermeasure_context(disease),
         "is_modeled_scenario": True,
     }
 

@@ -463,6 +463,19 @@ export async function fetchCountryPosture(iso3: string): Promise<CountryPosture>
   return res.json() as Promise<CountryPosture>;
 }
 
+// ── 변이원장 전이 목록 ────────────────────────
+export interface VariantTransition {
+  id: number; observed_at: string; build: string; label: string;
+  dominant_clade: string | null; prev_dominant: string | null;
+  transition: string;
+}
+
+export async function fetchVariantTransitions(): Promise<VariantTransition[]> {
+  const res = await fetch(`${BASE}/api/variant-ledger?transitions_only=true&limit=20`, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`API ${res.status}`);
+  return (await res.json() as { entries: VariantTransition[] }).entries;
+}
+
 export async function createStockpileItem(item: CountermeasureCreateInput): Promise<CountermeasureItem> {
   const res = await fetch('/api/biodefense/stockpile', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(item),
