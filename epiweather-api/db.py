@@ -216,6 +216,25 @@ CREATE TABLE IF NOT EXISTS variant_ledger (
 );
 CREATE INDEX IF NOT EXISTS idx_variant_ledger_build_observed ON variant_ledger(build, observed_at);
 
+-- ── 대응제 매칭원장 (2026-11-03) ───────────────────────────────────
+-- "오늘 이 비축이 이 변이를 막는가" — 위협×비축(선언 효능)×변이상태의
+-- 일일 판정 1행/위협. 변이 전이는 수치 할인이 아니라 "재확인 필요" 플래그로만
+-- 쓴다(분자 중화 예측 지어내기 금지). 실데이터로만 기록(예시 금지).
+CREATE TABLE IF NOT EXISTS match_ledger (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    verdict_date    TEXT NOT NULL,       -- UTC 날짜(YYYY-MM-DD)
+    pathogen        TEXT NOT NULL,
+    coverage_status TEXT NOT NULL,       -- covered / uncovered / unrated
+    best_efficacy   REAL,                -- 선언 효능 최댓값(covered만)
+    covering        TEXT NOT NULL,       -- JSON 배열 — 커버 대응제명
+    variant_build   TEXT,                -- 연결된 변이 감시 빌드(NULL=미연결)
+    variant_flag    TEXT,                -- JSON — 최근 7일 전이(NULL=없음)
+    verdict         TEXT NOT NULL,       -- holds / recheck / gap / unknown
+    note            TEXT,
+    UNIQUE(verdict_date, pathogen)
+);
+CREATE INDEX IF NOT EXISTS idx_match_ledger_date ON match_ledger(verdict_date);
+
 -- ── 전이 아카이브 (2026-11-02) ─────────────────────────────────────
 -- 전이는 감사 추적이라 지우지 않는다(정책 유지). 대신 90일이 지나면 여기서
 -- 빼서 아카이브로 옮긴다 — live 테이블은 가볍게, 기록은 전부 보존.
@@ -352,7 +371,8 @@ def get_connection() -> sqlite3.Connection:
 # v3 (2026-11-03): variant_ledger 추가. 안 올리면 운영 DB에 테이블이 안
 # 생겨 /api/variant-ledger가 500이 된다(배포 실측 — IF NOT EXISTS라도
 # _migrate 자체가 버전 게이트 뒤에 있으므로).
-SCHEMA_VERSION = 3
+# v4 (2026-11-03): match_ledger 추가.
+SCHEMA_VERSION = 4
 
 
 def _db_version(conn: sqlite3.Connection) -> int:

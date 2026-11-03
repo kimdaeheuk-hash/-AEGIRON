@@ -430,6 +430,39 @@ export async function fetchStockpile(): Promise<CountermeasureItem[]> {
   return (await res.json() as { items: CountermeasureItem[] }).items;
 }
 
+// ── 매칭원장: 오늘의 판정 ────────────────────────
+export interface MatchVerdict {
+  id: number; verdict_date: string; pathogen: string;
+  coverage_status: string; best_efficacy: number | null;
+  covering: string; variant_build: string | null;
+  variant_flag: string | null; verdict: string; note: string | null;
+}
+
+export async function fetchMatchLedger(): Promise<MatchVerdict[]> {
+  const res = await fetch(`${BASE}/api/valhalla/match-ledger?latest_only=true`, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`API ${res.status}`);
+  return (await res.json() as { entries: MatchVerdict[] }).entries;
+}
+
+// ── 국가별 대비 현황판(목연결) ────────────────────────
+export interface CountryPosture {
+  iso3: string;
+  capacity: {
+    available: boolean; reason?: string; iso3?: string; year?: number;
+    behind_world_count?: number; behind_world?: string[];
+    is_self_assessed?: boolean;
+  };
+  match_verdicts: MatchVerdict[];
+  verdict_counts: Record<string, number>;
+  note: string;
+}
+
+export async function fetchCountryPosture(iso3: string): Promise<CountryPosture> {
+  const res = await fetch(`${BASE}/api/valhalla/country-posture?iso3=${encodeURIComponent(iso3)}`, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`API ${res.status}`);
+  return res.json() as Promise<CountryPosture>;
+}
+
 export async function createStockpileItem(item: CountermeasureCreateInput): Promise<CountermeasureItem> {
   const res = await fetch('/api/biodefense/stockpile', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(item),

@@ -1040,6 +1040,55 @@ def variant_ledger(build: Optional[str] = None,
         ) from e
 
 
+@app.get("/api/valhalla/match-ledger", tags=["Stage 8: 바이오방어"])
+def valhalla_match_ledger(days: int = 30, pathogen: Optional[str] = None,
+                          verdict: Optional[str] = None, latest_only: bool = False):
+    """대응제 매칭원장 — "오늘 이 비축이 이 변이를 막는가" 일일 판정 기록.
+
+    holds(유지)/recheck(변이 전이로 재확인 필요)/gap(미커버)/unknown(판정불가).
+    latest_only면 가장 최근 판정일의 전 위협 행 — 화면 '오늘의 판정'용.
+    """
+    from algorithms.match_ledger import latest_verdicts, list_verdicts
+    try:
+        entries = latest_verdicts() if latest_only else list_verdicts(
+            days=days, pathogen=pathogen, verdict=verdict)
+        return {"entries": entries, "count": len(entries)}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"매칭원장 조회 실패({type(e).__name__}): {e}"
+        ) from e
+
+
+@app.get("/api/valhalla/country-posture", tags=["Stage 8: 바이오방어"])
+def valhalla_country_posture(iso3: str = "KOR"):
+    """국가별 대비 현황판(목연결) — WHO SPAR 신고 역량 + 매칭원장 최신 판정.
+
+    ★ 정직 표기 ★ 역량 점수는 자가평가 신고치(측정치 아님)이고, 매칭 판정은
+    위협×비축 기준이라 국가별이 아니다. 국가별 비축이 등록되면 국가별 판정으로
+    확장한다. "자립까지 D+N" 수치는 플랫폼 소요일 실측이 없어 내지 않는다.
+    """
+    from algorithms.ihr_capacity import country_capacity
+    from algorithms.match_ledger import latest_verdicts
+    try:
+        capacity = country_capacity(iso3)
+        verdicts = latest_verdicts()
+        counts: dict[str, int] = {}
+        for v in verdicts:
+            counts[v["verdict"]] = counts.get(v["verdict"], 0) + 1
+        return {
+            "iso3": (iso3 or "").strip().upper(),
+            "capacity": capacity,
+            "match_verdicts": verdicts,
+            "verdict_counts": counts,
+            "note": ("역량은 자가평가 신고치. 매칭 판정은 위협×비축 기준"
+                     "(국가별 아님). D+N 수치는 플랫폼 소요일 실측 전이라 내지 않음."),
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"국가 현황 조회 실패({type(e).__name__}): {e}"
+        ) from e
+
+
 @app.get("/api/lead-time-ledger", tags=["후향 검증"])
 def lead_time_ledger(outcome: Optional[str] = None, limit: int = 100):
     """★ 선행성 원장 ★ "우리가 언제 알았나" 를 **선언 전에** 적어둔 기록.

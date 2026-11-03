@@ -3,6 +3,8 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import {
   fetchBiodefenseReadiness, BiodefenseReadiness,
   fetchStockpile, createStockpileItem, deleteStockpileItem, CountermeasureItem,
+  fetchMatchLedger, MatchVerdict,
+  fetchCountryPosture, CountryPosture,
 } from '@/lib/api';
 import ClassifiedBadge from './ClassifiedBadge';
 
@@ -12,12 +14,16 @@ import ClassifiedBadge from './ClassifiedBadge';
 export default function ValhallaPanel() {
   const [r, setR] = useState<BiodefenseReadiness | null>(null);
   const [stockpile, setStockpile] = useState<CountermeasureItem[]>([]);
+  const [match, setMatch] = useState<MatchVerdict[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   async function reload() {
     try {
-      const [readiness, items] = await Promise.all([fetchBiodefenseReadiness(), fetchStockpile()]);
-      setR(readiness); setStockpile(items);
+      const [readiness, items, verdicts] = await Promise.all([
+        fetchBiodefenseReadiness(), fetchStockpile(),
+        fetchMatchLedger().catch(() => [] as MatchVerdict[]),
+      ]);
+      setR(readiness); setStockpile(items); setMatch(verdicts);
     } catch (e) { setErr(String(e)); }
   }
 
@@ -70,6 +76,8 @@ export default function ValhallaPanel() {
                 sub="커버된 위협 중 국산 비중" col="#f472b6" />
             </div>
           )}
+
+          <MatchLedgerSection verdicts={match} />
 
           {!!r.coverage.priority_uncovered_threats?.length && (
             <div style={{ marginTop: 12 }}>
@@ -129,7 +137,139 @@ export default function ValhallaPanel() {
         </>
       )}
 
+      <CountryPostureSection />
+
       <StockpileManager items={stockpile} onChanged={reload} />
+    </div>
+  );
+}
+
+const VERDICT_META: Record<string, { label: string; col: string }> = {
+  holds: { label: '유지', col: '#34d399' },
+  recheck: { label: '재확인 필요', col: '#fbbf24' },
+  gap: { label: '미커버', col: '#f43f5e' },
+  unknown: { label: '판정불가', col: '#7c8aa0' },
+};
+
+function MatchLedgerSection({ verdicts }: { verdicts: MatchVerdict[] | null }) {
+  if (verdicts === null) return null;
+  return (
+    <div style={{ marginTop: 12 }}>
+      <div style={{ fontFamily: 'var(--mono)', fontSize: 9.5, color: 'var(--muted2)', letterSpacing: '.08em', marginBottom: 6 }}>
+        매칭원장 · 오늘의 판정(위협×비축×변이)
+      </div>
+      {verdicts.length === 0 ? (
+        <div style={{ fontFamily: 'var(--kr)', fontSize: 11, color: 'var(--muted2)' }}>
+          ⓘ 아직 기록 없음 — 비축 등록 후 다음 수집 주기에 기록됨
+        </div>
+      ) : verdicts.map(v => {
+        const meta = VERDICT_META[v.verdict] ?? VERDICT_META.unknown;
+        let covering: string[] = [];
+        try { covering = JSON.parse(v.covering); } catch { /* 빈 배열 유지 */ }
+        return (
+          <div key={v.id} style={{
+            display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+            padding: '7px 12px', marginTop: 4, borderRadius: 7,
+            background: 'var(--panel2)', border: '1px solid var(--line)',
+          }}>
+            <span style={{ fontFamily: 'var(--kr)', fontSize: 12, fontWeight: 700 }}>{v.pathogen}</span>
+            <span style={{
+              fontFamily: 'var(--mono)', fontSize: 10, fontWeight: 700, color: meta.col,
+              border: `1px solid ${meta.col}66`, borderRadius: 5, padding: '2px 8px',
+            }}>{meta.label}</span>
+            {v.best_efficacy != null && (
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 10.5, color: 'var(--muted)' }}>
+                효능 {v.best_efficacy}
+              </span>
+            )}
+            {covering.length > 0 && (
+              <span style={{ fontFamily: 'var(--kr)', fontSize: 10.5, color: 'var(--muted2)' }}>
+                {covering.join(', ')}
+              </span>
+            )}
+            {v.note && (
+              <span style={{ fontFamily: 'var(--kr)', fontSize: 10.5, color: 'var(--muted2)' }}>
+                · {v.note}
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function CountryPostureSection() {
+  const [iso3, setIso3] = useState('KOR');
+  const [posture, setPosture] = useState<CountryPosture | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function load() {
+    if (!iso3.trim()) return;
+    setBusy(true); setErr(null);
+    try { setPosture(await fetchCountryPosture(iso3.trim())); }
+    catch (e) { setErr(String(e)); }
+    finally { setBusy(false); }
+  }
+
+  const cap = posture?.capacity;
+  return (
+    <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--line)' }}>
+      <div style={{ fontFamily: 'var(--mono)', fontSize: 9.5, color: 'var(--muted2)', letterSpacing: '.08em', marginBottom: 8 }}>
+        국가별 대비 현황판(실측 연결) — ISO3 입력 후 조회
+      </div>
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+        <input value={iso3} onChange={e => setIso3(e.target.value)} placeholder="KOR"
+          style={{ ...inputStyle, width: 80, textTransform: 'uppercase' }} maxLength={3} />
+        <button onClick={load} disabled={busy || !iso3.trim()} style={{
+          cursor: busy ? 'default' : 'pointer', fontFamily: 'var(--kr)', fontWeight: 700, fontSize: 11.5,
+          color: '#fff', background: busy ? 'var(--muted2)' : 'linear-gradient(135deg,#38bdf8,#0369a1)',
+          border: 'none', borderRadius: 7, padding: '7px 14px',
+        }}>조회</button>
+      </div>
+      {err && <div style={{ marginTop: 6, fontFamily: 'var(--mono)', fontSize: 11, color: '#f43f5e' }}>{err}</div>}
+      {posture && (
+        <div style={{ marginTop: 10 }}>
+          {cap && !cap.available ? (
+            <div style={{ fontFamily: 'var(--kr)', fontSize: 11, color: 'var(--muted2)' }}>
+              ⓘ {cap.reason ?? '역량 자료 없음'} — 0점이 아니라 모름
+            </div>
+          ) : (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+              padding: '10px 12px', borderRadius: 8, background: 'var(--panel2)',
+              border: '1px solid var(--line)',
+            }}>
+              <span style={{ fontFamily: 'var(--mono)', fontWeight: 800, fontSize: 16 }}>{posture.iso3}</span>
+              <span style={{ fontFamily: 'var(--kr)', fontSize: 11.5 }}>
+                세계 중앙값 하위 역량 <b>{cap?.behind_world_count ?? '—'}개</b>
+              </span>
+              {(cap?.behind_world?.length ?? 0) > 0 && (
+                <span style={{ fontFamily: 'var(--kr)', fontSize: 10.5, color: 'var(--muted2)' }}>
+                  {cap?.behind_world?.join(', ')}
+                </span>
+              )}
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted2)' }}>
+                (자가평가 신고치{cap?.year ? ` · ${cap.year}` : ''})
+              </span>
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+            {['holds', 'recheck', 'gap', 'unknown'].map(k => (
+              <span key={k} style={{
+                fontFamily: 'var(--mono)', fontSize: 10.5, padding: '4px 10px', borderRadius: 6,
+                background: 'var(--panel2)', border: '1px solid var(--line)',
+              }}>
+                {(VERDICT_META[k]?.label ?? k)} {posture.verdict_counts[k] ?? 0}
+              </span>
+            ))}
+          </div>
+          <div style={{ marginTop: 6, fontFamily: 'var(--kr)', fontSize: 10.5, color: 'var(--muted2)' }}>
+            ⓘ {posture.note}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

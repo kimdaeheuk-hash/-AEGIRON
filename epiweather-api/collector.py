@@ -753,6 +753,22 @@ def collect_free_sources() -> dict:
         except Exception as e:
             log_error("VariantLedger", e)
 
+    # ★ 매칭원장 (2026-11-03) ★ 오늘의 위협×비축×변이 판정 1행/위협.
+    # 실데이터(등록 비축)만 기록 — 예시로 원장을 채우지 않는다.
+    try:
+        import db
+        from algorithms.biodefense_readiness import DEFAULT_THREATS
+        from algorithms.match_ledger import record_daily_verdict
+        _stored = db.list_countermeasures()
+        if _stored:
+            _vers = record_daily_verdict(_stored, DEFAULT_THREATS)
+            for _v in _vers:
+                if _v["verdict"] in ("gap", "recheck"):
+                    log(f"  🛡 매칭원장 {_v['pathogen']}: {_v['verdict']}"
+                        + (f" ({_v['note']})" if _v.get("note") else ""))
+    except Exception as e:
+        log_error("MatchLedger", e)
+
     try:
         from algorithms.social_signal import get_social_signal
         result["social_signal"] = get_social_signal()
