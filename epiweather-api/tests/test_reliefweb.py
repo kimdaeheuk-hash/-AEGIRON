@@ -70,3 +70,16 @@ def test_endpoint_returns_payload(monkeypatch):
     ]))
     out = main_mod.relief_watch(limit=5)
     assert out["disease_count"] == 1
+
+
+def test_403_explains_appname_registration(monkeypatch):
+    """403이면 무료 등록 안내를 붙인다."""
+    import requests as rq
+
+    def denied(*a, **k):
+        raise rq.HTTPError("403 Client Error: Forbidden")
+
+    monkeypatch.setattr(rw.requests, "post", denied)
+    out = rw.fetch_reports()
+    assert out["available"] is False
+    assert "apidoc.reliefweb.int" in out["reason"]

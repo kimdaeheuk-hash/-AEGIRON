@@ -18,8 +18,16 @@ from __future__ import annotations
 
 import requests
 
-API_URL = "https://api.reliefweb.int/v1/reports"
-APP_NAME = "epiweather"
+API_URL = "https://api.reliefweb.int/v2/reports"
+# v1은 폐기됨(전 요청 410). v2는 무료지만 사전 승인 appname 필요
+# (2025-11-01~, apidoc.reliefweb.int에서 무료 등록). 미승인이면 403.
+APP_NAME_ENV = "RELIEFWEB_APPNAME"
+APP_NAME_DEFAULT = "epiweather"
+
+
+def _appname() -> str:
+    import os
+    return (os.environ.get(APP_NAME_ENV) or APP_NAME_DEFAULT).strip()
 USER_AGENT = {"User-Agent": "EpiWeather-Relief/1.0 (epiweather.kr)"}
 TIMEOUT = 20
 
@@ -37,7 +45,7 @@ def fetch_reports(limit: int = 20) -> dict:
     try:
         r = requests.post(
             API_URL,
-            params={"appname": APP_NAME},
+            params={"appname": _appname()},
             json={"limit": min(max(1, limit), 50), "sort": ["date:desc"],
                   "fields": {"include": ["title", "date", "country", "url",
                                           "disaster", "source"]}},
@@ -47,7 +55,11 @@ def fetch_reports(limit: int = 20) -> dict:
         r.raise_for_status()
         items = r.json().get("data", [])
     except Exception as exc:                         # noqa: BLE001
-        return {"available": False, "reason": f"{type(exc).__name__}: {exc}"[:150]}
+        msg = f"{type(exc).__name__}: {exc}"
+        if "403" in msg:
+            msg += " — appname 미승인. apidoc.reliefweb.int에서 무료 등록 후 " \
+                   f"{APP_NAME_ENV} 환경변수에 설정."
+        return {"available": False, "reason": msg[:300]}
     hits = []
     for it in items:
         fields = it.get("fields", {}) if isinstance(it, dict) else {}
