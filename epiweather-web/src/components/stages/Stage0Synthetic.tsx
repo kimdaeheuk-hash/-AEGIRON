@@ -109,7 +109,11 @@ export default function Stage0Synthetic() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ summary }),
       });
-      if (!res.ok) throw new Error(`서버 오류 (${res.status})`);
+      if (!res.ok) {
+        let detail = '';
+        try { detail = (await res.json()).detail || ''; } catch { /* 본문 없음 */ }
+        throw new Error(`서버 오류 (${res.status})${detail ? ' — ' + detail.slice(0, 140) : ''}`);
+      }
       const data = await res.json();
       setAiText(data.analysis);
       setAiProv(data.llm_provider === 'meta_model_api' ? ('Meta ' + (data.llm_model || '')) : (data.llm_provider || ''));

@@ -44,7 +44,7 @@ def _fake_anthropic(text="", stop="end_turn"):
             return ns(content=[ns(type="text", text=text)], stop_reason=stop)
 
     class _Client:
-        def __init__(self, api_key=None):
+        def __init__(self, api_key=None, timeout=None):
             self.messages = _Messages()
 
     mod.Anthropic = _Client
@@ -128,3 +128,30 @@ def test_sequence_gets_computed_signals(monkeypatch):
     r = st.analyze_synthetic_threat(s)
     assert seen == ["ATGGCC"]
     assert r["llm_provider"] == "meta_model_api"
+
+
+def test_analyze_identical_summary_served_from_cache(monkeypatch):
+    """같은 스캔 요약 두 번이면 LLM은 한 번만 돈다(Vercel 60초 회피)."""
+    import main as main_mod
+
+    main_mod._ANALYZE_CACHE.clear()
+    calls = []
+
+    def fake(summary, api_key=None):
+        calls.append(1)
+        return {"analysis": "1) ok", "llm_provider": "meta_model_api",
+                "llm_model": "m", "meta_error": None}
+
+    monkeypatch.setattr(st, "analyze_synthetic_threat", fake)
+    req = main_mod.SyntheticThreatAnalyzeRequest(summary={"종합": 55})
+    r1 = main_mod.synthetic_threat_analyze(req)
+    r2 = main_mod.synthetic_threat_analyze(req)
+    assert len(calls) == 1
+    assert r1["cached"] is False and r2["cached"] is True
+    assert r2["analysis"] == "1) ok"
+    main_mod._ANALYZE_CACHE.clear()
+
+
+def test_analyze_timeouts_fit_vercel_budget():
+    """Meta 20초 + Claude 25초 + 여유 < Vercel 60초."""
+    assert st._META_TIMEOUT_SEC <= 20

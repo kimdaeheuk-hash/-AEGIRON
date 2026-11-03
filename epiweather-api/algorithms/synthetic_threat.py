@@ -99,7 +99,9 @@ _CLAUDE_MODEL = "claude-sonnet-4-6"
 # (실전 프롬프트에 생각 2793 실측, ai_inference와 같은 관측). 800이면
 # 생각이 상한을 다 먹어 답이 null로 온다. 실측 후 조정.
 _META_ANALYZE_MAX_TOKENS = 4000
-_META_TIMEOUT_SEC = 60
+# Vercel 60초 상한 안에 Claude 폴백까지 마치려면 Meta는 빨리 포기해야 한다.
+# 20초 안에 안 오면 느린 추론이므로 Claude로 넘긴다(20+25+여유 < 60).
+_META_TIMEOUT_SEC = 20
 
 _REFUSAL_MESSAGE = (
     "Claude가 이 요청을 바이오안보 민감 주제로 분류해 응답을 거부했습니다 "
@@ -160,7 +162,7 @@ def _call_meta_analyze(system_text: str, user_text: str) -> str:
 def _call_claude_analyze(system_text: str, user_text: str, key: str) -> tuple[str, bool]:
     """Claude 1회 호출. (본문, 거부 여부) — 거부는 실패가 아니라 응답이다."""
     import anthropic
-    client = anthropic.Anthropic(api_key=key)
+    client = anthropic.Anthropic(api_key=key, timeout=25.0)
     response = client.messages.create(
         model=_CLAUDE_MODEL,
         max_tokens=800,

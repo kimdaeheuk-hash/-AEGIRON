@@ -190,6 +190,12 @@ def _dashboard_cached(*, force_refresh: bool = False) -> dict:
 _LIVE_CACHE: dict[str, tuple[float, dict]] = {}
 _LIVE_CACHE_TTL_SEC = {"genomic-variants": 3600, "social-signal": 900}
 
+# ⑤ /api/synthetic-threat/analyze — Meta 추론이 느려(60초 타임아웃) 매번
+# 새로 부르면 Vercel 60초를 넘겨 504가 된다. 같은 스캔 요약은 같은 입력이라
+# 해시 캐시로 낸다(infer와 동일 약속).
+_ANALYZE_CACHE: dict[str, tuple[float, dict]] = {}
+_ANALYZE_CACHE_TTL_SEC = 1800
+
 
 def _live_cached(key: str, builder) -> dict:
     """라이브 fetch 한 건을 TTL 스냅샷으로 감싼다. builder는 인자 없는 함수."""
@@ -2919,7 +2925,17 @@ def synthetic_threat_analyze(req: SyntheticThreatAnalyzeRequest):
     """0단계 합성위협 탐지 스캔 결과를 AI로 분석 — Meta 우선·Claude 폴백."""
     try:
         from algorithms.synthetic_threat import analyze_synthetic_threat
-        return analyze_synthetic_threat(req.summary, api_key=req.api_key)
+        shash = _situation_hash(req.summary)
+        hit = _ANALYZE_CACHE.get(shash)
+        if hit is not None and time.time() - hit[0] < _ANALYZE_CACHE_TTL_SEC:
+            return {**hit[1], "cached": True}
+        import datetime as dt
+        result = analyze_synthetic_threat(req.summary, api_key=req.api_key)
+        result = {**result, "cached": False,
+                  "cached_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+                  "situation_hash": shash}
+        _ANALYZE_CACHE[shash] = (time.time(), result)
+        return result
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
