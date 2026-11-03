@@ -13,6 +13,7 @@ Swagger UI: http://localhost:8000/docs
 from __future__ import annotations
 import sys, os, json, secrets, time, hashlib
 import asyncio
+import threading
 import datetime as dt
 from pathlib import Path
 from dotenv import load_dotenv
@@ -168,18 +169,45 @@ def _infer_cache_put(shash: str, result: dict) -> None:
     _INFER_CACHE[shash] = (time.time(), result)
 
 
+_DASHBOARD_REFRESH_LOCK = threading.Lock()  # 뒤에서 갱신은 한 번에 하나
+
+
 def _dashboard_cached(*, force_refresh: bool = False) -> dict:
-    """대시보드 스냅샷 — REST·WS 접속은 캐시, 수집 완료 브로드캐스트는 강제 갱신."""
+    """대시보드 스냅샷 — REST·WS 접속은 캐시, 수집 완료 브로드캐스트는 강제 갱신.
+
+    ★ 만료 캐시는 내놓고 뒤에서 갱신 (2026-11-03) ★ _build_dashboard가 콜드면
+    수십 초(무역 스캔 포함)라, TTL 만료 타이밍에 들어온 요청이 통째로 기다렸다가
+    브라우저 타임아웃이 됐다(Stage9 '가져오지를 못함' 실측). 만료분이라도 있으면
+    즉시 내놓고(stale 표시) 백그라운드 스레드에서 갱신한다. 갱신은 한 번에
+    하나 — 몰리면 첫 요청만 갱신을 걸고 나머지는 만료분을 본다.
+    """
     now = time.time()
-    if (not force_refresh and _DASHBOARD_CACHE["payload"] is not None
-            and now - _DASHBOARD_CACHE["at"] < _DASHBOARD_CACHE_TTL_SEC):
-        payload = _DASHBOARD_CACHE["payload"]
-        return {**payload, "cached": True}
+    payload = _DASHBOARD_CACHE["payload"]
+    if not force_refresh and payload is not None:
+        if now - _DASHBOARD_CACHE["at"] < _DASHBOARD_CACHE_TTL_SEC:
+            return {**payload, "cached": True}
+        if _DASHBOARD_REFRESH_LOCK.acquire(blocking=False):
+            threading.Thread(target=_dashboard_rebuild_bg, daemon=True).start()
+        return {**payload, "cached": True, "stale": True}
+    return _dashboard_rebuild_sync()
+
+
+def _dashboard_rebuild_sync() -> dict:
     payload = _build_dashboard()
     payload["cached"] = False
-    _DASHBOARD_CACHE["at"] = now
+    _DASHBOARD_CACHE["at"] = time.time()
     _DASHBOARD_CACHE["payload"] = payload
     return payload
+
+
+def _dashboard_rebuild_bg() -> None:
+    try:
+        _dashboard_rebuild_sync()
+    except Exception as e:  # 실패해도 만료 캐시는 살아있으니 다음 요청이 다시 건다
+        print(f"[dashboard] 백그라운드 갱신 실패 — 만료 캐시 유지: "
+              f"{type(e).__name__}: {str(e)[:150]}", flush=True)
+    finally:
+        _DASHBOARD_REFRESH_LOCK.release()
 
 
 # ── 라이브 fetch 캐시: 느린 것 두 가지 추가 (2026-11-03) ──────
@@ -226,7 +254,7 @@ async def ws_dashboard(websocket: WebSocket) -> None:
     try:
         # 연결 직후 최신 스냅샷을 바로 보내서, 다음 수집 주기까지 안 기다려도
         # 화면을 그릴 수 있게 함(REST 초기 로드와 동등한 경험).
-        await websocket.send_json(_dashboard_cached())
+        await websocket.send_json(await asyncio.to_thread(_dashboard_cached))
         while True:
             # 클라이언트가 보내는 메시지는 쓰지 않지만, 연결이 끊기면
             # WebSocketDisconnect가 여기서 발생하도록 계속 대기한다.
@@ -240,7 +268,7 @@ async def ws_dashboard(websocket: WebSocket) -> None:
 async def _broadcast_dashboard() -> None:
     if not _ws_clients:
         return
-    payload = _dashboard_cached(force_refresh=True)
+    payload = await asyncio.to_thread(_dashboard_cached, force_refresh=True)
     dead: list[WebSocket] = []
     for ws in list(_ws_clients):
         try:
@@ -867,6 +895,18 @@ async def _start_scheduler() -> None:
     if os.environ.get("EPIWEATHER_SCHEDULER", "on").lower() == "off":
         return
     asyncio.create_task(_scheduler_loop())
+    # ★ 대시보드 예열 (2026-11-03) ★ 첫 실사용자가 콜드 빌드(수십 초)를 안 맞게
+    # 기동 직후 백그라운드에서 한 번 지어둔다. 데몬 스레드라 종료를 안 막는다.
+    threading.Thread(target=_dashboard_warmup_bg, daemon=True).start()
+
+
+def _dashboard_warmup_bg() -> None:
+    try:
+        if _DASHBOARD_CACHE["payload"] is None:
+            _dashboard_rebuild_sync()
+    except Exception as e:
+        print(f"[dashboard] 기동 예열 실패 — 첫 요청이 짓는다: "
+              f"{type(e).__name__}: {str(e)[:150]}", flush=True)
 
 
 # ── 헬스체크 ─────────────────────────────────────────────────

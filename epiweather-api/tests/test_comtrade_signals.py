@@ -194,14 +194,20 @@ def test_fetch_public_month_returns_none_on_error():
 
 def test_fetch_public_series_skips_missing_months_without_zero_filling():
     """★핵심★ 결측 달을 0으로 메우면 가짜 급증이 만들어진다."""
-    from algorithms.comtrade_signals import fetch_public_series
+    from algorithms.comtrade_signals import _recent_periods, fetch_public_series
     months = [
         {"KOR": 100.0, "JPN": 100.0},
         {"KOR": 100.0, "JPN": 100.0},
         {"KOR": 100.0},                 # JPN 한 달 결측
         {"KOR": 120.0, "JPN": 900.0},   # 최신
     ]
-    with patch("algorithms.comtrade_signals.fetch_public_month", side_effect=months):
+    # 달 조회가 병렬이라 호출 순서가 안 정해진다 — 달 값으로 매칭한다.
+    by_period = dict(zip(reversed(_recent_periods(4)), months))
+
+    def _fake(hs, period, notes=None):
+        return by_period[period]
+
+    with patch("algorithms.comtrade_signals.fetch_public_month", side_effect=_fake):
         out = fetch_public_series("9020", months=4)
     assert out["KOR"] == [100.0, 100.0, 100.0, 120.0]
     # JPN은 결측 달을 건너뛰고 3개만 — 0을 끼워넣었다면 [100,100,0,900]이 되고
@@ -212,12 +218,39 @@ def test_fetch_public_series_skips_missing_months_without_zero_filling():
 
 def test_fetch_public_series_drops_country_without_enough_history():
     """비교할 과거가 부족하면 급증 배율을 낼 수 없다 — 지어내지 않는다."""
-    from algorithms.comtrade_signals import fetch_public_series
+    from algorithms.comtrade_signals import _recent_periods, fetch_public_series
     months = [{"KOR": 100.0}, {"KOR": 100.0}, {"KOR": 120.0, "NEW": 500.0}]
-    with patch("algorithms.comtrade_signals.fetch_public_month", side_effect=months):
+    by_period = dict(zip(reversed(_recent_periods(3)), months))
+
+    def _fake(hs, period, notes=None):
+        return by_period[period]
+
+    with patch("algorithms.comtrade_signals.fetch_public_month", side_effect=_fake):
         out = fetch_public_series("9020", months=3)
     assert "KOR" in out
     assert "NEW" not in out          # 최신 달에만 등장 → 제외
+
+
+def test_fetch_public_series_parallel_keeps_order_and_merges_notes():
+    """병렬 조회여도 시계열은 과거→최신 순서, 스레드별 notes는 합쳐진다."""
+    from algorithms.comtrade_signals import _recent_periods, fetch_public_series
+    periods = list(reversed(_recent_periods(4)))  # 과거 → 최신
+
+    def _fake(hs, period, notes=None):
+        idx = periods.index(period)
+        if notes is not None:
+            notes.setdefault("rows_by_period", {})[period] = 10 + idx
+            if idx == 1:
+                notes.setdefault("reasons", {})["HTTP 429"] = 1
+        return {"KOR": 100.0 + idx}
+
+    notes: dict = {}
+    with patch("algorithms.comtrade_signals.fetch_public_month", side_effect=_fake):
+        out = fetch_public_series("9020", months=4, notes=notes)
+    assert out["KOR"] == [100.0, 101.0, 102.0, 103.0]
+    assert notes["rows_by_period"] == {p: 10 + i for i, p in enumerate(periods)}
+    assert notes["reasons"] == {"HTTP 429": 1}
+    assert notes["months_total"] == 4 and notes["months_ok"] == 4
 
 
 def test_global_scan_surfaces_countries_outside_tier1():

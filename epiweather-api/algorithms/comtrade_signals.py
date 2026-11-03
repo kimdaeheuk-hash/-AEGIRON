@@ -156,7 +156,9 @@ RATE_LIMIT_RETRIES = 2          # 429 에 대한 재시도 횟수(달 하나당)
 RATE_LIMIT_BACKOFF_SEC = 5.0    # Retry-After 가 없을 때 첫 기다림(시도마다 배로)
 RATE_LIMIT_MAX_WAIT_SEC = 20.0  # 한 번 기다리는 최대치
 RATE_LIMIT_BUDGET_SEC = 40.0    # 품목 하나(달 6개) 전체에서 기다릴 수 있는 합계
-REQUEST_GAP_SEC = 0.5           # 같은 품목의 달 사이 간격
+REQUEST_GAP_SEC = 0.5           # 같은 품목의 달 사이 간격(직렬 폴백용으로 유지)
+PARALLEL_MONTH_WORKERS = 3    # 달 병렬 조회 워커 수 — 6개는 429를 맞아 되려 느려짐(실측)
+PARALLEL_SUBMIT_STAGGER_SEC = 1.0  # 투입 시 엇갈림 — 동시 429 폭주를 피한다
 
 
 def _sleep(sec: float) -> None:
@@ -317,6 +319,20 @@ def _drop_immature_months(fetched: list[tuple[str, dict]],
     return fetched
 
 
+def _merge_month_notes(notes: dict, one: dict) -> None:
+    """스레드별 notes를 하나로 합친다. 카운터는 더하고, 달별 행 수는 덮어쓴다."""
+    for reason, n in (one.get("reasons") or {}).items():
+        notes.setdefault("reasons", {})[reason] = notes.setdefault("reasons", {}).get(reason, 0) + n
+    for period, n in (one.get("rows_by_period") or {}).items():
+        notes.setdefault("rows_by_period", {})[period] = n
+    if one.get("capped_months"):
+        notes["capped_months"] = notes.get("capped_months", 0) + one["capped_months"]
+    if one.get("wait_spent"):
+        notes["wait_spent"] = notes.get("wait_spent", 0.0) + one["wait_spent"]
+    if one.get("retried_429"):
+        notes["retried_429"] = notes.get("retried_429", 0) + one["retried_429"]
+
+
 def fetch_public_series(hs_code: str, months: int = TRAILING_MONTHS,
                         notes: dict | None = None) -> dict[str, list[float]]:
     """키 없이 최근 N개월을 받아 {ISO3: [과거…최신]} 시계열로 만든다.
@@ -330,14 +346,36 @@ def fetch_public_series(hs_code: str, months: int = TRAILING_MONTHS,
     건너뛰되 0으로 메우지 않는다 — 없는 값을 0으로 적으면 가짜 급증이 만들어진다.
     """
     periods = list(reversed(_recent_periods(months)))   # 과거 → 최신
-    fetched: list[tuple[str, dict[str, float]]] = []
-    for i, period in enumerate(periods):
-        if i:
-            _sleep(REQUEST_GAP_SEC)
-        totals = fetch_public_month(hs_code, period, notes=notes)
-        if totals is None:
-            continue
-        fetched.append((period, totals))
+    # ★ 달 병렬 조회 (2026-11-03) ★ UN 공개 엔드포인트가 달 하나당 ~5초라
+    # 직렬이면 품목 3개 × 6달 = 100초가 걸려 대시보드 첫 적중이 타임아웃됐다
+    # (Stage9 '가져오지를 못함' 실측 — cProfile로 확인). 달끼리는 독립이라
+    # 병렬로 묻는다. 429 폭주를 피하려고 워커 3개 + 투입 시 1초 엇갈림(실측 조정).
+    # 순서는 제출 순서대로 다시 맞춘다 — _drop_immature_months·시계열 조립이
+    # '과거 → 최신' 순서를 믿는다. notes는 스레드마다 따로 받아 합친다.
+    import concurrent.futures as _cf
+    _per_notes: list[dict] = [{} for _ in periods]
+    _results: list[dict[str, float] | None] = [None] * len(periods)
+    with _cf.ThreadPoolExecutor(max_workers=PARALLEL_MONTH_WORKERS,
+                                thread_name_prefix="comtrade") as _pool:
+        _futs = []
+        for _i, _period in enumerate(periods):
+            if _i:
+                _sleep(PARALLEL_SUBMIT_STAGGER_SEC)
+            _futs.append(_pool.submit(fetch_public_month, hs_code, _period,
+                                      _per_notes[_i]))
+        for _i, _fut in enumerate(_futs):
+            try:
+                _results[_i] = _fut.result()
+            except Exception as _e:  # 원칙적으로 None을 뱉지만, 혹시 새면 달만 버린다
+                _note_reason(_per_notes[_i], _failure_reason(_e))
+                _results[_i] = None
+    if notes is not None:
+        for _pn in _per_notes:
+            _merge_month_notes(notes, _pn)
+    fetched: list[tuple[str, dict[str, float]]] = [
+        (_period, _totals) for _period, _totals in zip(periods, _results)
+        if _totals is not None
+    ]
     if notes is not None:
         notes["months_total"] = len(periods)
         notes["months_ok"] = len(fetched)

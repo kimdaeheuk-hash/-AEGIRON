@@ -20,8 +20,11 @@ from algorithms import social_signal as ss_mod
 @pytest.fixture(autouse=True)
 def _clean_live_cache():
     main_mod._LIVE_CACHE.clear()
+    dash_backup = dict(main_mod._DASHBOARD_CACHE)
     yield
     main_mod._LIVE_CACHE.clear()
+    main_mod._DASHBOARD_CACHE.clear()
+    main_mod._DASHBOARD_CACHE.update(dash_backup)
 
 
 def _ok_payload():
@@ -135,3 +138,31 @@ def test_social_handler_serves_cached(monkeypatch):
     r2 = main_mod.social_signal()
     assert len(calls) == 1
     assert r1["cached"] is False and r2["cached"] is True
+
+
+def test_dashboard_serves_stale_without_blocking(monkeypatch):
+    """만료 캐시가 있으면 동기 빌드 없이 즉시 내놓는다(stale 표시)."""
+    import time
+
+    main_mod._DASHBOARD_CACHE["payload"] = {"screen1_global_map": {}}
+    main_mod._DASHBOARD_CACHE["at"] = time.time() - main_mod._DASHBOARD_CACHE_TTL_SEC - 1
+    # 백그라운드 갱신이 안 걸리게 락을 잡아둔다 — 동기 호출 여부만 본다.
+    assert main_mod._DASHBOARD_REFRESH_LOCK.acquire(blocking=False)
+    try:
+        calls: list = []
+        monkeypatch.setattr(main_mod, "_build_dashboard", lambda: calls.append(1) or {})
+        out = main_mod._dashboard_cached()
+    finally:
+        main_mod._DASHBOARD_REFRESH_LOCK.release()
+    assert calls == []
+    assert out["cached"] is True and out["stale"] is True
+
+
+def test_dashboard_cold_builds_synchronously(monkeypatch):
+    """캐시가 아예 없으면(콜드) 동기 빌드한다 — 빈 화면 대신 느린 첫 화면."""
+    main_mod._DASHBOARD_CACHE["payload"] = None
+    main_mod._DASHBOARD_CACHE["at"] = 0.0
+    monkeypatch.setattr(main_mod, "_build_dashboard", lambda: {"built": True})
+    out = main_mod._dashboard_cached()
+    assert out["built"] is True and out["cached"] is False
+    assert "stale" not in out
