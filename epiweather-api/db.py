@@ -349,7 +349,10 @@ def get_connection() -> sqlite3.Connection:
 
 # 스키마 버전 — SCHEMA·ALTER 목록을 바꾸면 1 올린다.
 # v2 (2026-11-02): baikal_transitions_archive 추가.
-SCHEMA_VERSION = 2
+# v3 (2026-11-03): variant_ledger 추가. 안 올리면 운영 DB에 테이블이 안
+# 생겨 /api/variant-ledger가 500이 된다(배포 실측 — IF NOT EXISTS라도
+# _migrate 자체가 버전 게이트 뒤에 있으므로).
+SCHEMA_VERSION = 3
 
 
 def _db_version(conn: sqlite3.Connection) -> int:

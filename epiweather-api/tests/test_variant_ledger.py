@@ -117,3 +117,30 @@ def test_endpoint_lists_entries(isolated_db):
     assert trans["entries"][0]["transition"] == "first_seen"
     scoped = main_mod.variant_ledger(build="mpox")
     assert scoped["count"] == 0
+
+
+def test_migration_creates_table_on_old_db(isolated_db):
+    """★★배포 실측★★ 구 버전 DB에도 테이블이 생긴다.
+
+    IF NOT EXISTS라도 _migrate 자체가 버전 게이트 뒤에 있어서,
+    SCHEMA_VERSION을 안 올리면 운영 DB에 테이블이 안 생기고 엔드포인트가
+    500이 된다. 구 버전 스탬프(v2, 테이블 없음)에서 init_db가 따라잡는지 본다.
+    """
+    import db as dbmod
+
+    assert dbmod.SCHEMA_VERSION >= 3
+    with dbmod.get_connection() as conn:
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS _schema_version ("
+            "id INTEGER PRIMARY KEY CHECK (id = 1), version INTEGER NOT NULL)"
+        )
+        conn.execute("INSERT OR REPLACE INTO _schema_version (id, version) VALUES (1, 2)")
+        conn.commit()
+    dbmod.init_db()
+    with dbmod.get_connection() as conn:
+        row = conn.execute(
+            "SELECT name FROM sqlite_master WHERE name = 'variant_ledger'"
+        ).fetchone()
+        assert row is not None
+    rows = record_cycle({"ncov": _sig()}, now=_at(1))
+    assert rows[0]["transition"] == "first_seen"
