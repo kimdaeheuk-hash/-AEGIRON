@@ -386,8 +386,8 @@ export default function Stage9Dashboard() {
             ⚠ 백엔드 서버에 연결할 수 없습니다
           </div>
           <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted2)', lineHeight: 1.8 }}>
-            서버 실행 방법:<br />
-            <span style={{ color: 'var(--ok)' }}>cd epiweather-api && uvicorn main:app --reload --port 8000</span>
+            연결 대상: {API_HOST}<br />
+            <span style={{ color: 'var(--ok)' }}>위 주소가 맞는데도 안 되면 CORS·방화벽·확장프로그램 확인</span>
           </div>
           {error && (
             <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: '#f97316', marginTop: 8, background: 'rgba(249,115,22,.08)', padding: '8px 10px', borderRadius: 8 }}>

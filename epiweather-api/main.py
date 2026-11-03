@@ -51,11 +51,14 @@ app = FastAPI(
 db.init_db()
 
 # ALLOWED_ORIGINS 환경변수로 배포된 프론트엔드 도메인을 추가할 수 있게 함
-# (예: "https://epiweather.vercel.app,https://epiweather.kr") — 쉼표로 구분.
+# (예: "https://epiweather.kr") — 쉼표로 구분. 실배포 프론트는 기본 포함:
+# 빠지면 브라우저 직접 호출이 CORS에 막혀 대시보드가 TypeError: Failed to
+# fetch로 뜬다(2026-11-03 밤 실측 — curl/서버는 정상이라 겉으론 멀쩡해 보임).
 _extra_origins = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001", *_extra_origins],
+    allow_origins=["http://localhost:3000", "http://localhost:3001",
+                   "https://epiweather-web.vercel.app", *_extra_origins],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -2583,7 +2586,7 @@ def ai_infer(req: AIInferRequest):
     7단계 통합 AI 역학 추론.
     1. 의사결정 트리 → 즉시 권고 (LLM 없이)
     2. RAG → 한국 방역 가이드라인 검색
-    3. Meta Model API 우선·Claude 폴백 → 통합 정책 권고 (Claude 경로만 캐싱)
+    3. Claude 우선·Meta 폴백 → 통합 정책 권고 (성공 캐싱, 실패·폴백 미캐싱)
     API 키 없이도 의사결정 트리 결과는 반환됨.
     """
     if req.threat not in ("flu", "novel", "severe"):

@@ -1,4 +1,8 @@
-"""Stage 7 추론 LLM 제공자 — Meta 우선·Claude 폴백(2026-11-03).
+"""Stage 7 추론 LLM 제공자 — Claude 우선·Meta 폴백(2026-11-03 밤 순서 뒤집음).
+
+infer는 max_tokens 8000 + 추론 생각 토큰이라 Meta 실측 60~120초.
+Vercel 60초 안에 Meta는 절대 못 끝나서 Meta 우선이면 매 호출 20초를
+태우고 Claude로 간다. 그래서 Claude를 먼저, Claude 오류 때만 Meta 폴백.
 
 외부 호출은 전부 mock 한다(conftest 가드가 실제 HTTP를 막는다).
 """
@@ -67,18 +71,40 @@ class _ClaudeClient:
             return _ClaudeResp()
 
 
-def test_meta_first_when_key_present(monkeypatch):
-    """Meta 키가 있으면 Meta가 먼저 쓴다."""
+class _BoomClient:
+    def __init__(self, *a, **kw):
+        raise RuntimeError("claude down")
+
+
+def test_claude_first_when_keys_present(monkeypatch):
+    """둘 다 있으면 Claude가 먼저 쓴다 — Meta를 호출하지 않는다."""
     _reset(monkeypatch)
     monkeypatch.setenv(meta_api.KEY_ENV, "meta-key")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "claude-key")
+    with patch("requests.post") as m, \
+         patch("anthropic.Anthropic", _ClaudeClient):
+        out = ai.run_ai_inference(_situation())
+    m.assert_not_called()
+    assert out["llm_provider"] == "anthropic"
+    assert out["llm_model"] == "claude-sonnet-4-6"
+    assert out["meta_error"] is None
+    assert out["provider_path"] == "claude_first"
+    assert "1) 평가" in out["llm_analysis"]
+
+
+def test_claude_error_falls_back_to_meta(monkeypatch):
+    """Claude 오류 때만 Meta 폴백 — 사용량 정규화도 여기서 본다."""
+    _reset(monkeypatch)
+    monkeypatch.setenv(meta_api.KEY_ENV, "meta-key")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "claude-key")
     with patch("requests.post", return_value=_meta_resp(
             usage={"prompt_tokens": 10, "completion_tokens": 372,
-                   "completion_tokens_details": {"reasoning_tokens": 354}})) as m:
+                   "completion_tokens_details": {"reasoning_tokens": 354}})) as m, \
+         patch("anthropic.Anthropic", _BoomClient):
         out = ai.run_ai_inference(_situation())
     assert out["llm_provider"] == "meta_model_api"
     assert out["llm_model"] == "muse-spark-1.3"
-    assert out["meta_error"] is None
-    assert out["cache_hit"] is False
+    assert "claude down" in (out["claude_error"] or "")
     assert out["usage"]["input_tokens"] == 10
     assert out["usage"]["output_tokens"] == 372
     assert out["usage"]["reasoning_tokens"] == 354
@@ -88,20 +114,6 @@ def test_meta_first_when_key_present(monkeypatch):
     assert m.call_args.kwargs["json"]["model"] == "muse-spark-1.3"
     # ★ 추론 모델은 생각+답이 상한을 나눈다 — 1200으론 답이 null로 온다.
     assert m.call_args.kwargs["json"]["max_tokens"] == 8000
-
-
-def test_meta_failure_falls_back_to_claude(monkeypatch):
-    """Meta가 죽으면 Claude가 잇고, 그 사실을 숨기지 않는다."""
-    _reset(monkeypatch)
-    monkeypatch.setenv(meta_api.KEY_ENV, "meta-key")
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "claude-key")
-    with patch("requests.post", side_effect=RuntimeError("meta down")), \
-         patch("anthropic.Anthropic", _ClaudeClient):
-        out = ai.run_ai_inference(_situation())
-    assert out["llm_provider"] == "anthropic"
-    assert out["llm_model"] == "claude-sonnet-4-6"
-    assert out["meta_error"] is not None and "meta down" in out["meta_error"]
-    assert "1) 평가" in out["llm_analysis"]
 
 
 def test_claude_only_when_no_meta_key(monkeypatch):
@@ -123,18 +135,17 @@ def test_no_keys_raises(monkeypatch):
         ai.run_ai_inference(_situation())
 
 
-def test_require_local_skips_meta_hosting(monkeypatch):
-    """주권 전용 모드면 Meta 호스팅을 보내기 전에 건너뛰고 Claude로 간다."""
+def test_require_local_blocks_meta_fallback(monkeypatch):
+    """Claude 오류 + 주권 모드면 호스팅 Meta 폴백이 HTTP 전에 막힌다."""
     _reset(monkeypatch)
     monkeypatch.setenv(meta_api.KEY_ENV, "meta-key")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "claude-key")
     monkeypatch.setenv("AEGIRON_REQUIRE_LOCAL", "on")
     with patch("requests.post") as m, \
-         patch("anthropic.Anthropic", _ClaudeClient):
-        out = ai.run_ai_inference(_situation())
+         patch("anthropic.Anthropic", _BoomClient):
+        with pytest.raises(RuntimeError, match="REQUIRE_LOCAL"):
+            ai.run_ai_inference(_situation())
     m.assert_not_called()
-    assert out["llm_provider"] == "anthropic"
-    assert "REQUIRE_LOCAL" in (out["meta_error"] or "")
 
 
 class _HttpFail:
@@ -211,14 +222,12 @@ def test_claude_system_keeps_full_kb_dump(monkeypatch):
     assert sent["system"][0].get("cache_control") == {"type": "ephemeral"}
 
 
-def test_meta_http_failure_carries_status_and_body(monkeypatch):
-    """Meta HTTP 실패는 상태코드+서버 본문을 들고 Claude 폴백을 탄다."""
+def test_both_fail_reports_both(monkeypatch):
+    """Claude 오류 + Meta HTTP 실패면 둘 다 실패로 말한다(상태코드+본문)."""
     _reset(monkeypatch)
     monkeypatch.setenv(meta_api.KEY_ENV, "meta-key")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "claude-key")
     with patch("requests.post", return_value=_HttpFail()), \
-         patch("anthropic.Anthropic", _ClaudeClient):
-        out = ai.run_ai_inference(_situation())
-    assert out["llm_provider"] == "anthropic"
-    assert "Meta HTTP 400" in (out["meta_error"] or "")
-    assert "muse-spark-1.3" in (out["meta_error"] or "")
+         patch("anthropic.Anthropic", _BoomClient):
+        with pytest.raises(RuntimeError, match="모두 실패"):
+            ai.run_ai_inference(_situation())

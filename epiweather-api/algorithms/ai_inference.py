@@ -1,13 +1,18 @@
 """
-AI 통합 추론 — Meta Model API 우선·Claude 폴백 + RAG.
+AI 통합 추론 — Claude 우선·Meta 폴백 + RAG.
 
 설계:
   1. 의사결정 트리로 즉시 권고 생성 (LLM 없이)
   2. RAG로 관련 한국 방역 가이드라인 검색
-  3. LLM 호출 — Meta Model API(Muse Spark) 우선, 실패 시 Claude 폴백.
-     Meta 시스템은 고지+역할만 싣고 지식베이스 덤프를 뺀다(아래 이유).
+  3. LLM 호출 — Claude 우선, 오류 시 Meta 폴백.
      Claude 시스템은 고지+역할+지식베이스+캐싱 그대로 둔다.
+     Meta 시스템은 고지+역할만 싣고 지식베이스 덤프를 뺀다(아래 이유).
   4. 구조화된 정책 권고 반환
+
+★ 순서가 뒤집힌 이유 (2026-11-03 밤 실측) ★ infer는 max_tokens 8000 +
+추론 생각 토큰이라 Meta 실측 60~120초. Vercel 60초 안에 Meta는 절대 못
+끝나서, Meta 우선이면 매 호출 20초를 태우고 Claude로 간다. 그래서 Claude를
+먼저, Claude 오류 때만 Meta 폴백 1회.
 
 프롬프트 캐싱(Claude 경로만):
   - 시스템 프롬프트 + 전체 지식베이스에 cache_control 적용
@@ -16,11 +21,12 @@ AI 통합 추론 — Meta Model API 우선·Claude 폴백 + RAG.
     검증 안 된 파라미터를 보내면 관측이 아니라 추측이다(aegiron_model과 같은 약속).
 
 ★ 누가 썼는지를 돌려준다 ★ 응답의 llm_provider·llm_model이 그 증거다.
-Meta가 죽고 Claude가 살렸으면 그렇게 적는다 — 폴백을 숨기고 Meta 성과를
+Claude가 죽고 Meta가 살렸으면 그렇게 적는다 — 폴백을 숨기고 성과를
 주장하지 않는다.
 """
 from __future__ import annotations
 import os
+import time
 from .knowledge_base import retrieve, get_all_as_text
 from .decision_tree import classify_alert_level, get_priority_actions
 from . import meta_api as _meta
@@ -31,8 +37,8 @@ _CLAUDE_MODEL = "claude-sonnet-4-6"
 # 1200으론 실전 프롬프트의 생각이 상한을 다 먹어 답이 null로 온다(HTTP 200).
 # 답변 분량은 프롬프트 지시(항목당 2-3문장)가 잡으므로 상한을 넉넉히 둔다.
 _META_MAX_TOKENS = 8000
-# Vercel 60초 상한 안에 Claude 폴백까지 마치려면 Meta는 빨리 포기해야 한다.
-# 20초 안에 안 오면 느린 추론이므로 Claude로 넘긴다(20+25+여유 < 60).
+# Vercel 60초 상한 안에 끝나려면 Meta 폴백 시도도 빨리 포기해야 한다.
+# 20초 안에 안 오면 느린 추론이므로 에러로 끝낸다.
 _META_TIMEOUT_SEC = 20
 
 # ★ 합법 사용 고지(2026-11-03) ★ Meta 콘텐츠 필터가 역학 정책 프롬프트를
@@ -76,7 +82,7 @@ def _require_local() -> bool:
 def _call_meta(system_text: str, user_text: str) -> tuple[str, dict]:
     """Meta Model API(OpenAI 호환) 1회 호출. (본문, 정규화 사용량).
 
-    실패는 예외로 — 호출자가 Claude 폴백을 탄다. 성공·실패 모두 능력 장부에
+    실패는 예외로 — 호출자가 에러로 끝낸다. 성공·실패 모두 능력 장부에
     남긴다(추출 경로 aegiron_model._meta_attempt와 같은 약속)."""
     import requests
 
@@ -173,7 +179,7 @@ def run_ai_inference(
     use_cache: bool = True,
 ) -> dict:
     """
-    7단계 상황 데이터 → 통합 정책 추론(Meta 우선·Claude 폴백).
+    7단계 상황 데이터 → 통합 정책 추론(Claude 우선·Meta 폴백).
 
     situation 키:
       rt, threat, origin_nm, origin_note, arrival_day, detect_lead,
@@ -213,7 +219,7 @@ def run_ai_inference(
         f"[{doc['title']}]\n{doc['content'].strip()}" for doc in rag_docs
     )
 
-    # ── Step 3: LLM 호출 — Meta 우선·Claude 폴백 ──────────
+    # ── Step 3: LLM 호출 — Claude 우선·Meta 폴백 ──────────
     knowledge_text = get_all_as_text()
     system_text = (BENIGN_USE_PREAMBLE + SYSTEM_PROMPT
                    + "\n\n【한국 방역 지식베이스】\n" + knowledge_text)
@@ -256,41 +262,61 @@ def run_ai_inference(
 
 제목 없이 1~4 번호만."""
 
-    # ★ Meta가 먼저 쓰고, 죽으면 Claude가 잇는다 ★ 누가 썼는지를
-    # llm_provider·llm_model에 남긴다. Meta 실패 사유(meta_error)도 숨기지
-    # 않는다 — 폴백이 일어난 줄 모르면 다음 장애 때 같은 데서 맞는다.
-    meta_error: str | None = None
-    if meta_key:
+    # ★ Claude가 먼저 쓰고, 죽으면 Meta가 잇는다(2026-11-03 밤 순서 뒤집음) ★
+    # infer는 max_tokens 8000 + 추론 생각 토큰이라 Meta 실측 60~120초.
+    # Vercel 60초 안에 Meta는 절대 못 끝나서, Meta 우선이면 매 호출 20초를
+    # 태우고 Claude로 간다. 그래서 Claude를 먼저, Claude 오류 때만 Meta 폴백.
+    # 누가 썼는지를 llm_provider·llm_model에 남긴다. Claude 실패 사유
+    # (claude_error)도 숨기지 않는다 — 폴백이 일어난 줄 모르면 다음 장애 때
+    # 같은 데서 맞는다.
+    timings_ms: dict[str, int] = {}
+    claude_error: str | None = None
+    if claude_key:
         try:
-            llm_text, usage = _call_meta(meta_system_text, user_content)
+            _t0 = time.monotonic()
+            llm_text, cache_stats, cache_hit = _call_claude(
+                system_text, user_content, claude_key, use_cache)
+            timings_ms["claude_ms"] = int((time.monotonic() - _t0) * 1000)
             return {
                 "alert_level": alert_level,
                 "decision_tree": tree_result,
                 "rag_documents_used": [d["title"] for d in rag_docs],
                 "llm_analysis": llm_text,
-                "llm_provider": "meta_model_api",
-                "llm_model": _meta.model(),
+                "llm_provider": "anthropic",
+                "llm_model": _CLAUDE_MODEL,
                 "meta_error": None,
-                "cache_hit": False,
-                "usage": usage,
+                "claude_error": None,
+                "cache_hit": cache_hit,
+                "usage": cache_stats,
+                "timings_ms": timings_ms,
+                "provider_path": "claude_first",
             }
         except Exception as e:
-            meta_error = f"{type(e).__name__}: {e}"
-    if not claude_key:
-        # Meta 키만 있고 Meta가 죽은 경우 — Claude 폴백이 없어 그대로 터진다.
-        # main.py가 decision_tree_fallback으로 받아 트리 결과는 살린다.
-        raise RuntimeError(f"Meta 호출 실패·Claude 키 없음 — {meta_error}")
-    llm_text, cache_stats, cache_hit = _call_claude(
-        system_text, user_content, claude_key, use_cache)
-
+            timings_ms["claude_ms"] = int((time.monotonic() - _t0) * 1000)
+            claude_error = f"{type(e).__name__}: {e}"
+    else:
+        claude_error = "키 없음"
+    if not meta_key:
+        raise RuntimeError(f"Claude 실패 후 Meta 폴백 불가(키 없음): {claude_error}")
+    _t0 = time.monotonic()
+    try:
+        llm_text, usage = _call_meta(meta_system_text, user_content)
+    except Exception as e:
+        timings_ms["meta_ms"] = int((time.monotonic() - _t0) * 1000)
+        raise RuntimeError(
+            f"Claude·Meta 모두 실패: {claude_error} / {type(e).__name__}: {e}") from e
+    timings_ms["meta_ms"] = int((time.monotonic() - _t0) * 1000)
     return {
         "alert_level": alert_level,
         "decision_tree": tree_result,
         "rag_documents_used": [d["title"] for d in rag_docs],
         "llm_analysis": llm_text,
-        "llm_provider": "anthropic",
-        "llm_model": _CLAUDE_MODEL,
-        "meta_error": meta_error,
-        "cache_hit": cache_hit,
-        "usage": cache_stats,
+        "llm_provider": "meta_model_api",
+        "llm_model": _meta.model(),
+        "meta_error": None,
+        "claude_error": claude_error,
+        "cache_hit": False,
+        "usage": usage,
+        "timings_ms": timings_ms,
+        "provider_path": "claude_error_meta_fallback",
     }
