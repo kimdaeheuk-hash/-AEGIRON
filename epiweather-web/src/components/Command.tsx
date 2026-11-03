@@ -36,6 +36,12 @@ export default function Command() {
 
   // 앱 시작 시 초기 계산 + 실제 전세계 국가 카탈로그 로드
   useEffect(() => { recompute(); loadOrigins(); }, []);
+  // ?stage=N 딥링크 (데모·공유용) — 첫 마운트에만 읽는다.
+  useEffect(() => {
+    const n = Number(new URLSearchParams(window.location.search).get('stage'));
+    if (Number.isInteger(n) && n >= 0 && n <= 9) setStage(n);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const civicLead = Math.max(...CIVIC.filter(s => civicOn[s.id]).map(s => s.lead), 0);
   const stageStats: Record<number, string> = {
