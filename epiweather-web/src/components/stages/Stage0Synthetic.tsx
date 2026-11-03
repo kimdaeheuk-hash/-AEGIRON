@@ -116,7 +116,10 @@ export default function Stage0Synthetic() {
       }
       const data = await res.json();
       setAiText(data.analysis);
-      setAiProv(data.llm_provider === 'meta_model_api' ? ('Meta ' + (data.llm_model || '')) : (data.llm_provider || ''));
+      const _t = (data.timings_ms || {}) as Record<string, number>;
+      const _ms = (_t.claude_ms || 0) + (_t.meta_ms || 0);
+      const _prov = data.llm_provider === 'meta_model_api' ? ('Meta ' + (data.llm_model || '')) : (data.llm_provider || '');
+      setAiProv(_prov + (_ms ? ` · ${(_ms / 1000).toFixed(1)}초` : ''));
       setAiStatus('done');
     } catch (e) {
       setAiText(e instanceof Error ? e.message : String(e));

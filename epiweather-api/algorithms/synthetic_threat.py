@@ -1,4 +1,4 @@
-"""0단계 합성위협 탐지 — 유전체+역학+인텔 신호 종합을 AI로 분석(Meta 우선·Claude 폴백).
+"""0단계 합성위협 탐지 — 유전체+역학+인텔 신호 종합을 AI로 분석(Claude 우선·Meta 폴백).
 
 브라우저에서 Anthropic API를 직접 호출하면 키가 노출되므로,
 프론트엔드 epiweather-stage0-v3.html의 AI 분석 로직을 서버 경유로 재구성.
@@ -7,6 +7,7 @@ bioRxiv API도 브라우저에서 직접 호출 시 CORS로 차단되므로 같�
 from __future__ import annotations
 import os
 import re
+import time
 import requests
 import xml.etree.ElementTree as ET
 from . import meta_api as _meta
@@ -99,8 +100,8 @@ _CLAUDE_MODEL = "claude-sonnet-4-6"
 # (실전 프롬프트에 생각 2793 실측, ai_inference와 같은 관측). 800이면
 # 생각이 상한을 다 먹어 답이 null로 온다. 실측 후 조정.
 _META_ANALYZE_MAX_TOKENS = 4000
-# Vercel 60초 상한 안에 Claude 폴백까지 마치려면 Meta는 빨리 포기해야 한다.
-# 20초 안에 안 오면 느린 추론이므로 Claude로 넘긴다(20+25+여유 < 60).
+# Vercel 60초 상한 안에 끝나려면 Meta 폴백 시도도 빨리 포기해야 한다.
+# 20초 안에 안 오면 느린 추론이므로 에러로 끝낸다.
 _META_TIMEOUT_SEC = 20
 
 _REFUSAL_MESSAGE = (
@@ -117,7 +118,7 @@ def _require_local() -> bool:
 
 
 def _call_meta_analyze(system_text: str, user_text: str) -> str:
-    """Meta 1회 호출(분석 본문). 실패는 예외 — 호출자가 Claude 폴백을 탄다."""
+    """Meta 1회 호출(분석 본문). 실패는 예외 — 호출자가 에러로 끝낸다."""
     base = _meta.base_url()
     if _require_local() and not _meta.is_host_sovereign(base):
         raise RuntimeError(
@@ -175,12 +176,21 @@ def _call_claude_analyze(system_text: str, user_text: str, key: str) -> tuple[st
 
 
 def analyze_synthetic_threat(summary: dict, api_key: str | None = None) -> dict:
-    """설계-탐지 이중성 관점에서 0단계 스캔 결과를 4문항으로 분석 — Meta 우선·Claude 폴백.
+    """설계-탐지 이중성 관점에서 0단계 스캔 결과를 4문항으로 분석 — Claude 우선·Meta 폴백.
 
     summary에 'sequence'가 있으면 유전체 신호를 '실제로 계산'해(genome_signals)
     프롬프트에 넣는다 — LLM이 지어낸 숫자가 아니라 실측 지표를 해설하게 한다.
-    반환 {"analysis", "llm_provider", "llm_model", "meta_error"} — 누가 썼는지를 남긴다.
-    과업 프롬프트(4문항)는 양 경로 동일. Meta 필터 오탐 시 Claude가 잇는다.
+    반환 {"analysis", "llm_provider", "llm_model", "meta_error", ...} — 누가 썼는지를 남긴다.
+    과업 프롬프트(4문항)는 양 경로 동일.
+
+    ★ 순서가 뒤집힌 이유 (2026-11-03 밤 실측) ★ 분석 프롬프트는 이중용도 인접
+    (설계-탐지 이중성 + 실측 서열)이라 Meta 추론이 매번 길게 생각하다 필터·
+    타임아웃으로 탄다. Meta 우선이면 매 호출 20초를 태우고 Claude로 가서
+    "느리다"가 된다. 그래서 Claude를 먼저(빠르고 decisive):
+    - Claude 성공 → 그대로 반환(Meta 호출 안 함)
+    - Claude 거부 → 그대로 반환(Meta도 거부할 프롬프트라 재시도 무의미)
+    - Claude 오류 → Meta 폴백 1회
+    timings_ms에 구간별 소요를 남긴다(다음 느림 진단용).
     """
     from .ai_inference import BENIGN_USE_PREAMBLE
 
@@ -209,16 +219,33 @@ def analyze_synthetic_threat(summary: dict, api_key: str | None = None) -> dict:
 4) 즉시 조치 2가지
 번호로만."""
 
-    meta_error: str | None = None
-    if meta_key:
+    timings_ms: dict[str, int] = {}
+    claude_error: str | None = None
+    if claude_key:
         try:
-            return {"analysis": _call_meta_analyze(system_text, user_text),
-                    "llm_provider": "meta_model_api", "llm_model": _meta.model(),
-                    "meta_error": None}
+            _t0 = time.monotonic()
+            text, refused = _call_claude_analyze(system_text, user_text, claude_key)
+            timings_ms["claude_ms"] = int((time.monotonic() - _t0) * 1000)
+            return {"analysis": text, "llm_provider": "anthropic",
+                    "llm_model": _CLAUDE_MODEL, "meta_error": None,
+                    "claude_error": None, "refused": refused,
+                    "timings_ms": timings_ms, "provider_path": "claude_first"}
         except Exception as e:
-            meta_error = f"{type(e).__name__}: {e}"
-    if not claude_key:
-        raise RuntimeError(f"Meta 실패 후 Claude 폴백 불가(키 없음): {meta_error}")
-    text, _refused = _call_claude_analyze(system_text, user_text, claude_key)
-    return {"analysis": text, "llm_provider": "anthropic",
-            "llm_model": _CLAUDE_MODEL, "meta_error": meta_error}
+            timings_ms["claude_ms"] = int((time.monotonic() - _t0) * 1000)
+            claude_error = f"{type(e).__name__}: {e}"
+    else:
+        claude_error = "키 없음"
+    if not meta_key:
+        raise RuntimeError(f"Claude 실패 후 Meta 폴백 불가(키 없음): {claude_error}")
+    _t0 = time.monotonic()
+    try:
+        text = _call_meta_analyze(system_text, user_text)
+    except Exception as e:
+        timings_ms["meta_ms"] = int((time.monotonic() - _t0) * 1000)
+        raise RuntimeError(
+            f"Claude·Meta 모두 실패: {claude_error} / {type(e).__name__}: {e}") from e
+    timings_ms["meta_ms"] = int((time.monotonic() - _t0) * 1000)
+    return {"analysis": text, "llm_provider": "meta_model_api",
+            "llm_model": _meta.model(), "meta_error": None,
+            "claude_error": claude_error, "refused": False,
+            "timings_ms": timings_ms, "provider_path": "claude_error_meta_fallback"}

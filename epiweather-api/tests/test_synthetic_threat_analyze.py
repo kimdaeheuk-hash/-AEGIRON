@@ -55,28 +55,43 @@ def _summary():
     return {"종합": 0.5, "CI": {"lo": 0.1, "hi": 0.9}}
 
 
-def test_meta_first_on_success(monkeypatch):
+def _boom_anthropic():
+    mod = types.ModuleType("anthropic")
+
+    class _Boom:
+        def __init__(self, api_key=None, timeout=None):
+            raise RuntimeError("claude down")
+
+    mod.Anthropic = _Boom
+    return mod
+
+
+def test_claude_first_on_success(monkeypatch):
+    """Claude 우선 — 성공하면 Meta를 호출하지 않는다."""
     monkeypatch.setenv("META_MODEL_API_KEY", "meta-key")
-    monkeypatch.setattr(requests, "post",
-                        lambda *a, **k: _MetaResp({"content": "1) 자연스러움"}))
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "claude-key")
+    called = []
+    monkeypatch.setattr(requests, "post", lambda *a, **k: called.append(1))
+    monkeypatch.setitem(sys.modules, "anthropic", _fake_anthropic("1) 자연스러움"))
     r = st.analyze_synthetic_threat(_summary())
-    assert r["llm_provider"] == "meta_model_api"
-    assert r["llm_model"] == "muse-spark-1.3"
+    assert r["llm_provider"] == "anthropic"
     assert r["analysis"] == "1) 자연스러움"
-    assert r["meta_error"] is None
+    assert r["refused"] is False
+    assert called == []
+    assert r["timings_ms"]["claude_ms"] >= 0
 
 
-def test_meta_http_error_falls_back_to_claude(monkeypatch):
+def test_claude_error_falls_back_to_meta(monkeypatch):
+    """Claude 오류 때만 Meta 폴백."""
     monkeypatch.setenv("META_MODEL_API_KEY", "meta-key")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "claude-key")
     monkeypatch.setattr(requests, "post",
-                        lambda *a, **k: _MetaResp({}, status=400))
-    monkeypatch.setitem(sys.modules, "anthropic",
-                        _fake_anthropic("1) 클로드 분석"))
+                        lambda *a, **k: _MetaResp({"content": "1) 메타 분석"}))
+    monkeypatch.setitem(sys.modules, "anthropic", _boom_anthropic())
     r = st.analyze_synthetic_threat(_summary())
-    assert r["llm_provider"] == "anthropic"
-    assert r["analysis"] == "1) 클로드 분석"
-    assert "Meta HTTP 400" in (r["meta_error"] or "")
+    assert r["llm_provider"] == "meta_model_api"
+    assert r["analysis"] == "1) 메타 분석"
+    assert "claude down" in (r["claude_error"] or "")
 
 
 def test_no_keys_raises_value_error():
@@ -84,35 +99,41 @@ def test_no_keys_raises_value_error():
         st.analyze_synthetic_threat(_summary())
 
 
-def test_claude_refusal_returns_message(monkeypatch):
+def test_claude_refusal_returns_immediately(monkeypatch):
+    """Claude 거부는 그대로 반환 — Meta 재시도 안 함(Meta도 거부할 프롬프트)."""
+    monkeypatch.setenv("META_MODEL_API_KEY", "meta-key")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "claude-key")
+    called = []
+    monkeypatch.setattr(requests, "post", lambda *a, **k: called.append(1))
     monkeypatch.setitem(sys.modules, "anthropic", _fake_anthropic(stop="refusal"))
     r = st.analyze_synthetic_threat(_summary())
     assert r["llm_provider"] == "anthropic"
+    assert r["refused"] is True
     assert "거부" in r["analysis"]
+    assert called == []
 
 
-def test_meta_empty_content_falls_back(monkeypatch):
+def test_both_fail_raises(monkeypatch):
+    """Claude 오류 + Meta 빈 본문이면 둘 다 실패로 말한다."""
     monkeypatch.setenv("META_MODEL_API_KEY", "meta-key")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "claude-key")
     monkeypatch.setattr(requests, "post", lambda *a, **k: _MetaResp({}))
-    monkeypatch.setitem(sys.modules, "anthropic", _fake_anthropic("1) 폴백 분석"))
-    r = st.analyze_synthetic_threat(_summary())
-    assert r["llm_provider"] == "anthropic"
-    assert "본문 없음" in (r["meta_error"] or "")
+    monkeypatch.setitem(sys.modules, "anthropic", _boom_anthropic())
+    with pytest.raises(RuntimeError, match="모두 실패"):
+        st.analyze_synthetic_threat(_summary())
 
 
-def test_require_local_blocks_hosted_meta(monkeypatch):
+def test_require_local_blocks_hosted_meta_fallback(monkeypatch):
+    """Claude 오류 + 주권 모드면 호스팅 Meta 폴백이 HTTP 전에 막힌다."""
     monkeypatch.setenv("META_MODEL_API_KEY", "meta-key")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "claude-key")
     monkeypatch.setenv("AEGIRON_REQUIRE_LOCAL", "on")
     called = []
     monkeypatch.setattr(requests, "post", lambda *a, **k: called.append(1))
-    monkeypatch.setitem(sys.modules, "anthropic", _fake_anthropic("1) 주권 폴백"))
-    r = st.analyze_synthetic_threat(_summary())
+    monkeypatch.setitem(sys.modules, "anthropic", _boom_anthropic())
+    with pytest.raises(RuntimeError, match="주권"):
+        st.analyze_synthetic_threat(_summary())
     assert called == []
-    assert r["llm_provider"] == "anthropic"
-    assert "주권" in (r["meta_error"] or "")
 
 
 def test_sequence_gets_computed_signals(monkeypatch):
