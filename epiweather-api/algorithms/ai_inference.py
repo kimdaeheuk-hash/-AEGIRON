@@ -31,7 +31,9 @@ _CLAUDE_MODEL = "claude-sonnet-4-6"
 # 1200으론 실전 프롬프트의 생각이 상한을 다 먹어 답이 null로 온다(HTTP 200).
 # 답변 분량은 프롬프트 지시(항목당 2-3문장)가 잡으므로 상한을 넉넉히 둔다.
 _META_MAX_TOKENS = 8000
-_META_TIMEOUT_SEC = 60
+# Vercel 60초 상한 안에 Claude 폴백까지 마치려면 Meta는 빨리 포기해야 한다.
+# 20초 안에 안 오면 느린 추론이므로 Claude로 넘긴다(20+25+여유 < 60).
+_META_TIMEOUT_SEC = 20
 
 # ★ 합법 사용 고지(2026-11-03) ★ Meta 콘텐츠 필터가 역학 정책 프롬프트를
 # 오탐한다(400 content_policy_violation 실측) — 방어적 공공보건 자문임을
@@ -140,7 +142,7 @@ def _call_claude(system_text: str, user_text: str, key: str,
                  use_cache: bool) -> tuple[str, dict, bool]:
     """Claude 1회 호출. (본문, 사용량, 캐시 히트 여부)."""
     import anthropic
-    client = anthropic.Anthropic(api_key=key)
+    client = anthropic.Anthropic(api_key=key, timeout=25.0)
 
     system_blocks: list = [{"type": "text", "text": system_text}]
     if use_cache:

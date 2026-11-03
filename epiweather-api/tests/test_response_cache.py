@@ -154,3 +154,10 @@ def test_dashboard_cache_expires(monkeypatch):
     main_mod._dashboard_cached()
     main_mod._dashboard_cached()
     assert len(calls) == 2
+
+
+def test_infer_timeouts_fit_vercel_budget():
+    """Meta 20초 + Claude 25초 + 여유 < Vercel 60초."""
+    from algorithms import ai_inference as ai_mod
+
+    assert ai_mod._META_TIMEOUT_SEC <= 20

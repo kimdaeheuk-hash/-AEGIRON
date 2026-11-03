@@ -122,7 +122,15 @@ export default function Stage7AI() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error(`서버 오류 (${res.status})`);
+      if (!res.ok) {
+        let detail = '';
+        try {
+          const t = await res.clone().text();
+          try { detail = (JSON.parse(t) as { detail?: string }).detail || ''; }
+          catch { detail = t.startsWith('<') ? '' : t; }
+        } catch { /* 본문 없음 */ }
+        throw new Error(`서버 오류 (${res.status})${detail ? ' — ' + String(detail).slice(0, 140) : ''}`);
+      }
       const data: InferResponse = await res.json();
       setResult(data);
       setStatus('done');
