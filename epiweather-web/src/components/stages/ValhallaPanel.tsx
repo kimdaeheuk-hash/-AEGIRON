@@ -79,6 +79,8 @@ export default function ValhallaPanel() {
 
           <MatchLedgerSection verdicts={match} />
 
+          <AmrCbrnSection r={r} />
+
           {!!r.coverage.priority_uncovered_threats?.length && (
             <div style={{ marginTop: 12 }}>
               <div style={{ fontFamily: 'var(--mono)', fontSize: 9.5, color: 'var(--muted2)', letterSpacing: '.08em', marginBottom: 6 }}>
@@ -268,6 +270,49 @@ function CountryPostureSection() {
           <div style={{ marginTop: 6, fontFamily: 'var(--kr)', fontSize: 10.5, color: 'var(--muted2)' }}>
             ⓘ {posture.note}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AmrCbrnSection({ r }: { r: BiodefenseReadiness }) {
+  const amr = r.amr_watch;
+  const cbrn = r.cbrn_sentinel;
+  const novel = r.novel_playbook;
+  if (!amr && !cbrn && !novel) return null;
+  return (
+    <div style={{ marginTop: 12 }}>
+      <div style={{ fontFamily: 'var(--mono)', fontSize: 9.5, color: 'var(--muted2)', letterSpacing: '.08em', marginBottom: 6 }}>
+        위협군 감시 상태 · AMR 공백 선언 + CBRN 센티넬 + Novel 플레이북
+      </div>
+      {amr && (
+        <div style={{ padding: '8px 12px', borderRadius: 7, background: 'var(--panel2)', border: '1px solid var(--line)', marginBottom: 6 }}>
+          <span style={{ fontFamily: 'var(--kr)', fontSize: 12, fontWeight: 700 }}>AMR 항생제 내성</span>
+          <span style={{ fontFamily: 'var(--mono)', fontSize: 10, fontWeight: 700, color: '#fbbf24', border: '1px solid #fbbf2466', borderRadius: 5, padding: '2px 8px', marginLeft: 8 }}>
+            {amr.tracked ? '추적 중' : '미편입·공백 선언'}
+          </span>
+          <div style={{ fontFamily: 'var(--kr)', fontSize: 10.5, color: 'var(--muted2)', marginTop: 4 }}>{amr.reason}</div>
+        </div>
+      )}
+      {cbrn && (
+        <div style={{ padding: '8px 12px', borderRadius: 7, background: 'var(--panel2)', border: '1px solid var(--line)', marginBottom: 6 }}>
+          <span style={{ fontFamily: 'var(--kr)', fontSize: 12, fontWeight: 700 }}>CBRN 생물 인자</span>
+          <span style={{ fontFamily: 'var(--mono)', fontSize: 10, fontWeight: 700, color: '#34d399', border: '1px solid #34d39966', borderRadius: 5, padding: '2px 8px', marginLeft: 8 }}>
+            센티넬 가동
+          </span>
+          <div style={{ fontFamily: 'var(--kr)', fontSize: 10.5, color: 'var(--muted2)', marginTop: 4 }}>
+            {cbrn.covers.join(' · ')} — {cbrn.method}
+          </div>
+        </div>
+      )}
+      {novel && (
+        <div style={{ padding: '8px 12px', borderRadius: 7, background: 'var(--panel2)', border: '1px solid var(--line)' }}>
+          <span style={{ fontFamily: 'var(--kr)', fontSize: 12, fontWeight: 700 }}>Novel 플레이북</span>
+          <span style={{ fontFamily: 'var(--kr)', fontSize: 10.5, color: 'var(--muted2)', marginLeft: 8 }}>severity 독립 행동 지침</span>
+          <ol style={{ fontFamily: 'var(--kr)', fontSize: 11, color: 'var(--fg)', margin: '6px 0 0', paddingLeft: 18 }}>
+            {novel.steps.map((s, i) => <li key={i}>{s}</li>)}
+          </ol>
         </div>
       )}
     </div>

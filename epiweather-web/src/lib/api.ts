@@ -386,6 +386,9 @@ export interface BiodefenseReadiness {
   resilience: { single_point_of_failure: string[]; single_point_count: number; import_only_covered: string[] };
   logistics: { assessed: number; items: { name: string; courses: number; projected_demand: number | null; coverage_fraction: number | null; shortfall: number }[] };
   matrix: { pathogen: string; covered: boolean; best_declared_efficacy: number | null; domestic_production: boolean }[];
+  amr_watch?: { tracked: boolean; reason: string; entry_criteria: string[]; sentinel_note: string } | null;
+  cbrn_sentinel?: { tracked: boolean; layer: string; covers: string[]; method: string; limits: string } | null;
+  novel_playbook?: { trigger: string; steps: string[]; basis: string } | null;
   threat_category_coverage?: {
     framework: string;
     categories: { category: string; name_ko: string; tracked: boolean; threats_assessed: number }[];
