@@ -2769,18 +2769,16 @@ def delete_biodefense_stockpile(item_id: int):
 
 class SyntheticThreatAnalyzeRequest(BaseModel):
     summary: dict = Field(..., description="0단계 스캔 결과 요약 (종합점수, CI, 유전체/역학/인텔 점수 등)")
-    api_key: Optional[str] = Field(None, description="Anthropic API 키 (없으면 환경변수)")
+    api_key: Optional[str] = Field(None, description="Claude 키(하위 호환, 없으면 환경변수)")
 
 @app.post("/api/synthetic-threat/analyze", tags=["Stage 0: 합성위협 탐지"], dependencies=_auth)
 def synthetic_threat_analyze(req: SyntheticThreatAnalyzeRequest):
-    """0단계 합성위협 탐지 스캔 결과를 Claude로 분석 (설계-탐지 이중성 관점)."""
-    key = req.api_key or os.environ.get("ANTHROPIC_API_KEY")
-    if not key:
-        raise HTTPException(status_code=422, detail="ANTHROPIC_API_KEY 없음")
+    """0단계 합성위협 탐지 스캔 결과를 AI로 분석 — Meta 우선·Claude 폴백."""
     try:
         from algorithms.synthetic_threat import analyze_synthetic_threat
-        analysis = analyze_synthetic_threat(req.summary, api_key=key)
-        return {"analysis": analysis}
+        return analyze_synthetic_threat(req.summary, api_key=req.api_key)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

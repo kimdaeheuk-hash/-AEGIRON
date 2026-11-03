@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 import algorithms.aegiron_model as am
 from algorithms.nlp_extract import extract_from_global_watch_detailed
+from algorithms import meta_api
 
 
 def _record(source: str, raw_text: str) -> dict:
@@ -31,6 +32,10 @@ def _nim_env(monkeypatch, key="nim-key", base=None):
     else:
         monkeypatch.delenv("AEGIRON_NIM_BASE_URL", raising=False)
     monkeypatch.delenv("AEGIRON_NVIDIA_ONPREM_BASE", raising=False)
+    # main import가 .env를 읽어 META 키가 남으면 Meta 경로가 끼어든다(순서 의존).
+    for env in (am.META_FIRST_ENV, am.META_EXTRACT_ENV, meta_api.KEY_ENV,
+                meta_api.DOC_KEY_ENV, meta_api.BASE_URL_ENV, meta_api.MODEL_ENV):
+        monkeypatch.delenv(env, raising=False)
 
 
 # ── 배선 자체 ────────────────────────────────────────────────────
@@ -135,6 +140,10 @@ def test_extraction_unavailable_with_no_backend(monkeypatch):
     monkeypatch.delenv("AEGIRON_NIM_API_KEY", raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("AEGIRON_LOCAL_MODEL", raising=False)
+    # main import가 .env를 읽어 META 키가 남으면 Meta 경로가 끼어든다(순서 의존).
+    for env in (am.META_FIRST_ENV, am.META_EXTRACT_ENV, meta_api.KEY_ENV,
+                meta_api.DOC_KEY_ENV, meta_api.BASE_URL_ENV, meta_api.MODEL_ENV):
+        monkeypatch.delenv(env, raising=False)
     assert am.extraction_available(None) is False
 
 

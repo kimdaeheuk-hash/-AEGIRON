@@ -30,6 +30,7 @@ from unittest.mock import patch
 
 import algorithms.aegiron_model as am
 from algorithms import nlp_extract as nx
+from algorithms import meta_api
 
 
 def _record(source: str = "who_emro", raw_text: str = "원문") -> dict:
@@ -48,6 +49,10 @@ def _nim_env(monkeypatch, base=None):
     monkeypatch.delenv("AEGIRON_REQUIRE_LOCAL", raising=False)
     monkeypatch.delenv("AEGIRON_NVIDIA_ONPREM_BASE", raising=False)
     monkeypatch.delenv("AEGIRON_LOCAL_MODEL", raising=False)
+    # main import가 .env를 읽어 META 키가 남으면 Meta 경로가 끼어든다(순서 의존).
+    for env in (am.META_FIRST_ENV, am.META_EXTRACT_ENV, meta_api.KEY_ENV,
+                meta_api.DOC_KEY_ENV, meta_api.BASE_URL_ENV, meta_api.MODEL_ENV):
+        monkeypatch.delenv(env, raising=False)
     if base:
         monkeypatch.setenv("AEGIRON_NIM_BASE_URL", base)
     else:

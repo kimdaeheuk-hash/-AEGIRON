@@ -12,7 +12,8 @@ from algorithms import local_signal as ls
 
 
 def _items(recent_views, base_views, today=None):
-    today = today or dt.date(2026, 11, 2)
+    # 고정 날짜는 날짜 폭탄이다(11-02 작성·당일만 통과·11-03 실패 실측). 실측 기준일로 둔다.
+    today = today or dt.date.today()
     items = []
     for back in range(1, 29):
         day = today - dt.timedelta(days=back)

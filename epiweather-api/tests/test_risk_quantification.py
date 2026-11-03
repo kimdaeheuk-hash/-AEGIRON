@@ -15,8 +15,10 @@ def no_real_country_data(monkeypatch):
     monkeypatch.setattr(country_risk_mod, "load_country_indicators", lambda: {})
 
 
-def test_curated_country_without_signal_uses_latent_exposure(isolated_db):
+def test_curated_country_without_signal_uses_latent_exposure(isolated_db, monkeypatch):
     """신호가 없으면 signal_pressure=0이라도 취약성·확산으로 잠재 노출은 계산됨."""
+    # 실데이터 차단: KOR 직접추출이 실측 파일을 읽으면 무신호 전제가 깨진다(KDCA 누적).
+    monkeypatch.setattr(country_risk_mod, "DIRECT_METRICS", {})
     result = quantify_country_exposure("KOR")
     assert result["has_active_signal"] is False
     assert result["components"]["signal_pressure"] == 0.0

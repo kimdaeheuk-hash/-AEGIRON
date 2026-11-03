@@ -31,6 +31,7 @@ export default function Stage0Synthetic() {
   const [scanErr, setScanErr] = useState('');
   const [aiStatus, setAiStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const [aiText, setAiText] = useState('');
+  const [aiProv, setAiProv] = useState('');
 
   async function runScan() {
     setScanning(true);
@@ -95,6 +96,7 @@ export default function Stage0Synthetic() {
   async function runAI() {
     if (!result) return;
     setAiStatus('loading');
+    setAiProv('');
     try {
       const summary = {
         종합: result.total, CI: result.ci,
@@ -110,6 +112,7 @@ export default function Stage0Synthetic() {
       if (!res.ok) throw new Error(`서버 오류 (${res.status})`);
       const data = await res.json();
       setAiText(data.analysis);
+      setAiProv(data.llm_provider === 'meta_model_api' ? ('Meta ' + (data.llm_model || '')) : (data.llm_provider || ''));
       setAiStatus('done');
     } catch (e) {
       setAiText(e instanceof Error ? e.message : String(e));
@@ -311,7 +314,7 @@ export default function Stage0Synthetic() {
               </div>
               {aiStatus === 'idle' && <div style={{ color: 'var(--muted2)', fontFamily: 'var(--mono)', fontSize: 10.5, textAlign: 'center', padding: '10px 0' }}>스캔 후 AI 통합 분석을 실행하세요.</div>}
               {aiStatus === 'loading' && <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--muted)', fontFamily: 'var(--mono)', fontSize: 10.5 }}><div style={{ width: 12, height: 12, border: '2px solid var(--line2)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'sp .7s linear infinite' }} />7신호 통합 분석 중…</div>}
-              {(aiStatus === 'done' || aiStatus === 'error') && <div style={{ fontFamily: 'var(--mono)', fontSize: 10.5, lineHeight: 1.7, whiteSpace: 'pre-wrap', color: aiStatus === 'error' ? '#ff8080' : 'var(--txt)' }}>{aiText}</div>}
+              {aiStatus === 'done' && aiProv && <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: '#34d399', marginBottom: 4 }}>\u2713 {aiProv} \ubd84\uc11d</div>}{(aiStatus === 'done' || aiStatus === 'error') && <div style={{ fontFamily: 'var(--mono)', fontSize: 10.5, lineHeight: 1.7, whiteSpace: 'pre-wrap', color: aiStatus === 'error' ? '#ff8080' : 'var(--txt)' }}>{aiText}</div>}
             </div>
           </div>
         </div>
