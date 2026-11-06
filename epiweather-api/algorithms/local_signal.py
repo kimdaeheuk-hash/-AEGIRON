@@ -19,6 +19,34 @@ UA = {"User-Agent": "EpiWeather-LocalSignal/1.0 (epidemic early warning)"}
 # 다르므로(`local_news.MIN_ITEMS_FOR_ALERT` 와 같은 규칙) 판정 불가로 둔다.
 MIN_BASELINE_VIEWS = 50
 
+# 문서 제목 한·영·불 병기 — 화면에 원문과 함께 보여준다. 원문은 증거(실제로
+# 조회한 문서), 병기는 사람이 읽기 위한 라벨이다. 새 도시를 넣을 때 여기에도
+# 꼭 넣는다 — 없으면 원문만 보인다(거짓 라벨을 지어내지 않는다).
+TITLE_I18N = {
+    "流行性感冒": ("독감", "Influenza", "Grippe"),
+    "传染病": ("전염병", "Infectious disease", "Maladie infectieuse"),
+    "Demam berdarah dengue": ("뎅기열", "Dengue fever", "Dengue"),
+    "Flu": ("독감", "Flu", "Grippe"),
+    "ไข้เลือดออก": ("뎅기출혈열", "Dengue hemorrhagic fever", "Dengue hémorragique"),
+    "ไข้หวัดใหญ่": ("독감", "Influenza", "Grippe"),
+    "Sốt xuất huyết": ("뎅기출혈열", "Dengue hemorrhagic fever", "Dengue hémorragique"),
+    "Cúm": ("독감", "Flu", "Grippe"),
+    "ডেঙ্গু জ্বর": ("뎅기열", "Dengue fever", "Dengue"),
+    "ম্যালেরিয়া": ("말라리아", "Malaria", "Paludisme"),
+    "Maladie à virus Ebola": ("에볼라 바이러스병", "Ebola virus disease", "Maladie à virus Ebola"),
+    "Choléra": ("콜레라", "Cholera", "Choléra"),
+    "Cutar Ebola": ("에볼라", "Ebola", "Ebola"),
+    "Zazzabi": ("발열", "Fever", "Fièvre"),
+    "Gripe": ("독감", "Flu", "Grippe"),
+    "Dengue": ("뎅기열", "Dengue", "Dengue"),
+}
+
+
+def _label(title: str) -> dict:
+    ko, en, fr = TITLE_I18N.get(title, (None, None, None))
+    return {"ko": ko, "en": en, "fr": fr}
+
+
 # 발원지 도시(common.py CITIES) → 현지어 위키피디아 + 감염병 관련 문서 제목
 # ★ 새 도시 추가 규칙 ★ 문서 제목은 반드시 실존 확인 후 넣는다 —
 # `https://{lang}.wikipedia.org/wiki/{제목}` 이 200 이어야 한다. 없는 제목은
@@ -75,15 +103,15 @@ def fetch_local_signal(origin_id: str) -> dict:
             recent = sum(i["views"] for i in items if i["timestamp"][:8] >= recent_cutoff)
             base = sum(i["views"] for i in items if i["timestamp"][:8] < recent_cutoff)
             if base < MIN_BASELINE_VIEWS:
-                results.append({"title": title, "recent_14d": recent,
+                results.append({"title": title, "label": _label(title), "recent_14d": recent,
                                 "baseline_14d": base, "undetermined": True,
                                 "reason": f"표본 부족 — 기준 14일 {base}건 "
                                           f"({MIN_BASELINE_VIEWS}건 미만)"})
                 continue
             ratio = recent / base
-            results.append({"title": title, "recent_14d": recent, "baseline_14d": base, "ratio": round(min(ratio, 99), 2)})
+            results.append({"title": title, "label": _label(title), "recent_14d": recent, "baseline_14d": base, "ratio": round(min(ratio, 99), 2)})
         except Exception as e:
-            results.append({"title": title, "error": str(e)[:100]})
+            results.append({"title": title, "label": _label(title), "error": str(e)[:100]})
 
     valid = [r for r in results if "ratio" in r]
     if not valid:

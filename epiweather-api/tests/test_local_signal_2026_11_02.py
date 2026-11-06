@@ -61,6 +61,23 @@ def test_mixed_titles_use_only_the_determined_ones(monkeypatch):
     assert sum(1 for t in out["titles"] if t.get("undetermined")) == 1
 
 
+def test_titles_carry_ko_en_fr_labels():
+    """문서마다 한·영·불 병기가 붙는다. 원문(title)은 그대로 둔다."""
+    with patch("algorithms.local_signal._daily_views",
+               return_value=_items(300, 100)):
+        out = ls.fetch_local_signal("WUH")
+    by_title = {t["title"]: t["label"] for t in out["titles"]}
+    assert by_title["流行性感冒"] == {"ko": "독감", "en": "Influenza", "fr": "Grippe"}
+    assert by_title["传染病"]["ko"] == "전염병"
+
+
+def test_every_mapped_city_title_has_a_label():
+    """CITY_WIKI에 있는 문서가 병기에서 빠지면 원문만 보인다 — 전부 있어야 한다."""
+    missing = [t for _, titles in ls.CITY_WIKI.values() for t in titles
+               if t not in ls.TITLE_I18N]
+    assert missing == []
+
+
 def test_unknown_city_is_unavailable():
     out = ls.fetch_local_signal("XXX")
     assert out["available"] is False and "매핑 없음" in out["reason"]

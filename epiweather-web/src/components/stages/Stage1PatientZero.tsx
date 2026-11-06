@@ -5,7 +5,7 @@ import { CHANNELS, clamp } from '@/lib/algorithms';
 import { API_BASE as API } from '@/lib/api';
 
 interface WhoSignal { title: string; date?: string; risk: number; source: string; link?: string }
-interface LocalSignalTitle { title: string; recent_14d?: number; baseline_14d?: number; ratio?: number; error?: string }
+interface LocalSignalTitle { title: string; label?: { ko?: string | null; en?: string | null; fr?: string | null }; recent_14d?: number; baseline_14d?: number; ratio?: number; error?: string }
 interface LocalSignal {
   available: boolean; reason?: string; lang?: string;
   titles?: LocalSignalTitle[]; max_anomaly_ratio?: number; verdict?: string; source?: string;
@@ -212,7 +212,14 @@ export default function Stage1PatientZero() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {local.titles?.map((t, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '7px 10px', background: 'rgba(255,255,255,.025)', border: '1px solid var(--line)', borderRadius: 8 }}>
-                  <span style={{ fontSize: 11, flex: 1 }}>{t.title}</span>
+                  <span style={{ flex: 1 }}>
+                    <span style={{ fontSize: 11 }}>{t.title}</span>
+                    {t.label && (t.label.ko || t.label.en || t.label.fr) && (
+                      <span style={{ display: 'block', fontFamily: 'var(--mono)', fontSize: 8.5, color: 'var(--muted2)', marginTop: 2 }}>
+                        {[t.label.ko, t.label.en, t.label.fr].filter(Boolean).join(' · ')}
+                      </span>
+                    )}
+                  </span>
                   {t.error ? (
                     <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted2)' }}>조회 실패</span>
                   ) : (
