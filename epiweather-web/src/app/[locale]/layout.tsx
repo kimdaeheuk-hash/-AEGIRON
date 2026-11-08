@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { notFound } from 'next/navigation';
+import '../layers.css';
 import '../globals.css';
 import {
   locales,

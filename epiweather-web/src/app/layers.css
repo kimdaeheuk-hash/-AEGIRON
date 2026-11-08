@@ -1,0 +1,10 @@
+/*
+ * Cascade-layer order for Tailwind v4 + Astryx. Imported first in every root
+ * layout, before globals.css: Next.js hoists CSS @imports above inline rules,
+ * so this line must live in its own file to take effect.
+ *
+ * reset (Astryx) < theme/base (Tailwind) < astryx-base < astryx-theme
+ * < components < utilities (Tailwind). Unlayered app CSS in globals.css
+ * still beats every layer, so existing pages render as before.
+ */
+@layer reset, theme, base, astryx-base, astryx-theme, components, utilities;
