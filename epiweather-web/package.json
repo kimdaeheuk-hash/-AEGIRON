@@ -10,6 +10,9 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@astryxdesign/core": "^0.7.11",
+    "@astryxdesign/theme-neutral": "^0.7.11",
+    "@stylexjs/stylex": "^0.19.1",
     "leaflet": "^1.9.4",
     "next": "16.2.6",
     "react": "19.2.4",
@@ -20,6 +23,7 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@astryxdesign/cli": "^0.7.11",
     "@playwright/test": "^1.60.0",
     "@tailwindcss/postcss": "^4",
     "@types/leaflet": "^1.9.21",

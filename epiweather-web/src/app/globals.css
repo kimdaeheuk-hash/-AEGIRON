@@ -1,4 +1,8 @@
 @import "tailwindcss";
+/* Astryx design system — layer order is declared in layers.css. */
+@import "@astryxdesign/core/reset.css";
+@import "@astryxdesign/core/astryx.css";
+@import "@astryxdesign/theme-neutral/theme.css";
 
 :root {
   --bg:     #050810;
@@ -21,7 +25,12 @@
   --mono:   "JetBrains Mono", monospace;
 }
 
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+/* 앱 리셋은 가장 낮은 reset 레이어에 둔다. 레이어 밖에 두면 Astryx 컴포넌트의
+   padding·margin까지 0으로 덮어쓴다. Tailwind preflight가 같은 값을 주므로
+   기존 화면은 그대로다. */
+@layer reset {
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+}
 
 html, body {
   background: var(--bg);
