@@ -101,7 +101,9 @@ def test_wiring_endpoint_daily_telegram_and_prewarm():
     daily = next(ast.unparse(n) for n in names.values() if "notify_daily_brief" in ast.unparse(n)
                  and isinstance(n, ast.AsyncFunctionDef))
     assert "notify_country_cards" in daily
-    assert "country-cards:ko" in ast.unparse(names["_prewarm_after_cycle"])
+    assert "_prewarm_heavy" in ast.unparse(names["_prewarm_after_cycle"])
+    assert "country-cards:ko" in ast.unparse(names["_prewarm_heavy"])
+    assert "_prewarm_heavy()" in ast.unparse(names["_dashboard_warmup_bg"])  # 기동 직후에도
 
 
 def test_endpoint_returns_cards(monkeypatch):

@@ -315,18 +315,20 @@ def _prewarm_after_cycle() -> None:
     경보 주기가 수집을 반영한 직후라 값이 바뀌는 시점이다. 사람·웹이 요청할 때 계산을 기다리지 않게
     여기서 먼저 채운다. 한 키가 이미 갱신 중이면 건너뛴다(response_cache.prewarm). 실패는 저장하지 않는다.
     """
-    def run():
-        for key, builder in (
-            ("risk-index", rank_countries),
-            ("negative-space", scan_negative_space),
-            ("unexplained", scan_unexplained),
-            ("status", _status_payload),
-        ):
-            response_cache.prewarm(key, builder)
-        from algorithms.country_cards import country_cards
-        response_cache.prewarm("country-cards:ko", lambda: country_cards("ko"))
+    threading.Thread(target=_prewarm_heavy, name="prewarm-after-cycle", daemon=True).start()
 
-    threading.Thread(target=run, name="prewarm-after-cycle", daemon=True).start()
+
+def _prewarm_heavy() -> None:
+    """무거운 조회 저장본을 차례로 채운다 — 경보 주기 직후와 기동 직후(재배포 뒤 첫 방문자가 콜드 계산을 안 맞게)."""
+    for key, builder in (
+        ("risk-index", rank_countries),
+        ("negative-space", scan_negative_space),
+        ("unexplained", scan_unexplained),
+        ("status", _status_payload),
+    ):
+        response_cache.prewarm(key, builder)
+    from algorithms.country_cards import country_cards
+    response_cache.prewarm("country-cards:ko", lambda: country_cards("ko"))
 
 
 async def _run_alert_cycle() -> None:
@@ -939,6 +941,11 @@ def _dashboard_warmup_bg() -> None:
     except Exception as e:
         print(f"[dashboard] 기동 예열 실패 — 첫 요청이 짓는다: "
               f"{type(e).__name__}: {str(e)[:150]}", flush=True)
+    # 조회 API 응답 캐시도 기동 직후 채운다(2026-11-15) — 재배포 뒤 첫 경보 주기(최대 1시간)까지 비어 있으면
+    # 그 사이 방문자가 risk-index 45초 같은 콜드 계산을 맞는다. 대시보드 다음에 차례로(동시에 돌려 CPU 를 다투지 않게).
+    t0 = time.time()
+    _prewarm_heavy()
+    print(f"[response_cache] 기동 예열 끝 — {time.time() - t0:.1f}초", flush=True)
 
 
 # ── 헬스체크 ─────────────────────────────────────────────────
