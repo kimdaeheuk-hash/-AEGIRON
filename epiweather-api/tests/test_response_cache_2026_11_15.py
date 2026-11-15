@@ -108,6 +108,58 @@ def test_daily_brief_serves_todays_archive_without_generating(monkeypatch):
     main._DAILY_BRIEF_CACHE.clear()
 
 
+def test_daily_brief_before_22utc_serves_latest_archive_marked_and_generates_once(monkeypatch):
+    """오늘자 보관본이 없으면(22시 전) 최근 보관본을 '어제 것' 표시와 함께 바로 주고, 오늘자는 뒤에서 한 번만 만든다."""
+    import threading
+
+    from fastapi.testclient import TestClient
+
+    import main
+
+    main._DAILY_BRIEF_CACHE.clear()
+    monkeypatch.setattr(main.db, "get_daily_brief", lambda d, lang="ko": None)
+    monkeypatch.setattr(main.db, "latest_daily_brief",
+                        lambda lang, max_age_days=2: ("2026-11-14", {"date": "2026-11-14", "headline": "어제"}))
+    started = threading.Event()
+    release = threading.Event()
+    calls = []
+
+    def slow(lang, format):
+        calls.append(lang)
+        started.set()
+        release.wait(5)
+        return {"date": "today", "headline": "오늘"}
+
+    monkeypatch.setattr(main, "_generate_brief_now", slow)
+    c = TestClient(main.app)
+    body = c.get("/api/daily-brief?lang=ko").json()
+    assert body["headline"] == "어제" and body["date"] == "2026-11-14"
+    assert body["archive_fallback"]["served_date"] == "2026-11-14"
+    assert "22:00 UTC" in body["archive_fallback"]["reason"]
+    assert started.wait(5)
+    c.get("/api/daily-brief?lang=ko")  # 생성 중 — 두 번째 생성을 띄우지 않는다
+    release.set()
+    for _ in range(50):
+        if main._DAILY_BRIEF_CACHE:
+            break
+        threading.Event().wait(0.05)
+    assert calls == ["ko"]
+    assert c.get("/api/daily-brief?lang=ko").json()["headline"] == "오늘"
+    main._DAILY_BRIEF_CACHE.clear()
+
+
+def test_latest_daily_brief_refuses_stale_archive(isolated_db):
+    import datetime as dt
+
+    import db
+
+    db.save_daily_brief("2000-01-01", "zz", {"date": "2000-01-01"})  # 다른 시험과 안 겹치는 언어 코드
+    assert db.latest_daily_brief("zz", max_age_days=2) is None
+    recent = (dt.datetime.now(dt.timezone.utc).date() - dt.timedelta(days=1)).isoformat()
+    db.save_daily_brief(recent, "zz", {"date": recent})
+    assert db.latest_daily_brief("zz", max_age_days=2) == (recent, {"date": recent})
+
+
 def test_ai_infer_fast_mode_returns_decision_tree_without_llm(monkeypatch):
     """fast=true 는 LLM 을 부르지 않는다 — 화면이 즉시 그릴 1단계(캡틴: '추론도 엄청 늦게 떠')."""
     from fastapi.testclient import TestClient

@@ -2451,8 +2451,6 @@ def daily_brief(lang: str = "ko", format: Optional[str] = None):
     generation_method로 표시. is_official_alert=False이며, 새 위협이 없으면
     quiet_day=True로 조용한 날을 조용하게 전한다(없는 위기를 지어내지 않음).
     """
-    from algorithms.daily_brief import generate_daily_brief
-
     # ★ 캐시 ★ 이 엔드포인트는 인증이 없고(홈페이지가 직접 부른다) 요청마다
     # Claude로 앵커 대본을 다듬는다 — 즉 **방문자 수만큼 돈이 나간다.** 런칭 후
     # 트래픽이 붙으면 그대로 비용이 되고, 악의적으로 반복 호출하면 크레딧이 마른다.
@@ -2473,15 +2471,66 @@ def daily_brief(lang: str = "ko", format: Optional[str] = None):
         if archived is not None:
             _DAILY_BRIEF_CACHE[cache_key] = archived
             return archived
+        # 오늘자는 매일 22시(UTC) 작업이 만든다 — 그 전(하루의 대부분)엔 보관본이 없어 여전히 새로 생성을
+        # 기다렸다. 가장 최근 보관본(≤2일)을 바로 주되 **어제 것임을 표시**하고, 오늘자는 뒤에서 한 번만 만든다.
+        latest = db.latest_daily_brief(lang, max_age_days=_BRIEF_FALLBACK_DAYS)
+        if latest is not None:
+            served_date, prev = latest
+            _start_brief_bg(cache_key, lang)
+            return {
+                **prev,
+                "archive_fallback": {
+                    "served_date": served_date,
+                    "requested_date": today,
+                    "reason": "오늘자 브리핑은 매일 22:00 UTC 에 만들어짐 — 그 전까지 가장 최근 보관본을 보여줌",
+                },
+            }
 
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    brief = generate_daily_brief(lang=lang, api_key=api_key, fmt=format)
+    brief = _generate_brief_now(lang, format)
+    _store_brief(cache_key, brief)
+    return brief
 
+
+_BRIEF_FALLBACK_DAYS = 2
+_BRIEF_BG_INFLIGHT: set[tuple[str, str, str]] = set()
+_BRIEF_BG_GUARD = threading.Lock()
+
+
+def _generate_brief_now(lang: str, format: str | None) -> dict:
+    from algorithms.daily_brief import generate_daily_brief
+
+    return generate_daily_brief(lang=lang, api_key=os.environ.get("ANTHROPIC_API_KEY"), fmt=format)
+
+
+def _store_brief(cache_key: tuple[str, str, str], brief: dict) -> None:
     # 날짜가 바뀌면 어제 것은 버린다(무한 증가 방지).
-    for stale in [k for k in _DAILY_BRIEF_CACHE if k[0] != today]:
+    for stale in [k for k in _DAILY_BRIEF_CACHE if k[0] != cache_key[0]]:
         _DAILY_BRIEF_CACHE.pop(stale, None)
     _DAILY_BRIEF_CACHE[cache_key] = brief
-    return brief
+
+
+def _start_brief_bg(cache_key: tuple[str, str, str], lang: str) -> bool:
+    """오늘자(포맷 미지정) 브리핑을 뒤 스레드에서 한 번만 생성해 메모리 캐시에 넣는다.
+
+    DB 에는 저장하지 않는다 — DB 보관본은 22시 작업이 만들어 텔레그램으로 보낸 것만 담는다
+    (여기서 저장하면 22시 작업이 '이미 있음'으로 보고 건너뛴다).
+    """
+    with _BRIEF_BG_GUARD:
+        if cache_key in _BRIEF_BG_INFLIGHT:
+            return False
+        _BRIEF_BG_INFLIGHT.add(cache_key)
+
+    def run() -> None:
+        try:
+            _store_brief(cache_key, _generate_brief_now(lang, None))
+        except Exception as e:  # noqa: BLE001 — 실패는 저장하지 않는다(다음 요청이 다시 시도)
+            print(f"  ⚠️ [daily-brief] 뒤 생성 실패: {type(e).__name__}: {str(e)[:120]}", flush=True)
+        finally:
+            with _BRIEF_BG_GUARD:
+                _BRIEF_BG_INFLIGHT.discard(cache_key)
+
+    threading.Thread(target=run, daemon=True).start()
+    return True
 
 
 @app.get("/api/daily-brief/archive", tags=["GAI"])

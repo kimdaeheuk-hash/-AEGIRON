@@ -643,6 +643,18 @@ def get_daily_brief(brief_date: str, lang: str = "ko") -> dict | None:
         return json.loads(row["brief"]) if row else None
 
 
+def latest_daily_brief(lang: str = "ko", max_age_days: int = 2) -> tuple[str, dict] | None:
+    """가장 최근 보관본 (날짜, 브리핑) — max_age_days 보다 오래됐으면 None(낡은 걸 오늘 것처럼 주지 않게)."""
+    since = (datetime.now(timezone.utc).date() - timedelta(days=max_age_days)).isoformat()
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT brief_date, brief FROM daily_briefs WHERE lang = ? AND brief_date >= ? "
+            "ORDER BY brief_date DESC LIMIT 1",
+            (lang, since),
+        ).fetchone()
+    return (row["brief_date"], json.loads(row["brief"])) if row else None
+
+
 def list_daily_briefs(lang: str = "ko", limit: int = 30) -> list[dict]:
     """최근 브리핑 목록(가벼운 메타만) — 날짜 내림차순."""
     with get_connection() as conn:
