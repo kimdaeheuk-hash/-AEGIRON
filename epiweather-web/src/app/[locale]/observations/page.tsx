@@ -39,72 +39,101 @@ export default async function ObservationsPage(props: { params: Promise<{ locale
   const x = getDictionary(locale).extra;
   const page = x.pages.observations;
   const t = x.observations;
-  const sections = await getObservations();
+  const sections = await getObservations(locale);
 
   // 측정값과 해석값은 다른 칸 — 같은 모양으로 섞어 그리지 않는다.
   const columns: TableColumn<ObservationRow>[] = [
-    { key: 'target', header: t.columns.target, width: proportional(1.2, { minWidth: 120 }) },
-    { key: 'measured', header: t.columns.measured, width: proportional(2, { minWidth: 180 }) },
-    { key: 'derived', header: t.columns.derived, width: proportional(1.4, { minWidth: 140 }) },
-    { key: 'time', header: t.columns.time, width: proportional(1, { minWidth: 110 }) },
-    { key: 'note', header: t.columns.note, width: proportional(1.2, { minWidth: 120 }) },
+    {
+      key: 'target',
+      header: t.columns.target,
+      width: proportional(1.2, { minWidth: 120 }),
+    },
+    {
+      key: 'measured',
+      header: t.columns.measured,
+      width: proportional(2, { minWidth: 180 }),
+    },
+    {
+      key: 'derived',
+      header: t.columns.derived,
+      width: proportional(1.4, { minWidth: 140 }),
+    },
+    {
+      key: 'time',
+      header: t.columns.time,
+      width: proportional(1, { minWidth: 110 }),
+    },
+    {
+      key: 'note',
+      header: t.columns.note,
+      width: proportional(1.2, { minWidth: 120 }),
+    },
   ];
 
   return (
-    <AstryxProvider>
-      <VStack as="main" gap={6} paddingInline={4} paddingBlock={8} maxWidth={1200} width="100%">
-        <VStack gap={2}>
-          <Text type="label" color="accent">{page.eyebrow}</Text>
-          <Heading level={1}>{page.title}</Heading>
-          <Text type="large" color="secondary">{page.lead}</Text>
-          <Text type="supporting">{t.columnsNote}</Text>
-        </VStack>
+    // 사이트가 밝은 배경이라 light — 기본값(dark)이면 제목이 배경에 묻힌다(2026-11-15 로컬 렌더 확인).
+    <AstryxProvider mode="light">
+      <VStack as="main" hAlign="center" paddingInline={4} paddingBlock={8} width="100%">
+        <VStack gap={6} maxWidth={1200} width="100%">
+          <VStack gap={2}>
+            <Text type="label" color="accent">
+              {page.eyebrow}
+            </Text>
+            <Heading level={1}>{page.title}</Heading>
+            <Text type="large" color="secondary">
+              {page.lead}
+            </Text>
+            <Text type="supporting">{t.columnsNote}</Text>
+          </VStack>
 
-        {sections.map((s) => {
-          const label = t.sections[s.key];
-          return (
-            <Card key={s.key} padding={4}>
-              <VStack gap={3}>
-                <VStack gap={1}>
-                  <HStack gap={2} vAlign="center" wrap="wrap">
-                    <Heading level={2}>{label.title}</Heading>
-                    {s.rows !== null && s.total !== null && (
-                      <Token size="sm" label={`${s.total.toLocaleString('en-US')} ${t.countLabel}`} />
-                    )}
-                  </HStack>
-                  <Text type="supporting">{label.lead}</Text>
-                </VStack>
+          {sections.map((s) => {
+            const label = t.sections[s.key];
+            return (
+              <Card key={s.key} padding={4}>
+                <VStack gap={3}>
+                  <VStack gap={1}>
+                    <HStack gap={2} vAlign="center" wrap="wrap">
+                      <Heading level={2}>{label.title}</Heading>
+                      {s.rows !== null && s.total !== null && (
+                        <Token size="sm" label={`${s.total.toLocaleString('en-US')} ${t.countLabel}`} />
+                      )}
+                    </HStack>
+                    <Text type="supporting">{label.lead}</Text>
+                  </VStack>
 
-                {s.rows === null ? (
-                  <Text color="secondary">{t.unavailable}</Text>
-                ) : s.rows.length === 0 ? (
-                  <Text color="secondary">{t.empty}</Text>
-                ) : (
-                  <Table<ObservationRow>
-                    data={s.rows}
-                    columns={columns}
-                    idKey="id"
-                    density="compact"
-                    textOverflow="wrap"
-                    verticalAlign="top"
-                  />
-                )}
-
-                {s.caveat && <Text type="supporting">{s.caveat}</Text>}
-                <HStack gap={3} wrap="wrap">
-                  {s.source && (
-                    <Text type="supporting">
-                      {t.sourceLabel}: {s.source}
-                    </Text>
+                  {s.rows === null ? (
+                    <Text color="secondary">{t.unavailable}</Text>
+                  ) : s.rows.length === 0 ? (
+                    <Text color="secondary">{t.empty}</Text>
+                  ) : (
+                    <Table<ObservationRow>
+                      data={s.rows}
+                      columns={columns}
+                      idKey="id"
+                      density="compact"
+                      textOverflow="wrap"
+                      verticalAlign="top"
+                    />
                   )}
-                  <Link href={apiUrl(s.apiPath)} target="_blank">
-                    <Text type="supporting" color="inherit">{s.apiPath}</Text>
-                  </Link>
-                </HStack>
-              </VStack>
-            </Card>
-          );
-        })}
+
+                  {s.caveat && <Text type="supporting">{s.caveat}</Text>}
+                  <HStack gap={3} wrap="wrap">
+                    {s.source && (
+                      <Text type="supporting">
+                        {t.sourceLabel}: {s.source}
+                      </Text>
+                    )}
+                    <Link href={apiUrl(s.apiPath)} target="_blank">
+                      <Text type="supporting" color="inherit">
+                        {s.apiPath}
+                      </Text>
+                    </Link>
+                  </HStack>
+                </VStack>
+              </Card>
+            );
+          })}
+        </VStack>
       </VStack>
     </AstryxProvider>
   );

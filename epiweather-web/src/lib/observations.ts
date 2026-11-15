@@ -5,23 +5,25 @@
  *   대상 · 측정값 · 해석값(추정·대리) · 기준 시각 · 비고
  * 측정값과 해석값을 다른 칸에 두는 게 핵심이다 — 같은 칸에 섞으면 추정이 측정처럼 읽힌다.
  *
+ * 필드 이름은 2026-11-15 운영 스냅숏(media-capture/results, 12개 엔드포인트 모두 200)으로 맞췄다.
  * 못 읽으면 rows=null → 화면은 "읽어 오지 못함"을 쓴다(지어낸 0 이 아니라).
- * 값이 없는 칸은 '—' 가 아니라 비워 두지 않고 VALUE_NONE 으로 쓴다.
+ * 값이 없는 칸은 비워 두지 않고 '값 없음'으로 쓴다.
+ *
+ * 한계: 극지 지역명·유전체/SNS 라벨·재난 질병명은 백엔드가 한국어로 내려줘서 en/fr 화면에도
+ * 한국어로 보인다. 보도 요약(raw_text)도 원문 언어 그대로다.
  */
+import type { Locale } from '@/i18n';
 import type { ObservationSectionKey } from '@/i18n/types';
 
 const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ??
-  'https://epiweather-api-production.up.railway.app';
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ?? 'https://epiweather-api-production.up.railway.app';
 
 /** 수집은 매시 돈다. 일부 분야는 요청 때 외부 API 를 부르므로 너무 자주 묻지 않는다. */
 const REVALIDATE_SECONDS = 900;
 /** 한 분야가 느려도 페이지 전체가 막히지 않게. */
 const TIMEOUT_MS = 20_000;
-/** 분야별 최대 행 수 — 표가 끝없이 길어지지 않게. 잘랐으면 비고에 남긴다. */
+/** 분야별 최대 행 수 — 표가 끝없이 길어지지 않게. 전체 건수는 따로 표시한다. */
 const MAX_ROWS = 25;
-
-export const VALUE_NONE = '값 없음';
 
 export type ObservationRow = {
   id: string;
@@ -36,16 +38,163 @@ export type ObservationSection = {
   key: ObservationSectionKey;
   /** null = 운영 서버에서 읽지 못함 */
   rows: ObservationRow[] | null;
-  /** 전체 몇 건 중 표시했는지 */
+  /** 응답에 있던 전체 건수(표에는 MAX_ROWS 까지만) */
   total: number | null;
   source: string | null;
-  /** 응답에 실린 주의 문구(disclaimer/caveat) — 화면이 그대로 그린다 */
+  /** 응답에 실린 주의 문구(disclaimer/caveat/note) — 화면이 그대로 그린다 */
   caveat: string | null;
-  /** 응답 원문 링크 */
   apiPath: string;
 };
 
 type J = Record<string, unknown>;
+
+// ── 값 문구(3개 언어) ──────────────────────────────────────────────────
+
+type V = {
+  none: string;
+  thawDays: (n: string) => string;
+  anomaly: (n: string) => string;
+  news: (n: string) => string;
+  thawPressure: (n: string) => string;
+  watchScore: (n: string) => string;
+  weatherMissing: string;
+  meanTemp: (n: string) => string;
+  precip14: (n: string) => string;
+  trend: (n: string) => string;
+  vectorSuit: (n: string) => string;
+  envPressure: (n: string) => string;
+  monthlyImport: (n: string, period: string) => string;
+  vsUsual: (n: string) => string;
+  multiProduct: (n: string) => string;
+  daysSince: (n: string) => string;
+  windows: (list: string) => string;
+  openWindows: (n: string) => string;
+  level: (n: string) => string;
+  rssItems: (n: string) => string;
+  newClades: (list: string) => string;
+  noNewClades: string;
+  dominant: (c: string, share: string) => string;
+  sequences: (n: string) => string;
+  posts7d: (n: string) => string;
+  vsPrev: (n: string) => string;
+  capped: string;
+  surge: string;
+  recent: (n: string) => string;
+  pastAvg: (n: string) => string;
+  vsAvg: (n: string) => string;
+  apiRetired: string;
+  silenceChecked: (n: string) => string;
+};
+
+const VALUES: Record<Locale, V> = {
+  ko: {
+    none: '값 없음',
+    thawDays: (n) => `최근 30일 중 영상 ${n}일`,
+    anomaly: (n) => `10년 같은 달 평균 대비 ${n}℃`,
+    news: (n) => `관련 보도 ${n}건`,
+    thawPressure: (n) => `해빙 압력 ${n}`,
+    watchScore: (n) => `관찰 점수 ${n}`,
+    weatherMissing: '기상값 받지 못함',
+    meanTemp: (n) => `평균 기온 ${n}℃`,
+    precip14: (n) => `14일 강수 ${n}mm`,
+    trend: (n) => `추세 ${n}℃`,
+    vectorSuit: (n) => `매개체 적합도 ${n}`,
+    envPressure: (n) => `환경 압력 ${n}`,
+    monthlyImport: (n, p) => `${p} 수입 $${n}`,
+    vsUsual: (n) => `평소 대비 ${n}배`,
+    multiProduct: (n) => `${n}개 품목 동시 급증`,
+    daysSince: (n) => `${n}일 경과`,
+    windows: (l) => `감시창: ${l}`,
+    openWindows: (n) => `열린 감시창 ${n}개`,
+    level: (n) => `Level ${n}`,
+    rssItems: (n) => `공식 RSS 항목 ${n}건`,
+    newClades: (l) => `새 계통 ${l}`,
+    noNewClades: '새 계통 없음',
+    dominant: (c, s) => `우세 ${c}${s ? ` (${s})` : ''}`,
+    sequences: (n) => `최근 60일 시퀀스 ${n}건`,
+    posts7d: (n) => `7일 게시 ${n}건`,
+    vsPrev: (n) => `직전 대비 ${n}배`,
+    capped: '표본 상한에 닿음',
+    surge: '급변',
+    recent: (n) => `최근 ${n}`,
+    pastAvg: (n) => `과거 평균 ${n}`,
+    vsAvg: (n) => `평균 대비 ${n}배`,
+    apiRetired: 'WAHIS API 은퇴 — 발생 건수는 판정 안 함',
+    silenceChecked: (n) => `채널 ${n}개 점검 · 급감 없음`,
+  },
+  en: {
+    none: 'No value',
+    thawDays: (n) => `${n} above-zero days in last 30`,
+    anomaly: (n) => `${n}℃ vs same-month 10-yr mean`,
+    news: (n) => `${n} related reports`,
+    thawPressure: (n) => `Thaw pressure ${n}`,
+    watchScore: (n) => `Watch score ${n}`,
+    weatherMissing: 'Weather values not received',
+    meanTemp: (n) => `Mean temp ${n}℃`,
+    precip14: (n) => `14-day rain ${n}mm`,
+    trend: (n) => `Trend ${n}℃`,
+    vectorSuit: (n) => `Vector suitability ${n}`,
+    envPressure: (n) => `Env. pressure ${n}`,
+    monthlyImport: (n, p) => `${p} imports $${n}`,
+    vsUsual: (n) => `${n}× usual`,
+    multiProduct: (n) => `${n} products surging together`,
+    daysSince: (n) => `${n} days ago`,
+    windows: (l) => `Watch windows: ${l}`,
+    openWindows: (n) => `${n} open windows`,
+    level: (n) => `Level ${n}`,
+    rssItems: (n) => `${n} official RSS items`,
+    newClades: (l) => `New lineages ${l}`,
+    noNewClades: 'No new lineage',
+    dominant: (c, s) => `Dominant ${c}${s ? ` (${s})` : ''}`,
+    sequences: (n) => `${n} sequences, last 60 days`,
+    posts7d: (n) => `${n} posts in 7 days`,
+    vsPrev: (n) => `${n}× previous`,
+    capped: 'Hit sample cap',
+    surge: 'Sudden change',
+    recent: (n) => `Latest ${n}`,
+    pastAvg: (n) => `Past mean ${n}`,
+    vsAvg: (n) => `${n}× mean`,
+    apiRetired: 'WAHIS API retired — outbreak count not determined',
+    silenceChecked: (n) => `${n} channels checked · no drop`,
+  },
+  fr: {
+    none: 'Pas de valeur',
+    thawDays: (n) => `${n} jours au-dessus de zéro sur 30`,
+    anomaly: (n) => `${n}℃ vs moyenne du même mois sur 10 ans`,
+    news: (n) => `${n} articles liés`,
+    thawPressure: (n) => `Pression de dégel ${n}`,
+    watchScore: (n) => `Score de veille ${n}`,
+    weatherMissing: 'Valeurs météo non reçues',
+    meanTemp: (n) => `Temp. moyenne ${n}℃`,
+    precip14: (n) => `Pluie 14 j ${n} mm`,
+    trend: (n) => `Tendance ${n}℃`,
+    vectorSuit: (n) => `Aptitude vectorielle ${n}`,
+    envPressure: (n) => `Pression env. ${n}`,
+    monthlyImport: (n, p) => `Importations ${p} ${n} $`,
+    vsUsual: (n) => `${n}× l'habitude`,
+    multiProduct: (n) => `${n} produits en hausse simultanée`,
+    daysSince: (n) => `il y a ${n} jours`,
+    windows: (l) => `Fenêtres : ${l}`,
+    openWindows: (n) => `${n} fenêtres ouvertes`,
+    level: (n) => `Niveau ${n}`,
+    rssItems: (n) => `${n} éléments RSS officiels`,
+    newClades: (l) => `Nouvelles lignées ${l}`,
+    noNewClades: 'Aucune nouvelle lignée',
+    dominant: (c, s) => `Dominante ${c}${s ? ` (${s})` : ''}`,
+    sequences: (n) => `${n} séquences sur 60 jours`,
+    posts7d: (n) => `${n} publications sur 7 jours`,
+    vsPrev: (n) => `${n}× la précédente`,
+    capped: "Plafond d'échantillon atteint",
+    surge: 'Variation brusque',
+    recent: (n) => `Dernière ${n}`,
+    pastAvg: (n) => `Moyenne passée ${n}`,
+    vsAvg: (n) => `${n}× la moyenne`,
+    apiRetired: 'API WAHIS retirée — nombre de foyers non déterminé',
+    silenceChecked: (n) => `${n} canaux vérifiés · aucune baisse`,
+  },
+};
+
+// ── 가져오기 ───────────────────────────────────────────────────────────
 
 async function getJson(path: string): Promise<J | null> {
   try {
@@ -87,286 +236,403 @@ function fmt(v: unknown, digits = 1): string | null {
   if (n === null) return null;
   return Number.isInteger(n) ? n.toLocaleString('en-US') : n.toFixed(digits);
 }
-/** 붙일 값이 하나도 없으면 VALUE_NONE. */
-function join(parts: (string | null | undefined | false)[]): string {
-  const kept = parts.filter((p): p is string => typeof p === 'string' && p.length > 0);
-  return kept.length ? kept.join(' · ') : VALUE_NONE;
+function signed(v: unknown, digits = 1): string | null {
+  const n = num(v);
+  if (n === null) return null;
+  return `${n > 0 ? '+' : ''}${n.toFixed(digits)}`;
 }
-function when(v: unknown): string {
-  const s = str(v);
-  if (!s) return VALUE_NONE;
-  // ISO 시각이면 'YYYY-MM-DD HH:MM UTC', 날짜만이면 그대로
-  const m = s.match(/^(\d{4}-\d{2}-\d{2})(?:[T ](\d{2}:\d{2}))?/);
-  if (!m) return s.slice(0, 40);
-  return m[2] ? `${m[1]} ${m[2]} UTC` : m[1];
+function pct(v: unknown): string | null {
+  const n = num(v);
+  return n === null ? null : `${Math.round(n * 100)}%`;
 }
 function clip(s: string | null, n = 120): string | null {
   if (!s) return null;
-  return s.length > n ? `${s.slice(0, n - 1)}…` : s;
+  const flat = s.replace(/\s+/g, ' ').replace(/\*\*/g, '').trim();
+  return flat.length > n ? `${flat.slice(0, n - 1)}…` : flat;
 }
-function limit(rows: ObservationRow[]): ObservationRow[] {
-  return rows.slice(0, MAX_ROWS);
+function list(v: unknown, max = 4): string | null {
+  if (!Array.isArray(v) || v.length === 0) return null;
+  const items = v.map(String);
+  return items.length > max ? `${items.slice(0, max).join(', ')} +${items.length - max}` : items.join(', ');
+}
+/** 'YYYY-MM-DD HH:MM UTC' · 'YYYY-MM-DD' · RFC 1123('Tue, 10 Nov 2026 …') · 'YYYYMM' */
+function when(v: unknown, none: string): string {
+  const s = str(v);
+  if (!s) return none;
+  const iso = s.match(/^(\d{4}-\d{2}-\d{2})(?:[T ](\d{2}:\d{2}))?/);
+  if (iso) return iso[2] ? `${iso[1]} ${iso[2]} UTC` : iso[1];
+  if (/^\d{6}$/.test(s)) return `${s.slice(0, 4)}-${s.slice(4)}`;
+  const t = Date.parse(s);
+  if (!Number.isNaN(t)) return new Date(t).toISOString().slice(0, 10);
+  return s.slice(0, 40);
 }
 
-function section(
-  key: ObservationSectionKey,
-  apiPath: string,
-  body: J | null,
-  build: (b: J) => { rows: ObservationRow[]; total?: number },
-): ObservationSection {
-  if (!body) return { key, rows: null, total: null, source: null, caveat: null, apiPath };
-  let built: { rows: ObservationRow[]; total?: number };
-  try {
-    built = build(body);
-  } catch {
-    // 모양이 예상과 다르면 지어내지 않고 '읽지 못함'으로 떨어진다
-    return { key, rows: null, total: null, source: str(body.data_source), caveat: null, apiPath };
-  }
-  return {
-    key,
-    rows: limit(built.rows),
-    total: built.total ?? built.rows.length,
-    source: str(body.data_source),
-    caveat: clip(str(body.disclaimer) ?? str(body.caveat) ?? str(body.note), 260),
-    apiPath,
+type Built = { rows: ObservationRow[]; total?: number };
+type Builder = (b: J, v: V) => Built;
+
+/** 붙일 값이 하나도 없으면 '값 없음'. */
+function joiner(v: V) {
+  return (parts: (string | null | undefined | false)[]): string => {
+    const kept = parts.filter((p): p is string => typeof p === 'string' && p.length > 0);
+    return kept.length ? kept.join(' · ') : v.none;
   };
 }
 
 // ── 분야별 변환 ────────────────────────────────────────────────────────
 
-function events(b: J) {
-  const rows = arr(b.records).map((r, i) => ({
+/**
+ * 나라별 발생 보도 — AI 구조화 추출. 보도 요약(raw_text)은 출처가 전한 수치를 그대로 담는다.
+ * 같은 사건을 같은 출처가 매일 다시 전하므로(질병·장소·출처가 같음) 최신 한 건만 남긴다 —
+ * 응답은 최신순이라 처음 만난 것이 최신이다. 시각은 보도 속 사건 날짜(signal_date — PHEIC 선포일처럼
+ * 몇 달 전일 수 있음)가 아니라 아이기론이 기록한 시각(extracted_at)이다.
+ */
+const events: Builder = (b, v) => {
+  const j = joiner(v);
+  const seen = new Set<string>();
+  const latest = arr(b.records).filter((r) => {
+    const k = [str(r.disease), str(r.location), str(r.source)].join('|');
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+  const rows = latest.map((r, i) => ({
     id: `ev-${str(r.id) ?? i}`,
-    target: join([str(r.country_iso3) ?? str(r.location), str(r.disease)]),
-    measured: join([str(r.signal_type), clip(str(r.location), 60)]),
-    derived: VALUE_NONE,
-    time: when(r.signal_date ?? r.extracted_at),
-    note: join([str(r.source), str(r.ai_provider)]),
+    target: j([str(r.disease), clip(str(r.location), 50) ?? str(r.country_iso3)]),
+    measured: j([clip(str(r.raw_text), 160)]),
+    derived: j([str(r.signal_type)]),
+    time: when(r.extracted_at ?? r.signal_date, v.none),
+    note: j([str(r.source), str(r.ai_provider)]),
   }));
-  return { rows };
-}
+  return { rows, total: latest.length };
+};
 
-function polar(b: J) {
+const polar: Builder = (b, v) => {
+  const j = joiner(v);
   const rows = arr(b.regions).map((r, i) => {
     const thaw = obj(r.thaw);
     const news = obj(r.news);
+    const base = obj(r.baseline);
+    const anomalyBasis = str(thaw.heat_basis) === 'baseline_anomaly';
     return {
       id: `po-${str(r.region) ?? i}`,
-      target: str(r.name) ?? str(r.region) ?? VALUE_NONE,
-      measured: join([
-        fmt(thaw.thaw_days_30d, 0) && `해빙일 ${fmt(thaw.thaw_days_30d, 0)}일/30일`,
-        fmt(thaw.heat_trend_c, 2) && `기온 추세 ${fmt(thaw.heat_trend_c, 2)}℃`,
-        fmt(news.item_count, 0) && `관련 보도 ${fmt(news.item_count, 0)}건`,
+      target: str(r.name) ?? str(r.region) ?? v.none,
+      measured:
+        thaw.data_available === false
+          ? v.weatherMissing
+          : j([
+              fmt(thaw.thaw_days_30d, 0) !== null && v.thawDays(fmt(thaw.thaw_days_30d, 0)!),
+              anomalyBasis && signed(thaw.heat_trend_c) !== null && v.anomaly(signed(thaw.heat_trend_c)!),
+              news.status === 'ok' && fmt(news.item_count, 0) !== null && v.news(fmt(news.item_count, 0)!),
+            ]),
+      derived: j([
+        fmt(thaw.permafrost_thaw_pressure, 1) !== null && v.thawPressure(fmt(thaw.permafrost_thaw_pressure, 1)!),
+        fmt(r.polar_watch_score, 1) !== null && v.watchScore(fmt(r.polar_watch_score, 1)!),
       ]),
-      derived: join([
-        fmt(thaw.permafrost_thaw_pressure, 2) && `해빙 압력 ${fmt(thaw.permafrost_thaw_pressure, 2)}`,
-        fmt(r.polar_watch_score, 1) && `관찰 점수 ${fmt(r.polar_watch_score, 1)}`,
-        str(r.watch_grade),
-      ]),
-      time: VALUE_NONE,
-      note: thaw.data_available === false ? '기상값 받지 못함' : '',
+      time: when(base.reference_period, v.none),
+      note: '',
     };
   });
   return { rows };
-}
+};
 
-function climate(b: J) {
-  const all = arr(b.countries);
-  const rows = all.map((c, i) => ({
+const climate: Builder = (b, v) => {
+  const j = joiner(v);
+  const rows = arr(b.countries).map((c, i) => ({
     id: `cl-${str(c.country) ?? i}`,
-    target: str(c.country) ?? VALUE_NONE,
+    target: str(c.country) ?? v.none,
     measured:
       c.data_available === false
-        ? VALUE_NONE
-        : join([
-            fmt(c.mean_recent_temp_c, 1) && `평균 기온 ${fmt(c.mean_recent_temp_c, 1)}℃`,
-            fmt(c.precip_recent_14d_mm, 1) && `14일 강수 ${fmt(c.precip_recent_14d_mm, 1)}mm`,
-            fmt(c.heat_trend_c, 2) && `추세 ${fmt(c.heat_trend_c, 2)}℃`,
+        ? v.none
+        : j([
+            fmt(c.mean_recent_temp_c) !== null && v.meanTemp(fmt(c.mean_recent_temp_c)!),
+            fmt(c.precip_recent_14d_mm) !== null && v.precip14(fmt(c.precip_recent_14d_mm)!),
+            signed(c.heat_trend_c) !== null && v.trend(signed(c.heat_trend_c)!),
           ]),
-    derived: join([
-      fmt(c.vector_suitability, 2) && `매개체 적합도 ${fmt(c.vector_suitability, 2)}`,
-      fmt(c.spillover_pressure, 2) && `환경 압력 ${fmt(c.spillover_pressure, 2)}`,
+    derived: j([
+      fmt(c.vector_suitability, 2) !== null && v.vectorSuit(fmt(c.vector_suitability, 2)!),
+      fmt(c.spillover_pressure) !== null && v.envPressure(fmt(c.spillover_pressure)!),
     ]),
-    time: VALUE_NONE,
-    note: c.data_available === false ? clip(str(c.reason), 80) ?? '' : '',
+    time: v.none,
+    note: c.data_available === false ? (clip(str(c.reason), 90) ?? '') : '',
   }));
   return { rows };
-}
+};
 
-function trade(b: J) {
-  // 키 없는 공개 스캔: top_surges · multi_product_surges / 키 있는 모드: countries
+/** 키 없는 공개 스캔(top_surges) — 월 수입액은 품목별 top_surges 의 마지막 값(=latest_period). */
+const trade: Builder = (b, v) => {
+  const j = joiner(v);
+  const products = obj(b.products);
+  const period = when(b.latest_period, v.none);
+  const multi = new Map(arr(b.multi_product_surges).map((m) => [str(m.country_iso3), num(m.product_count)]));
   const surges = arr(b.top_surges);
-  const countries = arr(b.countries);
-  const src = surges.length ? surges : countries;
-  const rows = src.map((s, i) => ({
-    id: `tr-${i}`,
-    target: join([str(s.country_iso3) ?? str(s.country), str(s.product) ?? str(s.label)]),
-    measured: join([
-      fmt(s.monthly_import_usd, 0) && `월 수입 $${fmt(s.monthly_import_usd, 0)}`,
-      str(s.period) && `기준월 ${str(s.period)}`,
-    ]),
-    derived: join([
-      fmt(s.surge_ratio ?? s.max_surge_ratio, 2) && `평소 대비 ${fmt(s.surge_ratio ?? s.max_surge_ratio, 2)}배`,
-    ]),
-    time: when(b.scanned_at ?? b.called_at),
-    note: '',
-  }));
-  return { rows };
-}
+  const rows = surges.map((s, i) => {
+    const iso = str(s.country_iso3);
+    const prod = str(s.product);
+    const detail = arr(obj(products[prod ?? '']).top_surges).find((x) => str(x.country_iso3) === iso);
+    const series = Array.isArray(detail?.monthly_import_usd) ? (detail!.monthly_import_usd as unknown[]) : [];
+    const latest = num(series[series.length - 1]);
+    const count = multi.get(iso);
+    return {
+      id: `tr-${iso ?? i}-${prod ?? i}`,
+      target: j([iso, prod]),
+      measured: j([latest !== null && v.monthlyImport(Math.round(latest).toLocaleString('en-US'), period)]),
+      derived: j([fmt(s.surge_ratio, 2) !== null && v.vsUsual(fmt(s.surge_ratio, 2)!)]),
+      time: period,
+      note: count && count > 1 ? v.multiProduct(String(count)) : '',
+    };
+  });
+  return { rows, total: surges.length };
+};
 
-function disaster(b: J) {
+const disaster: Builder = (b, v) => {
+  const j = joiner(v);
   const rows = arr(b.countries).map((c, i) => {
-    const wins = arr(c.open_windows);
-    const first = wins[0] ?? {};
+    const first = arr(c.open_windows)[0] ?? {};
     return {
       id: `di-${str(c.country_iso3) ?? i}`,
-      target: str(c.country) ?? str(c.country_iso3) ?? VALUE_NONE,
-      measured: join([
-        str(first.event_type) ?? str(first.disaster_type),
+      target: str(c.country) ?? str(c.country_iso3) ?? v.none,
+      measured: j([
+        clip(str(first.title), 110),
         str(first.alert_level) && `GDACS ${str(first.alert_level)}`,
-        fmt(first.days_since_disaster, 0) && `${fmt(first.days_since_disaster, 0)}일 경과`,
+        fmt(first.days_since_disaster, 0) !== null && v.daysSince(fmt(first.days_since_disaster, 0)!),
       ]),
-      derived: join([
-        Array.isArray(c.diseases) && c.diseases.length
-          ? `감시창: ${(c.diseases as unknown[]).map(String).join(', ')}`
-          : null,
-      ]),
-      time: when(first.disaster_date ?? first.started_at ?? b.updated_at),
-      note: fmt(c.window_count, 0) ? `열린 창 ${fmt(c.window_count, 0)}개` : '',
+      derived: j([list(c.diseases) && v.windows(list(c.diseases)!)]),
+      time: when(first.disaster_date, v.none),
+      note: fmt(c.window_count, 0) ? v.openWindows(fmt(c.window_count, 0)!) : '',
     };
   });
   return { rows };
-}
+};
 
-function travel(b: J) {
-  if (b.data_available === false) return { rows: [] as ObservationRow[] };
-  const list = arr(b.all_notices);
-  const sorted = [...list].sort((a, z) => (num(z.level) ?? 0) - (num(a.level) ?? 0));
+const travel: Builder = (b, v) => {
+  if (b.data_available === false) return { rows: [] };
+  const j = joiner(v);
+  const all = arr(b.all_notices);
+  const sorted = [...all].sort(
+    (a, z) =>
+      (num(z.level) ?? 0) - (num(a.level) ?? 0) ||
+      Date.parse(str(z.pub_date) ?? '') - Date.parse(str(a.pub_date) ?? ''),
+  );
   const rows = sorted.map((n, i) => ({
     id: `tv-${i}`,
-    target: str(n.country) ?? clip(str(n.title), 60) ?? VALUE_NONE,
-    measured: join([num(n.level) !== null ? `Level ${num(n.level)}` : null, clip(str(n.title), 80)]),
-    derived: VALUE_NONE,
-    time: when(n.published ?? n.date),
+    target: clip(str(n.headline), 90) ?? v.none,
+    measured: j([num(n.level) !== null && v.level(String(num(n.level)))]),
+    derived: v.none,
+    time: when(n.pub_date, v.none),
     note: '',
   }));
-  return { rows, total: list.length };
-}
+  return { rows, total: all.length };
+};
 
-function landOrForest(prefix: string, countKey: string, pressureKey: string, unit: string) {
-  return (b: J) => {
+function satellite(
+  prefix: string,
+  countKey: string,
+  pressureKey: string,
+  unit: Record<Locale, string>,
+  locale: Locale,
+): Builder {
+  return (b, v) => {
+    const j = joiner(v);
     const rows = arr(b.countries).map((c, i) => ({
       id: `${prefix}-${str(c.country) ?? i}`,
-      target: str(c.country) ?? VALUE_NONE,
+      target: str(c.country) ?? v.none,
       measured:
         c.data_available === false
-          ? VALUE_NONE
-          : join([fmt(c[countKey], 0) && `${fmt(c[countKey], 0)}${unit}`, str(c.day_range) && `${str(c.day_range)}일`]),
-      derived: join([fmt(c[pressureKey], 2) && `압력 ${fmt(c[pressureKey], 2)}`]),
-      time: VALUE_NONE,
-      note: c.data_available === false ? clip(str(c.reason), 80) ?? '' : '',
+          ? v.none
+          : j([fmt(c[countKey], 0) !== null && `${fmt(c[countKey], 0)} ${unit[locale]}`, str(c.day_range)]),
+      derived: j([fmt(c[pressureKey], 1)]),
+      time: v.none,
+      note: c.data_available === false ? (clip(str(c.reason), 90) ?? '') : '',
     }));
     return { rows };
   };
 }
 
-function animal(b: J) {
+const animal: Builder = (b, v) => {
+  const j = joiner(v);
   return {
     rows: [
       {
         id: 'woah',
         target: 'WOAH RSS',
-        measured: fmt(b.woah_rss_items, 0) ? `공식 RSS 항목 ${fmt(b.woah_rss_items, 0)}건` : VALUE_NONE,
-        derived: VALUE_NONE,
-        time: VALUE_NONE,
-        note: join([str(b.rss_reason), str(b.api_status) && `WAHIS API: ${str(b.api_status)}`]),
+        measured: j([fmt(b.woah_rss_items, 0) !== null && v.rssItems(fmt(b.woah_rss_items, 0)!)]),
+        derived: v.none,
+        time: v.none,
+        note: j([str(b.rss_reason), str(b.api_status) === 'retired' && v.apiRetired]),
       },
     ],
   };
+};
+
+function keyed(b: J): [string, J][] {
+  return Object.entries(b).filter(([, x]) => x && typeof x === 'object' && !Array.isArray(x)) as [string, J][];
 }
 
-function keyedEntries(b: J): [string, J][] {
-  return Object.entries(b).filter(([, v]) => v && typeof v === 'object' && !Array.isArray(v)) as [string, J][];
-}
-
-function genomic(b: J) {
-  const rows = keyedEntries(b).map(([slug, g]) => ({
+const genomic: Builder = (b, v) => {
+  const j = joiner(v);
+  const rows = keyed(b).map(([slug, g]) => ({
     id: `ge-${slug}`,
-    target: str(g.label) ?? str(g.pathogen) ?? slug,
+    target: str(g.label) ?? slug,
     measured:
       g.available === false
-        ? VALUE_NONE
-        : join([
-            Array.isArray(g.new_clades) && g.new_clades.length
-              ? `새 계통 ${(g.new_clades as unknown[]).map(String).slice(0, 4).join(', ')}`
-              : '새 계통 없음',
-            str(g.dominant_clade) && `우세 ${str(g.dominant_clade)}`,
+        ? v.none
+        : j([
+            fmt(g.n_recent_sequences, 0) !== null && v.sequences(fmt(g.n_recent_sequences, 0)!),
+            list(g.new_clades) ? v.newClades(list(g.new_clades)!) : v.noNewClades,
+            str(g.dominant_clade) && v.dominant(str(g.dominant_clade)!, pct(g.dominant_share) ?? ''),
           ]),
-    derived: VALUE_NONE,
-    time: when(g.build_updated ?? g.updated_at),
-    note: g.available === false ? clip(str(g.reason), 80) ?? '' : '',
+    derived: v.none,
+    time: when(g.build_updated, v.none),
+    note: clip(str(g.note) ?? (g.available === false ? str(g.reason) : null), 90) ?? '',
   }));
   return { rows };
-}
+};
 
-function social(b: J) {
-  const rows = keyedEntries(b).map(([tag, s]) => ({
+const social: Builder = (b, v) => {
+  const j = joiner(v);
+  const rows = keyed(b).map(([tag, s]) => ({
     id: `so-${tag}`,
     target: str(s.label) ?? `#${tag}`,
-    measured: s.available === false ? VALUE_NONE : join([fmt(s.count_recent, 0) && `7일 ${fmt(s.count_recent, 0)}건`]),
-    derived: join([fmt(s.count_change_ratio, 2) && `직전 대비 ${fmt(s.count_change_ratio, 2)}배`]),
-    time: VALUE_NONE,
-    note: s.available === false ? clip(str(s.reason), 80) ?? '' : s.surge_alert ? '급변' : '',
+    measured:
+      s.available === false ? v.none : j([fmt(s.count_recent, 0) !== null && v.posts7d(fmt(s.count_recent, 0)!)]),
+    derived: j([fmt(s.count_change_ratio, 2) !== null && v.vsPrev(fmt(s.count_change_ratio, 2)!)]),
+    time: v.none,
+    note: j([
+      s.available === false && clip(str(s.reason), 80),
+      s.sample_capped === true && v.capped,
+      s.surge_alert === true && v.surge,
+    ]).replace(v.none, ''),
   }));
   return { rows };
-}
+};
 
-function silence(b: J) {
-  const rows = arr(b.alerts).map((a, i) => ({
+/** 급감이 없으면 행이 0 — 그 자체가 답이라 '점검 N개 · 급감 없음' 한 줄을 남긴다. */
+const silence: Builder = (b, v) => {
+  const j = joiner(v);
+  const alerts = arr(b.alerts);
+  if (alerts.length === 0 && fmt(b.metrics_checked, 0) !== null) {
+    return {
+      rows: [
+        {
+          id: 'si-none',
+          target: v.silenceChecked(fmt(b.metrics_checked, 0)!),
+          measured: v.none,
+          derived: v.none,
+          time: v.none,
+          note: '',
+        },
+      ],
+      total: 0,
+    };
+  }
+  const rows = alerts.map((a, i) => ({
     id: `si-${str(a.metric) ?? i}`,
-    target: join([str(a.label), str(a.metric)]),
-    measured: join([
-      fmt(a.latest, 1) && `최근 ${fmt(a.latest, 1)}`,
-      fmt(a.history_avg, 2) && `과거 평균 ${fmt(a.history_avg, 2)}`,
+    target: j([str(a.label), str(a.metric)]),
+    measured: j([
+      fmt(a.latest) !== null && v.recent(fmt(a.latest)!),
+      fmt(a.history_avg, 2) !== null && v.pastAvg(fmt(a.history_avg, 2)!),
     ]),
-    derived: join([fmt(a.drop_ratio, 2) && `평균 대비 ${fmt(a.drop_ratio, 2)}배`]),
-    time: VALUE_NONE,
-    note: clip(str(a.message), 80) ?? '',
+    derived: j([fmt(a.drop_ratio, 2) !== null && v.vsAvg(fmt(a.drop_ratio, 2)!)]),
+    time: v.none,
+    note: clip(str(a.message), 90) ?? '',
   }));
-  return { rows, total: rows.length };
-}
+  return { rows, total: alerts.length };
+};
 
-function unexplained(b: J) {
-  const rows = arr(b.alerts).map((a, i) => ({
+const unexplained: Builder = (b, v) => {
+  const j = joiner(v);
+  const alerts = arr(b.alerts);
+  const rows = alerts.map((a, i) => ({
     id: `un-${i}`,
-    target: str(a.location) ?? VALUE_NONE,
-    measured: clip(str(a.raw_disease_text), 80) ?? VALUE_NONE,
-    derived: VALUE_NONE,
-    time: when(a.signal_date ?? a.extracted_at),
+    target: clip(str(a.location), 50) ?? v.none,
+    measured: j([clip(str(a.raw_disease_text) ?? str(a.raw_text), 160)]),
+    derived: v.none,
+    time: when(a.signal_date ?? a.extracted_at, v.none),
     note: str(a.source) ?? '',
   }));
-  return { rows };
-}
+  return { rows, total: alerts.length };
+};
 
 // ── 한 번에 모으기 ─────────────────────────────────────────────────────
 
-const PLAN: { key: ObservationSectionKey; path: string; build: (b: J) => { rows: ObservationRow[]; total?: number } }[] = [
-  { key: 'events', path: '/api/extracted-signals?limit=100', build: events },
-  { key: 'polar', path: '/api/polar-watch', build: polar },
-  { key: 'climate', path: '/api/climate-signals', build: climate },
-  { key: 'trade', path: '/api/trade-signals', build: trade },
-  { key: 'disaster', path: '/api/disaster-watch', build: disaster },
-  { key: 'travel', path: '/api/travel-notices', build: travel },
-  { key: 'land', path: '/api/land-signals', build: landOrForest('la', 'fire_count_recent', 'land_clearing_pressure', '건 화재 탐지') },
-  { key: 'forest', path: '/api/deforestation-signals', build: landOrForest('fo', 'deforestation_alerts_recent', 'deforestation_pressure', '건 손실 알림') },
-  { key: 'animal', path: '/api/animal-signals', build: animal },
-  { key: 'genomic', path: '/api/genomic-variants', build: genomic },
-  { key: 'social', path: '/api/social-signal', build: social },
-  { key: 'silence', path: '/api/negative-space', build: silence },
-  { key: 'unexplained', path: '/api/unexplained-signals', build: unexplained },
-];
+function plan(locale: Locale): { key: ObservationSectionKey; path: string; build: Builder }[] {
+  return [
+    { key: 'events', path: '/api/extracted-signals?limit=100', build: events },
+    { key: 'polar', path: '/api/polar-watch', build: polar },
+    { key: 'climate', path: '/api/climate-signals', build: climate },
+    { key: 'trade', path: '/api/trade-signals', build: trade },
+    { key: 'disaster', path: '/api/disaster-watch', build: disaster },
+    { key: 'travel', path: '/api/travel-notices', build: travel },
+    {
+      key: 'land',
+      path: '/api/land-signals',
+      build: satellite(
+        'la',
+        'fire_count_recent',
+        'land_clearing_pressure',
+        { ko: '건 화재 탐지', en: 'fire detections', fr: 'détections de feux' },
+        locale,
+      ),
+    },
+    {
+      key: 'forest',
+      path: '/api/deforestation-signals',
+      build: satellite(
+        'fo',
+        'deforestation_alerts_recent',
+        'deforestation_pressure',
+        { ko: '건 손실 알림', en: 'loss alerts', fr: 'alertes de perte' },
+        locale,
+      ),
+    },
+    { key: 'animal', path: '/api/animal-signals', build: animal },
+    { key: 'genomic', path: '/api/genomic-variants', build: genomic },
+    { key: 'social', path: '/api/social-signal', build: social },
+    { key: 'silence', path: '/api/negative-space', build: silence },
+    {
+      key: 'unexplained',
+      path: '/api/unexplained-signals',
+      build: unexplained,
+    },
+  ];
+}
 
-export async function getObservations(): Promise<ObservationSection[]> {
-  const bodies = await Promise.all(PLAN.map((p) => getJson(p.path)));
-  return PLAN.map((p, i) => section(p.key, p.path, bodies[i], p.build));
+export async function getObservations(locale: Locale): Promise<ObservationSection[]> {
+  const v = VALUES[locale];
+  const steps = plan(locale);
+  const bodies = await Promise.all(steps.map((p) => getJson(p.path)));
+  return steps.map((p, i) => {
+    const body = bodies[i];
+    if (!body)
+      return {
+        key: p.key,
+        rows: null,
+        total: null,
+        source: null,
+        caveat: null,
+        apiPath: p.path,
+      };
+    let built: Built;
+    try {
+      built = p.build(body, v);
+    } catch {
+      // 모양이 예상과 다르면 지어내지 않고 '읽지 못함'으로 떨어진다
+      return {
+        key: p.key,
+        rows: null,
+        total: null,
+        source: str(body.data_source),
+        caveat: null,
+        apiPath: p.path,
+      };
+    }
+    return {
+      key: p.key,
+      rows: built.rows.slice(0, MAX_ROWS),
+      total: built.total ?? built.rows.length,
+      source: str(body.data_source),
+      caveat: clip(str(body.disclaimer) ?? str(body.caveat) ?? str(body.note), 280),
+      apiPath: p.path,
+    };
+  });
 }
