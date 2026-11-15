@@ -205,7 +205,7 @@ def test_meta_empty_content_falls_through_with_reason(monkeypatch):
         r, attempts = am.extract_signal_detailed("DRC 에볼라", source="who")
     assert r["ai_provider"] == "unavailable"  # 뒤에 남은 경로가 없으면 불가
     assert any(a.startswith("meta_model_api: 빈응답") for a in attempts)
-    assert "출력토큰 1500/1500" in " ".join(attempts)  # 분모는 Meta 한도
+    assert f"출력토큰 1500/{am.META_MAX_TOKENS}" in " ".join(attempts)  # 분모는 Meta 한도
 
 
 def test_success_is_observed_in_ledger(monkeypatch):
