@@ -331,6 +331,27 @@ CREATE TABLE IF NOT EXISTS kdca_vintages (
     PRIMARY KEY (disease, period, seen_at)
 );
 
+-- 관측값 시계열(2026-11-15) — 요청 때 계산하고 버리던 층(극지·기후·토지·삼림·무역·재난·여행경보)을
+-- 매시간 남긴다. 값이 그대로면 새 행 대신 confirmed_at·checks 만 갱신한다(같은 값을 매시간 복제하지 않음).
+-- 실패한 시각은 status='undetermined' 행(이유 포함)으로 남긴다 — 빈칸을 0 으로 채우지 않는다.
+CREATE TABLE IF NOT EXISTS observations (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    layer         TEXT NOT NULL,             -- polar | climate | land | deforestation | trade | disaster | travel
+    target        TEXT NOT NULL,             -- ISO3 · 극지 지역 id · 여행경보 id · 층 전체 실패면 '*'
+    metric        TEXT NOT NULL DEFAULT '',  -- 같은 대상 안의 하위 계열(무역 품목 등), 없으면 ''
+    status        TEXT NOT NULL,             -- ok | undetermined
+    measured      TEXT,                      -- JSON: 출처가 준 측정값
+    derived       TEXT,                      -- JSON: 우리가 계산한 해석값(추정·지수)
+    reason        TEXT,                      -- undetermined 이유
+    source        TEXT,
+    value_hash    TEXT NOT NULL,
+    observed_at   TEXT NOT NULL,             -- 이 값이 처음 계산된 시각(UTC)
+    confirmed_at  TEXT NOT NULL,             -- 같은 값을 마지막으로 다시 확인한 시각(UTC)
+    checks        INTEGER NOT NULL DEFAULT 1 -- 같은 값으로 확인된 횟수
+);
+CREATE INDEX IF NOT EXISTS idx_observations_key ON observations(layer, target, metric, id);
+CREATE INDEX IF NOT EXISTS idx_observations_layer_time ON observations(layer, confirmed_at);
+
 -- 스키마 버전(2026-11-02). init_db()가 매 호출마다 DDL 전문을 돌리지 않게
 -- 1행짜리 버전표로 판정한다. 스키마를 바꾸면 SCHEMA_VERSION을 올릴 것.
 CREATE TABLE IF NOT EXISTS _schema_version (
@@ -372,7 +393,8 @@ def get_connection() -> sqlite3.Connection:
 # 생겨 /api/variant-ledger가 500이 된다(배포 실측 — IF NOT EXISTS라도
 # _migrate 자체가 버전 게이트 뒤에 있으므로).
 # v4 (2026-11-03): match_ledger 추가.
-SCHEMA_VERSION = 4
+# v5 (2026-11-15): observations(관측값 시계열) 추가.
+SCHEMA_VERSION = 5
 
 
 def _db_version(conn: sqlite3.Connection) -> int:
@@ -641,6 +663,85 @@ def get_daily_brief(brief_date: str, lang: str = "ko") -> dict | None:
             (brief_date, lang),
         ).fetchone()
         return json.loads(row["brief"]) if row else None
+
+
+# ── 관측값 시계열 (2026-11-15) ─────────────────────────────────────────
+def record_observation(
+    *, layer: str, target: str, metric: str = "", status: str, measured: dict | None,
+    derived: dict | None, reason: str | None, source: str | None, at: str,
+) -> str:
+    """관측 한 건을 남긴다. 직전 행과 값이 같으면 확인 시각만 갱신하고 'same', 다르면 새 행 'new'."""
+    import hashlib
+
+    payload = json.dumps([status, measured, derived, reason], ensure_ascii=False, sort_keys=True, default=str)
+    h = hashlib.sha1(payload.encode("utf-8")).hexdigest()
+    with get_connection() as conn:
+        last = conn.execute(
+            "SELECT id, value_hash, confirmed_at FROM observations WHERE layer = ? AND target = ? AND metric = ? "
+            "ORDER BY id DESC LIMIT 1",
+            (layer, target, metric),
+        ).fetchone()
+        if last is not None and last["value_hash"] == h:
+            conn.execute(
+                "UPDATE observations SET confirmed_at = MAX(confirmed_at, ?), checks = checks + 1 WHERE id = ?",
+                (at, last["id"]),
+            )
+            conn.commit()
+            return "same"
+        conn.execute(
+            "INSERT INTO observations (layer, target, metric, status, measured, derived, reason, source, "
+            "value_hash, observed_at, confirmed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                layer, target, metric, status,
+                None if measured is None else json.dumps(measured, ensure_ascii=False, default=str),
+                None if derived is None else json.dumps(derived, ensure_ascii=False, default=str),
+                reason, source, h, at, at,
+            ),
+        )
+        conn.commit()
+        return "new"
+
+
+def observation_history(
+    layer: str, target: str | None = None, metric: str | None = None,
+    since: str | None = None, limit: int = 2000,
+) -> list[dict]:
+    """관측 이력(오래된 것부터). since 는 confirmed_at 기준 — 그 뒤에도 유효했던 값까지 포함."""
+    sql = "SELECT * FROM observations WHERE layer = ?"
+    args: list = [layer]
+    if target is not None:
+        sql += " AND target = ?"
+        args.append(target)
+    if metric is not None:
+        sql += " AND metric = ?"
+        args.append(metric)
+    if since is not None:
+        sql += " AND confirmed_at >= ?"
+        args.append(since)
+    sql += " ORDER BY id DESC LIMIT ?"
+    args.append(limit)
+    with get_connection() as conn:
+        rows = conn.execute(sql, args).fetchall()
+    out = []
+    for r in reversed(rows):
+        d = dict(r)
+        d.pop("value_hash", None)
+        for k in ("measured", "derived"):
+            d[k] = json.loads(d[k]) if d[k] else None
+        out.append(d)
+    return out
+
+
+def observation_coverage() -> list[dict]:
+    """층별 저장 현황 — 행 수·대상 수·판정 안 함 행 수·처음/마지막 시각."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT layer, COUNT(*) AS rows, COUNT(DISTINCT target || '|' || metric) AS series, "
+            "SUM(CASE WHEN status = 'undetermined' THEN 1 ELSE 0 END) AS undetermined_rows, "
+            "SUM(checks) AS checks, MIN(observed_at) AS first_observed_at, MAX(confirmed_at) AS last_confirmed_at "
+            "FROM observations GROUP BY layer ORDER BY layer"
+        ).fetchall()
+    return [dict(r) for r in rows]
 
 
 def latest_daily_brief(lang: str = "ko", max_age_days: int = 2) -> tuple[str, dict] | None:

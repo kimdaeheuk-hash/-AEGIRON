@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useStore } from '@/lib/store';
 import { REGIONS, riskColor, statusOf } from '@/lib/algorithms';
+import LiveObserved from './LiveObserved';
 
 export default function Stage4Domestic() {
   const { dom, week, reg, setWeek, setReg } = useStore();
@@ -39,6 +40,7 @@ export default function Stage4Domestic() {
         유입 관문(인천)에서 시작된 확산을 전국 지도로.{' '}
         <em style={{ color: 'var(--violet)', fontStyle: 'normal', fontWeight: 600 }}>▶ 재생</em>하면 수도권→전국 파동.
       </div>
+      <LiveObserved stage={4} />
       <div className="grid2">
         {/* 지도 */}
         <div className="card">

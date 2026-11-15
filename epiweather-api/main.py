@@ -315,7 +315,51 @@ def _prewarm_after_cycle() -> None:
     경보 주기가 수집을 반영한 직후라 값이 바뀌는 시점이다. 사람·웹이 요청할 때 계산을 기다리지 않게
     여기서 먼저 채운다. 한 키가 이미 갱신 중이면 건너뛴다(response_cache.prewarm). 실패는 저장하지 않는다.
     """
-    threading.Thread(target=_prewarm_heavy, name="prewarm-after-cycle", daemon=True).start()
+    threading.Thread(target=_after_cycle_bg, name="prewarm-after-cycle", daemon=True).start()
+
+
+def _after_cycle_bg() -> None:
+    """매시 경보 주기 뒤: 응답 캐시 예열 → 관측값 시계열 저장(2026-11-15). 저장 실패는 예열을 막지 않는다."""
+    import collector
+
+    _prewarm_heavy()
+    try:
+        _store_observations()
+    except Exception as e:  # noqa: BLE001
+        collector.log_error("observation_store", e)
+
+
+def _observation_fetchers() -> dict:
+    """층별 응답 — 무거운 층은 API 와 같은 응답 캐시 키를 써서 외부 API 를 다시 부르지 않는다."""
+    from algorithms.cdc_travel_notices import travel_notices_summary
+    from algorithms.climate_signals import climate_signals_all
+    from algorithms.comtrade_signals import trade_signals_all
+    from algorithms.deforestation_signals import deforestation_signals_all
+    from algorithms.disaster_watch import disaster_watch_report
+    from algorithms.forest_signals import land_signals_all
+    from algorithms.polar_signals import polar_watch_all
+
+    return {
+        "polar": lambda: response_cache.swr("polar-watch", 1800, polar_watch_all),
+        "climate": lambda: response_cache.swr("climate-signals", 1800, climate_signals_all),
+        "land": lambda: response_cache.swr("land-signals", 1800, land_signals_all),
+        "deforestation": lambda: response_cache.swr("deforestation-signals", 1800, deforestation_signals_all),
+        "trade": trade_signals_all,
+        "disaster": disaster_watch_report,
+        "travel": travel_notices_summary,
+    }
+
+
+def _store_observations() -> dict | None:
+    import collector
+    from algorithms import observation_store
+
+    if not observation_store.enabled():
+        collector.log("🗄 관측 저장: 꺼짐(EPIWEATHER_OBSERVATION_STORE=off)")
+        return None
+    summary = observation_store.store(_observation_fetchers())
+    collector.log(observation_store.summary_line(summary))
+    return summary
 
 
 def _prewarm_heavy() -> None:
@@ -2631,6 +2675,58 @@ def weekly_forecasts(limit: int = 200):
         "min_scored": MIN_SCORED,
         "note": "주간 방향 예측은 90일 발병 예측과 다른 과제다 — 두 채점표를 합치지 않는다.",
         "forecasts": rows,
+    }
+
+
+@app.get("/api/observations/history", tags=["GAI"])
+def observations_history(layer: str, target: str | None = None, metric: str | None = None,
+                         days: int = 30, limit: int = 2000):
+    """관측값 시계열(2026-11-15) — 극지·기후·토지·삼림·무역·재난·여행경보를 매시간 저장한 이력.
+
+    한 행 = 한 대상의 한 값. observed_at 은 그 값이 처음 계산된 시각, confirmed_at 은 같은 값을 마지막으로
+    다시 확인한 시각, checks 는 같은 값으로 확인된 횟수. measured(출처 측정값)와 derived(우리가 계산한
+    해석값·추정)를 나눠 준다. status='undetermined' 는 그 시각에 못 읽었다는 뜻이다(0 이 아님).
+    저장은 2026-11-15 배포부터 — 그 전 이력은 없다.
+    """
+    from algorithms.observation_store import LAYERS
+
+    if layer not in LAYERS:
+        raise HTTPException(status_code=400, detail=f"layer 는 {', '.join(LAYERS)} 중 하나")
+    days = max(1, min(days, 365))
+    limit = max(1, min(limit, 10000))
+    since = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=days)).isoformat()
+    rows = db.observation_history(layer, target=target, metric=metric, since=since, limit=limit)
+    return {
+        "layer": layer, "target": target, "metric": metric, "days": days,
+        "rows": rows, "row_count": len(rows), "truncated": len(rows) >= limit,
+        "fields": {
+            "observed_at": "이 값이 처음 계산된 시각(UTC)",
+            "confirmed_at": "같은 값을 마지막으로 다시 확인한 시각(UTC)",
+            "measured": "출처가 준 측정값",
+            "derived": "우리가 계산한 해석값(추정·지수 — 측정 아님)",
+            "status": "ok | undetermined(그 시각에 못 읽음 — 0 이 아님)",
+        },
+        "history_starts": "2026-11-15 배포부터 저장 — 그 전 이력 없음",
+    }
+
+
+@app.get("/api/observations/coverage", tags=["GAI"])
+def observations_coverage():
+    """관측값 시계열 저장 현황 — 층별 행 수·계열 수·판정 안 함 행 수·처음/마지막 시각."""
+    from algorithms.observation_store import LAYERS, SOURCES
+
+    by_layer = {r["layer"]: r for r in db.observation_coverage()}
+    return {
+        "layers": [
+            {"layer": layer, "source": SOURCES.get(layer), **(by_layer.get(layer) or {"rows": 0, "series": 0})}
+            for layer in LAYERS
+        ],
+        "notes": [
+            "값이 그대로면 새 행 대신 확인 시각만 갱신함 — rows 는 '값이 바뀐 횟수', checks 는 '확인 횟수'",
+            "무역은 품목별 상위 급증 10개국만 저장 — 전 세계 전수가 아님",
+            "토지(FIRMS)·삼림(GFW)은 키·조회 상태에 따라 판정 안 함 행만 쌓일 수 있음",
+        ],
+        "history_starts": "2026-11-15 배포부터 저장 — 그 전 이력 없음",
     }
 
 

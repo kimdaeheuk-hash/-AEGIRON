@@ -1,6 +1,7 @@
 'use client';
 import { useStore } from '@/lib/store';
 import { CIVIC } from '@/lib/algorithms';
+import LiveObserved from './LiveObserved';
 
 // ★ 2026-10-18 ★ 예전엔 여기서 localhost:8000(하드코딩)의 '2020 COVID 백테스트'를 불러
 // "✅ 실측 검증 — 검색이 대구 집단감염보다 28일 먼저" 를 띄웠다. 운영에선 늘 연결 거부였고,
@@ -21,6 +22,7 @@ export default function Stage2Civic() {
         보는 시나리오입니다. 신호별 선행일수는 데이터 파트너십 전까지의{' '}
         <em style={{ color: 'var(--amber)', fontStyle: 'normal', fontWeight: 600 }}>가정값</em>이며, 아직 실측으로 검증된 신호는 없습니다.
       </div>
+      <LiveObserved stage={2} />
       <div className="card">
         {/* 히어로 배너 */}
         <div style={{

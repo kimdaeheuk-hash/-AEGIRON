@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useStore } from '@/lib/store';
 import { LEVERS_CONFIG, clamp, currentRt } from '@/lib/algorithms';
+import LiveObserved from './LiveObserved';
 
 const HOSP_CAP = 12000;
 const HOSP_FRAC = 0.08;
@@ -65,6 +66,7 @@ export default function Stage6Defense() {
         개입 6개 레버를 조절하면 SEIR 엔진이 무대응 대비{' '}
         <em style={{ color: 'var(--violet)', fontStyle: 'normal', fontWeight: 600 }}>몇 명을 살리는지</em> 실시간 계산.
       </div>
+      <LiveObserved stage={6} />
 
       <div className="grid2">
         {/* 감염 곡선 */}
