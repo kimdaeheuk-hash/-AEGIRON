@@ -89,6 +89,24 @@ def _fmt_failure_reasons(reasons: dict[str, int] | None) -> str:
     )
 
 
+def _polar_top_label(region: dict) -> str:
+    """상위 극지 관측지 한 칸. `아이슬란드(74)` / 점수 없으면 `아이슬란드(—)`.
+
+    ★ 점수 None 은 버그값이 아니라 정상값이다 ★
+    polar_signals 는 해빙 자료도 뉴스 신호도 없을 때 `polar_watch_score` 를
+    None 으로 둔다 — '모른다'고 말하는 쪽이고, 같은 모듈(283~287줄)도 unscored
+    를 따로 모아 돌려준다. 그걸 못 견디는 자리는 이 요약 줄 하나뿐이었다:
+    `"%.0f" % None` → `TypeError: must be real number, not NoneType`.
+
+    2026-11-14 21시 UTC 에 실제로 터져 3주기 연속 `중단 PolarWatch` 가 됐다.
+    바로 윗줄의 정렬은 `or 0` 으로 None 을 막아놨는데 **포맷에서 그 자격이
+    떨어져 나가** 있었다 — 이 저장소가 반복해 밟는 경계 결함이다.
+    """
+    score = region.get("polar_watch_score")
+    name = str(region.get("name") or "?")[:10]
+    return f"{name}(—)" if score is None else "%s(%.0f)" % (name, score)
+
+
 def append_signal(record: dict) -> None:
     DATA_DIR.mkdir(exist_ok=True)
     record["_logged_at"] = dt.datetime.now().isoformat()
@@ -1040,16 +1058,41 @@ def collect_free_sources() -> dict:
     try:
         from algorithms.polar_signals import polar_watch_all
         result["polar_watch"] = polar_watch_all()
-        pw = result["polar_watch"]
-        regions = pw.get("regions") or []
-        top = sorted(regions, key=lambda r: -(r.get("polar_watch_score") or 0))[:3]
-        log("  극지 관찰: %d개 관측지 · 등급 %s · 상위 %s"
-            % (len(regions), pw.get("grade"),
-               ", ".join("%s(%.0f)" % (r["name"][:10], r["polar_watch_score"]) for r in top)))
     except Exception as e:
         result["polar_watch"] = None
         log(f"  ❌ 극지 관찰 실패: {type(e).__name__}: {e}")
         log_error("PolarWatch", e)
+    else:
+        # ★ 요약 로그가 데이터를 죽이지 못하게 떼어낸다 (2026-11-15) ★
+        # 전에는 이 로그가 위 try 안, `result["polar_watch"] = ...` **뒤에**
+        # 있었다. 점수 없는 지역이 상위 3개에 들어오자 `%.0f` 가 TypeError 를
+        # 냈고, except 가 **이미 받아온 결과를** None 으로 덮었다 — 수집은
+        # 성공했는데 장식용 한 줄 때문에 3주기(2026-11-14 21~23 UTC)를 버렸고
+        # 소스 건강은 `중단 PolarWatch` 로 떨어졌다. 추세를 쌓는 게 목적인
+        # 층이라 버린 주기는 되돌릴 수 없다.
+        try:
+            pw = result["polar_watch"]
+            regions = pw.get("regions") or []
+            # polar_watch_all 이 이미 `scored + unscored` 로 정렬해 돌려준다
+            # (polar_signals.py 283~287). 여기서 다시 정렬하지 않는다 —
+            # 그 재정렬의 `or 0` 가 None 을 막아주는 척해서 바로 아랫줄의
+            # 포맷이 안 막혀 있다는 걸 가렸다.
+            top = regions[:3]
+            scored = sum(1 for r in regions if r.get("polar_watch_score") is not None)
+            log("  극지 관찰: %d개 관측지 · 점수있음 %d/%d · 등급 %s · 상위 %s"
+                % (len(regions), scored, len(regions), pw.get("grade"),
+                   ", ".join(_polar_top_label(r) for r in top) or "없음"))
+            # ★ 한 곳도 점수가 없으면 '정상'이 아니라 '값 없음'이다 ★
+            # 관찰 신호가 하나도 안 나온 주기를 ok 로 세면 죽은 층이 살아있다고
+            # 보고된다. 실패로 세면 상시 degraded 로 매일 울려 사람이 무시한다.
+            # 둘 다 거짓이라 no_data 로 적고 **사유를 남긴다**(mark_no_data 규약).
+            if regions and scored == 0:
+                mark_no_data(result, "polar_watch")
+                log("  ⏭ 극지 관찰: %d개 관측지 전부 점수 없음 — 값없음으로 기록"
+                    " (해빙 자료·뉴스 신호 둘 다 없음)" % len(regions))
+        except Exception as e:
+            # 데이터는 살려둔다. 요약 줄이 깨진 것은 수집 실패가 아니다.
+            log(f"  ⚠ 극지 관찰 요약 로그 실패(데이터는 보존): {type(e).__name__}: {e}")
 
     # ── 현지어 위키 신호 (2026-11-02 수집 편입) ─────────────────────────
     # ★ 부를 때만 계산하면 추세가 안 쌓인다 ★ 극지(09-01)·발할라(09-03)와
