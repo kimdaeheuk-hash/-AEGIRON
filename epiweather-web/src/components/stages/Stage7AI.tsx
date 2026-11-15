@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useStore } from '@/lib/store';
 import { THREAT, CIVIC, currentRt } from '@/lib/algorithms';
+import LiveObserved from './LiveObserved';
 
 interface PriorityAction {
   priority: number;
@@ -172,6 +173,7 @@ export default function Stage7AI() {
       <div className="psub">
         7단계 전체 상황을 FastAPI 추론 엔진(의사결정 트리 + RAG + Meta Model API 우선)으로 종합 분석.
       </div>
+      <LiveObserved stage={7} />
 
       {/* 요약 카드 */}
       <div className="card">

@@ -8,6 +8,7 @@ import {
 } from '@/lib/syntheticThreat';
 import { fetchGenomeScreen } from '@/lib/api';
 import HeimdallPanel from './HeimdallPanel';
+import LiveObserved from './LiveObserved';
 
 interface ScanResult {
   total: number; ci: { lo: number; hi: number };
@@ -144,6 +145,7 @@ export default function Stage0Synthetic() {
         진단 이전, <em style={{ color: 'var(--violet)', fontStyle: 'normal', fontWeight: 600 }}>설계-탐지 이중성</em> 원리로
         유전체·역학·인텔 7신호를 Fisher&apos;s 결합해 합성/자연 기원을 가른다.
       </div>
+      <LiveObserved stage={0} />
 
       {/* HEIMDALL 실측 스크리닝 — 백엔드 genome_signals 실계산 */}
       <HeimdallPanel />

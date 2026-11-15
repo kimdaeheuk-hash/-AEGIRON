@@ -1,6 +1,7 @@
 'use client';
 import { useStore } from '@/lib/store';
 import { proj, arc } from '@/lib/algorithms';
+import LiveObserved from './LiveObserved';
 
 const VW = 1000, VH = 400;
 const KR = { lon: 127, lat: 37 };
@@ -81,6 +82,7 @@ export default function Stage3Global() {
         <em style={{ color: 'var(--violet)', fontStyle: 'normal', fontWeight: 600 }}>유입 대비국</em>.
         해외 발원지에서 항공망 타고 한국 도착 시점·관문을 예측.
       </div>
+      <LiveObserved stage={3} />
 
       <div className="card">
         <div className="card-h">

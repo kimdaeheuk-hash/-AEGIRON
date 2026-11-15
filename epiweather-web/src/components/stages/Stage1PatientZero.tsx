@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useStore } from '@/lib/store';
 import { CHANNELS, clamp } from '@/lib/algorithms';
 import { API_BASE as API } from '@/lib/api';
+import LiveObserved from './LiveObserved';
 
 interface WhoSignal { title: string; date?: string; risk: number; source: string; link?: string }
 interface LocalSignalTitle { title: string; label?: { ko?: string | null; en?: string | null; fr?: string | null }; recent_14d?: number; baseline_14d?: number; ratio?: number; error?: string }
@@ -68,6 +69,7 @@ export default function Stage1PatientZero() {
         진단 0명 시점에 격자 단위 발원지를 추론합니다.
         6채널 약신호를 <em style={{ color: 'var(--violet)', fontStyle: 'normal', fontWeight: 600 }}>피셔 결합</em>으로 증폭.
       </div>
+      <LiveObserved stage={1} />
 
       <div className="grid2">
         {/* 히트맵 */}

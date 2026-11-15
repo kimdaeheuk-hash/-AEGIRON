@@ -1,6 +1,7 @@
 'use client';
 import { useStore } from '@/lib/store';
 import { REGIONS, MOBILITY, clamp } from '@/lib/algorithms';
+import LiveObserved from './LiveObserved';
 
 export default function Stage5Network() {
   const { dom } = useStore();
@@ -65,6 +66,7 @@ export default function Stage5Network() {
         <em style={{ color: 'var(--violet)', fontStyle: 'normal', fontWeight: 600 }}>병원체가 도착·확산할 시점</em>을
         메타개체군 모델로 역추론.
       </div>
+      <LiveObserved stage={5} />
       <div className="card">
         <div className="card-h">
           <span className="lbl">확산 도착 네트워크</span>
