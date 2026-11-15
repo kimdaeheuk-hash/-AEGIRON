@@ -73,14 +73,23 @@ NIM_DEFAULT_MODEL = "meta/llama-3.1-8b-instruct"
 #
 # ⚠️ 라이브 검증 못 함 — 이 샌드박스는 `integrate.api.nvidia.com` 에 못 나간다
 # (허용목록 403). 판정은 다음 AI 슬롯(UTC 21시대) 로그 한 줄이다.
-NIM_MAX_TOKENS = 1500
+#
+# ★ 1500 → 4000 (2026-11-15, 소킹 11-13 관측) ★ 1500 도 모자랐다:
+# `nvidia_nim_hosted: 빈응답(finish_reason=length, 출력토큰 1500/1500(추론 1497))×3`.
+# 추론이 한도를 거의 다 쓰고 본문 차례에 끊기는 같은 모양이 한 단계 위에서 되풀이됐다.
+# Stage 7 추론(ai_inference)은 같은 계열 문제로 8000 을 쓴다 — 추출은 JSON 한 덩이라
+# 그 절반이면 추론 ~1500 + 본문 수백 토큰에 여유가 있다. 맞았는지는 21시 슬롯의
+# `출력토큰 N/4000` 이 말한다(4000/4000 이면 또 모자란 것).
+NIM_MAX_TOKENS = 4000
 # 추론 노력을 낮춰 달라는 요청. NVIDIA 의 gpt-oss NIM 이 받는 꼴이
 # `chat_template_kwargs` 라고 문서는 말하지만 **우리가 불러본 적은 없다** —
 # 그래서 거부당하면 물러선다(_REASONING_EFFORT_REJECTED).
 NIM_REASONING_EFFORT = "low"
 # 한도를 5배로 올리면 생성이 길어진다. 30초는 300토큰에 맞춰 잡은 값이라
 # 그대로 두면 ReadTimeout 으로 슬롯을 잃는다(사유는 보이지만 결과는 같다).
-NIM_TIMEOUT_SEC = 60
+# 4000 으로 올리며 120 초로 늘린다(같은 이유 — 생성이 길어진다). 한 슬롯에 최대
+# 5건이라 최악 5×(NIM 120 + Meta 120) = 20분, AI 수집 감시 한도 3300초 안이다.
+NIM_TIMEOUT_SEC = 120
 
 # ── Meta Model API(OpenAI 호환) 설정 ──
 # 키·베이스·모델 규약은 algorithms/meta_api.py(단일 소스)에 정의 — 여기서 재노출만 한다.
@@ -88,8 +97,11 @@ NIM_TIMEOUT_SEC = 60
 META_FIRST_ENV = "AEGIRON_META_FIRST"      # on이면 Meta를 NIM보다 먼저 시도
 META_EXTRACT_ENV = "AEGIRON_META_EXTRACT"  # 텍스트 추출만 Meta에서 빼는 스위치(on/off, 기본 on)
 # NIM과 같은 한도·타임아웃 — 같은 프롬프트·같은 스키마라 토큰 분포가 같다.
-META_MAX_TOKENS = 1500
-META_TIMEOUT_SEC = 60
+# ★ 1500 → 4000 (2026-11-15) ★ 11-02 부터 매일 21시
+# `meta_model_api: 빈응답(finish_reason=length, 출력토큰 1500/1500(추론 1498))×3~5`.
+# muse-spark 는 추론 모델이라(ai_inference 의 8000 주석 참고) 추론이 한도를 다 먹었다.
+META_MAX_TOKENS = 4000
+META_TIMEOUT_SEC = 120
 
 _LOCAL_MODEL = None
 _LOCAL_TRIED = False

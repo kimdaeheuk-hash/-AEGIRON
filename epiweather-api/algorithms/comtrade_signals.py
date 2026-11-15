@@ -157,7 +157,11 @@ RATE_LIMIT_BACKOFF_SEC = 5.0    # Retry-After 가 없을 때 첫 기다림(시�
 RATE_LIMIT_MAX_WAIT_SEC = 20.0  # 한 번 기다리는 최대치
 RATE_LIMIT_BUDGET_SEC = 40.0    # 품목 하나(달 6개) 전체에서 기다릴 수 있는 합계
 REQUEST_GAP_SEC = 0.5           # 같은 품목의 달 사이 간격(직렬 폴백용으로 유지)
-PARALLEL_MONTH_WORKERS = 3    # 달 병렬 조회 워커 수 — 6개는 429를 맞아 되려 느려짐(실측)
+# ★ 3 → 1 (2026-11-15, 소킹 11-03~11-14 관측) ★ 3워커 병렬(11-03 15:04 배포) 뒤로 매 주기
+# `부분 스캔`(품목당 4~5/6달, HTTP 429×1~2)이 열이틀 이어졌다 — 배포 전(14:03~14:30)은 6/6.
+# 병렬의 이유였던 대시보드 타임아웃은 같은 커밋의 stale-while-revalidate·기동 예열이 이미
+# 막는다(스캔은 뒤에서 돈다). 그래서 검증된 직렬로 돌아간다. 경보 주기 감시 한도 900초 안이다.
+PARALLEL_MONTH_WORKERS = 1    # 달 조회 워커 수 — 1 = 직렬(429 를 안 맞던 모양)
 PARALLEL_SUBMIT_STAGGER_SEC = 1.0  # 투입 시 엇갈림 — 동시 429 폭주를 피한다
 
 
@@ -355,20 +359,32 @@ def fetch_public_series(hs_code: str, months: int = TRAILING_MONTHS,
     import concurrent.futures as _cf
     _per_notes: list[dict] = [{} for _ in periods]
     _results: list[dict[str, float] | None] = [None] * len(periods)
-    with _cf.ThreadPoolExecutor(max_workers=PARALLEL_MONTH_WORKERS,
-                                thread_name_prefix="comtrade") as _pool:
-        _futs = []
+    if PARALLEL_MONTH_WORKERS <= 1:
+        # 직렬(2026-11-15 복귀): 배포 전 6/6 을 내던 그대로 — 달 사이 REQUEST_GAP_SEC 를 둔다.
+        # 1워커 스레드풀로는 이 간격이 생기지 않는다(대기열이 쉬지 않고 연달아 부른다).
         for _i, _period in enumerate(periods):
             if _i:
-                _sleep(PARALLEL_SUBMIT_STAGGER_SEC)
-            _futs.append(_pool.submit(fetch_public_month, hs_code, _period,
-                                      _per_notes[_i]))
-        for _i, _fut in enumerate(_futs):
+                _sleep(REQUEST_GAP_SEC)
             try:
-                _results[_i] = _fut.result()
-            except Exception as _e:  # 원칙적으로 None을 뱉지만, 혹시 새면 달만 버린다
+                _results[_i] = fetch_public_month(hs_code, _period, _per_notes[_i])
+            except Exception as _e:  # noqa: BLE001 — 원칙적으로 None 을 뱉지만, 새면 그 달만 버린다
                 _note_reason(_per_notes[_i], _failure_reason(_e))
                 _results[_i] = None
+    else:
+        with _cf.ThreadPoolExecutor(max_workers=PARALLEL_MONTH_WORKERS,
+                                    thread_name_prefix="comtrade") as _pool:
+            _futs = []
+            for _i, _period in enumerate(periods):
+                if _i:
+                    _sleep(PARALLEL_SUBMIT_STAGGER_SEC)
+                _futs.append(_pool.submit(fetch_public_month, hs_code, _period,
+                                          _per_notes[_i]))
+            for _i, _fut in enumerate(_futs):
+                try:
+                    _results[_i] = _fut.result()
+                except Exception as _e:  # 원칙적으로 None을 뱉지만, 혹시 새면 달만 버린다
+                    _note_reason(_per_notes[_i], _failure_reason(_e))
+                    _results[_i] = None
     if notes is not None:
         for _pn in _per_notes:
             _merge_month_notes(notes, _pn)
@@ -591,6 +607,20 @@ def global_trade_scan(months: int = TRAILING_MONTHS, use_cache: bool = True) -> 
                                "reason": "공개 엔드포인트 조회 실패 또는 비교 가능한 달이 2개 미만",
                                "fetch": notes}
             continue
+        # ★ 응답 못 받은 달이 있으면 그 품목으로 급증을 계산하지 않는다 (2026-11-15) ★
+        # 소킹 11-03~11-14: 429 로 달이 빠진 시계열은 주기마다 구멍 위치가 달라서, 같은 데이터에서
+        # BLZ 최대 배수가 3.1·5.5·10.2·18.4배로 매시 바뀌었다. 최신 달이 빠지면 '최신'이 한 달
+        # 앞으로 밀려 후보국이 35곳 → 57곳으로 바뀌었다. 측정이 아니라 구멍의 모양을 잰 것이다.
+        # 빈 달(응답은 왔는데 0개국 — 신고 지연)은 실패가 아니라 그대로 쓴다.
+        # 이 품목이 빠져 후보가 안 나오면 스캔은 '불완전'으로 남고(scan_incomplete), 경보 쪽은
+        # 무역 행을 내리지 않고 '판정 안 함'으로 둔다 — 값이 내려간 게 아니라 못 본 것이다.
+        total, ok = notes.get("months_total"), notes.get("months_ok")
+        if total is not None and ok is not None and ok < total:
+            products[label] = {"data_available": False, "holes": True,
+                               "reason": f"{total}달 중 {total - ok}달 응답 못 받음 — "
+                                         "구멍 난 시계열로 급증을 계산하지 않음",
+                               "fetch": notes}
+            continue
         seen_countries |= set(series_by_country)
         hits = []
         for iso, series in series_by_country.items():
@@ -714,6 +744,8 @@ def _product_part(label: str, p: dict) -> str:
             head += f"[{PUBLIC_MAX_RECORDS}행 상한 {f['capped_months']}달]"
     if p.get("data_available"):
         head += f" → {p.get('countries_observed', 0)}개국"
+    elif p.get("holes"):
+        head += " → 빠진 달 있어 계산 안 함"
     else:
         head += " → 사용 불가"
     reasons = f.get("reasons") or {}
