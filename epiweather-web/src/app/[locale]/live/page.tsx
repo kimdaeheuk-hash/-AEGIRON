@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
-import { getDictionary, isLocale, type Locale } from '@/i18n';
+import Link from 'next/link';
+import { getDictionary, isLocale, localePath, type Locale } from '@/i18n';
 import { Section, SectionHeading } from '@/components/site/Section';
 import { CtaBand } from '@/components/site/ContentPageView';
 import { OpsCounters, RiskTop, ScreenGallery, SourceGrid, AlertList } from '@/components/live/LiveWidgets';
@@ -61,6 +62,12 @@ export default async function LivePage(props: { params: Promise<{ locale: string
         <h2 style={h2}>{L.sourcesTitle}</h2>
         <p style={lead}>{L.sourcesLead}</p>
         <SourceGrid ops={ops} labels={L} />
+        {/* 수집 소스 아래: 그 소스들이 실제로 받아 온 값 전체 — 관측 데이터 보드(2026-11-15) */}
+        <p style={lead}>
+          <Link href={localePath(locale, 'observations')} style={{ color: 'var(--accent)', fontWeight: 700 }}>
+            {x.pages.observations.title} → {x.pages.observations.lead}
+          </Link>
+        </p>
       </Section>
 
       {page.cta && <CtaBand cta={page.cta} locale={locale} />}

@@ -1,6 +1,7 @@
 import type { ExtraDict } from '../types';
 import { extraPagesKo } from './extraPages.ko';
 import { systemsKo, baikalKo } from './baikal.ko';
+import { observationsKo } from './observations.ko';
 
 /**
  * 실가동 위젯·예측 원장·API·질병 라벨(한국어).
@@ -10,6 +11,7 @@ export const extraKo: ExtraDict = {
   pages: extraPagesKo,
   systems: systemsKo,
   baikal: baikalKo,
+  observations: observationsKo,
 
   live: {
     countersTitle: '지금까지 쌓인 운영 기록',

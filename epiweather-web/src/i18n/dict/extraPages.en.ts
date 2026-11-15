@@ -1,9 +1,11 @@
 import type { ExtraDict } from '../types';
 import { baikalPageEn } from './baikal.en';
+import { observationsPageEn } from './observations.en';
 
 /** Live operations, verification and national pages (English). Measured values only. */
 export const extraPagesEn: ExtraDict['pages'] = {
   baikal: baikalPageEn,
+  observations: observationsPageEn,
 
   live: {
     metaTitle: 'Live operations — what AEGIRON is doing right now',

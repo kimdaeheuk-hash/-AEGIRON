@@ -1,12 +1,14 @@
 import type { ExtraDict } from '../types';
 import { extraPagesFr } from './extraPages.fr';
 import { systemsFr, baikalFr } from './baikal.fr';
+import { observationsFr } from './observations.fr';
 
 /** Libellés des widgets en direct, du registre, de l’API et des maladies (français). */
 export const extraFr: ExtraDict = {
   pages: extraPagesFr,
   systems: systemsFr,
   baikal: baikalFr,
+  observations: observationsFr,
 
   live: {
     countersTitle: 'Le bilan d’exploitation à ce jour',

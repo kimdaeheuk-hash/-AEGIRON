@@ -1,9 +1,11 @@
 import type { ExtraDict } from '../types';
 import { baikalPageFr } from './baikal.fr';
+import { observationsPageFr } from './observations.fr';
 
 /** Pages d’exploitation, de vérification et nationales (français). Valeurs mesurées uniquement. */
 export const extraPagesFr: ExtraDict['pages'] = {
   baikal: baikalPageFr,
+  observations: observationsPageFr,
 
   live: {
     metaTitle: 'En exploitation — ce que fait AEGIRON en ce moment',

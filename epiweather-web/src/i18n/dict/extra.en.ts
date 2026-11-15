@@ -1,12 +1,14 @@
 import type { ExtraDict } from '../types';
 import { extraPagesEn } from './extraPages.en';
 import { systemsEn, baikalEn } from './baikal.en';
+import { observationsEn } from './observations.en';
 
 /** Live widgets, forecast ledger, API and disease labels (English). */
 export const extraEn: ExtraDict = {
   pages: extraPagesEn,
   systems: systemsEn,
   baikal: baikalEn,
+  observations: observationsEn,
 
   live: {
     countersTitle: 'The operating record so far',

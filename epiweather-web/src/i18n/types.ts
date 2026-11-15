@@ -286,9 +286,11 @@ export type ExtraDict = {
     developers: ContentPage;
     diseases: ContentPage;
     baikal: ContentPage;
+    observations: ContentPage;
   };
   systems: SystemDict[];
   baikal: BaikalDict;
+  observations: ObservationsDict;
   live: {
     countersTitle: string;
     countersLead: string;
@@ -511,4 +513,20 @@ export type PagesDict = {
   solutionsNgo: ContentPage;
   privacy: ContentPage;
   terms: ContentPage;
+};
+
+/** 관측 데이터 보드(/observations) — 분야별 측정값 표. */
+export type ObservationSectionKey =
+  | 'events' | 'polar' | 'climate' | 'trade' | 'disaster' | 'travel'
+  | 'land' | 'forest' | 'animal' | 'genomic' | 'social' | 'silence' | 'unexplained';
+
+export type ObservationsDict = {
+  columns: { target: string; measured: string; derived: string; time: string; note: string };
+  /** 칸 머리말 아래 한 줄 — 측정값과 해석값을 왜 나눴는지. */
+  columnsNote: string;
+  unavailable: string;
+  empty: string;
+  sourceLabel: string;
+  countLabel: string;
+  sections: Record<ObservationSectionKey, { title: string; lead: string }>;
 };
