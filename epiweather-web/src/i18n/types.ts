@@ -528,5 +528,7 @@ export type ObservationsDict = {
   empty: string;
   sourceLabel: string;
   countLabel: string;
+  /** en/fr 화면에서 백엔드 주의 문구가 한국어 원문일 때 앞에 붙이는 표시 (ko 는 빈 문자열) */
+  caveatKoLabel: string;
   sections: Record<ObservationSectionKey, { title: string; lead: string }>;
 };

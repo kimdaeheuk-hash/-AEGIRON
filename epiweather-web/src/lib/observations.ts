@@ -9,11 +9,12 @@
  * 못 읽으면 rows=null → 화면은 "읽어 오지 못함"을 쓴다(지어낸 0 이 아니라).
  * 값이 없는 칸은 비워 두지 않고 '값 없음'으로 쓴다.
  *
- * 한계: 극지 지역명·유전체/SNS 라벨·재난 질병명은 백엔드가 한국어로 내려줘서 en/fr 화면에도
- * 한국어로 보인다. 보도 요약(raw_text)도 원문 언어 그대로다.
+ * 번역: 질병명·지명·극지 지역·유전체/SNS 라벨·사건 유형은 observationNames 사전으로 en/fr 표기를 바꾼다
+ * (사전에 없으면 원문). 보도 요약(raw_text)은 자유 문장이라 번역하지 않고 비고에 '한국어 원문'을 표시한다.
  */
 import type { Locale } from '@/i18n';
 import type { ObservationSectionKey } from '@/i18n/types';
+import { diseaseName, hasHangul, labelName, placeName } from './observationNames';
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ?? 'https://epiweather-api-production.up.railway.app';
@@ -51,6 +52,9 @@ type J = Record<string, unknown>;
 // ── 값 문구(3개 언어) ──────────────────────────────────────────────────
 
 type V = {
+  locale: Locale;
+  /** en/fr 화면에서 한국어 원문 그대로인 보도 요약에 붙이는 표시 */
+  koSource: string;
   none: string;
   thawDays: (n: string) => string;
   anomaly: (n: string) => string;
@@ -88,6 +92,8 @@ type V = {
 
 const VALUES: Record<Locale, V> = {
   ko: {
+    locale: 'ko',
+    koSource: '',
     none: '값 없음',
     thawDays: (n) => `최근 30일 중 영상 ${n}일`,
     anomaly: (n) => `10년 같은 달 평균 대비 ${n}℃`,
@@ -123,6 +129,8 @@ const VALUES: Record<Locale, V> = {
     silenceChecked: (n) => `채널 ${n}개 점검 · 급감 없음`,
   },
   en: {
+    locale: 'en',
+    koSource: 'summary in Korean (source language)',
     none: 'No value',
     thawDays: (n) => `${n} above-zero days in last 30`,
     anomaly: (n) => `${n}℃ vs same-month 10-yr mean`,
@@ -158,6 +166,8 @@ const VALUES: Record<Locale, V> = {
     silenceChecked: (n) => `${n} channels checked · no drop`,
   },
   fr: {
+    locale: 'fr',
+    koSource: 'résumé en coréen (langue source)',
     none: 'Pas de valeur',
     thawDays: (n) => `${n} jours au-dessus de zéro sur 30`,
     anomaly: (n) => `${n}℃ vs moyenne du même mois sur 10 ans`,
@@ -267,6 +277,44 @@ function when(v: unknown, none: string): string {
   return s.slice(0, 40);
 }
 
+// ── 백엔드 한국어 고정 문구(사유·출처 괄호) — en/fr 표기 ─────────────────
+// 운영 스냅숏(2026-11-15)에 실제로 나온 문구만. 모르는 한국어 사유는 원문을 두고 '한국어 원문' 표시를 붙인다.
+const REASON: { re: RegExp; en: string; fr: string }[] = [
+  {
+    re: /^FIRMS 조회 실패/,
+    en: 'FIRMS query failed (network, policy block or invalid key) — no value',
+    fr: 'Échec de la requête FIRMS (réseau, blocage ou clé invalide) — pas de valeur',
+  },
+  {
+    re: /^GFW_API_KEY 미설정/,
+    en: 'GFW_API_KEY not set (free key required) — no value',
+    fr: 'GFW_API_KEY non défini (clé gratuite requise) — pas de valeur',
+  },
+  {
+    re: /^FIRMS_MAP_KEY 미설정/,
+    en: 'FIRMS_MAP_KEY not set (free key required) — no value',
+    fr: 'FIRMS_MAP_KEY non défini (clé gratuite requise) — pas de valeur',
+  },
+  {
+    re: /^최근 구간 시퀀스 없음/,
+    en: 'No sequences in the recent window (submission may lag)',
+    fr: 'Aucune séquence dans la période récente (dépôt possiblement en retard)',
+  },
+];
+
+function localNote(raw: string | null, v: V): string | null {
+  if (!raw || v.locale === 'ko' || !hasHangul(raw)) return raw;
+  const hit = REASON.find((r) => r.re.test(raw));
+  if (hit) return hit[v.locale];
+  return `${raw} (${v.koSource})`;
+}
+
+/** 출처 문자열의 한국어 괄호 설명('(무료·키 불필요)')은 en/fr 에서 뺀다 — 출처 이름은 그대로. */
+function localSource(raw: string | null, locale: Locale): string | null {
+  if (!raw || locale === 'ko') return raw;
+  return raw.replace(/\s*\([^)]*[\uac00-\ud7a3][^)]*\)/g, '').trim() || raw;
+}
+
 type Built = { rows: ObservationRow[]; total?: number };
 type Builder = (b: J, v: V) => Built;
 
@@ -297,11 +345,14 @@ const events: Builder = (b, v) => {
   });
   const rows = latest.map((r, i) => ({
     id: `ev-${str(r.id) ?? i}`,
-    target: j([str(r.disease), clip(str(r.location), 50) ?? str(r.country_iso3)]),
+    target: j([
+      diseaseName(str(r.disease), v.locale),
+      clip(placeName(str(r.location), v.locale), 50) ?? str(r.country_iso3),
+    ]),
     measured: j([clip(str(r.raw_text), 160)]),
-    derived: j([str(r.signal_type)]),
+    derived: j([labelName(str(r.signal_type), v.locale)]),
     time: when(r.extracted_at ?? r.signal_date, v.none),
-    note: j([str(r.source), str(r.ai_provider)]),
+    note: j([str(r.source), str(r.ai_provider), v.locale !== 'ko' && hasHangul(str(r.raw_text)) && v.koSource]),
   }));
   return { rows, total: latest.length };
 };
@@ -315,7 +366,7 @@ const polar: Builder = (b, v) => {
     const anomalyBasis = str(thaw.heat_basis) === 'baseline_anomaly';
     return {
       id: `po-${str(r.region) ?? i}`,
-      target: str(r.name) ?? str(r.region) ?? v.none,
+      target: labelName(str(r.name), v.locale) ?? str(r.region) ?? v.none,
       measured:
         thaw.data_available === false
           ? v.weatherMissing
@@ -353,7 +404,7 @@ const climate: Builder = (b, v) => {
       fmt(c.spillover_pressure) !== null && v.envPressure(fmt(c.spillover_pressure)!),
     ]),
     time: v.none,
-    note: c.data_available === false ? (clip(str(c.reason), 90) ?? '') : '',
+    note: c.data_available === false ? (clip(localNote(str(c.reason), v), 110) ?? '') : '',
   }));
   return { rows };
 };
@@ -396,7 +447,10 @@ const disaster: Builder = (b, v) => {
         str(first.alert_level) && `GDACS ${str(first.alert_level)}`,
         fmt(first.days_since_disaster, 0) !== null && v.daysSince(fmt(first.days_since_disaster, 0)!),
       ]),
-      derived: j([list(c.diseases) && v.windows(list(c.diseases)!)]),
+      derived: j([
+        list(c.diseases) &&
+          v.windows(list((c.diseases as unknown[]).map((x) => diseaseName(String(x), v.locale) ?? String(x)))!),
+      ]),
       time: when(first.disaster_date, v.none),
       note: fmt(c.window_count, 0) ? v.openWindows(fmt(c.window_count, 0)!) : '',
     };
@@ -442,7 +496,7 @@ function satellite(
           : j([fmt(c[countKey], 0) !== null && `${fmt(c[countKey], 0)} ${unit[locale]}`, str(c.day_range)]),
       derived: j([fmt(c[pressureKey], 1)]),
       time: v.none,
-      note: c.data_available === false ? (clip(str(c.reason), 90) ?? '') : '',
+      note: c.data_available === false ? (clip(localNote(str(c.reason), v), 110) ?? '') : '',
     }));
     return { rows };
   };
@@ -458,7 +512,7 @@ const animal: Builder = (b, v) => {
         measured: j([fmt(b.woah_rss_items, 0) !== null && v.rssItems(fmt(b.woah_rss_items, 0)!)]),
         derived: v.none,
         time: v.none,
-        note: j([str(b.rss_reason), str(b.api_status) === 'retired' && v.apiRetired]),
+        note: j([localNote(str(b.rss_reason), v), str(b.api_status) === 'retired' && v.apiRetired]),
       },
     ],
   };
@@ -472,7 +526,7 @@ const genomic: Builder = (b, v) => {
   const j = joiner(v);
   const rows = keyed(b).map(([slug, g]) => ({
     id: `ge-${slug}`,
-    target: str(g.label) ?? slug,
+    target: labelName(str(g.label), v.locale) ?? slug,
     measured:
       g.available === false
         ? v.none
@@ -483,7 +537,7 @@ const genomic: Builder = (b, v) => {
           ]),
     derived: v.none,
     time: when(g.build_updated, v.none),
-    note: clip(str(g.note) ?? (g.available === false ? str(g.reason) : null), 90) ?? '',
+    note: clip(localNote(str(g.note) ?? (g.available === false ? str(g.reason) : null), v), 110) ?? '',
   }));
   return { rows };
 };
@@ -492,13 +546,13 @@ const social: Builder = (b, v) => {
   const j = joiner(v);
   const rows = keyed(b).map(([tag, s]) => ({
     id: `so-${tag}`,
-    target: str(s.label) ?? `#${tag}`,
+    target: labelName(str(s.label), v.locale) ?? `#${tag}`,
     measured:
       s.available === false ? v.none : j([fmt(s.count_recent, 0) !== null && v.posts7d(fmt(s.count_recent, 0)!)]),
     derived: j([fmt(s.count_change_ratio, 2) !== null && v.vsPrev(fmt(s.count_change_ratio, 2)!)]),
     time: v.none,
     note: j([
-      s.available === false && clip(str(s.reason), 80),
+      s.available === false && clip(localNote(str(s.reason), v), 110),
       s.sample_capped === true && v.capped,
       s.surge_alert === true && v.surge,
     ]).replace(v.none, ''),
@@ -544,11 +598,11 @@ const unexplained: Builder = (b, v) => {
   const alerts = arr(b.alerts);
   const rows = alerts.map((a, i) => ({
     id: `un-${i}`,
-    target: clip(str(a.location), 50) ?? v.none,
+    target: clip(placeName(str(a.location), v.locale), 50) ?? v.none,
     measured: j([clip(str(a.raw_disease_text) ?? str(a.raw_text), 160)]),
     derived: v.none,
     time: when(a.signal_date ?? a.extracted_at, v.none),
-    note: str(a.source) ?? '',
+    note: j([str(a.source), v.locale !== 'ko' && hasHangul(str(a.raw_disease_text) ?? str(a.raw_text)) && v.koSource]),
   }));
   return { rows, total: alerts.length };
 };
@@ -621,7 +675,7 @@ export async function getObservations(locale: Locale): Promise<ObservationSectio
         key: p.key,
         rows: null,
         total: null,
-        source: str(body.data_source),
+        source: localSource(str(body.data_source), locale),
         caveat: null,
         apiPath: p.path,
       };
@@ -630,7 +684,7 @@ export async function getObservations(locale: Locale): Promise<ObservationSectio
       key: p.key,
       rows: built.rows.slice(0, MAX_ROWS),
       total: built.total ?? built.rows.length,
-      source: str(body.data_source),
+      source: localSource(str(body.data_source), locale),
       caveat: clip(str(body.disclaimer) ?? str(body.caveat) ?? str(body.note), 280),
       apiPath: p.path,
     };

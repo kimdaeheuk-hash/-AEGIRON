@@ -10,6 +10,7 @@ import { VStack } from '@astryxdesign/core/VStack';
 import { AstryxProvider } from '@/components/AstryxProvider';
 import { getDictionary, isLocale, type Locale } from '@/i18n';
 import { apiUrl, getObservations, type ObservationRow } from '@/lib/observations';
+import { hasHangul } from '@/lib/observationNames';
 import { pageMetadata } from '@/lib/meta';
 
 /**
@@ -116,7 +117,12 @@ export default async function ObservationsPage(props: { params: Promise<{ locale
                     />
                   )}
 
-                  {s.caveat && <Text type="supporting">{s.caveat}</Text>}
+                  {s.caveat && (
+                    <Text type="supporting">
+                      {/* 백엔드 주의 문구는 한국어 원문 — en/fr 에서도 지우지 않고(정직 표시) 원문임을 밝힌다 */}
+                      {locale !== 'ko' && hasHangul(s.caveat) ? `${t.caveatKoLabel}: ${s.caveat}` : s.caveat}
+                    </Text>
+                  )}
                   <HStack gap={3} wrap="wrap">
                     {s.source && (
                       <Text type="supporting">

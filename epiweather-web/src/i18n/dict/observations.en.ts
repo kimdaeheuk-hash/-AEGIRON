@@ -25,6 +25,7 @@ export const observationsEn: ObservationsDict = {
   empty: 'Nothing to show in this domain right now',
   sourceLabel: 'Source',
   countLabel: 'rows',
+  caveatKoLabel: 'Original caution note (Korean)',
   sections: {
     events: {
       title: 'Outbreak reports by country',

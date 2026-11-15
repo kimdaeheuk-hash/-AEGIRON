@@ -30,6 +30,7 @@ export const observationsKo: ObservationsDict = {
   empty: '이 분야에 지금 표시할 기록 없음',
   sourceLabel: '출처',
   countLabel: '건',
+  caveatKoLabel: '',
   sections: {
     events: {
       title: '나라별 발생 보도',

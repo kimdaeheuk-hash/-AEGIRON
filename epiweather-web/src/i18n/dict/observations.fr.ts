@@ -25,6 +25,7 @@ export const observationsFr: ObservationsDict = {
   empty: 'Rien à afficher dans ce domaine pour le moment',
   sourceLabel: 'Source',
   countLabel: 'lignes',
+  caveatKoLabel: 'Avertissement original (en coréen)',
   sections: {
     events: {
       title: "Signalements d'épidémies par pays",
