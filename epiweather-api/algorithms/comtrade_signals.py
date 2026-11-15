@@ -359,20 +359,32 @@ def fetch_public_series(hs_code: str, months: int = TRAILING_MONTHS,
     import concurrent.futures as _cf
     _per_notes: list[dict] = [{} for _ in periods]
     _results: list[dict[str, float] | None] = [None] * len(periods)
-    with _cf.ThreadPoolExecutor(max_workers=PARALLEL_MONTH_WORKERS,
-                                thread_name_prefix="comtrade") as _pool:
-        _futs = []
+    if PARALLEL_MONTH_WORKERS <= 1:
+        # 직렬(2026-11-15 복귀): 배포 전 6/6 을 내던 그대로 — 달 사이 REQUEST_GAP_SEC 를 둔다.
+        # 1워커 스레드풀로는 이 간격이 생기지 않는다(대기열이 쉬지 않고 연달아 부른다).
         for _i, _period in enumerate(periods):
             if _i:
-                _sleep(PARALLEL_SUBMIT_STAGGER_SEC)
-            _futs.append(_pool.submit(fetch_public_month, hs_code, _period,
-                                      _per_notes[_i]))
-        for _i, _fut in enumerate(_futs):
+                _sleep(REQUEST_GAP_SEC)
             try:
-                _results[_i] = _fut.result()
-            except Exception as _e:  # 원칙적으로 None을 뱉지만, 혹시 새면 달만 버린다
+                _results[_i] = fetch_public_month(hs_code, _period, _per_notes[_i])
+            except Exception as _e:  # noqa: BLE001 — 원칙적으로 None 을 뱉지만, 새면 그 달만 버린다
                 _note_reason(_per_notes[_i], _failure_reason(_e))
                 _results[_i] = None
+    else:
+        with _cf.ThreadPoolExecutor(max_workers=PARALLEL_MONTH_WORKERS,
+                                    thread_name_prefix="comtrade") as _pool:
+            _futs = []
+            for _i, _period in enumerate(periods):
+                if _i:
+                    _sleep(PARALLEL_SUBMIT_STAGGER_SEC)
+                _futs.append(_pool.submit(fetch_public_month, hs_code, _period,
+                                          _per_notes[_i]))
+            for _i, _fut in enumerate(_futs):
+                try:
+                    _results[_i] = _fut.result()
+                except Exception as _e:  # 원칙적으로 None을 뱉지만, 혹시 새면 달만 버린다
+                    _note_reason(_per_notes[_i], _failure_reason(_e))
+                    _results[_i] = None
     if notes is not None:
         for _pn in _per_notes:
             _merge_month_notes(notes, _pn)
