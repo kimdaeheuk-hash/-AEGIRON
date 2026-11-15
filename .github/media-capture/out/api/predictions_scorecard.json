@@ -1,0 +1,1 @@
+{"total":81,"scoreable":80,"unscoreable_legacy":1,"resolved":3,"correct":3,"incorrect":0,"unresolved":42,"excluded":35,"accuracy":1.0,"brier":0.614,"calibration":[{"range":"0.0~0.5","count":3,"stated":0.2167,"actual":1.0}],"overdue":[],"note":"판정 3건은 통계적으로 이르다 — 적중률과 보정 모두 크게 흔들린다. 채점 형식 도입 이전 기록 1건은 판정 기준·신뢰도가 없어 집계에서 제외했다(소급 추가하지 않는다 — 사후에 만든 기준은 증거가 아니다)."}

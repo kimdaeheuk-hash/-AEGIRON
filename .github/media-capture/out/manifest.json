@@ -1,0 +1,317 @@
+{
+  "captured_at": "2026-11-15T04:28:01.012Z",
+  "site": "https://epiweather-web.vercel.app",
+  "screens": [
+    {
+      "stage": 0,
+      "name": "합성위협 탐지",
+      "viewport": "desk",
+      "file": "screens/desk-stage0.jpg",
+      "url": "https://epiweather-web.vercel.app/dashboard",
+      "at": "2026-11-15T04:34:54.555Z"
+    },
+    {
+      "stage": 1,
+      "name": "발원지 추적",
+      "viewport": "desk",
+      "file": "screens/desk-stage1.jpg",
+      "url": "https://epiweather-web.vercel.app/dashboard",
+      "at": "2026-11-15T04:35:01.199Z"
+    },
+    {
+      "stage": 2,
+      "name": "민간 신호",
+      "viewport": "desk",
+      "file": "screens/desk-stage2.jpg",
+      "url": "https://epiweather-web.vercel.app/dashboard",
+      "at": "2026-11-15T04:35:07.954Z"
+    },
+    {
+      "stage": 3,
+      "name": "글로벌 유입",
+      "viewport": "desk",
+      "file": "screens/desk-stage3.jpg",
+      "url": "https://epiweather-web.vercel.app/dashboard",
+      "at": "2026-11-15T04:35:14.658Z"
+    },
+    {
+      "stage": 4,
+      "name": "국내 확산",
+      "viewport": "desk",
+      "file": "screens/desk-stage4.jpg",
+      "url": "https://epiweather-web.vercel.app/dashboard",
+      "at": "2026-11-15T04:35:21.451Z"
+    },
+    {
+      "stage": 5,
+      "name": "도착 예측",
+      "viewport": "desk",
+      "file": "screens/desk-stage5.jpg",
+      "url": "https://epiweather-web.vercel.app/dashboard",
+      "at": "2026-11-15T04:35:28.267Z"
+    },
+    {
+      "stage": 6,
+      "name": "방어 대응",
+      "viewport": "desk",
+      "file": "screens/desk-stage6.jpg",
+      "url": "https://epiweather-web.vercel.app/dashboard",
+      "at": "2026-11-15T04:35:35.020Z"
+    },
+    {
+      "stage": 7,
+      "name": "AI 추론",
+      "viewport": "desk",
+      "file": "screens/desk-stage7.jpg",
+      "url": "https://epiweather-web.vercel.app/dashboard",
+      "at": "2026-11-15T04:35:41.678Z"
+    },
+    {
+      "stage": 8,
+      "name": "전략 비축",
+      "viewport": "desk",
+      "file": "screens/desk-stage8.jpg",
+      "url": "https://epiweather-web.vercel.app/dashboard",
+      "at": "2026-11-15T04:35:48.354Z"
+    },
+    {
+      "stage": 9,
+      "name": "실시간 대시보드",
+      "viewport": "desk",
+      "file": "screens/desk-stage9.jpg",
+      "url": "https://epiweather-web.vercel.app/dashboard",
+      "at": "2026-11-15T04:35:55.008Z"
+    },
+    {
+      "stage": 3,
+      "name": "글로벌 유입",
+      "viewport": "mobile",
+      "file": "screens/mobile-stage3.jpg",
+      "url": "https://epiweather-web.vercel.app/dashboard",
+      "at": "2026-11-15T04:36:07.326Z"
+    },
+    {
+      "stage": 5,
+      "name": "도착 예측",
+      "viewport": "mobile",
+      "file": "screens/mobile-stage5.jpg",
+      "url": "https://epiweather-web.vercel.app/dashboard",
+      "at": "2026-11-15T04:36:13.575Z"
+    },
+    {
+      "stage": 6,
+      "name": "방어 대응",
+      "viewport": "mobile",
+      "file": "screens/mobile-stage6.jpg",
+      "url": "https://epiweather-web.vercel.app/dashboard",
+      "at": "2026-11-15T04:36:19.740Z"
+    },
+    {
+      "stage": 8,
+      "name": "전략 비축",
+      "viewport": "mobile",
+      "file": "screens/mobile-stage8.jpg",
+      "url": "https://epiweather-web.vercel.app/dashboard",
+      "at": "2026-11-15T04:36:26.050Z"
+    },
+    {
+      "stage": 9,
+      "name": "실시간 대시보드",
+      "viewport": "mobile",
+      "file": "screens/mobile-stage9.jpg",
+      "url": "https://epiweather-web.vercel.app/dashboard",
+      "at": "2026-11-15T04:36:32.218Z"
+    }
+  ],
+  "api": [
+    {
+      "path": "/api/status",
+      "status": 200,
+      "file": "api/status.json"
+    },
+    {
+      "path": "/api/dashboard",
+      "status": 200,
+      "file": "api/dashboard.json"
+    },
+    {
+      "path": "/api/daily-brief?lang=ko",
+      "status": 200,
+      "file": "api/daily-brief_lang_ko.json"
+    },
+    {
+      "path": "/api/biodefense/readiness",
+      "status": 405,
+      "file": "api/biodefense_readiness.json"
+    },
+    {
+      "path": "/api/risk-quantification",
+      "status": 200,
+      "file": "api/risk-quantification.json"
+    },
+    {
+      "path": "/api/predictions",
+      "status": 200,
+      "file": "api/predictions.json"
+    },
+    {
+      "path": "/api/predictions/scorecard",
+      "status": 200,
+      "file": "api/predictions_scorecard.json"
+    },
+    {
+      "path": "/api/lead-time-ledger?limit=50",
+      "status": 200,
+      "file": "api/lead-time-ledger_limit_50.json"
+    },
+    {
+      "path": "/api/alerts",
+      "status": 200,
+      "file": "api/alerts.json"
+    },
+    {
+      "path": "/api/risk-index",
+      "status": 200,
+      "file": "api/risk-index.json"
+    },
+    {
+      "path": "/api/launch-readiness",
+      "status": 200,
+      "file": "api/launch-readiness.json"
+    },
+    {
+      "path": "/api/extracted-signals?limit=30",
+      "status": 200,
+      "file": "api/extracted-signals_limit_30.json"
+    },
+    {
+      "path": "/api/unexplained-signals",
+      "status": 200,
+      "file": "api/unexplained-signals.json"
+    },
+    {
+      "path": "/api/polar-watch",
+      "status": 200,
+      "file": "api/polar-watch.json"
+    },
+    {
+      "path": "/api/climate-signals",
+      "status": 200,
+      "file": "api/climate-signals.json"
+    },
+    {
+      "path": "/api/trade-signals",
+      "status": 200,
+      "file": "api/trade-signals.json"
+    },
+    {
+      "path": "/api/land-signals",
+      "status": 200,
+      "file": "api/land-signals.json"
+    },
+    {
+      "path": "/api/deforestation-signals",
+      "status": 200,
+      "file": "api/deforestation-signals.json"
+    },
+    {
+      "path": "/api/disaster-watch",
+      "status": 200,
+      "file": "api/disaster-watch.json"
+    },
+    {
+      "path": "/api/travel-notices",
+      "status": 200,
+      "file": "api/travel-notices.json"
+    },
+    {
+      "path": "/api/animal-signals",
+      "status": 200,
+      "file": "api/animal-signals.json"
+    },
+    {
+      "path": "/api/genomic-variants",
+      "status": 200,
+      "file": "api/genomic-variants.json"
+    },
+    {
+      "path": "/api/negative-space",
+      "status": 200,
+      "file": "api/negative-space.json"
+    },
+    {
+      "path": "/api/extracted-signals?limit=100",
+      "status": 200,
+      "file": "api/extracted-signals_limit_100.json"
+    },
+    {
+      "path": "/api/social-signal",
+      "status": 200,
+      "file": "api/social-signal.json"
+    },
+    {
+      "path": "/api/korea-import-report",
+      "status": 200,
+      "file": "api/korea-import-report.json"
+    }
+  ],
+  "photos": [],
+  "failures": [],
+  "network": [
+    {
+      "url": "https://epiweather-api-production.up.railway.app/api/patient-zero/origins",
+      "method": "GET",
+      "status": 200,
+      "ms": 96
+    },
+    {
+      "url": "https://epiweather-api-production.up.railway.app/api/synthetic-threat/who",
+      "method": "GET",
+      "status": 200,
+      "ms": 161
+    },
+    {
+      "url": "https://epiweather-api-production.up.railway.app/api/patient-zero/local-signal?origin_id=WUH",
+      "method": "GET",
+      "status": 200,
+      "ms": 250
+    },
+    {
+      "url": "https://epiweather-api-production.up.railway.app/api/valhalla/match-ledger?latest_only=true",
+      "method": "GET",
+      "status": 200,
+      "ms": 45
+    },
+    {
+      "url": "https://epiweather-api-production.up.railway.app/api/variant-ledger?transitions_only=true&limit=20",
+      "method": "GET",
+      "status": 200,
+      "ms": 48
+    },
+    {
+      "url": "https://epiweather-api-production.up.railway.app/api/biodefense/stockpile",
+      "method": "GET",
+      "status": 200,
+      "ms": 49
+    },
+    {
+      "url": "https://epiweather-web.vercel.app/api/biodefense/readiness",
+      "method": "POST",
+      "status": 200,
+      "ms": 888
+    },
+    {
+      "url": "https://epiweather-web.vercel.app/api/biodefense/readiness",
+      "method": "POST",
+      "status": 200,
+      "ms": 949
+    },
+    {
+      "url": "https://epiweather-api-production.up.railway.app/api/dashboard",
+      "method": "GET",
+      "status": 200,
+      "ms": 85
+    }
+  ],
+  "console": []
+}
