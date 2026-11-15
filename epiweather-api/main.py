@@ -323,6 +323,8 @@ def _prewarm_after_cycle() -> None:
             ("status", _status_payload),
         ):
             response_cache.prewarm(key, builder)
+        from algorithms.country_cards import country_cards
+        response_cache.prewarm("country-cards:ko", lambda: country_cards("ko"))
 
     threading.Thread(target=run, name="prewarm-after-cycle", daemon=True).start()
 
@@ -694,6 +696,15 @@ async def _run_daily_brief_job(today: str) -> None:
             await asyncio.to_thread(notify_daily_brief, briefs["ko"])
         except Exception as e:
             _log_error(f"daily_brief 텔레그램 발송 실패: {type(e).__name__}: {e}")
+        # 나라별 관측 카드 상위 요약을 이어서 보낸다(2026-11-15) — 브리핑과 실패를 서로 격리
+        try:
+            from algorithms.country_cards import country_cards
+            from algorithms.notifier import notify_country_cards
+            cards = await asyncio.to_thread(country_cards, "ko")
+            response_cache.seed("country-cards:ko", cards)
+            await asyncio.to_thread(notify_country_cards, cards)
+        except Exception as e:
+            _log_error(f"나라별 카드 텔레그램 발송 실패: {type(e).__name__}: {e}")
 
 
 async def _maybe_run_daily_brief() -> None:
@@ -2565,6 +2576,23 @@ def weekly_forecasts(limit: int = 200):
         "note": "주간 방향 예측은 90일 발병 예측과 다른 과제다 — 두 채점표를 합치지 않는다.",
         "forecasts": rows,
     }
+
+
+@app.get("/api/country-cards", tags=["GAI"])
+def country_cards_endpoint(lang: str = "ko", limit: int = 100):
+    """나라별 위험 카드 — 발생 보도·설명불가·재난·무역·CDC 경보·위험지수·한국 연결을 나라 한 장으로 융합(2026-11-15).
+
+    지구본 클릭 화면이자 판매 단위(구독·API·기관 브리핑)다. `intensity`(관측 강도)는 측정값이 아니라
+    가중합 추정이고 가중치는 미보정이다(`weights_calibrated: false`, `is_probability: false`).
+    무거운 층은 응답 캐시 저장본을 공유하므로 이 엔드포인트 자체도 10분 캐시한다.
+    """
+    from algorithms.country_cards import country_cards
+
+    lang = lang if lang in ("ko", "en", "fr") else "ko"
+    result = response_cache.swr(f"country-cards:{lang}", 600, lambda: country_cards(lang))
+    if isinstance(result, dict) and isinstance(result.get("cards"), list):
+        result = {**result, "cards": result["cards"][: max(1, min(limit, 300))]}
+    return result
 
 
 @app.get("/api/korea-import-report", tags=["보고서"])
