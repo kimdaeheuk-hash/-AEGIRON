@@ -123,7 +123,49 @@ function gradeOf(intensity: number): Grade {
   return intensity >= GRADE_HIGH ? 'high' : intensity >= GRADE_ELEVATED ? 'elevated' : 'watch';
 }
 
+/** 백엔드 /api/country-cards(판매 API 와 같은 계산)를 먼저 쓴다. 없으면(머지 전 미리보기 등) null. */
+async function fromBackend(locale: Locale): Promise<CardsData | null> {
+  const body = await getJson(`/api/country-cards?lang=${locale}&limit=150`);
+  if (!body || !Array.isArray(body.cards)) return null;
+  const cards: CountryCard[] = arr(body.cards).map((c) => {
+    const counts = (c.counts ?? {}) as J;
+    const korea = (c.korea ?? {}) as J;
+    const grade = str(c.grade);
+    return {
+      iso3: str(c.iso3) ?? '',
+      name: str(c.name) ?? str(c.iso3) ?? '',
+      lat: num(c.lat),
+      lng: num(c.lng),
+      counts: {
+        event: num(counts.event) ?? 0,
+        unexplained: num(counts.unexplained) ?? 0,
+        disaster: num(counts.disaster) ?? 0,
+        trade: num(counts.trade) ?? 0,
+      },
+      travelLevel: num(c.travel_level),
+      travelTitles: Array.isArray(c.travel_titles) ? (c.travel_titles as unknown[]).map(String) : [],
+      intensity: num(c.intensity) ?? 0,
+      grade: grade === 'high' || grade === 'elevated' ? grade : 'watch',
+      riskScore: num(c.risk_score),
+      dominantDisease: str(c.dominant_disease),
+      korea: { routes: num(korea.routes), passengers: num(korea.passengers) },
+      evidence: arr(c.evidence).map((e) => ({
+        layer: (str(e.layer) ?? 'event') as CountryCard['evidence'][number]['layer'],
+        line: str(e.line) ?? '',
+      })),
+    };
+  });
+  return {
+    cards: cards.filter((c) => c.iso3),
+    koreaAvailable: body.korea_available === true,
+    koreaBasis: str(body.korea_week),
+  };
+}
+
 export async function getCountryCards(locale: Locale, globe: GlobeData): Promise<CardsData> {
+  const backend = await fromBackend(locale);
+  if (backend) return backend;
+  // 백엔드 카드 API 가 아직 없으면(머지 전) 같은 공식으로 웹에서 계산한다
   const [risk, korea, travel] = await Promise.all([
     getJson('/api/risk-index'),
     getJson('/api/korea-import-report'),
