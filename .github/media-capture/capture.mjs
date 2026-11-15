@@ -38,6 +38,7 @@ for (const p of [
   '/api/polar-watch', '/api/climate-signals', '/api/trade-signals', '/api/land-signals',
   '/api/deforestation-signals', '/api/disaster-watch', '/api/travel-notices', '/api/animal-signals',
   '/api/genomic-variants', '/api/negative-space', '/api/extracted-signals?limit=100', '/api/social-signal',
+  '/api/korea-import-report',
 ]) {
   try {
     const res = await fetch(API + p, { headers: { accept: 'application/json', 'user-agent': UA } });
