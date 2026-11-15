@@ -255,6 +255,18 @@ def notify_daily_brief(brief: dict) -> bool:
     return send_telegram_message(format_daily_brief_message(brief))
 
 
+def notify_country_cards(result: dict, site_url: str | None = None) -> bool:
+    """매일 나라별 관측 카드 상위 요약(2026-11-15). 채널 미설정이면 False(보낸 척 안 함)."""
+    if not telegram_configured():
+        return False
+    import os
+
+    from .country_cards import telegram_text
+    from .korea_import_report import SITE_URL_DEFAULT
+    site = site_url or os.environ.get("EPIWEATHER_SITE_URL") or SITE_URL_DEFAULT
+    return send_telegram_message(telegram_text(result, site_url=site))
+
+
 def notify_source_degradation(failing_sources: list[str]) -> bool:
     """데이터 소스가 연속 실패로 죽었을 때 운영자에게 즉시 통보(㉔) — '조기경보
     시스템이 조용히 눈이 머는' 상황을 사람에게 알리는 게 목적. 소스 장애를

@@ -19,6 +19,7 @@ const ROUTES: { path: string; priority: number; changeFrequency: MetadataRoute.S
   { path: 'engines', priority: 0.8, changeFrequency: 'monthly' },
   { path: 'baikal', priority: 1.0, changeFrequency: 'hourly' },
   { path: 'live', priority: 0.9, changeFrequency: 'hourly' },
+  { path: 'observations', priority: 0.9, changeFrequency: 'hourly' },
   { path: 'record', priority: 0.9, changeFrequency: 'daily' },
   { path: 'korea', priority: 0.8, changeFrequency: 'monthly' },
   { path: 'security', priority: 0.7, changeFrequency: 'monthly' },

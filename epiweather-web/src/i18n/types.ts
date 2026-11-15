@@ -286,9 +286,11 @@ export type ExtraDict = {
     developers: ContentPage;
     diseases: ContentPage;
     baikal: ContentPage;
+    observations: ContentPage;
   };
   systems: SystemDict[];
   baikal: BaikalDict;
+  observations: ObservationsDict;
   live: {
     countersTitle: string;
     countersLead: string;
@@ -511,4 +513,54 @@ export type PagesDict = {
   solutionsNgo: ContentPage;
   privacy: ContentPage;
   terms: ContentPage;
+};
+
+/** 관측 데이터 보드(/observations) — 분야별 측정값 표. */
+export type ObservationSectionKey =
+  | 'events' | 'polar' | 'climate' | 'trade' | 'disaster' | 'travel'
+  | 'land' | 'forest' | 'animal' | 'genomic' | 'social' | 'silence' | 'unexplained';
+
+export type ObservationsDict = {
+  columns: { target: string; measured: string; derived: string; time: string; note: string };
+  /** 칸 머리말 아래 한 줄 — 측정값과 해석값을 왜 나눴는지. */
+  columnsNote: string;
+  unavailable: string;
+  empty: string;
+  sourceLabel: string;
+  countLabel: string;
+  /** en/fr 화면에서 백엔드 주의 문구가 한국어 원문일 때 앞에 붙이는 표시 (ko 는 빈 문자열) */
+  caveatKoLabel: string;
+  globe: {
+    title: string;
+    lead: string;
+    dragHint: string;
+    layers: { event: string; unexplained: string; disaster: string; trade: string; polar: string };
+    korea: string;
+    rotateWest: string;
+    rotateEast: string;
+    toKorea: string;
+    toArctic: string;
+    toAntarctic: string;
+    unlocated: string;
+    pick: string;
+    honesty: string;
+    card: {
+      grade: { high: string; elevated: string; watch: string };
+      intensity: string;
+      intensityNote: string;
+      counts: string;
+      travel: string;
+      riskScore: string;
+      dominant: string;
+      korea: string;
+      koreaRoutes: string;
+      koreaPassengers: string;
+      koreaNone: string;
+      koreaUnavailable: string;
+      arcNote: string;
+      evidence: string;
+      top: string;
+    };
+  };
+  sections: Record<ObservationSectionKey, { title: string; lead: string }>;
 };

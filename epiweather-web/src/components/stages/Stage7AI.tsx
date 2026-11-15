@@ -36,6 +36,8 @@ interface InferResponse {
   note?: string;
   error?: string;
   cache_hit?: boolean;
+  /** fast=true 1단계 응답 — LLM 분석은 이어서 받는다(2026-11-15) */
+  llm_pending?: boolean;
   usage?: { input_tokens: number; output_tokens: number; cache_creation_tokens: number; cache_read_tokens: number };
 }
 
@@ -76,6 +78,9 @@ export default function Stage7AI() {
   const { pz, glob, def, def0, lev, threat, origin, civicOn, savedLives } = useStore();
   const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const [result, setResult] = useState<InferResponse | null>(null);
+  // 2단계(LLM) 진행 중 — 1단계 결과는 이미 화면에 있다
+  const [llmLoading, setLlmLoading] = useState(false);
+  const [llmError, setLlmError] = useState('');
   const [errMsg, setErrMsg] = useState('');
 
   if (!pz || !glob || !def || !def0) return null;
@@ -116,11 +121,13 @@ export default function Stage7AI() {
       },
     };
 
-    try {
+    // ★ 두 단계(2026-11-15) ★ 캡틴: "추론도 엄청 늦게 떠". LLM 은 60~120초라, 먼저 fast=true 로
+    // 의사결정 트리를 즉시 받아 그리고, LLM 분석은 두 번째 요청으로 이어 받아 채운다.
+    async function post(payload: object): Promise<InferResponse> {
       const res = await fetch('/api/ai/infer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         let detail = '';
@@ -131,12 +138,29 @@ export default function Stage7AI() {
         } catch { /* 본문 없음 */ }
         throw new Error(`서버 오류 (${res.status})${detail ? ' — ' + String(detail).slice(0, 140) : ''}`);
       }
-      const data: InferResponse = await res.json();
-      setResult(data);
+      return (await res.json()) as InferResponse;
+    }
+
+    setLlmError('');
+    let first: InferResponse;
+    try {
+      first = await post({ ...body, fast: true });
+      setResult(first);
       setStatus('done');
     } catch (e) {
       setErrMsg(e instanceof Error ? e.message : String(e));
       setStatus('error');
+      return;
+    }
+    if (!first.llm_pending) return; // 캐시된 완성본이거나 키가 없어 트리만 있는 경우
+    setLlmLoading(true);
+    try {
+      const full = await post(body);
+      setResult(full);
+    } catch (e) {
+      setLlmError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLlmLoading(false);
     }
   }
 
@@ -207,6 +231,7 @@ export default function Stage7AI() {
               </div>
               <div style={{ color: 'var(--muted)', fontFamily: 'var(--mono)', fontSize: 11 }}>
                 {result.mode === 'full_rag_llm' ? `✓ RAG + ${providerLabel(result)} 분석 완료` :
+                 result.mode === 'decision_tree_fast' ? '의사결정 트리 즉시 결과 · LLM 분석은 이어서 계산 중' :
                  result.mode === 'decision_tree_only' ? '의사결정 트리 (API 키 없음)' :
                  '의사결정 트리 (LLM 오류 시 대체)'}
               </div>
@@ -259,6 +284,17 @@ export default function Stage7AI() {
             )}
 
             {/* LLM 분석 — 누가 썼는지 표시 */}
+            {llmLoading && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--muted)', fontFamily: 'var(--mono)', fontSize: 11.5 }}>
+                <div style={{ width: 14, height: 14, border: '2px solid var(--line2)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'sp .8s linear infinite' }} />
+                LLM 정책 분석 계산 중… (Meta 추론 모델 실측 60~120초 — 위 의사결정 트리는 지금 바로 쓸 수 있음)
+              </div>
+            )}
+            {llmError && (
+              <div style={{ fontSize: 11.5, color: '#fb923c', fontFamily: 'var(--mono)' }}>
+                LLM 분석을 받지 못함 — {llmError} · 위 의사결정 트리 결과는 유효함
+              </div>
+            )}
             {result.llm_analysis ? (
               <div>
                 <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'var(--mono)', marginBottom: 8 }}>{providerLabel(result)} 통합 분석{ageLabel(result)}</div>

@@ -1,5 +1,6 @@
 import type { ExtraDict } from '../types';
 import { baikalPageKo } from './baikal.ko';
+import { observationsPageKo } from './observations.ko';
 
 /**
  * 실가동·검증·국가사업 페이지 본문(한국어).
@@ -9,6 +10,7 @@ import { baikalPageKo } from './baikal.ko';
  */
 export const extraPagesKo: ExtraDict['pages'] = {
   baikal: baikalPageKo,
+  observations: observationsPageKo,
 
   live: {
     metaTitle: '실가동 — 아이기론 실시간 운영 현황',

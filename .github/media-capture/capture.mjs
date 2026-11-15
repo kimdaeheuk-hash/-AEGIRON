@@ -34,6 +34,11 @@ for (const p of [
   '/api/status', '/api/dashboard', '/api/daily-brief?lang=ko', '/api/biodefense/readiness', '/api/risk-quantification',
   '/api/predictions', '/api/predictions/scorecard', '/api/lead-time-ledger?limit=50', '/api/alerts',
   '/api/risk-index', '/api/launch-readiness', '/api/extracted-signals?limit=30', '/api/unexplained-signals',
+  // 2026-11-15: 관측 데이터 보드(/observations)를 실데이터 모양으로 설계하려고 늘렸다.
+  '/api/polar-watch', '/api/climate-signals', '/api/trade-signals', '/api/land-signals',
+  '/api/deforestation-signals', '/api/disaster-watch', '/api/travel-notices', '/api/animal-signals',
+  '/api/genomic-variants', '/api/negative-space', '/api/extracted-signals?limit=100', '/api/social-signal',
+  '/api/korea-import-report',
 ]) {
   try {
     const res = await fetch(API + p, { headers: { accept: 'application/json', 'user-agent': UA } });
