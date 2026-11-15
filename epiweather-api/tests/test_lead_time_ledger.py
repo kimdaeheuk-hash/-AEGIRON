@@ -89,7 +89,7 @@ def test_declaration_after_our_record_counts_as_lead(isolated_db):
     """★★핵심★★ 우리가 먼저 적고, 선언이 뒤에 오면 그게 선행이다."""
     dbmod = isolated_db
     open_crossing("에볼라", "COD", 85.0, 80.0, [1], now=_at(2026, 5, 1))
-    _declare(dbmod, "ebola_cod", "에볼라 COD", "2026-05-15")
+    _declare(dbmod, "ebola_cod_2026", "에볼라 COD", "2026-05-15")
 
     outcome = resolve_ledger(now=_at(2026, 5, 20))
 
@@ -105,14 +105,16 @@ def test_declaration_before_our_record_is_not_our_lead(isolated_db):
     에볼라 DRC 2026 에서 실제로 그런 일이 났다.
     """
     dbmod = isolated_db
-    _declare(dbmod, "ebola_cod", "에볼라 COD", "2026-05-15")
+    _declare(dbmod, "ebola_cod_2026", "에볼라 COD", "2026-05-15")
     # 선언 뒤에 넘었다
     open_crossing("에볼라", "COD", 85.0, 80.0, [1], now=_at(2026, 6, 26))
 
     outcome = resolve_ledger(now=_at(2026, 7, 1))
 
     assert outcome["closed_declared"] == []
-    assert outcome["still_open"] == 1, "선언에 잘못 붙였다"
+    # 사건 ID 를 운영 꼴(`질병_나라_연도`)로 맞추자 10-25 의 '이미 선언됨' 판정이 이 경우를
+    # 잡는다 — 옛 ID(`ebola_cod`)는 나라를 못 읽어 그 판정을 비껴가 '열림'으로 남았었다.
+    assert outcome["closed_already_declared"] == 1, "선언에 잘못 붙였다"
 
 
 def _watching(start: dt.date) -> None:
@@ -125,7 +127,7 @@ def test_declaration_beyond_the_horizon_is_not_credited(isolated_db):
     """★핵심★ 90일 뒤에 난 선언을 우리 공으로 세지 않는다."""
     dbmod = isolated_db
     open_crossing("에볼라", "COD", 85.0, 80.0, [1], now=_at(2026, 1, 1))
-    _declare(dbmod, "ebola_cod", "에볼라 COD", "2026-06-01")   # 151일 뒤
+    _declare(dbmod, "ebola_cod_2026", "에볼라 COD", "2026-06-01")   # 151일 뒤
     _watching(dt.date(2026, 1, 1))
 
     outcome = resolve_ledger(now=_at(2026, 6, 5))
@@ -167,7 +169,7 @@ def test_report_shows_false_alarms_and_precision(isolated_db):
     """★핵심★ 성적표가 오경보를 숨기지 않는다."""
     dbmod = isolated_db
     open_crossing("에볼라", "COD", 85.0, 80.0, [1], now=_at(2026, 5, 1))
-    _declare(dbmod, "ebola_cod", "에볼라 COD", "2026-05-15")
+    _declare(dbmod, "ebola_cod_2026", "에볼라 COD", "2026-05-15")
     open_crossing("니파", "IND", 85.0, 80.0, [2], now=_at(2026, 1, 1))
     _watching(dt.date(2026, 1, 1))
     resolve_ledger(now=_at(2026, 5, 20))
@@ -300,7 +302,7 @@ def test_one_declaration_credits_only_one_crossing(isolated_db):
     dbmod = isolated_db
     open_crossing("에볼라", "COD", 85.0, 80.0, [1], now=_at(2026, 5, 1))
     open_crossing("에볼라", None, 85.0, 80.0, [2], now=_at(2026, 5, 5))
-    _declare(dbmod, "ebola_cod", "에볼라 COD", "2026-05-15")
+    _declare(dbmod, "ebola_cod_2026", "에볼라 COD", "2026-05-15")
 
     outcome = resolve_ledger(now=_at(2026, 5, 20))
 
@@ -314,7 +316,7 @@ def test_the_earliest_crossing_gets_the_credit(isolated_db):
     dbmod = isolated_db
     open_crossing("에볼라", None, 85.0, 80.0, [2], now=_at(2026, 5, 10))
     open_crossing("에볼라", "COD", 85.0, 80.0, [1], now=_at(2026, 5, 1))
-    _declare(dbmod, "ebola_cod", "에볼라 COD", "2026-05-15")
+    _declare(dbmod, "ebola_cod_2026", "에볼라 COD", "2026-05-15")
 
     (hit,) = resolve_ledger(now=_at(2026, 5, 20))["closed_declared"]
 
@@ -327,7 +329,7 @@ def test_duplicate_is_not_counted_as_a_false_alarm(isolated_db):
     dbmod = isolated_db
     open_crossing("에볼라", "COD", 85.0, 80.0, [1], now=_at(2026, 5, 1))
     open_crossing("에볼라", None, 85.0, 80.0, [2], now=_at(2026, 5, 5))
-    _declare(dbmod, "ebola_cod", "에볼라 COD", "2026-05-15")
+    _declare(dbmod, "ebola_cod_2026", "에볼라 COD", "2026-05-15")
     resolve_ledger(now=_at(2026, 5, 20))
 
     record = ledger_record()
@@ -341,7 +343,7 @@ def test_a_later_cycle_does_not_re_credit_the_same_event(isolated_db):
     """★핵심★ 지난 주기에 채점한 선언을 다음 주기에 또 채점하지 않는다."""
     dbmod = isolated_db
     open_crossing("에볼라", "COD", 85.0, 80.0, [1], now=_at(2026, 5, 1))
-    _declare(dbmod, "ebola_cod", "에볼라 COD", "2026-05-15")
+    _declare(dbmod, "ebola_cod_2026", "에볼라 COD", "2026-05-15")
     resolve_ledger(now=_at(2026, 5, 20))
 
     # 다음 주기에 같은 병으로 또 문턱을 넘었다

@@ -62,6 +62,9 @@ OUTCOME_DUPLICATE = "duplicate"
 # (2026-10-25, 예측 채점기와 같은 구멍 — prediction_resolver 머리말 5). 실측으로도, 오경보로도 세지 않는다.
 OUTCOME_ALREADY_DECLARED = "already_declared"
 ALREADY_DECLARED_LOOKBACK_DAYS = 365
+# 나라를 모르는 통과가 어떤 선언과 맞았지만, 그 선언을 나라 아는 통과가 먼저 가져가지 않았다.
+# 어느 나라의 선행인지 말할 수 없으니 실측으로 세지 않는다 — 오경보도 아니다 (2026-11-15).
+OUTCOME_UNATTRIBUTABLE = "unattributable"
 
 
 def _now() -> dt.datetime:
@@ -203,11 +206,15 @@ def resolve_ledger(now: dt.datetime | None = None) -> dict:
     }
 
     closed_declared, closed_silent, duplicates, already, still_open = [], [], [], [], 0
+    unattributable = []
     blind = 0
     blind_reasons: dict[str, int] = {}
-    # 먼저 넘은 것부터 본다 — 가장 이른 기록이 그 사건의 선행일수다.
+    # 나라를 아는 통과부터, 그 안에서 먼저 넘은 것부터 본다 — 가장 이른 기록이 그 사건의
+    # 선행일수다. 나라 모르는 통과를 뒤로 미는 이유: 같은 선언을 나라 아는 통과가 먼저
+    # 가져가야 나라 모르는 쪽이 '중복'으로 닫힌다(소킹 11-05 홍역/국가미상 → 11-06 홍역/SDN,
+    # 11-07 pneumonia/국가미상 → 11-13 폐렴/CHN — 같은 사건이 두 번 열린 모양).
     for entry in sorted(list_entries(outcome=OUTCOME_OPEN, limit=1000),
-                        key=lambda e: e["crossed_at"]):
+                        key=lambda e: (not e.get("country_iso3"), e["crossed_at"])):
         crossed = _as_date(entry["crossed_at"])
         if crossed is None:
             continue
@@ -228,10 +235,15 @@ def resolve_ledger(now: dt.datetime | None = None) -> dict:
 
         # ★ 우리가 먼저 적은 뒤에 나온 선언만 찾는다 ★ 원장 기록보다 앞선
         # 선언은 이 진입이 설명하는 사건이 아니다(이미 공개된 뒤에 넘은 것).
+        # ★ 나라를 아는 통과는 그 나라의 선언에만 맞춘다 (2026-11-15) ★
+        # 전에는 질병만 같으면 어느 나라의 선언이든 맞췄다 — `폐렴/CHN` 이 다른 나라의 폐렴
+        # 선언으로 '실측'이 될 수 있었다. 이전 선언(prior) 판정은 이미 나라를 봤는데 여기만 빠져
+        # 있었다. 선행일수는 '그 나라에서 먼저 알았다'여야 한다.
         match = next(
             (d for d in declarations
              if d["disease"] == entry["disease"] and d["date"]
-             and crossed <= d["date"] <= crossed + dt.timedelta(days=RESOLUTION_HORIZON_DAYS)),
+             and crossed <= d["date"] <= crossed + dt.timedelta(days=RESOLUTION_HORIZON_DAYS)
+             and (not entry.get("country_iso3") or entry["country_iso3"] in d["isos"])),
             None,
         )
         if match:
@@ -242,6 +254,15 @@ def resolve_ledger(now: dt.datetime | None = None) -> dict:
                        event_id=match["event_id"],
                        declared_on=match["date"].isoformat())
                 duplicates.append(entry)
+                continue
+            if not entry.get("country_iso3"):
+                # 나라 모르는 통과가 혼자 선언을 가져가면 안 된다 — 홍역·폐렴처럼 흔한 병은
+                # 기한 90일 안에 어딘가에서 거의 반드시 선언된다. 그걸 '먼저 알았다'로 세면
+                # 성적표를 우리가 지어낸다. 실측도 오경보도 아닌 '귀속 불가'로 닫는다.
+                _close(entry["id"], OUTCOME_UNATTRIBUTABLE, now,
+                       event_id=match["event_id"],
+                       declared_on=match["date"].isoformat())
+                unattributable.append(entry)
                 continue
             lead = (match["date"] - crossed).days
             _close(entry["id"], OUTCOME_DECLARED, now,
@@ -274,6 +295,7 @@ def resolve_ledger(now: dt.datetime | None = None) -> dict:
         "closed_no_declaration": len(closed_silent),
         "closed_duplicate": len(duplicates),
         "closed_already_declared": len(already),
+        "closed_unattributable": len(unattributable),
         "still_open": still_open,
         "blind": blind,
         "blind_reasons": blind_reasons,
@@ -415,6 +437,8 @@ def ledger_record() -> dict:
         "duplicates": len(list_entries(outcome=OUTCOME_DUPLICATE, limit=1000)),
         # 이미 선언된 발병을 뒤따라 넘은 것. 실측에도 오경보에도 안 들어가지만 숨기지도 않는다.
         "already_declared": len(list_entries(outcome=OUTCOME_ALREADY_DECLARED, limit=1000)),
+        # 나라를 몰라 어느 나라의 선행인지 말할 수 없는 것. 실측에도 오경보에도 안 들어가지만 숨기지도 않는다.
+        "unattributable": len(list_entries(outcome=OUTCOME_UNATTRIBUTABLE, limit=1000)),
         "precision": (round(len(declared) / (len(declared) + len(silent)), 3)
                       if (declared or silent) else None),
         "horizon_days": RESOLUTION_HORIZON_DAYS,
