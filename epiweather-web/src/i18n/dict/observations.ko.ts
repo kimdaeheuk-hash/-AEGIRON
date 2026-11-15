@@ -47,9 +47,28 @@ export const observationsKo: ObservationsDict = {
     rotateEast: '동쪽',
     toKorea: '한국 보기',
     toArctic: '북극 보기',
+    toAntarctic: '남극 보기',
     unlocated: '위치를 못 읽어 지구본에 찍지 않은 기록',
     pick: '점을 누르면 그곳의 기록이 여기에 나옴',
     honesty: '점은 보도·관측이 있었던 곳이지 확진 환자 위치가 아님 · 나라 단위 점은 나라 중앙에 찍음',
+    card: {
+      grade: { high: '높음', elevated: '주의', watch: '관찰' },
+      intensity: '관측 강도',
+      intensityNote:
+        '관측 강도 = 보도 20·설명불가 15·재난 15·무역 10 × log2(1+건수) + CDC 경보 등급 × 8 (최대 100) — 측정값이 아닌 추정, 가중치 미보정 · 발병 확률이 아님',
+      counts: '받은 기록',
+      travel: 'CDC 여행경보',
+      riskScore: '위험지수(모델 추정)',
+      dominant: '주요 질병',
+      korea: '한국 연결',
+      koreaRoutes: '한국 직항 노선',
+      koreaPassengers: '인천 여객',
+      koreaNone: '유입 보고서에 이 나라의 한국 연결 값 없음',
+      koreaUnavailable: '한국 유입 보고서를 읽지 못해 한국행 경로를 그리지 않음',
+      arcNote: '빨간 호 = 관측이 있는 나라 중 한국과 항공으로 연결된 곳 → 서울',
+      evidence: '근거',
+      top: '관측 강도 상위',
+    },
   },
   sections: {
     events: {

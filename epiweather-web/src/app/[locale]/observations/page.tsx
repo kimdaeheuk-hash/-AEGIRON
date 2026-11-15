@@ -11,6 +11,7 @@ import { AstryxProvider } from '@/components/AstryxProvider';
 import { getDictionary, isLocale, type Locale } from '@/i18n';
 import { apiUrl, getObservations, type ObservationRow } from '@/lib/observations';
 import { getGlobeData } from '@/lib/globeData';
+import { getCountryCards } from '@/lib/countryCards';
 import ObservationGlobe from '@/components/observations/ObservationGlobe';
 import { hasHangul } from '@/lib/observationNames';
 import { pageMetadata } from '@/lib/meta';
@@ -43,6 +44,7 @@ export default async function ObservationsPage(props: { params: Promise<{ locale
   const page = x.pages.observations;
   const t = x.observations;
   const [sections, globe] = await Promise.all([getObservations(locale), getGlobeData(locale)]);
+  const cards = await getCountryCards(locale, globe);
 
   // 측정값과 해석값은 다른 칸 — 같은 모양으로 섞어 그리지 않는다.
   const columns: TableColumn<ObservationRow>[] = [
@@ -90,7 +92,7 @@ export default async function ObservationsPage(props: { params: Promise<{ locale
           </VStack>
 
           {/* 지구본 — 표의 값을 위치로 먼저 보여 준다(2026-11-15 캡틴: 발병지도·극지방) */}
-          <ObservationGlobe data={globe} labels={t.globe} />
+          <ObservationGlobe data={globe} cards={cards} labels={t.globe} />
 
           {sections.map((s) => {
             const label = t.sections[s.key];

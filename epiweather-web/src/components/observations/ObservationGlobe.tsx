@@ -1,15 +1,16 @@
 'use client';
 
 /**
- * 관측 지구본 — 운영 API 에서 받은 발생 보도·설명불가 신호·재난 감시창·의료물자 수입 급증·극지 관찰을
- * 정사영(orthographic) 지구본에 찍는다. 드래그로 돌리고, 점을 누르면 그곳의 기록이 옆에 나온다.
+ * 관측 지구본 + 나라별 위험 카드 (2026-11-15 v2 — 캡틴: "지구본이 너무 질이 떨어져",
+ * "이대로 가면 데이터를 활용 못하고 사업화가 안 돼").
  *
- * 국경은 world-atlas 1:110m(퍼블릭 도메인, 번들 포함 — 외부 타일·키 없음). WebGL 없이 SVG 라서
- * 서버에서 먼저 그려지고 저사양 기기에서도 돈다. 색은 Astryx 데이터 색 토큰만 쓴다.
+ * 3D 지구본(Globe3D, WebGL)은 브라우저에서만 불러온다(next/dynamic ssr:false).
+ * 나라를 누르면 그 나라에 모인 모든 관측(보도·설명불가·재난·무역·CDC 경보·위험지수·한국 연결)이
+ * 카드 한 장으로 나온다 — 이 카드가 상품(구독·API·기관 브리핑)의 단위다.
  */
-import { useMemo, useRef, useState } from 'react';
-import type { PointerEvent as ReactPointerEvent } from 'react';
-import { geoCentroid, geoDistance, geoGraticule10, geoOrthographic, geoPath } from 'd3-geo';
+import { useEffect, useMemo, useState } from 'react';
+import dynamic from 'next/dynamic';
+import { geoCentroid } from 'd3-geo';
 import type { GeoPermissibleObjects } from 'd3-geo';
 import { feature } from 'topojson-client';
 import type { GeometryCollection, Topology } from 'topojson-specification';
@@ -20,243 +21,284 @@ import { HStack } from '@astryxdesign/core/HStack';
 import { Heading, Text } from '@astryxdesign/core/Text';
 import { Token } from '@astryxdesign/core/Token';
 import { VStack } from '@astryxdesign/core/VStack';
+import { AstryxProvider } from '@/components/AstryxProvider';
 import type { ObservationsDict } from '@/i18n/types';
-import type { GlobeData, GlobeLayer, GlobePoint } from '@/lib/globeData';
+import type { CardsData, CountryCard } from '@/lib/countryCards';
+import type { GlobeData, GlobePoint } from '@/lib/globeData';
 import { ISO3_NUMERIC, SMALL } from '@/lib/isoGeo';
+import type { HexFeature, PlacedCard, Pov } from './Globe3D';
 
-const SIZE = 560;
-const KOREA_NUMERIC = '410';
-
-/** 레이어 색 — Astryx 데이터 범주 토큰. 극지는 차갑게, 재난·보도는 뜨겁게. */
-const LAYER_COLOR: Record<GlobeLayer, string> = {
-  event: 'var(--color-data-categorical-red)',
-  unexplained: 'var(--color-data-categorical-orange)',
-  disaster: 'var(--color-data-yellow-4)',
-  trade: 'var(--color-data-categorical-teal)',
-  polar: 'var(--color-data-categorical-cyan)',
-};
-const TOKEN_COLOR: Record<GlobeLayer, 'red' | 'orange' | 'yellow' | 'teal' | 'cyan'> = {
-  event: 'red',
-  unexplained: 'orange',
-  disaster: 'yellow',
-  trade: 'teal',
-  polar: 'cyan',
-};
-const LAYERS: GlobeLayer[] = ['event', 'unexplained', 'disaster', 'trade', 'polar'];
+const Globe3D = dynamic(() => import('./Globe3D'), { ssr: false });
 
 type Feature = GeoJSON.Feature<GeoJSON.Geometry, { name: string }>;
-
 const topo = worldTopo as unknown as Topology<{ countries: GeometryCollection<{ name: string }> }>;
 const COUNTRIES = (
   feature(topo, topo.objects.countries) as unknown as GeoJSON.FeatureCollection<GeoJSON.Geometry, { name: string }>
 ).features as Feature[];
+const NUMERIC_ISO3: Record<string, string> = Object.fromEntries(Object.entries(ISO3_NUMERIC).map(([i, n]) => [n, i]));
 const BY_NUMERIC = new Map(COUNTRIES.map((f) => [String(f.id), f]));
-const GRATICULE = geoGraticule10();
+/**
+ * 육각 격자(h3)는 점 하나가 반복된 퇴화 폴리곤에서 예외를 던진다 — world-atlas 1:110m 의 북한(408) 첫 조각이
+ * 그렇다(2026-11-15 로컬 렌더에서 확인). 서로 다른 점이 3개 미만인 조각은 빼고 넘긴다.
+ */
+function sane(ring: GeoJSON.Position[]): boolean {
+  return new Set(ring.map((p) => `${p[0]},${p[1]}`)).size >= 3;
+}
+function sanitize(f: Feature): Feature {
+  const g = f.geometry;
+  if (g.type === 'MultiPolygon') {
+    return { ...f, geometry: { ...g, coordinates: g.coordinates.filter((poly) => sane(poly[0])) } };
+  }
+  return f;
+}
+const HEXES: HexFeature[] = COUNTRIES.map((f) => ({ ...sanitize(f), iso3: NUMERIC_ISO3[String(f.id)] ?? null })).filter(
+  (f) => f.geometry.type !== 'Polygon' || sane(f.geometry.coordinates[0]),
+);
 
-/** ISO3 → [경도, 위도]. 국경 폴리곤 중심, 없으면 작은 영토 표, 그래도 없으면 null. */
-function locate(p: GlobePoint): [number, number] | null {
-  if (p.lat !== null && p.lon !== null) return [p.lon, p.lat];
-  if (!p.iso3) return null;
-  const f = BY_NUMERIC.get(ISO3_NUMERIC[p.iso3] ?? '');
+const START: Pov = { lat: 22, lng: 70, altitude: 2.3 };
+const KOREA: Pov = { lat: 36, lng: 127.5, altitude: 1.5 };
+const ARCTIC: Pov = { lat: 78, lng: 10, altitude: 2.1 };
+const ANTARCTIC: Pov = { lat: -70, lng: -57, altitude: 2.1 };
+
+/** ISO3 → [경도, 위도] : 국경 중심 → 작은 영토 표 → null */
+function centroid(iso3: string): [number, number] | null {
+  const f = BY_NUMERIC.get(ISO3_NUMERIC[iso3] ?? '');
   if (f) return geoCentroid(f as GeoPermissibleObjects) as [number, number];
-  const s = SMALL[p.iso3];
+  const s = SMALL[iso3];
   return s ? [s[1], s[0]] : null;
 }
 
-/** 점 이름 — 서버가 화면 언어로 붙인 이름(title)이 ISO3 그대로면 지도 데이터의 영문명으로 대신한다. */
-function pointName(p: GlobePoint): string {
-  if (!p.iso3 || p.title !== p.iso3) return p.title;
-  return BY_NUMERIC.get(ISO3_NUMERIC[p.iso3] ?? '')?.properties.name ?? p.iso3;
-}
+type Layers = { rings: boolean; arcs: boolean; polar: boolean; disaster: boolean };
+type Selected = { kind: 'country'; iso3: string | null; name: string } | { kind: 'point'; id: string } | null;
 
-export default function ObservationGlobe({ data, labels }: { data: GlobeData; labels: ObservationsDict['globe'] }) {
-  // 처음엔 아프리카·유럽·아시아·한국이 한 화면에 들어오게(경도 70°E, 위도 25°N 을 정면으로)
-  const [rotate, setRotate] = useState<[number, number]>([-70, -25]);
-  const [on, setOn] = useState<Record<GlobeLayer, boolean>>({
-    event: true,
-    unexplained: true,
-    disaster: true,
-    trade: true,
-    polar: true,
-  });
-  const [selected, setSelected] = useState<string | null>(null);
-  const drag = useRef<{ x: number; y: number; r: [number, number] } | null>(null);
-  // 드래그로 돌린 뒤 손을 뗀 자리의 점이 선택되지 않게 — 4px 넘게 움직였으면 클릭으로 보지 않는다
-  const moved = useRef(false);
-
-  const projection = useMemo(
-    () =>
-      geoOrthographic()
-        .scale(SIZE / 2 - 8)
-        .translate([SIZE / 2, SIZE / 2])
-        .rotate([rotate[0], rotate[1]])
-        .clipAngle(90),
-    [rotate],
+export default function ObservationGlobe({
+  data,
+  cards,
+  labels,
+}: {
+  data: GlobeData;
+  cards: CardsData;
+  labels: ObservationsDict['globe'];
+}) {
+  const t = labels.card;
+  // 좁은 화면에서는 지구본이 작아 보이므로 처음 시점을 더 가깝게(시점은 브라우저 전용 지구본에만 쓰여 SSR 마크업과 무관)
+  const [pov, setPov] = useState<Pov>(() =>
+    typeof window !== 'undefined' && window.innerWidth < 700 ? { ...START, altitude: 1.7 } : START,
   );
-  // 소수 2자리로 고정 — 서버(Node)와 브라우저의 부동소수 끝자리가 달라 생기는 hydration 경고를 없앤다
-  const path = useMemo(() => geoPath(projection).digits(2), [projection]);
-  const center: [number, number] = [-rotate[0], -rotate[1]];
+  const [layers, setLayers] = useState<Layers>({ rings: true, arcs: true, polar: true, disaster: true });
+  const [selected, setSelected] = useState<Selected>(null);
+  const [size, setSize] = useState({ w: 640, h: 560 });
 
-  const placed = useMemo(
+  useEffect(() => {
+    // 화면 폭에 맞춘 지구본 크기 — 데스크톱은 옆에 카드, 휴대폰은 위아래
+    const fit = () => {
+      const vw = window.innerWidth;
+      const w = vw >= 1100 ? 700 : Math.max(300, Math.min(700, vw - 72));
+      setSize({ w, h: Math.round(w * (vw >= 1100 ? 0.86 : 1)) });
+    };
+    fit();
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
+  }, []);
+
+  const placedCards: PlacedCard[] = useMemo(
+    () =>
+      cards.cards
+        .map((c) => ({
+          ...c,
+          at: c.lat !== null && c.lng !== null ? ([c.lng, c.lat] as [number, number]) : centroid(c.iso3),
+        }))
+        .filter((c): c is PlacedCard => c.at !== null),
+    [cards.cards],
+  );
+
+  const points = useMemo(
     () =>
       data.points
-        .map((p) => ({ p, at: locate(p) }))
-        .filter((x): x is { p: GlobePoint; at: [number, number] } => x.at !== null),
-    [data.points],
+        .filter((p) => (p.layer === 'polar' && layers.polar) || (p.layer === 'disaster' && layers.disaster))
+        .map((p) => ({
+          ...p,
+          at:
+            p.lat !== null && p.lon !== null ? ([p.lon, p.lat] as [number, number]) : p.iso3 ? centroid(p.iso3) : null,
+        }))
+        .filter((p): p is GlobePoint & { at: [number, number] } => p.at !== null),
+    [data.points, layers.polar, layers.disaster],
   );
-  const notPlaced = data.points.length - placed.length;
 
-  const counts = useMemo(() => {
-    const c: Record<GlobeLayer, number> = { event: 0, unexplained: 0, disaster: 0, trade: 0, polar: 0 };
-    for (const { p } of placed) c[p.layer] += 1;
-    return c;
-  }, [placed]);
+  const pickedCard: CountryCard | null =
+    selected?.kind === 'country' && selected.iso3 ? (cards.cards.find((c) => c.iso3 === selected.iso3) ?? null) : null;
+  const pickedPoint: GlobePoint | null =
+    selected?.kind === 'point' ? (data.points.find((p) => p.id === selected.id) ?? null) : null;
 
-  const korea = BY_NUMERIC.get(KOREA_NUMERIC);
-  const pick = placed.find((x) => x.p.id === selected)?.p ?? null;
+  const counts: Record<keyof Layers, number> = {
+    rings: placedCards.filter((c) => c.counts.event + c.counts.unexplained > 0).length,
+    arcs: placedCards.filter((c) => (c.korea.routes ?? 0) > 0 || (c.korea.passengers ?? 0) > 0).length,
+    polar: data.points.filter((p) => p.layer === 'polar').length,
+    disaster: data.points.filter((p) => p.layer === 'disaster').length,
+  };
+  const layerLabel: Record<keyof Layers, string> = {
+    rings: `${labels.layers.event} · ${labels.layers.unexplained}`,
+    arcs: t.korea,
+    polar: labels.layers.polar,
+    disaster: labels.layers.disaster,
+  };
+  const layerColor: Record<keyof Layers, 'red' | 'blue' | 'cyan' | 'yellow'> = {
+    rings: 'red',
+    arcs: 'blue',
+    polar: 'cyan',
+    disaster: 'yellow',
+  };
+  const gradeColor = (g: CountryCard['grade']) => (g === 'high' ? 'red' : g === 'elevated' ? 'orange' : 'yellow');
 
-  function onDown(e: ReactPointerEvent<SVGSVGElement>) {
-    drag.current = { x: e.clientX, y: e.clientY, r: rotate };
-    moved.current = false;
-  }
-  function onMove(e: ReactPointerEvent<SVGSVGElement>) {
-    const d = drag.current;
-    if (!d) return;
-    if (Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y) > 4) moved.current = true;
-    const k = 0.35;
-    const lat = Math.max(-80, Math.min(80, d.r[1] - (e.clientY - d.y) * k));
-    setRotate([d.r[0] + (e.clientX - d.x) * k, lat]);
-  }
-  function onUp() {
-    drag.current = null;
+  function focusCard(c: CountryCard) {
+    setSelected({ kind: 'country', iso3: c.iso3, name: c.name });
+    const at = c.lat !== null && c.lng !== null ? ([c.lng, c.lat] as [number, number]) : centroid(c.iso3);
+    if (at) setPov({ lat: at[1], lng: at[0], altitude: 1.6 });
   }
 
   return (
-    <Card padding={4}>
-      <VStack gap={3}>
-        <VStack gap={1}>
-          <Heading level={2}>{labels.title}</Heading>
-          <Text type="supporting">{labels.lead}</Text>
-        </VStack>
+    <AstryxProvider mode="dark">
+      <Card padding={4}>
+        <VStack gap={3}>
+          <VStack gap={1}>
+            <Heading level={2}>{labels.title}</Heading>
+            <Text type="supporting">{labels.lead}</Text>
+          </VStack>
 
-        <HStack gap={2} wrap="wrap">
-          {LAYERS.map((layer) => (
-            <Token
-              key={layer}
-              size="sm"
-              color={on[layer] ? TOKEN_COLOR[layer] : 'gray'}
-              label={`${labels.layers[layer]} ${counts[layer]}`}
-              onClick={() => setOn((o) => ({ ...o, [layer]: !o[layer] }))}
-              description={labels.dragHint}
-            />
-          ))}
-          <Token size="sm" color="blue" label={labels.korea} />
-        </HStack>
-        {/* 휴대폰에서는 드래그가 페이지 스크롤과 겹치므로 버튼으로도 돌린다 */}
-        <HStack gap={2} wrap="wrap">
-          <Button size="sm" label={`◀ ${labels.rotateWest}`} onClick={() => setRotate(([l, p]) => [l + 30, p])} />
-          <Button size="sm" label={`${labels.rotateEast} ▶`} onClick={() => setRotate(([l, p]) => [l - 30, p])} />
-          <Button size="sm" variant="ghost" label={labels.toKorea} onClick={() => setRotate([-127.5, -36])} />
-          <Button size="sm" variant="ghost" label={labels.toArctic} onClick={() => setRotate([-20, -75])} />
-        </HStack>
-
-        <HStack gap={4} wrap="wrap" vAlign="start">
-          <VStack width="100%" maxWidth={SIZE}>
-            {/* 아이콘이 아니라 지도 그림이라 SVG 가 그 자체로 필요하다 — astryx doctor 의 '아이콘 svg' 경고는 해당 없음 */}
-            <svg
-              viewBox={`0 0 ${SIZE} ${SIZE}`}
-              width="100%"
-              role="img"
-              aria-label={labels.title}
-              onPointerDown={onDown}
-              onPointerMove={onMove}
-              onPointerUp={onUp}
-              onPointerCancel={onUp}
-              onPointerLeave={onUp}
-            >
-              <path
-                d={path({ type: 'Sphere' }) ?? ''}
-                fill="var(--color-background-blue)"
-                stroke="var(--color-border)"
+          <HStack gap={2} wrap="wrap">
+            {(Object.keys(layers) as (keyof Layers)[]).map((k) => (
+              <Token
+                key={k}
+                size="sm"
+                color={layers[k] ? layerColor[k] : 'gray'}
+                label={`${layerLabel[k]} ${counts[k]}`}
+                onClick={() => setLayers((l) => ({ ...l, [k]: !l[k] }))}
               />
-              <path d={path(GRATICULE) ?? ''} fill="none" stroke="var(--color-border)" strokeOpacity={0.5} />
-              {COUNTRIES.map((f) => (
-                <path
-                  key={String(f.id ?? f.properties.name)}
-                  d={path(f as GeoPermissibleObjects) ?? ''}
-                  fill="var(--color-background-card)"
-                  stroke="var(--color-border-emphasized)"
-                  strokeWidth={0.4}
-                />
-              ))}
-              {korea && (
-                <path
-                  d={path(korea as GeoPermissibleObjects) ?? ''}
-                  fill="var(--color-data-blue-3)"
-                  stroke="var(--color-data-blue-5)"
-                  strokeWidth={1.2}
-                >
-                  <title>{labels.korea}</title>
-                </path>
-              )}
-              {placed
-                .filter(({ p, at }) => on[p.layer] && geoDistance(at, center) < Math.PI / 2 - 0.02)
-                .sort((a, b) => b.p.count - a.p.count)
-                .map(({ p, at }) => {
-                  const xy = projection(at);
-                  if (!xy) return null;
-                  const r = Math.min(18, 4 + Math.sqrt(p.count) * 3);
-                  const isPicked = p.id === selected;
-                  return (
-                    <g
-                      key={p.id}
-                      onClick={() => {
-                        if (!moved.current) setSelected(p.id);
-                      }}
-                      cursor="pointer"
-                    >
-                      <circle
-                        cx={Math.round(xy[0] * 100) / 100}
-                        cy={Math.round(xy[1] * 100) / 100}
-                        r={r}
-                        fill={LAYER_COLOR[p.layer]}
-                        fillOpacity={p.layer === 'polar' ? 0.75 : 0.6}
-                        stroke={isPicked ? 'var(--color-border-emphasized)' : LAYER_COLOR[p.layer]}
-                        strokeWidth={isPicked ? 2.5 : 1}
-                      />
-                      <title>{`${labels.layers[p.layer]} · ${pointName(p)} · ${p.count}`}</title>
-                    </g>
-                  );
-                })}
-            </svg>
-          </VStack>
+            ))}
+          </HStack>
+          <HStack gap={2} wrap="wrap">
+            <Button size="sm" label={labels.toKorea} onClick={() => setPov({ ...KOREA })} />
+            <Button size="sm" label={labels.toArctic} onClick={() => setPov({ ...ARCTIC })} />
+            <Button size="sm" variant="ghost" label={labels.toAntarctic} onClick={() => setPov({ ...ANTARCTIC })} />
+            <Button
+              size="sm"
+              variant="ghost"
+              label={`◀ ${labels.rotateWest}`}
+              onClick={() => setPov((p) => ({ ...p, lng: p.lng - 40 }))}
+            />
+            <Button
+              size="sm"
+              variant="ghost"
+              label={`${labels.rotateEast} ▶`}
+              onClick={() => setPov((p) => ({ ...p, lng: p.lng + 40 }))}
+            />
+          </HStack>
 
-          <VStack gap={2} width="100%" maxWidth={360}>
-            {pick ? (
-              <>
-                <Text type="label" color="accent">
-                  {labels.layers[pick.layer]}
-                </Text>
-                <Heading level={3}>{pointName(pick)}</Heading>
-                {pick.lines.map((line) => (
-                  <Text key={line} type="supporting" display="block">
-                    {line}
+          <HStack gap={4} wrap="wrap" vAlign="start">
+            <VStack width={size.w}>
+              <Globe3D
+                width={size.w}
+                height={size.h}
+                hexes={HEXES}
+                cards={placedCards}
+                points={points}
+                showRings={layers.rings}
+                showArcs={layers.arcs && cards.koreaAvailable}
+                koreaLabel={labels.korea}
+                pov={pov}
+                onCountry={(iso3, name) => setSelected({ kind: 'country', iso3, name })}
+                onPoint={(id) => setSelected({ kind: 'point', id })}
+              />
+            </VStack>
+
+            <VStack gap={2} width="100%" maxWidth={380}>
+              {pickedCard ? (
+                <>
+                  <HStack gap={2} vAlign="center" wrap="wrap">
+                    <Heading level={3}>{pickedCard.name}</Heading>
+                    <Token size="sm" color={gradeColor(pickedCard.grade)} label={t.grade[pickedCard.grade]} />
+                  </HStack>
+                  <Text weight="semibold">
+                    {t.intensity} {pickedCard.intensity}/100
                   </Text>
-                ))}
-              </>
-            ) : (
-              <Text type="supporting">{labels.pick}</Text>
-            )}
-            <Text type="supporting">{labels.dragHint}</Text>
-            <Text type="supporting">{labels.honesty}</Text>
-            {data.unlocated + notPlaced > 0 && (
-              <Text type="supporting">
-                {labels.unlocated}: {data.unlocated + notPlaced}
-              </Text>
-            )}
-          </VStack>
-        </HStack>
-      </VStack>
-    </Card>
+                  <Text type="supporting">
+                    {t.counts}: {labels.layers.event} {pickedCard.counts.event} · {labels.layers.unexplained}{' '}
+                    {pickedCard.counts.unexplained} · {labels.layers.disaster} {pickedCard.counts.disaster} ·{' '}
+                    {labels.layers.trade} {pickedCard.counts.trade}
+                  </Text>
+                  {pickedCard.travelLevel !== null && (
+                    <Text type="supporting">
+                      {t.travel}: {pickedCard.travelTitles[0]}
+                    </Text>
+                  )}
+                  {pickedCard.riskScore !== null && (
+                    <Text type="supporting">
+                      {t.riskScore}: {pickedCard.riskScore}
+                      {pickedCard.dominantDisease ? ` · ${t.dominant}: ${pickedCard.dominantDisease}` : ''}
+                    </Text>
+                  )}
+                  <Text type="supporting">
+                    {t.korea}:{' '}
+                    {pickedCard.korea.routes !== null || pickedCard.korea.passengers !== null
+                      ? [
+                          pickedCard.korea.routes !== null ? `${t.koreaRoutes} ${pickedCard.korea.routes}` : null,
+                          pickedCard.korea.passengers !== null
+                            ? `${t.koreaPassengers} ${pickedCard.korea.passengers.toLocaleString('en-US')}`
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')
+                      : t.koreaNone}
+                  </Text>
+                  <Text type="label">{t.evidence}</Text>
+                  {pickedCard.evidence.slice(0, 8).map((e) => (
+                    <Text key={`${e.layer}-${e.line}`} type="supporting" display="block">
+                      {e.layer === 'travel' ? t.travel : labels.layers[e.layer]} · {e.line}
+                    </Text>
+                  ))}
+                </>
+              ) : pickedPoint ? (
+                <>
+                  <Text type="label" color="accent">
+                    {labels.layers[pickedPoint.layer]}
+                  </Text>
+                  <Heading level={3}>{pickedPoint.title}</Heading>
+                  {pickedPoint.lines.map((line) => (
+                    <Text key={line} type="supporting" display="block">
+                      {line}
+                    </Text>
+                  ))}
+                </>
+              ) : (
+                <>
+                  {selected?.kind === 'country' && <Heading level={3}>{selected.name}</Heading>}
+                  <Text type="label">{t.top}</Text>
+                  {cards.cards.slice(0, 8).map((c) => (
+                    <HStack key={c.iso3} gap={2} vAlign="center">
+                      <Token
+                        size="sm"
+                        color={gradeColor(c.grade)}
+                        label={`${c.intensity}`}
+                        onClick={() => focusCard(c)}
+                      />
+                      <Text>{c.name}</Text>
+                    </HStack>
+                  ))}
+                  <Text type="supporting">{labels.pick}</Text>
+                </>
+              )}
+              <Text type="supporting">{t.intensityNote}</Text>
+              <Text type="supporting">{cards.koreaAvailable ? t.arcNote : t.koreaUnavailable}</Text>
+              <Text type="supporting">{labels.honesty}</Text>
+              {data.unlocated > 0 && (
+                <Text type="supporting">
+                  {labels.unlocated}: {data.unlocated}
+                </Text>
+              )}
+            </VStack>
+          </HStack>
+        </VStack>
+      </Card>
+    </AstryxProvider>
   );
 }

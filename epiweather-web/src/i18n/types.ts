@@ -540,9 +540,27 @@ export type ObservationsDict = {
     rotateEast: string;
     toKorea: string;
     toArctic: string;
+    toAntarctic: string;
     unlocated: string;
     pick: string;
     honesty: string;
+    card: {
+      grade: { high: string; elevated: string; watch: string };
+      intensity: string;
+      intensityNote: string;
+      counts: string;
+      travel: string;
+      riskScore: string;
+      dominant: string;
+      korea: string;
+      koreaRoutes: string;
+      koreaPassengers: string;
+      koreaNone: string;
+      koreaUnavailable: string;
+      arcNote: string;
+      evidence: string;
+      top: string;
+    };
   };
   sections: Record<ObservationSectionKey, { title: string; lead: string }>;
 };

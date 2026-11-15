@@ -42,10 +42,29 @@ export const observationsFr: ObservationsDict = {
     rotateEast: 'Est',
     toKorea: 'Voir la Corée',
     toArctic: "Voir l'Arctique",
+    toAntarctic: "Voir l'Antarctique",
     unlocated: "relevés non placés faute d'avoir pu lire le lieu",
     pick: 'Cliquez sur un point pour voir ses relevés ici',
     honesty:
       "Les points indiquent d'où viennent les signalements ou observations, pas l'emplacement de cas confirmés · les points nationaux sont placés au centre du pays",
+    card: {
+      grade: { high: 'Élevé', elevated: 'Vigilance', watch: 'Veille' },
+      intensity: "Intensité d'observation",
+      intensityNote:
+        "Intensité = signalements 20 · inexpliqués 15 · catastrophes 15 · commerce 10 × log2(1+nombre) + niveau CDC × 8 (max 100) — estimation, pas une mesure ; pondération non calibrée · pas une probabilité d'épidémie",
+      counts: 'Relevés reçus',
+      travel: 'Avis CDC aux voyageurs',
+      riskScore: 'Indice de risque (estimation du modèle)',
+      dominant: 'Maladie principale',
+      korea: 'Lien avec la Corée',
+      koreaRoutes: 'Liaisons directes vers la Corée',
+      koreaPassengers: 'Passagers à Incheon',
+      koreaNone: 'Aucune valeur de lien avec la Corée pour ce pays dans le rapport',
+      koreaUnavailable: "Rapport d'importation coréen illisible : aucune liaison vers la Corée n'est tracée",
+      arcNote: 'Arcs rouges = pays observés reliés par avion à la Corée → Séoul',
+      evidence: 'Éléments',
+      top: 'Intensité la plus forte',
+    },
   },
   sections: {
     events: {

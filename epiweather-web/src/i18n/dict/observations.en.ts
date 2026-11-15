@@ -42,10 +42,29 @@ export const observationsEn: ObservationsDict = {
     rotateEast: 'East',
     toKorea: 'Show Korea',
     toArctic: 'Show the Arctic',
+    toAntarctic: 'Show Antarctica',
     unlocated: 'records not placed because their location could not be read',
     pick: 'Click a dot to see its records here',
     honesty:
       'Dots mark where reports or observations came from, not confirmed case locations · country-level dots sit at the country centre',
+    card: {
+      grade: { high: 'High', elevated: 'Elevated', watch: 'Watch' },
+      intensity: 'Observation intensity',
+      intensityNote:
+        'Intensity = reports 20 · unexplained 15 · disaster 15 · trade 10 × log2(1+count) + CDC level × 8 (max 100) — an estimate, not a measurement; weights uncalibrated · not an outbreak probability',
+      counts: 'Records received',
+      travel: 'CDC travel notice',
+      riskScore: 'Risk index (model estimate)',
+      dominant: 'Main disease',
+      korea: 'Link to Korea',
+      koreaRoutes: 'Direct routes to Korea',
+      koreaPassengers: 'Incheon passengers',
+      koreaNone: 'No Korea link value for this country in the inflow report',
+      koreaUnavailable: 'Korea inflow report could not be read, so no routes to Korea are drawn',
+      arcNote: 'Red arcs = observed countries with air links to Korea → Seoul',
+      evidence: 'Evidence',
+      top: 'Highest intensity',
+    },
   },
   sections: {
     events: {
