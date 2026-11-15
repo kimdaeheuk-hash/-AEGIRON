@@ -13,6 +13,8 @@
     "@astryxdesign/core": "^0.7.11",
     "@astryxdesign/theme-neutral": "^0.7.11",
     "@stylexjs/stylex": "^0.19.1",
+    "@types/d3-geo": "3.1.0",
+    "d3-geo": "3.1.1",
     "leaflet": "^1.9.4",
     "next": "16.2.6",
     "react": "19.2.4",

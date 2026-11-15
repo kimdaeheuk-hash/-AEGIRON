@@ -530,5 +530,19 @@ export type ObservationsDict = {
   countLabel: string;
   /** en/fr 화면에서 백엔드 주의 문구가 한국어 원문일 때 앞에 붙이는 표시 (ko 는 빈 문자열) */
   caveatKoLabel: string;
+  globe: {
+    title: string;
+    lead: string;
+    dragHint: string;
+    layers: { event: string; unexplained: string; disaster: string; trade: string; polar: string };
+    korea: string;
+    rotateWest: string;
+    rotateEast: string;
+    toKorea: string;
+    toArctic: string;
+    unlocated: string;
+    pick: string;
+    honesty: string;
+  };
   sections: Record<ObservationSectionKey, { title: string; lead: string }>;
 };

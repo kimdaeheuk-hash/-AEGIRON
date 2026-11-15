@@ -26,6 +26,27 @@ export const observationsFr: ObservationsDict = {
   sourceLabel: 'Source',
   countLabel: 'lignes',
   caveatKoLabel: 'Avertissement original (en coréen)',
+  globe: {
+    title: "Globe d'observation",
+    lead: 'Les valeurs des tableaux ci-dessous placées sur un globe · taille du point = nombre de relevés pour ce pays ou cette région · faites glisser pour tourner',
+    dragHint: 'Faites glisser pour tourner · cliquez sur un point pour le détail',
+    layers: {
+      event: "Signalements d'épidémies",
+      unexplained: 'Signaux inexpliqués',
+      disaster: 'Fenêtres après catastrophe',
+      trade: 'Hausses de fournitures médicales',
+      polar: 'Veille polaire',
+    },
+    korea: 'République de Corée',
+    rotateWest: 'Ouest',
+    rotateEast: 'Est',
+    toKorea: 'Voir la Corée',
+    toArctic: "Voir l'Arctique",
+    unlocated: "relevés non placés faute d'avoir pu lire le lieu",
+    pick: 'Cliquez sur un point pour voir ses relevés ici',
+    honesty:
+      "Les points indiquent d'où viennent les signalements ou observations, pas l'emplacement de cas confirmés · les points nationaux sont placés au centre du pays",
+  },
   sections: {
     events: {
       title: "Signalements d'épidémies par pays",

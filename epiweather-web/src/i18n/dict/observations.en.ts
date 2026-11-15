@@ -26,6 +26,27 @@ export const observationsEn: ObservationsDict = {
   sourceLabel: 'Source',
   countLabel: 'rows',
   caveatKoLabel: 'Original caution note (Korean)',
+  globe: {
+    title: 'Observation globe',
+    lead: 'The values in the tables below, placed on a globe · dot size = records received for that country or region · drag to rotate',
+    dragHint: 'Drag to rotate · click a dot for details',
+    layers: {
+      event: 'Outbreak reports',
+      unexplained: 'Unexplained signals',
+      disaster: 'Disaster windows',
+      trade: 'Medical-supply surges',
+      polar: 'Polar watch',
+    },
+    korea: 'Republic of Korea',
+    rotateWest: 'West',
+    rotateEast: 'East',
+    toKorea: 'Show Korea',
+    toArctic: 'Show the Arctic',
+    unlocated: 'records not placed because their location could not be read',
+    pick: 'Click a dot to see its records here',
+    honesty:
+      'Dots mark where reports or observations came from, not confirmed case locations · country-level dots sit at the country centre',
+  },
   sections: {
     events: {
       title: 'Outbreak reports by country',

@@ -31,6 +31,26 @@ export const observationsKo: ObservationsDict = {
   sourceLabel: '출처',
   countLabel: '건',
   caveatKoLabel: '',
+  globe: {
+    title: '관측 지구본',
+    lead: '위 표의 값을 지구본에 찍음 · 점 크기 = 그 나라·지역에서 이번에 받은 기록 수 · 드래그로 회전',
+    dragHint: '드래그해서 돌려 보기 · 점을 누르면 내용 표시',
+    layers: {
+      event: '발생 보도',
+      unexplained: '설명 불가 신호',
+      disaster: '재난 감시창',
+      trade: '의료물자 수입 급증',
+      polar: '극지 관찰',
+    },
+    korea: '대한민국',
+    rotateWest: '서쪽',
+    rotateEast: '동쪽',
+    toKorea: '한국 보기',
+    toArctic: '북극 보기',
+    unlocated: '위치를 못 읽어 지구본에 찍지 않은 기록',
+    pick: '점을 누르면 그곳의 기록이 여기에 나옴',
+    honesty: '점은 보도·관측이 있었던 곳이지 확진 환자 위치가 아님 · 나라 단위 점은 나라 중앙에 찍음',
+  },
   sections: {
     events: {
       title: '나라별 발생 보도',
