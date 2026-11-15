@@ -14,6 +14,7 @@ from __future__ import annotations
 import sys, os, json, secrets, time, hashlib
 import asyncio
 import threading
+from algorithms import response_cache  # 무거운 조회 API 의 '저장본 즉시 + 뒤에서 갱신' 캐시(2026-11-15)
 import datetime as dt
 from pathlib import Path
 from dotenv import load_dotenv
@@ -308,6 +309,24 @@ async def _run_collector(mode: str) -> None:
         collector.log_error(f"scheduler_{mode}", e)
 
 
+def _prewarm_after_cycle() -> None:
+    """매시 경보 주기 직후, 무거운 조회 API 저장본을 뒤 스레드에서 미리 다시 계산한다(2026-11-15).
+
+    경보 주기가 수집을 반영한 직후라 값이 바뀌는 시점이다. 사람·웹이 요청할 때 계산을 기다리지 않게
+    여기서 먼저 채운다. 한 키가 이미 갱신 중이면 건너뛴다(response_cache.prewarm). 실패는 저장하지 않는다.
+    """
+    def run():
+        for key, builder in (
+            ("risk-index", rank_countries),
+            ("negative-space", scan_negative_space),
+            ("unexplained", scan_unexplained),
+            ("status", _status_payload),
+        ):
+            response_cache.prewarm(key, builder)
+
+    threading.Thread(target=run, name="prewarm-after-cycle", daemon=True).start()
+
+
 async def _run_alert_cycle() -> None:
     """수집 직후 경보를 계산하고, 신규 critical/high를 사람에게 내보낸다.
 
@@ -341,7 +360,9 @@ async def _run_alert_cycle() -> None:
             summary_line, undetermined_alerts_line, valhalla_watch_line,
         )
         result = await asyncio.to_thread(refresh_alerts)
+        response_cache.seed("alerts", result)
         collector.log(f"🚨 경보 주기: {summary_line(result)}")
+        _prewarm_after_cycle()
         v_line = valhalla_watch_line()
         if v_line:
             collector.log(v_line)
@@ -943,6 +964,11 @@ def _recent_errors(limit: int = 10) -> list[dict]:
 
 @app.get("/api/status", tags=["시스템"])
 def status():
+    """운영 모니터링 — 아래 _status_payload 를 1분 응답 캐시로 감싼다(중앙값 26초 실측, 2026-11-15)."""
+    return response_cache.swr("status", 60, _status_payload)
+
+
+def _status_payload():
     """
     운영 모니터링 — 수집 파이프라인이 살아있는지 한눈에 확인.
     Sentry 등 외부 모니터링 서비스 없이도 "언제 마지막으로 수집됐는지·
@@ -1203,16 +1229,20 @@ def lead_time_ledger(outcome: Optional[str] = None, limit: int = 100):
     """
     from algorithms.lead_time_ledger import list_entries, scan_funnel
 
-    db.init_db()
-    try:
-        funnel = scan_funnel()
-    except Exception as e:
-        funnel = {"error": f"{type(e).__name__}: {e}"}
-    return {
-        "summary": _ledger_safe(),
-        "funnel": funnel,
-        "entries": list_entries(outcome=outcome, limit=limit),
-    }
+    def build():
+        db.init_db()
+        try:
+            funnel = scan_funnel()
+        except Exception as e:
+            funnel = {"error": f"{type(e).__name__}: {e}"}
+        return {
+            "summary": _ledger_safe(),
+            "funnel": funnel,
+            "entries": list_entries(outcome=outcome, limit=limit),
+        }
+
+    # 원장은 매시 주기에만 바뀐다 — 5분 응답 캐시(중앙값 16초 실측, 2026-11-15)
+    return response_cache.swr(f"ledger:{outcome}:{limit}", 300, build)
 
 
 @app.get("/api/launch-readiness", tags=["시스템"])
@@ -1613,7 +1643,7 @@ def negative_space():
     급감했는지 전체 스캔. 신호 증가가 아니라 '보고가 끊긴 것'을 잡아낸다.
     (2014 기니 에볼라 — 보건부 보고 급감 → 실제론 의료체계 붕괴였던 사례 참고)
     """
-    return scan_negative_space()
+    return response_cache.swr("negative-space", 600, scan_negative_space)
 
 
 @app.get("/api/alerts", tags=["GAI"])
@@ -1621,8 +1651,11 @@ def alerts():
     """
     경보 피로 방지 — GAI·부정적 공간 감시 후보를 Critical/High/Medium/Low로
     분류하고 일일 캡(Critical 3개, High 5개)을 적용. 대시보드엔 상위 5개만 노출.
+
+    ★ 응답 캐시(2026-11-15) ★ 요청마다 refresh_alerts 를 돌려 중앙값 45초·502 가 났다. 매시 경보 주기가
+    낸 결과를 저장본으로 넣고(seed), 5분이 지나면 저장본을 주면서 뒤에서 다시 계산한다.
     """
-    return refresh_alerts()
+    return response_cache.swr("alerts", 300, refresh_alerts)
 
 
 @app.get("/api/extracted-signals", tags=["GAI"])
@@ -1631,7 +1664,10 @@ def extracted_signals(disease: Optional[str] = None, limit: int = 50):
     NLP 구조화 추출 결과 조회. collector.py의 AI 갭필링이 모아온 자유문장을
     Claude가 disease/location/signal_type 등으로 구조화해 쌓은 것.
     """
-    return {"records": db.list_extracted_signals(disease=disease, limit=limit)}
+    return response_cache.swr(
+        f"extracted:{disease}:{limit}", 120,
+        lambda: {"records": db.list_extracted_signals(disease=disease, limit=limit)},
+    )
 
 
 # ── 독자 모델 IP 준비: 학습데이터 축적 + 모델 추상화 계층 ──────────
@@ -1768,7 +1804,7 @@ def risk_index():
     실데이터 캐시 확보 시 실측값 사용, 국경이동량은 UNWTO 유료라 계속 추정 시드값.
     각 응답의 vulnerability_source(real_data|seed_fallback)로 실측 여부 확인 가능.
     """
-    return rank_countries()
+    return response_cache.swr("risk-index", 600, rank_countries)
 
 
 @app.get("/api/risk-index/{country}", tags=["GAI"])
@@ -1795,7 +1831,7 @@ def risk_quantification():
     모델 지표임을 응답에 못박아, 보험·금융이 자체 기저율로 재보정해 쓰게 한다.
     """
     from algorithms.risk_quantification import quantify_portfolio
-    return quantify_portfolio()
+    return response_cache.swr("risk-quantification", 900, quantify_portfolio)
 
 
 @app.get("/api/risk-quantification/{country}", tags=["GAI"])
@@ -1869,7 +1905,7 @@ def climate_signals():
     삼림파괴(스필오버 1순위 동인)는 아직 미구현임을 disclaimer에 정직하게 명시.
     """
     from algorithms.climate_signals import climate_signals_all
-    return climate_signals_all()
+    return response_cache.swr("climate-signals", 1800, climate_signals_all)
 
 
 @app.get("/api/climate-signals/{country}", tags=["GAI"])
@@ -1896,7 +1932,7 @@ def land_signals():
     기후 선행지표(/api/climate-signals)와 짝을 이뤄 '발병 앞'을 본다.
     """
     from algorithms.forest_signals import land_signals_all
-    return land_signals_all()
+    return response_cache.swr("land-signals", 1800, land_signals_all)
 
 
 @app.get("/api/land-signals/{country}", tags=["GAI"])
@@ -1922,7 +1958,7 @@ def deforestation_signals():
     예상밖 응답 시 가짜 숫자 대신 실패로 떨어지게 방어적으로 설계).
     """
     from algorithms.deforestation_signals import deforestation_signals_all
-    return deforestation_signals_all()
+    return response_cache.swr("deforestation-signals", 1800, deforestation_signals_all)
 
 
 @app.get("/api/deforestation-signals/{country}", tags=["GAI"])
@@ -2343,7 +2379,7 @@ def polar_watch():
     측정이 아니라 관찰용 선행 신호 추정.
     """
     from algorithms.polar_signals import polar_watch_all
-    return polar_watch_all()
+    return response_cache.swr("polar-watch", 1800, polar_watch_all)
 
 
 @app.get("/api/threats", tags=["GAI"])
@@ -2418,6 +2454,14 @@ def daily_brief(lang: str = "ko", format: Optional[str] = None):
     cached = _DAILY_BRIEF_CACHE.get(cache_key)
     if cached is not None:
         return cached
+    # ★ 오늘 보관본 우선(2026-11-15) ★ 매일 브리핑 작업이 ko·en·fr 을 만들어 DB 에 보관한다. 재배포 직후
+    # 메모리 캐시가 비면 요청이 새로 생성(Claude 다듬기 포함)을 기다려 295초가 걸렸다 — 포맷을 고르지 않은
+    # 요청은 그날 보관본(텔레그램으로 나간 것과 같은 내용)을 바로 준다.
+    if format is None:
+        archived = db.get_daily_brief(today, lang)
+        if archived is not None:
+            _DAILY_BRIEF_CACHE[cache_key] = archived
+            return archived
 
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     brief = generate_daily_brief(lang=lang, api_key=api_key, fmt=format)
@@ -2452,7 +2496,7 @@ def unexplained_signals():
     걸리는 신호를 즉시경보로 표시. 조건1(병원방문 급증)은 데이터 소스가
     없어 측정 불가 — caveat에 명시.
     """
-    return scan_unexplained()
+    return response_cache.swr("unexplained", 600, scan_unexplained)
 
 
 # ── 예측 검증 ─────────────────────────────────────────────────
@@ -2473,6 +2517,7 @@ def create_prediction(req: PredictionCreate):
     막지 않는다(실패해도 조용히 넘어가고, ots_proof_hex는 null로 남음).
     """
     prediction = db.create_prediction(req.country, req.disease, req.risk_score, req.basis)
+    response_cache.invalidate("pred:")
     try:
         from algorithms.prediction_timestamp import canonical_hash, submit_timestamp
         digest_hex = canonical_hash(prediction)
@@ -2493,10 +2538,13 @@ def get_predictions(country: Optional[str] = None, verified_only: bool = False):
     예측 기록 목록 + 검증된 예측의 정확도 통계.
     '우리가 72% 맞췄다'를 뒷받침하는 실측 수치.
     """
-    return {
-        "predictions": db.list_predictions(country=country, verified_only=verified_only),
-        "accuracy": db.accuracy_stats(country=country),
-    }
+    return response_cache.swr(
+        f"pred:{country}:{verified_only}", 300,
+        lambda: {
+            "predictions": db.list_predictions(country=country, verified_only=verified_only),
+            "accuracy": db.accuracy_stats(country=country),
+        },
+    )
 
 
 @app.get("/api/weekly-forecasts", tags=["예측 검증"])
@@ -2600,6 +2648,7 @@ def verify_prediction(prediction_id: int, req: PredictionVerify):
         raise HTTPException(status_code=400, detail=str(e))
     if result is None:
         raise HTTPException(status_code=404, detail="해당 prediction_id 없음")
+    response_cache.invalidate("pred:")
     return result
 
 
@@ -2619,6 +2668,10 @@ class AIInferRequest(BaseModel):
     hosp_overflow_days: int = Field(0)
     levers: Optional[dict] = Field(None)
     api_key: Optional[str] = Field(None, description="Anthropic API 키 (없으면 환경변수)")
+    fast: bool = Field(
+        False,
+        description="true 면 LLM 을 부르지 않고 의사결정 트리(+같은 상황의 캐시된 LLM 답이 있으면 그것)만 즉시 반환",
+    )
 
 @app.post("/api/ai/infer", tags=["Stage 6: AI 추론"], dependencies=_auth)
 def ai_infer(req: AIInferRequest):
@@ -2651,6 +2704,19 @@ def ai_infer(req: AIInferRequest):
         rt=req.rt, alert_level=alert_level, civic_lead_days=req.civic_lead,
         arrival_day=req.arrival_day, saved_lives=req.saved_lives, threat=req.threat,
     )
+
+    # ★ 빠른 1단계(2026-11-15) ★ 캡틴: "추론도 엄청 늦게 떠". LLM 은 Meta 실측 60~120초라, 화면은 먼저
+    # fast=true 로 의사결정 트리를 즉시 받아 그리고, LLM 분석은 두 번째 요청으로 이어 받는다.
+    # 같은 상황의 성공 캐시가 있으면 그 완성본을 바로 준다(기다릴 이유가 없다).
+    if req.fast:
+        hit = _infer_cache_get(_situation_hash(situation))
+        if hit is not None:
+            return hit
+        return {
+            "mode": "decision_tree_fast", "alert_level": alert_level,
+            "decision_tree": tree_result, "llm_analysis": None, "llm_pending": True,
+            "note": "의사결정 트리 즉시 결과 — LLM 정책 분석은 이어서 계산 중(60~120초 걸릴 수 있음)",
+        }
 
     # ★ Meta 우선·Claude 폴백(2026-11-03) ★ req.api_key는 Claude 키(하위 호환),
     # Meta 키는 환경변수에서만 읽는다(meta_api 규약 — ai_inference가 직접 본다).

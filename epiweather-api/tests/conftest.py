@@ -143,3 +143,13 @@ def _isolate_runtime_snapshots(tmp_path, monkeypatch):
     from algorithms import reference_snapshots
     monkeypatch.setattr(reference_snapshots, "RUNTIME_DIR", tmp_path / "runtime_reference")
     yield
+
+
+# 응답 캐시(response_cache)는 프로세스 전역이다. 한 시험이 채운 저장본이 다음 시험의 응답이 되면
+# 시험끼리 서로 오염된다 — 시험마다 비운다(2026-11-15).
+@pytest.fixture(autouse=True)
+def _clear_response_cache():
+    from algorithms import response_cache
+    response_cache.clear()
+    yield
+    response_cache.clear()
