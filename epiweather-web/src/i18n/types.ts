@@ -34,6 +34,7 @@ export type NavDict = {
   dataSources: string;
   solutions: string;
   briefings: string;
+  dataShop: string;
   about: string;
   contact: string;
   dashboard: string;
@@ -596,6 +597,43 @@ export type ObservationsDict = {
     printHint: string;
     missing: string;
     unavailable: string;
+  };
+  /** 데이터 상품 페이지 /data (2026-11-16) */
+  dataShop: {
+    metaTitle: string;
+    metaDescription: string;
+    eyebrow: string;
+    title: string;
+    lead: string;
+    holdingsTitle: string;
+    holdingsLead: string;
+    earliest: string;
+    signalsLog: string;
+    rows: string;
+    days: string;
+    trackTitle: string;
+    trackLead: string;
+    predictions: string;
+    ledger: string;
+    weekly: string;
+    alertsMonthly: string;
+    notEnough: string;
+    catalogTitle: string;
+    catalogLead: string;
+    license: Record<'allowed' | 'review' | 'blocked' | 'by_layer', string>;
+    licenseHelp: string;
+    sample: string;
+    accessTitle: string;
+    accessSample: string;
+    accessPaid: string;
+    paidOff: string;
+    pricing: string;
+    contact: string;
+    disclaimer: string;
+    unavailable: string;
+    datasets: Record<string, { title: string; description: string }>;
+    tableLabels: Record<string, string>;
+    layers: Record<string, string>;
   };
   /** /korea 아래 한국 관점(안보) 관측 묶음 (2026-11-16) */
   korea: {
