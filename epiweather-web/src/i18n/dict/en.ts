@@ -69,6 +69,7 @@ export const en: Dictionary = {
     dataSources: 'Data sources',
     solutions: 'Use cases',
     briefings: 'Daily briefings',
+    dataShop: 'Data products',
     about: 'About AEGIRON',
     contact: 'Contact',
     dashboard: 'Live dashboard',

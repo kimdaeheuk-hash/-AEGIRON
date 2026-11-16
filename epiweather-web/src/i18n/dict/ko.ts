@@ -67,6 +67,7 @@ export const ko: Dictionary = {
     dataSources: '데이터 소스',
     solutions: '활용 분야',
     briefings: '일일 브리핑',
+    dataShop: '데이터 상품',
     about: '회사 소개',
     contact: '문의',
     dashboard: '라이브 대시보드',

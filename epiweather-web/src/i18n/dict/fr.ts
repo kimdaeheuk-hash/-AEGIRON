@@ -71,6 +71,7 @@ export const fr: Dictionary = {
     dataSources: 'Sources de données',
     solutions: 'Cas d’usage',
     briefings: 'Briefings quotidiens',
+    dataShop: 'Produits de données',
     about: 'À propos d’AEGIRON',
     contact: 'Contact',
     dashboard: 'Tableau de bord en direct',

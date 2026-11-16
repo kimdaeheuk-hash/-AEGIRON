@@ -55,6 +55,7 @@ export function navGroups(locale: Locale, nav: Dictionary['nav']): NavGroup[] {
       { label: nav.security, href: p('security') },
       { label: nav.dataSources, href: p('data-sources') },
       { label: nav.briefings, href: p('briefings') },
+      { label: nav.dataShop, href: p('data') },
     ] },
   ];
 }

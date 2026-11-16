@@ -327,6 +327,24 @@ def _after_cycle_bg() -> None:
         _store_observations()
     except Exception as e:  # noqa: BLE001
         collector.log_error("observation_store", e)
+    _log_inventory_daily()
+
+
+_INVENTORY_LOGGED_ON: list[str] = []
+
+
+def _log_inventory_daily(force: bool = False) -> None:
+    """데이터 보유량 '📦' 줄 — 하루 한 번(UTC 날짜가 바뀐 첫 주기)과 기동 직후. 실패는 판정 안 함 줄로."""
+    today = dt.datetime.now(dt.timezone.utc).date().isoformat()
+    if not force and today in _INVENTORY_LOGGED_ON:
+        return
+    _INVENTORY_LOGGED_ON[:] = [today]
+    try:
+        from algorithms.data_inventory import inventory, summary_line
+
+        print(summary_line(inventory(max_age_s=0)), flush=True)
+    except Exception as e:  # noqa: BLE001
+        print(f"📦 데이터 보유량: 판정 안 함 — {type(e).__name__}: {str(e)[:150]}", flush=True)
 
 
 def _observation_fetchers() -> dict:
@@ -1000,6 +1018,7 @@ def _dashboard_warmup_bg() -> None:
     t0 = time.time()
     _prewarm_heavy()
     print(f"[response_cache] 기동 예열 끝 — {time.time() - t0:.1f}초", flush=True)
+    _log_inventory_daily(force=True)
 
 
 # ── 헬스체크 ─────────────────────────────────────────────────
@@ -2718,6 +2737,68 @@ def observations_history(layer: str, target: str | None = None, metric: str | No
         },
         "history_starts": "2026-11-15 배포부터 저장 — 그 전 이력 없음",
     }
+
+
+@app.get("/api/data-inventory", tags=["데이터"])
+def data_inventory():
+    """데이터 보유량 — 테이블별 행 수·첫/마지막 시각·기록 일수, 누적 파일 줄 수·기간(직접 센 값, 1시간 캐시)."""
+    from algorithms.data_inventory import inventory
+    return inventory()
+
+
+@app.get("/api/datasets", tags=["데이터"])
+def datasets_catalog():
+    """판매용 데이터셋 카탈로그 — 정의·측정/추정 구분·원천·상업 이용 상태(allowed/review/blocked)·보유량."""
+    from algorithms.data_inventory import inventory
+    from algorithms.data_products import catalog
+    try:
+        inv = inventory()
+    except Exception:  # noqa: BLE001 — 보유량을 못 세도 카탈로그는 준다(coverage=None)
+        inv = None
+    return catalog(inv)
+
+
+@app.get("/api/datasets/{dataset_id}/export", tags=["데이터"])
+def dataset_export(
+    dataset_id: str,
+    request: Request,
+    format: str = "json",
+    since: str | None = None,
+    until: str | None = None,
+    limit: int | None = None,
+    x_data_key: str | None = Header(None, alias="X-Data-Key"),
+):
+    """데이터셋 내보내기. 키 없이 = 무료 표본(최근 7일·100행, allowed·review). 고객 키(X-Data-Key) = 기간 지정·최대 50,000행(allowed 만).
+    상업 조건이 막힌 데이터셋·층은 빼고 excluded 에 이유를 적는다."""
+    from fastapi.responses import PlainTextResponse
+
+    from algorithms.data_products import DATASETS, data_keys, export_rows, to_csv
+
+    if dataset_id not in DATASETS:
+        raise HTTPException(status_code=404, detail=f"없는 데이터셋 — {', '.join(DATASETS)}")
+    paid = False
+    if x_data_key:
+        keys = data_keys()
+        label = next((lab for k, lab in keys.items() if secrets.compare_digest(k, x_data_key)), None)
+        if label is None:
+            raise HTTPException(status_code=401, detail="유효하지 않은 데이터 키(X-Data-Key)")
+        paid = True
+        db.log_api_key_usage(f"data:{label}", request.url.path)
+    import re
+    for v in (since, until):
+        if v is not None and not re.fullmatch(r"\d{4}-\d{2}-\d{2}(T[\d:.]+Z?)?", v):
+            raise HTTPException(status_code=400, detail="since/until 은 YYYY-MM-DD 형식")
+    result = export_rows(dataset_id, paid=paid, since=since, until=until, limit=limit)
+    if format == "csv":
+        return PlainTextResponse(to_csv(result), media_type="text/csv; charset=utf-8")
+    return result
+
+
+@app.get("/api/track-record", tags=["데이터"])
+def track_record():
+    """실적표 — 예측 채점·선행성 원장·선행일수 실측·주간 방향 예측·경보 월별 건수를 합치지 않고 나란히(10분 캐시)."""
+    from algorithms.track_record import track_record as build
+    return response_cache.swr("track-record", 600, build)
 
 
 @app.get("/api/observations/coverage", tags=["GAI"])
