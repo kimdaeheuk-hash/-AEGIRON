@@ -587,5 +587,9 @@ export type ObservationsDict = {
     checks: { travel: string; disaster: string; trade: string; event: string; unexplained: string; korea: string; none: string };
     responseTitle: string;
     responseNote: string;
+    responseEmpty: string;
+    responseUnavailable: string;
+    responseCols: { date: string; disease: string; measure: string; evidence: string };
+    responseShared: string;
   };
 };

@@ -123,3 +123,35 @@ export function checklist(card: CountryCard | null): CheckKey[] {
   if ((card.korea.routes ?? 0) > 0 || (card.korea.passengers ?? 0) > 0) out.push('korea');
   return out;
 }
+
+export type ResponseRow = {
+  id: string;
+  date: string;
+  disease: string;
+  measure: string;
+  evidence: string;
+  url: string | null;
+  shared: boolean;
+};
+
+/**
+ * 발병국 대응 조치 — /api/response-measures (WHO DON '대응' 단락 낱말 읽기, 2026-11-16).
+ * 조회 실패(머지 전 포함)는 null(판정 안 함), 기록 없음은 []. 조치 이름은 백엔드 labels 의 해당 언어.
+ */
+export async function getResponseMeasures(iso3: string, locale: 'ko' | 'en' | 'fr'): Promise<ResponseRow[] | null> {
+  const body = await getJson(`/api/response-measures?country=${iso3}&days=400&limit=300`);
+  if (!body || !Array.isArray(body.rows)) return null;
+  const labels = (body.labels ?? {}) as Record<string, Record<string, string>>;
+  return (body.rows as J[]).map((r, i) => {
+    const key = typeof r.measure === 'string' ? r.measure : '';
+    return {
+      id: `${String(r.don_id ?? '')}-${key}-${i}`,
+      date: typeof r.published === 'string' ? r.published : DASH,
+      disease: typeof r.disease === 'string' && r.disease ? r.disease : DASH,
+      measure: labels[key]?.[locale] ?? key,
+      evidence: typeof r.evidence === 'string' ? r.evidence : DASH,
+      url: typeof r.url === 'string' ? r.url : null,
+      shared: (num(r.shared_countries) ?? 1) > 1,
+    };
+  });
+}

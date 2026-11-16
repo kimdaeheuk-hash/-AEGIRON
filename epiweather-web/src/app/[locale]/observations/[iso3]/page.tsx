@@ -13,7 +13,14 @@ import { AstryxProvider } from '@/components/AstryxProvider';
 import { getDictionary, isLocale, localePath, localeUrl, alternateLanguages, type Locale } from '@/i18n';
 import { getGlobeData } from '@/lib/globeData';
 import { getCountryCards, type Grade } from '@/lib/countryCards';
-import { checklist, getCountryHistory, HISTORY_LAYERS, isIso3, type HistoryRow } from '@/lib/countryPage';
+import {
+  checklist,
+  getCountryHistory,
+  getResponseMeasures,
+  HISTORY_LAYERS,
+  isIso3,
+  type HistoryRow,
+} from '@/lib/countryPage';
 
 /**
  * 나라별 관측 페이지 (2026-11-16, 관측 데이터 활용 계획 ①⑥⑦ — 비용 없이 할 수 있는 부분).
@@ -64,7 +71,10 @@ export default async function CountryObservationsPage(props: Params) {
   const t = o.country;
   const c = o.globe.card;
   const layers = o.globe.layers;
-  const history = await getCountryHistory(iso3, UNDETERMINED[locale]);
+  const [history, responses] = await Promise.all([
+    getCountryHistory(iso3, UNDETERMINED[locale]),
+    getResponseMeasures(iso3, locale),
+  ]);
   const checks = checklist(card);
   const name = card?.name ?? iso3;
 
@@ -193,7 +203,37 @@ export default async function CountryObservationsPage(props: Params) {
           <Card padding={4}>
             <VStack gap={2}>
               <Heading level={2}>{t.responseTitle}</Heading>
-              <Text color="secondary">{t.responseNote}</Text>
+              <Text type="supporting">{t.responseNote}</Text>
+              {responses === null ? (
+                <Text color="secondary">{t.responseUnavailable}</Text>
+              ) : responses.length === 0 ? (
+                <Text color="secondary">{t.responseEmpty}</Text>
+              ) : (
+                <>
+                  {/* 서버 컴포넌트라 표 셀에 함수(renderCell)를 못 넘긴다 — 링크가 필요한 행은 List(href)로 */}
+                  <List density="compact" hasDividers edge="bleed">
+                    {responses.slice(0, 80).map((r) => (
+                      <ListItem
+                        key={r.id}
+                        href={r.url ?? undefined}
+                        target={r.url ? '_blank' : undefined}
+                        label={
+                          <Text weight="semibold">
+                            {r.measure}
+                            {r.shared ? ' *' : ''}
+                          </Text>
+                        }
+                        description={
+                          <Text type="supporting">
+                            {r.date} · {r.disease} · {t.responseCols.evidence}: {r.evidence}
+                          </Text>
+                        }
+                      />
+                    ))}
+                  </List>
+                  {responses.some((r) => r.shared) && <Text type="supporting">* {t.responseShared}</Text>}
+                </>
+              )}
             </VStack>
           </Card>
 

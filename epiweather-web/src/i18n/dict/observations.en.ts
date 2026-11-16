@@ -166,6 +166,11 @@ export const observationsEn: ObservationsDict = {
     },
     responseTitle: 'Response measures in the affected country',
     responseNote:
-      'Not extracted yet (undetermined) — pulling measures such as lockdowns, quarantine or vaccination from reports needs a new AI extraction run, so it is the next step',
+      'Read with fixed keyword rules from the "Response" section of WHO Disease Outbreak News · measures WHO wrote in that report; extent, scope and effect are not judged · evidence is the WHO original · updated daily 21:00 UTC',
+    responseEmpty:
+      'No response record for this country in WHO Disease Outbreak News over the last 400 days — WHO did not publish one, or the section had none of the keywords',
+    responseUnavailable: 'Could not read response records (undetermined)',
+    responseCols: { date: 'Published', disease: 'Disease', measure: 'Measure', evidence: 'Evidence (WHO original)' },
+    responseShared: 'Report covering several countries — not split by country',
   },
 };

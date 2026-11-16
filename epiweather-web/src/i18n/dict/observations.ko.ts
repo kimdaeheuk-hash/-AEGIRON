@@ -159,6 +159,11 @@ export const observationsKo: ObservationsDict = {
     },
     responseTitle: '발병국의 대응 조치',
     responseNote:
-      '아직 추출하지 않음(판정 안 함) — 보도에서 봉쇄·검역·백신 접종 같은 대응 조치를 뽑으려면 AI 추출을 새로 돌려야 해서 다음 단계로 미룸',
+      'WHO 질병발생소식(DON)의 "대응" 단락을 정해진 낱말로 읽은 것 · WHO가 그 발표에 적은 조치이며, 실행 정도·범위·효과는 판정하지 않음 · 근거 문장은 WHO 원문(영어) · 매일 21:00 UTC 갱신',
+    responseEmpty:
+      '최근 400일 WHO 질병발생소식에 이 나라의 대응 기록 없음 — WHO가 발표하지 않았거나 단락에 정해진 낱말이 없는 경우임',
+    responseUnavailable: '대응 기록을 읽지 못함(판정 안 함)',
+    responseCols: { date: '발표일', disease: '질병', measure: '조치', evidence: '근거(WHO 원문)' },
+    responseShared: '여러 나라를 함께 다룬 발표 — 어느 나라의 조치인지는 가르지 않음',
   },
 };

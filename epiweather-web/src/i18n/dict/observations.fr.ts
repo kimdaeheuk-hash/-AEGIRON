@@ -170,6 +170,11 @@ export const observationsFr: ObservationsDict = {
     },
     responseTitle: 'Mesures de riposte dans le pays touché',
     responseNote:
-      'Pas encore extraites (non déterminé) — extraire des mesures comme confinement, quarantaine ou vaccination à partir des signalements demande une nouvelle extraction par IA ; c’est l’étape suivante',
+      'Lu par des règles de mots-clés fixes dans la section « Riposte » des Bulletins d’information sur les flambées de l’OMS · mesures que l’OMS a écrites dans ce bulletin ; ampleur, portée et effet non évalués · élément = texte original de l’OMS (anglais) · mis à jour chaque jour à 21 h UTC',
+    responseEmpty:
+      'Aucune riposte enregistrée pour ce pays dans les bulletins de l’OMS des 400 derniers jours — l’OMS n’en a pas publié, ou la section ne contenait aucun mot-clé',
+    responseUnavailable: 'Impossible de lire les ripostes (non déterminé)',
+    responseCols: { date: 'Publié', disease: 'Maladie', measure: 'Mesure', evidence: 'Élément (texte OMS)' },
+    responseShared: 'Bulletin couvrant plusieurs pays — non ventilé par pays',
   },
 };
