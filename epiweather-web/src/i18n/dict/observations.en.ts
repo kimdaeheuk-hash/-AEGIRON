@@ -179,5 +179,36 @@ export const observationsEn: ObservationsDict = {
     guidanceFactsheet: 'WHO fact sheet',
     guidanceIndex:
       'The guidance address for this disease could not be confirmed, so this links to the full list of WHO outbreak toolboxes',
+    briefingOpen: 'Create notification briefing →',
+    briefing: {
+      metaTitle: '{name} — Observation briefing for notification (draft) · AEGIRON',
+      eyebrow: 'NOTIFICATION BRIEFING · DRAFT',
+      title: '{name} observation briefing',
+      draftNotice: 'This is a draft to be reviewed and sent by a person · AEGIRON does not send it automatically',
+      toLabel: 'To',
+      toBlank:
+        '(to be filled by the reviewer — e.g. the IHR focal point of the ministry of health or disease control agency)',
+      fromLabel: 'From',
+      generatedLabel: 'Generated',
+      countryLabel: 'Country',
+      s1: '1. What was observed (what · when · source)',
+      s2: '2. Official sources (CDC travel notices · WHO response records)',
+      s3: '3. Measured vs estimated',
+      s4: '4. What could not be determined',
+      s5: '5. Link to Korea',
+      s6: '6. Nature of this document',
+      nothing: 'None',
+      estimateLine:
+        'Observation intensity {n}/100 is an estimate combining the volume and weight of received observations, not a measurement · weights uncalibrated · not an outbreak probability',
+      riskLine: 'Risk score {n} is a model estimate built from extracted reports and a vulnerability index',
+      undeterminedHistory: 'History layers that could not be read: {layers}',
+      undeterminedResponse: 'WHO response records could not be read',
+      undeterminedKorea: 'The Korea inflow report could not be read, so the link to Korea is not determined',
+      noUndetermined: 'Nothing was unreadable when this document was generated',
+      disclaimer:
+        'A summary of observations from public sources (reports, WHO, CDC, international statistics); not a diagnosis, a confirmed-case report or an official notification · check the original sources first · the same values are on AEGIRON’s observations page',
+      printHint: 'Use the browser’s print (save as PDF) or copy the text',
+      back: '← Back to country page',
+    },
   },
 };

@@ -183,5 +183,38 @@ export const observationsFr: ObservationsDict = {
     guidanceFactsheet: 'Aide-mémoire OMS',
     guidanceIndex:
       'L’adresse des orientations pour cette maladie n’a pas pu être confirmée ; le lien mène à la liste complète des boîtes à outils de l’OMS',
+    briefingOpen: 'Créer le briefing de notification →',
+    briefing: {
+      metaTitle: '{name} — Briefing d’observation pour notification (projet) · AEGIRON',
+      eyebrow: 'BRIEFING DE NOTIFICATION · PROJET',
+      title: 'Briefing d’observation — {name}',
+      draftNotice: 'Projet à relire puis envoyer par une personne · AEGIRON ne l’envoie pas automatiquement',
+      toLabel: 'Destinataire',
+      toBlank:
+        '(à compléter par le relecteur — p. ex. le point focal RSI du ministère de la santé ou de l’agence de contrôle des maladies)',
+      fromLabel: 'Expéditeur',
+      generatedLabel: 'Généré le',
+      countryLabel: 'Pays',
+      s1: '1. Ce qui a été observé (quoi · quand · source)',
+      s2: '2. Sources officielles (avis du CDC · ripostes enregistrées par l’OMS)',
+      s3: '3. Mesure ou estimation',
+      s4: '4. Ce qui n’a pas pu être déterminé',
+      s5: '5. Lien avec la Corée',
+      s6: '6. Nature de ce document',
+      nothing: 'Aucun',
+      estimateLine:
+        'L’intensité d’observation {n}/100 est une estimation combinant le volume et le poids des observations reçues, pas une mesure · pondération non calibrée · pas une probabilité d’épidémie',
+      riskLine:
+        'Le score de risque {n} est une estimation de modèle fondée sur les signalements extraits et un indice de vulnérabilité',
+      undeterminedHistory: 'Couches d’historique illisibles : {layers}',
+      undeterminedResponse: 'Les ripostes enregistrées par l’OMS n’ont pas pu être lues',
+      undeterminedKorea:
+        'Le rapport sur les entrées en Corée n’a pas pu être lu ; le lien avec la Corée n’est pas déterminé',
+      noUndetermined: 'Aucune source illisible lors de la génération de ce document',
+      disclaimer:
+        'Synthèse d’observations issues de sources publiques (presse, OMS, CDC, statistiques internationales) ; ce n’est ni un diagnostic, ni une déclaration de cas confirmés, ni une notification officielle · vérifiez d’abord les sources d’origine · les mêmes valeurs figurent sur la page Observations d’AEGIRON',
+      printHint: 'Utilisez l’impression du navigateur (enregistrer en PDF) ou copiez le texte',
+      back: '← Retour à la page du pays',
+    },
   },
 };

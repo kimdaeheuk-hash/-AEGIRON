@@ -106,6 +106,12 @@ export default async function CountryObservationsPage(props: Params) {
             </Text>
           </Link>
 
+          <Link href={localePath(locale, `observations/${iso3}/briefing`)}>
+            <Text type="supporting" color="inherit">
+              {t.briefingOpen}
+            </Text>
+          </Link>
+
           <VStack gap={2}>
             <Text type="label" color="accent">
               {t.eyebrow} · {iso3}
