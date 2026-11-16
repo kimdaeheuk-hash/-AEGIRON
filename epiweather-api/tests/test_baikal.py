@@ -104,9 +104,11 @@ def test_valhalla_sends_no_flow_because_alert_path_never_reads_it():
     valhalla_watch 단일 진입점(함수 정의+모듈 임포트)뿐이고 ③ 다른 경보 경로는
     여전히 발할라를 읽지 않는다. 그림과 코드가 말없이 갈라지지 않게
     이 셋을 다 잡는다."""
+    # 2026-11-16: 0cea0ca(11-03)가 개입 브리핑에 대응제 맥락을 붙여 valhalla-skuld 간선을 지도에 반영.
+    # 두 간선 모두 관측 전용 — 경보 점수·SEIR 시나리오 숫자에는 입력되지 않는다.
     out = [r for r in yggdrasil.RELATIONS if r["from"] == "VALHALLA"]
-    assert [r["id"] for r in out] == ["valhalla-forseti"]
-    assert out[0]["observation_only"] is True
+    assert [r["id"] for r in out] == ["valhalla-forseti", "valhalla-skuld"]
+    assert all(r["observation_only"] is True for r in out)
     assert "VALHALLA" not in yggdrasil.isolated_systems()
     alerts_src = (ROOT / "algorithms" / "alerts.py").read_text(encoding="utf-8")
     valhalla_lines = [ln for ln in alerts_src.splitlines()
@@ -115,10 +117,22 @@ def test_valhalla_sends_no_flow_because_alert_path_never_reads_it():
     for ln in valhalla_lines:
         assert "valhalla_watch" in ln, (
             f"발할라 읽기가 단일 진입점을 벗어났다 — {ln.strip()}")
-    for name in ("gai.py", "alert_intervention.py", "country_risk.py"):
+    for name in ("gai.py", "country_risk.py"):
         src = (ROOT / "algorithms" / name).read_text(encoding="utf-8").lower()
         assert "valhalla" not in src, (
             f"{name} 이 발할라를 읽기 시작했다 — 온톨로지 계약을 먼저 고쳐라")
+    # alert_intervention 은 countermeasure_context 단일 진입점으로만 대응제를 읽고,
+    # 그 결과는 브리핑의 'countermeasure_readiness' 칸에만 붙는다(SEIR 계산에 안 들어감).
+    import ast as _ast
+    ai_src = (ROOT / "algorithms" / "alert_intervention.py").read_text(encoding="utf-8")
+    tree = _ast.parse(ai_src)
+    fns = {n.name: n for n in _ast.walk(tree) if isinstance(n, _ast.FunctionDef)}
+    readers = [n for n, f in fns.items()
+               if any(k in _ast.unparse(f) for k in ("list_countermeasures", "biodefense_readiness", "match_ledger"))]
+    assert readers == ["countermeasure_context"], readers
+    callers = [n for n, f in fns.items() if n != "countermeasure_context" and "countermeasure_context(" in _ast.unparse(f)]
+    assert callers == ["intervention_brief"], callers
+    assert "'countermeasure_readiness': countermeasure_context(disease)" in _ast.unparse(fns["intervention_brief"])
 
 
 def test_feedback_edge_is_record_only():
@@ -577,7 +591,9 @@ def test_archive_endpoint_logic_direct_call(isolated_db):
 def test_api_ontology_plain_and_jsonld(client):
     plain = client.get("/api/yggdrasil").json()
     assert plain["name"] == "YGGDRASIL" and len(plain["systems"]) == 7
-    assert plain["isolated_systems"] == ["VALHALLA"]
+    # 11-02 valhalla-forseti, 11-03 valhalla-skuld 이후 발신 간선이 없는 시스템은 없다.
+    assert plain["isolated_systems"] == []
+    assert any(r["id"] == "valhalla-skuld" and r["cadence_ko"] == "요청 시" for r in plain["relations"])
     ld = client.get("/api/yggdrasil?format=jsonld").json()
     assert "@context" in ld and "@graph" in ld
 

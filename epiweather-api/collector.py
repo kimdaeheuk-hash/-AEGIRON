@@ -427,6 +427,29 @@ FREE_SOURCE_HEALTH_KEYS = {
 }
 
 
+def polar_summary_line(pw: dict) -> tuple[str, bool]:
+    """극지 관찰 요약 로그 줄과 '기상 자료가 한 곳이라도 있나'.
+
+    점수가 없는 관측지(기상·뉴스 모두 없음)는 '점수 없음'으로 적는다 — 예전엔 `%.0f` 에 None 이 들어가
+    로그 줄이 TypeError 로 죽었다(2026-11-15 10:00~익일 00:00, 소스 헬스 '중단').
+    """
+    regions = pw.get("regions") or []
+    no_weather = [r for r in regions if not (r.get("thaw") or {}).get("data_available")]
+    top = sorted(regions, key=lambda r: -(r.get("polar_watch_score") or 0))[:3]
+
+    def fmt(r: dict) -> str:
+        s = r.get("polar_watch_score")
+        name = str(r.get("name") or r.get("region") or "?")[:10]
+        return f"{name}({'점수 없음' if s is None else f'{s:.0f}'})"
+
+    tops = ", ".join(fmt(r) for r in top) or "없음"
+    line = f"  극지 관찰: {len(regions)}개 관측지 · 등급 {pw.get('grade')} · 상위 {tops}"
+    if no_weather:
+        line += f" · 기상 자료 없음 {len(no_weather)}/{len(regions)}(판정 안 함)"
+    weather_ok = bool(regions) and len(no_weather) < len(regions)
+    return line, weather_ok
+
+
 WIKI_EBOLA_TITLE = "2026_Central_Africa_Ebola_epidemic"
 # 위키미디어 페이지뷰 집계는 보통 전날치가 다음날 정오(UTC) 전후까지 늦게 올라온다 — 그 안의 404 만 '정상 지연'이다.
 WIKI_LAG_UNTIL_UTC_HOUR = 12
@@ -1039,13 +1062,15 @@ def collect_free_sources() -> dict:
     # 동토 해빙은 추세가 핵심인데, 부를 때만 계산하면 매번 그 순간만 보게 된다.
     try:
         from algorithms.polar_signals import polar_watch_all
-        result["polar_watch"] = polar_watch_all()
-        pw = result["polar_watch"]
-        regions = pw.get("regions") or []
-        top = sorted(regions, key=lambda r: -(r.get("polar_watch_score") or 0))[:3]
-        log("  극지 관찰: %d개 관측지 · 등급 %s · 상위 %s"
-            % (len(regions), pw.get("grade"),
-               ", ".join("%s(%.0f)" % (r["name"][:10], r["polar_watch_score"]) for r in top)))
+        pw = polar_watch_all()
+        line, weather_ok = polar_summary_line(pw)
+        log(line)
+        # 8곳 모두 기상 자료가 없으면 이 층의 측정이 없는 것이다 — 소스 헬스가 보게 None.
+        # (일부만 없으면 값은 살린다. 2026-11-15 10:00~ 에는 점수가 빈 관측지 하나 때문에 로그 줄이
+        #  TypeError 로 죽어, 계산은 끝났는데 층 전체가 '실패'로 버려졌다.)
+        result["polar_watch"] = pw if weather_ok else None
+        if not weather_ok:
+            log("  ❌ 극지 관찰: 모든 관측지 기상 자료 없음 — 이 주기 측정 없음(소스 헬스 실패로 셈)")
     except Exception as e:
         result["polar_watch"] = None
         log(f"  ❌ 극지 관찰 실패: {type(e).__name__}: {e}")
