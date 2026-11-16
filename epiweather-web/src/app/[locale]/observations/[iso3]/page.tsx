@@ -12,6 +12,8 @@ import { VStack } from '@astryxdesign/core/VStack';
 import { AstryxProvider } from '@/components/AstryxProvider';
 import { getDictionary, isLocale, localePath, localeUrl, alternateLanguages, type Locale } from '@/i18n';
 import { getGlobeData } from '@/lib/globeData';
+import { GUIDANCE_INDEX, guidanceFor } from '@/lib/diseaseGuidance';
+import { diseaseName, hasHangul } from '@/lib/observationNames';
 import { getCountryCards, type Grade } from '@/lib/countryCards';
 import {
   checklist,
@@ -77,6 +79,15 @@ export default async function CountryObservationsPage(props: Params) {
   ]);
   const checks = checklist(card);
   const name = card?.name ?? iso3;
+  // 이 나라에서 관측된 질병 — 위험지수 대표 질병 · 발생 보도 근거 줄의 첫 칸 · WHO 대응 기록의 질병
+  const guidance = guidanceFor([
+    card?.dominantDisease,
+    ...(card?.evidence ?? []).filter((e) => e.layer === 'event').map((e) => e.line.split(' · ')[0]),
+    ...(responses ?? []).map((r) => r.disease),
+  ]);
+  const unmatched = guidance.filter((g) => !g.toolbox && !g.factsheet).map((g) => g.disease);
+  // en/fr 화면에서 한국어 질병명은 번역 사전으로(없으면 원문)
+  const diseaseLabel = (d: string) => (locale !== 'ko' && hasHangul(d) ? diseaseName(d, locale) : d);
 
   const historyColumns: TableColumn<HistoryRow>[] = [
     { key: 'observed', header: t.historyCols.observed, width: proportional(0.9, { minWidth: 120 }) },
@@ -199,6 +210,41 @@ export default async function CountryObservationsPage(props: Params) {
               )}
             </VStack>
           </Card>
+
+          {guidance.length > 0 && (
+            <Card padding={4}>
+              <VStack gap={2}>
+                <Heading level={2}>{t.guidanceTitle}</Heading>
+                <Text type="supporting">{t.guidanceLead}</Text>
+                <List density="compact" hasDividers edge="bleed">
+                  {guidance
+                    .filter((g) => g.toolbox || g.factsheet)
+                    .flatMap((g) => [
+                      ...(g.toolbox ? [{ id: `${g.disease}-tb`, href: g.toolbox, kind: t.guidanceToolbox, g }] : []),
+                      ...(g.factsheet
+                        ? [{ id: `${g.disease}-fs`, href: g.factsheet, kind: t.guidanceFactsheet, g }]
+                        : []),
+                    ])
+                    .map((x) => (
+                      <ListItem
+                        key={x.id}
+                        href={x.href}
+                        target="_blank"
+                        label={<Text>{`${diseaseLabel(x.g.disease)} — ${x.kind}`}</Text>}
+                      />
+                    ))}
+                  {unmatched.length > 0 && (
+                    <ListItem
+                      href={GUIDANCE_INDEX}
+                      target="_blank"
+                      label={<Text>{`${unmatched.map(diseaseLabel).join(', ')} — ${t.guidanceToolbox}`}</Text>}
+                      description={<Text type="supporting">{t.guidanceIndex}</Text>}
+                    />
+                  )}
+                </List>
+              </VStack>
+            </Card>
+          )}
 
           <Card padding={4}>
             <VStack gap={2}>

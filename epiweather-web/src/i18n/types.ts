@@ -591,5 +591,10 @@ export type ObservationsDict = {
     responseUnavailable: string;
     responseCols: { date: string; disease: string; measure: string; evidence: string };
     responseShared: string;
+    guidanceTitle: string;
+    guidanceLead: string;
+    guidanceToolbox: string;
+    guidanceFactsheet: string;
+    guidanceIndex: string;
   };
 };

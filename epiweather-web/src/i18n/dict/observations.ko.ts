@@ -165,5 +165,11 @@ export const observationsKo: ObservationsDict = {
     responseUnavailable: '대응 기록을 읽지 못함(판정 안 함)',
     responseCols: { date: '발표일', disease: '질병', measure: '조치', evidence: '근거(WHO 원문)' },
     responseShared: '여러 나라를 함께 다룬 발표 — 어느 나라의 조치인지는 가르지 않음',
+    guidanceTitle: '확산을 막는 표준 대응 — WHO 근거',
+    guidanceLead:
+      '이 나라에서 관측된 질병별로 WHO가 낸 발병 대응 지침(사례 정의·감시·검사·치료·백신·소통)으로 연결함 · 아이기론이 만든 처방이 아님',
+    guidanceToolbox: 'WHO 발병 대응 도구 모음',
+    guidanceFactsheet: 'WHO 팩트시트',
+    guidanceIndex: '이 질병의 지침 주소를 확인하지 못해 WHO 발병 대응 도구 모음 전체 목록으로 연결함',
   },
 };

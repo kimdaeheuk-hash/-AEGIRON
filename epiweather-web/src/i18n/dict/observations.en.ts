@@ -172,5 +172,12 @@ export const observationsEn: ObservationsDict = {
     responseUnavailable: 'Could not read response records (undetermined)',
     responseCols: { date: 'Published', disease: 'Disease', measure: 'Measure', evidence: 'Evidence (WHO original)' },
     responseShared: 'Report covering several countries — not split by country',
+    guidanceTitle: 'Standard response to stop spread — WHO references',
+    guidanceLead:
+      'Links, per disease observed in this country, to WHO outbreak guidance (case definitions, surveillance, testing, treatment, vaccines, communication) · not a prescription made by AEGIRON',
+    guidanceToolbox: 'WHO outbreak toolbox',
+    guidanceFactsheet: 'WHO fact sheet',
+    guidanceIndex:
+      'The guidance address for this disease could not be confirmed, so this links to the full list of WHO outbreak toolboxes',
   },
 };

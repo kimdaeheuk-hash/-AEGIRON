@@ -176,5 +176,12 @@ export const observationsFr: ObservationsDict = {
     responseUnavailable: 'Impossible de lire les ripostes (non déterminé)',
     responseCols: { date: 'Publié', disease: 'Maladie', measure: 'Mesure', evidence: 'Élément (texte OMS)' },
     responseShared: 'Bulletin couvrant plusieurs pays — non ventilé par pays',
+    guidanceTitle: 'Riposte standard pour freiner la propagation — références OMS',
+    guidanceLead:
+      'Liens, pour chaque maladie observée dans ce pays, vers les orientations de l’OMS (définitions de cas, surveillance, tests, traitement, vaccins, communication) · ce n’est pas une prescription d’AEGIRON',
+    guidanceToolbox: 'Boîte à outils OMS de riposte aux flambées',
+    guidanceFactsheet: 'Aide-mémoire OMS',
+    guidanceIndex:
+      'L’adresse des orientations pour cette maladie n’a pas pu être confirmée ; le lien mène à la liste complète des boîtes à outils de l’OMS',
   },
 };
