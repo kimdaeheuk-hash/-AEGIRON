@@ -12,6 +12,8 @@
 데이터셋(관측값은 층)마다 원천과 상업 이용 상태를 적는다. 상태는 셋 중 하나:
 
 - ``allowed``  — 우리 자체 산출이거나 원천이 상업 재배포를 허용(출처 표기 조건 포함).
+- ``derived``  — 아이기론 가공 지표(정제 상품): 원문·원값을 넘기지 않고 중복 제거·정규화·집계·순위만 판다.
+  사실과 우리 계산만 담는다는 내부 판단 — 계약 전 법률 확인을 권한다(문서에 적음). 유료 내보내기에 포함.
 - ``review``   — 원천 조건을 아직 확정 못 했거나 법률 검토가 필요. 표본은 보여 주되 **유료 내보내기에서 뺀다**.
 - ``blocked``  — 원천 조건이 지금 방식의 상업 이용을 막는다(예: Open-Meteo 무료 API 는 비상업 전용).
   유료 계약·허가를 받기 전까지 **표본·유료 내보내기 모두에서 뺀다**.
@@ -34,7 +36,7 @@ import json
 import os
 from datetime import datetime, timedelta, timezone
 
-ALLOWED, REVIEW, BLOCKED = "allowed", "review", "blocked"
+ALLOWED, DERIVED, REVIEW, BLOCKED = "allowed", "derived", "review", "blocked"
 
 # 관측값 층별 원천·상태
 OBS_LAYER_LICENSE: dict[str, tuple[str, str, str]] = {
@@ -49,6 +51,46 @@ OBS_LAYER_LICENSE: dict[str, tuple[str, str, str]] = {
 }
 
 DATASETS: dict[str, dict] = {
+    # ── 정제 상품(가공 2차 데이터) — 판매의 중심 (2026-11-16 캡틴 "가공하고 정제해서") ──
+    "outbreak_events": {
+        "title": "정제 발생 사건",
+        "description": "여러 출처 보도를 질병명 정규화·국가 코드화·중복 제거해 (질병, 국가) 사건 단위로 묶은 표 — 처음/마지막 확인일, 보도·출처 수, 확신도, 최근 상태, 공식 선언일·선행일수.",
+        "builder": "outbreak_events",
+        "time_column": "last_seen",
+        "columns": ["event_id", "disease", "country_iso3", "first_seen", "last_seen", "duration_days", "report_count",
+                    "source_count", "sources", "max_source_trust", "confidence", "latest_status", "surge_reports",
+                    "new_reports", "unexplained_share", "declared_on", "lead_days_vs_declaration", "basis"],
+        "measured_vs_derived": "전부 아이기론 가공 지표(AI 추출 집계·추정). 확신도 = 1-(1-최고신뢰도)×0.5^(출처수-1). 확진 건수 아님.",
+        "sources": "아이기론 가공(원천: WHO·지역 보건기구·언론 보도의 사실 정보 — 원문 미포함)",
+        "license": DERIVED,
+        "license_note": "원문·원값 없이 사건 단위 집계·지표만. 법률 확인 권장.",
+    },
+    "country_week_panel": {
+        "title": "국가 × 주 위험 활동 패널",
+        "description": "ISO 주마다 나라별 보도 수·질병 수·대표 질병·신규/급증/설명불가 보도·평균 신뢰도·진행 중 사건 수, 그 주 국가 간 활동 백분위, 한국 유입 노출 지수.",
+        "builder": "country_week_panel",
+        "time_column": "week",
+        "columns": ["week", "country_iso3", "report_count", "distinct_diseases", "top_disease", "new_reports",
+                    "surge_reports", "unexplained_reports", "mean_source_trust", "active_events",
+                    "activity_percentile", "korea_exposure_index", "anomaly_score", "basis"],
+        "measured_vs_derived": "전부 아이기론 가공 지표. 활동 백분위 = 그 주 보도가 있던 나라들 사이 순위(보도 없는 나라는 미관측).",
+        "sources": "아이기론 가공(보도 사실 정보 + 주간 유입 보고서)",
+        "license": DERIVED,
+        "license_note": "집계·순위·지수만. 법률 확인 권장.",
+    },
+    "disease_week_panel": {
+        "title": "질병 × 주 확산 패널",
+        "description": "ISO 주마다 정규화 질병별 영향 국가 수·국가 목록·그 주 새로 나타난 국가·보도 수·급증 보도 수.",
+        "builder": "disease_week_panel",
+        "time_column": "week",
+        "columns": ["week", "disease", "countries_affected", "countries", "new_countries", "report_count",
+                    "surge_reports", "unlocated_reports", "basis"],
+        "measured_vs_derived": "전부 아이기론 가공 지표(AI 추출 집계).",
+        "sources": "아이기론 가공(보도 사실 정보)",
+        "license": DERIVED,
+        "license_note": "집계만. 법률 확인 권장.",
+    },
+    # ── 원자료 성격의 기록(참고·검증용) ──
     "alerts": {
         "title": "경보 이력",
         "description": "매시 경보 주기가 만든 경보 — 등급·점수·근거(원시값·기준선·신뢰도). 우리 산출.",
@@ -121,7 +163,7 @@ DATASETS: dict[str, dict] = {
         "description": "ISO 주마다 1건 — 나라별 이상도 × 한국 항공 연결, 이웃 나라 주간 추세, 유의사항.",
         "table": "weekly_reports",
         "time_column": "generated_at",
-        "columns": ["week", "generated_at", "report"],
+        "columns": ["week", "generated_at", "payload"],
         "measured_vs_derived": "노출 지수 = 우리 계산(순위용, 확률 아님). 여객 수 = 공공데이터 측정값.",
         "sources": "자체 산출 + 인천공항 운송실적(공공데이터, 이용허락 제한 없음) + OpenFlights(ODbL) + 일본 IDWR",
         "license": REVIEW,
@@ -150,7 +192,7 @@ def catalog(inventory: dict | None = None) -> dict:
     tables = (inventory or {}).get("tables", {})
     items = []
     for ds_id, d in DATASETS.items():
-        inv = tables.get(d["table"], {})
+        inv = tables.get(d["table"], {}) if d.get("table") else (built_coverage(ds_id) or {})
         item = {
             "id": ds_id,
             **{k: d[k] for k in ("title", "description", "columns", "measured_vs_derived", "sources", "license", "license_note")},
@@ -165,13 +207,14 @@ def catalog(inventory: dict | None = None) -> dict:
     return {
         "datasets": items,
         "access": {
-            "sample": f"키 없이 최근 {SAMPLE_DAYS}일·최대 {SAMPLE_ROWS}행 (allowed·review 만)",
-            "paid": f"고객 키(X-Data-Key)로 기간 지정·최대 {MAX_ROWS}행 (allowed 만)",
+            "sample": f"키 없이 최근 {SAMPLE_DAYS}일·최대 {SAMPLE_ROWS}행 (allowed·derived·review)",
+            "paid": f"고객 키(X-Data-Key)로 기간 지정·최대 {MAX_ROWS}행 (allowed·derived)",
             "paid_enabled": bool(data_keys()),
             "formats": ["json", "csv"],
         },
         "license_states": {
             ALLOWED: "상업 이용 가능(출처 표기 조건 포함)",
+            DERIVED: "아이기론 가공 지표 — 원문·원값 없이 집계·지표만, 유료 판매 포함(법률 확인 권장)",
             REVIEW: "원천 조건 확인·법률 검토 중 — 표본만, 유료 내보내기 제외",
             BLOCKED: "원천 조건상 지금 방식의 상업 이용 불가 — 표본·유료 모두 제외",
         },
@@ -181,7 +224,7 @@ def catalog(inventory: dict | None = None) -> dict:
 
 
 def _allowed_states(paid: bool) -> set[str]:
-    return {ALLOWED} if paid else {ALLOWED, REVIEW}
+    return {ALLOWED, DERIVED} if paid else {ALLOWED, DERIVED, REVIEW}
 
 
 def export_rows(ds_id: str, *, paid: bool, since: str | None = None, until: str | None = None,
@@ -216,6 +259,8 @@ def export_rows(ds_id: str, *, paid: bool, since: str | None = None, until: str 
     if not paid:
         since = (now - timedelta(days=SAMPLE_DAYS)).date().isoformat()
         until = None
+    if d.get("builder"):
+        return _export_built(ds_id, d, paid=paid, since=since, until=until, limit=limit)
     if since:
         where.append(f"{tc} >= ?")
         params.append(since)
@@ -232,7 +277,7 @@ def export_rows(ds_id: str, *, paid: bool, since: str | None = None, until: str 
         rows = [dict(r) for r in conn.execute(sql, params).fetchall()]
     # JSON 문자열 칸은 풀어서 준다(CSV 에서는 다시 문자열)
     for r in rows:
-        for k in ("evidence", "measured", "derived", "report"):
+        for k in ("evidence", "measured", "derived", "payload"):
             if isinstance(r.get(k), str):
                 try:
                     r[k] = json.loads(r[k])
@@ -253,6 +298,55 @@ def export_rows(ds_id: str, *, paid: bool, since: str | None = None, until: str 
         "attribution": d["sources"],
         "rows": rows,
     }
+
+
+def _week_or_date(v: str | None) -> str | None:
+    """since/until(YYYY-MM-DD) 를 주 칸('2026-W46')과 비교할 수 있게 바꾼다."""
+    if not v:
+        return None
+    try:
+        y, w, _ = datetime.fromisoformat(v[:10]).date().isocalendar()
+        return f"{y}-W{w:02d}"
+    except ValueError:
+        return v
+
+
+def _export_built(ds_id: str, d: dict, *, paid: bool, since: str | None, until: str | None,
+                  limit: int | None) -> dict:
+    from algorithms.refined_products import BUILDERS
+
+    rows = BUILDERS[d["builder"]]()
+    tc = d["time_column"]
+    lo = _week_or_date(since) if tc == "week" else since
+    hi = _week_or_date(until) if tc == "week" else until
+    if lo:
+        rows = [r for r in rows if str(r.get(tc) or "") >= lo]
+    if hi:
+        rows = [r for r in rows if str(r.get(tc) or "") <= hi + ("" if tc == "week" else "\uffff")]
+    cap = SAMPLE_ROWS if not paid else min(int(limit or MAX_ROWS), MAX_ROWS)
+    rows = [{c: r.get(c) for c in d["columns"]} for r in rows[:cap]]
+    return {
+        "dataset": ds_id, "title": d["title"], "paid": paid, "license": d["license"],
+        "measured_vs_derived": d["measured_vs_derived"], "since": since, "until": until,
+        "row_cap": cap, "count": len(rows), "truncated": len(rows) >= cap, "excluded": [],
+        "attribution": d["sources"], "rows": rows,
+    }
+
+
+def built_coverage(ds_id: str) -> dict | None:
+    """정제 상품의 보유량 — 행 수·처음/마지막(시간 칸 기준). 계산 실패는 None."""
+    d = DATASETS.get(ds_id)
+    if not d or not d.get("builder"):
+        return None
+    try:
+        from algorithms.refined_products import BUILDERS
+
+        rows = BUILDERS[d["builder"]]()
+    except Exception:  # noqa: BLE001
+        return None
+    vals = sorted(str(r.get(d["time_column"]) or "") for r in rows if r.get(d["time_column"]))
+    return {"rows": len(rows), "first": vals[0] if vals else None, "last": vals[-1] if vals else None,
+            "days": None}
 
 
 def to_csv(result: dict) -> str:

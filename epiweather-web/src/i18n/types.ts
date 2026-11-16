@@ -620,7 +620,10 @@ export type ObservationsDict = {
     notEnough: string;
     catalogTitle: string;
     catalogLead: string;
-    license: Record<'allowed' | 'review' | 'blocked' | 'by_layer', string>;
+    license: Record<'allowed' | 'derived' | 'review' | 'blocked' | 'by_layer', string>;
+    refinedTitle: string;
+    refinedLead: string;
+    rawTitle: string;
     licenseHelp: string;
     sample: string;
     accessTitle: string;

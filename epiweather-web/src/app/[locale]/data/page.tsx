@@ -22,7 +22,7 @@ export const revalidate = 900;
 const PATH = 'data';
 
 function licColor(l: License): 'green' | 'orange' | 'red' | 'gray' {
-  return l === 'allowed' ? 'green' : l === 'review' ? 'orange' : l === 'blocked' ? 'red' : 'gray';
+  return l === 'allowed' || l === 'derived' ? 'green' : l === 'review' ? 'orange' : l === 'blocked' ? 'red' : 'gray';
 }
 
 export async function generateMetadata(props: { params: Promise<{ locale: string }> }): Promise<Metadata> {
@@ -168,55 +168,78 @@ export default async function DataShopPage(props: { params: Promise<{ locale: st
               {shop.datasets === null ? (
                 <Text color="secondary">{t.unavailable}</Text>
               ) : (
-                <List density="compact" hasDividers edge="bleed">
-                  {shop.datasets.map((d) => {
-                    const local = locale === 'ko' ? null : t.datasets[d.id];
-                    return (
-                      <ListItem
-                        key={d.id}
-                        label={
-                          <HStack gap={2} vAlign="center" wrap="wrap">
-                            <Text weight="semibold">{local?.title ?? d.title}</Text>
-                            <Token size="sm" color={licColor(d.license)} label={t.license[d.license]} />
-                            {d.rows !== null ? <Token size="sm" label={`${n(d.rows)} ${t.rows}`} /> : null}
-                          </HStack>
-                        }
-                        description={
-                          <VStack gap={1}>
-                            <Text type="supporting">{local?.description ?? d.description}</Text>
-                            {locale === 'ko' && d.licenseNote ? <Text type="supporting">{d.licenseNote}</Text> : null}
-                            {d.layers.length ? (
-                              <HStack gap={1} wrap="wrap">
-                                {d.layers.map((l) => (
-                                  <Token
-                                    key={l.layer}
-                                    size="sm"
-                                    color={licColor(l.license)}
-                                    label={`${t.layers[l.layer] ?? l.layer} · ${t.license[l.license]}`}
-                                  />
-                                ))}
-                              </HStack>
-                            ) : null}
-                            {d.license !== 'blocked' ? (
-                              <HStack gap={3} wrap="wrap">
-                                <Link href={d.sampleJson}>
-                                  <Text type="supporting" color="inherit">
-                                    {t.sample} JSON
-                                  </Text>
-                                </Link>
-                                <Link href={d.sampleCsv}>
-                                  <Text type="supporting" color="inherit">
-                                    {t.sample} CSV
-                                  </Text>
-                                </Link>
-                              </HStack>
-                            ) : null}
-                          </VStack>
-                        }
-                      />
-                    );
-                  })}
-                </List>
+                [
+                  {
+                    key: 'refined',
+                    title: t.refinedTitle,
+                    lead: t.refinedLead,
+                    items: shop.datasets.filter((d) => d.license === 'derived'),
+                  },
+                  {
+                    key: 'raw',
+                    title: t.rawTitle,
+                    lead: null,
+                    items: shop.datasets.filter((d) => d.license !== 'derived'),
+                  },
+                ].map((group) =>
+                  group.items.length === 0 ? null : (
+                    <VStack key={group.key} gap={1}>
+                      <Heading level={3}>{group.title}</Heading>
+                      {group.lead ? <Text type="supporting">{group.lead}</Text> : null}
+                      <List density="compact" hasDividers edge="bleed">
+                        {group.items.map((d) => {
+                          const local = locale === 'ko' ? null : t.datasets[d.id];
+                          return (
+                            <ListItem
+                              key={d.id}
+                              label={
+                                <HStack gap={2} vAlign="center" wrap="wrap">
+                                  <Text weight="semibold">{local?.title ?? d.title}</Text>
+                                  <Token size="sm" color={licColor(d.license)} label={t.license[d.license]} />
+                                  {d.rows !== null ? <Token size="sm" label={`${n(d.rows)} ${t.rows}`} /> : null}
+                                </HStack>
+                              }
+                              description={
+                                <VStack gap={1}>
+                                  <Text type="supporting">{local?.description ?? d.description}</Text>
+                                  {locale === 'ko' && d.licenseNote ? (
+                                    <Text type="supporting">{d.licenseNote}</Text>
+                                  ) : null}
+                                  {d.layers.length ? (
+                                    <HStack gap={1} wrap="wrap">
+                                      {d.layers.map((l) => (
+                                        <Token
+                                          key={l.layer}
+                                          size="sm"
+                                          color={licColor(l.license)}
+                                          label={`${t.layers[l.layer] ?? l.layer} · ${t.license[l.license]}`}
+                                        />
+                                      ))}
+                                    </HStack>
+                                  ) : null}
+                                  {d.license !== 'blocked' ? (
+                                    <HStack gap={3} wrap="wrap">
+                                      <Link href={d.sampleJson}>
+                                        <Text type="supporting" color="inherit">
+                                          {t.sample} JSON
+                                        </Text>
+                                      </Link>
+                                      <Link href={d.sampleCsv}>
+                                        <Text type="supporting" color="inherit">
+                                          {t.sample} CSV
+                                        </Text>
+                                      </Link>
+                                    </HStack>
+                                  ) : null}
+                                </VStack>
+                              }
+                            />
+                          );
+                        })}
+                      </List>
+                    </VStack>
+                  ),
+                )
               )}
             </VStack>
           </Card>

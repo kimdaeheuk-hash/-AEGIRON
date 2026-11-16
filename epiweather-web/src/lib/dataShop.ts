@@ -31,7 +31,7 @@ function str(v: unknown): string | null {
   return typeof v === 'string' && v.trim() ? v.trim() : null;
 }
 
-export type License = 'allowed' | 'review' | 'blocked' | 'by_layer';
+export type License = 'allowed' | 'derived' | 'review' | 'blocked' | 'by_layer';
 
 export type Dataset = {
   id: string;
@@ -75,7 +75,7 @@ export type DataShop = {
 };
 
 function lic(v: unknown): License {
-  return v === 'allowed' || v === 'review' || v === 'blocked' || v === 'by_layer' ? v : 'review';
+  return v === 'allowed' || v === 'derived' || v === 'review' || v === 'blocked' || v === 'by_layer' ? v : 'review';
 }
 
 export async function getDataShop(): Promise<DataShop> {
