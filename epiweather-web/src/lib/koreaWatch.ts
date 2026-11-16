@@ -12,7 +12,7 @@
  * ★ 정직성 ★ 조회 실패는 null(화면: 판정 안 함), 빈 결과는 []. 고위험 병원체 보도는 AI 구조화 추출이라
  * 확진이 아니라고 적는다. 무역은 품목별 상위 10개국만 저장하므로 '한국 없음'은 '급증 상위에 없음'이다.
  */
-import type { Locale } from '@/i18n';
+import { getDictionary, type Locale } from '@/i18n';
 import type { CountryCard } from './countryCards';
 import { getCountryCards } from './countryCards';
 import { getGlobeData } from './globeData';
@@ -47,6 +47,14 @@ function str(v: unknown): string | null {
 function num(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) ? v : null;
 }
+
+/** 무역 품목 코드 → 이름 (2026-11-16: 화면에 코드가 그대로 나오던 것 수정) */
+const PRODUCT: Record<string, Record<Locale, string>> = {
+  masks_breathing: { ko: '마스크·호흡보호구', en: 'Masks & respirators', fr: 'Masques et appareils respiratoires' },
+  surgical_gloves: { ko: '수술용 장갑', en: 'Surgical gloves', fr: 'Gants chirurgicaux' },
+  diagnostic_reagents: { ko: '진단 시약', en: 'Diagnostic reagents', fr: 'Réactifs de diagnostic' },
+};
+const UNDET: Record<Locale, string> = { ko: '판정 안 함', en: 'undetermined', fr: 'non déterminé' };
 
 const DOMESTIC = /한국|대한민국|서울|부산|인천|대구|광주|대전|제주|경기|korea|seoul|busan/i;
 const HIGH_THREAT =
@@ -84,9 +92,10 @@ export async function getKoreaWatch(locale: Locale): Promise<KoreaWatch> {
         .slice(0, 12)
     : null;
 
+  const seriesName = getDictionary(locale).extra.record.weekly.series as Record<string, string>;
   const trends = report
     ? arr(report.neighbor_trends).map((t) => ({
-        label: str(t.label_ko) ?? str(t.series) ?? '—',
+        label: (locale !== 'ko' ? seriesName[str(t.series) ?? ''] : null) ?? str(t.label_ko) ?? str(t.series) ?? '—',
         base: `${str(t.base_week) ?? '—'} · ${num(t.base_value)?.toLocaleString('en-US') ?? '—'}`,
         prob: num(t.prob_up),
         target: str(t.target_week) ?? '—',
@@ -118,12 +127,12 @@ export async function getKoreaWatch(locale: Locale): Promise<KoreaWatch> {
             : null;
           return {
             id: `t${i}`,
-            title: str(r.metric) ?? '—',
+            title: PRODUCT[str(r.metric) ?? '']?.[locale] ?? str(r.metric) ?? '—',
             detail: [
               usd !== null ? `$${usd.toLocaleString('en-US')}` : null,
               num(d.surge_ratio) !== null ? `×${num(d.surge_ratio)}` : null,
               str(m.latest_period),
-              r.status === 'undetermined' ? 'undetermined' : null,
+              r.status === 'undetermined' ? UNDET[locale] : null,
             ]
               .filter(Boolean)
               .join(' · '),

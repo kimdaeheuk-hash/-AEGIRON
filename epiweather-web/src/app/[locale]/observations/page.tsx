@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Card } from '@astryxdesign/core/Card';
 import { HStack } from '@astryxdesign/core/HStack';
 import { Link } from '@astryxdesign/core/Link';
+import { List, ListItem } from '@astryxdesign/core/List';
 import { Table, proportional } from '@astryxdesign/core/Table';
 import type { TableColumn } from '@astryxdesign/core/Table';
 import { Heading, Text } from '@astryxdesign/core/Text';
@@ -134,6 +135,28 @@ export default async function ObservationsPage(props: { params: Promise<{ locale
               )}
               {polar && polar.undetermined > 0 && (
                 <Text type="supporting">{pt.undetermined.replace('{n}', String(polar.undetermined))}</Text>
+              )}
+              {/* 남극 반도 — 같은 시기 남극·아남극 H5N1 야생동물 보도(계획 ⑩) */}
+              {polar && (
+                <VStack gap={1}>
+                  <Text weight="semibold">{pt.wildlifeTitle}</Text>
+                  <Text type="supporting">{pt.wildlifeNote}</Text>
+                  {polar.wildlife === null ? (
+                    <Text color="secondary">{pt.wildlifeUnavailable}</Text>
+                  ) : polar.wildlife.length === 0 ? (
+                    <Text color="secondary">{pt.wildlifeNone}</Text>
+                  ) : (
+                    <List density="compact" hasDividers edge="bleed">
+                      {polar.wildlife.map((w) => (
+                        <ListItem
+                          key={w.id}
+                          label={<Text weight="semibold">{w.title}</Text>}
+                          description={<Text type="supporting">{w.detail}</Text>}
+                        />
+                      ))}
+                    </List>
+                  )}
+                </VStack>
               )}
             </VStack>
           </Card>

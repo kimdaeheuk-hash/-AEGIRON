@@ -132,6 +132,10 @@ export const observationsKo: ObservationsDict = {
     cols: { region: '지역', first: '처음 저장값', latest: '최근값', change: '변화', records: '기록 수' },
     empty: '아직 저장된 극지 값 없음',
     unavailable: '극지 이력을 읽지 못함(판정 안 함)',
+    wildlifeTitle: '남극 반도 · 남극·아남극 H5N1 야생동물 보도',
+    wildlifeNote: '발생 보도 AI 구조화 추출 최근 200건 중 남극·사우스조지아·포클랜드 지명이 있는 H5 조류인플루엔자 기록 — 확진 아님, 원문 확인 필요',
+    wildlifeNone: '최근 추출 기록에 남극·아남극 H5N1 보도 없음',
+    wildlifeUnavailable: '보도 추출 기록을 읽지 못함(판정 안 함)',
   },
   weekly: {
     metaTitle: '주간 해외유입 위험 보고서 {week} — 무료 베타',

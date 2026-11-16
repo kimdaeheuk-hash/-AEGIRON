@@ -128,6 +128,10 @@ export const observationsEn: ObservationsDict = {
     cols: { region: 'Region', first: 'First stored', latest: 'Latest', change: 'Change', records: 'Records' },
     empty: 'No polar values stored yet',
     unavailable: 'Could not read the polar history (undetermined)',
+    wildlifeTitle: 'Antarctic Peninsula · H5N1 wildlife reports in the Antarctic and sub-Antarctic',
+    wildlifeNote: 'H5 avian influenza records naming Antarctica, South Georgia or the Falklands among the latest 200 AI-extracted outbreak reports. Not confirmed; check the original.',
+    wildlifeNone: 'No Antarctic or sub-Antarctic H5N1 reports in the latest extractions',
+    wildlifeUnavailable: 'Could not read the extracted reports (undetermined)',
   },
   weekly: {
     metaTitle: 'Weekly import-risk report {week}: free beta',

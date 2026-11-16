@@ -63,14 +63,34 @@ function point(r: J, locale: Locale): string {
     .join(' · ');
 }
 
-export async function getPolarTrend(
-  locale: Locale,
-): Promise<{ rows: PolarTrendRow[]; days: number; undetermined: number } | null> {
-  const [hist, watch] = await Promise.all([
+/** 남극·아남극 H5N1 보도 — 남극 반도 줄 옆에 같이 보여 준다(계획 ⑩). AI 구조화 추출이라 확진이 아니다. */
+const ANTARCTIC = /남극|사우스조지아|포클랜드|사우스셰틀랜드|antarc|south georgia|falkland|south shetland|weddell/i;
+const H5 = /h5n1|h5n5|h5|조류\s*인플루엔자|avian influenza|bird flu/i;
+
+export type WildlifeReport = { id: string; title: string; detail: string };
+
+export async function getPolarTrend(locale: Locale): Promise<{
+  rows: PolarTrendRow[];
+  days: number;
+  undetermined: number;
+  wildlife: WildlifeReport[] | null;
+} | null> {
+  const [hist, watch, extracted] = await Promise.all([
     getJson('/api/observations/history?layer=polar&days=30&limit=5000'),
     getJson('/api/polar-watch'),
+    getJson('/api/extracted-signals?limit=200'),
   ]);
   if (!hist || !Array.isArray(hist.rows)) return null;
+  const wildlife: WildlifeReport[] | null = extracted
+    ? (Array.isArray(extracted.records) ? (extracted.records as J[]) : [])
+        .filter((r) => H5.test(String(r.disease ?? '')) && ANTARCTIC.test(String(r.location ?? '')))
+        .slice(0, 8)
+        .map((r, i) => ({
+          id: `w${i}`,
+          title: `${String(r.disease ?? '—')} · ${locale === 'ko' ? String(r.location ?? '—') : (placeName(String(r.location ?? '—'), locale) ?? String(r.location ?? '—'))}`,
+          detail: [r.source, String(r.extracted_at ?? '').slice(0, 10)].filter(Boolean).join(' · '),
+        }))
+    : null;
   const names = new Map<string, string>();
   for (const r of Array.isArray(watch?.regions) ? (watch!.regions as J[]) : []) {
     if (typeof r.region === 'string' && typeof r.name === 'string') {
@@ -117,5 +137,5 @@ export async function getPolarTrend(
     };
   });
   const days = minAt && maxAt ? Math.max(1, Math.round((Date.parse(maxAt) - Date.parse(minAt)) / 86_400_000)) : 0;
-  return { rows, days, undetermined };
+  return { rows, days, undetermined, wildlife };
 }

@@ -134,6 +134,10 @@ export const observationsFr: ObservationsDict = {
     },
     empty: 'Aucune valeur polaire enregistrée pour l’instant',
     unavailable: 'Historique polaire illisible (non déterminé)',
+    wildlifeTitle: 'Péninsule Antarctique · signalements de H5N1 chez la faune antarctique et subantarctique',
+    wildlifeNote: 'Enregistrements de grippe aviaire H5 citant l’Antarctique, la Géorgie du Sud ou les Malouines parmi les 200 derniers rapports extraits par IA. Non confirmé ; vérifier la source.',
+    wildlifeNone: 'Aucun signalement H5N1 antarctique ou subantarctique dans les dernières extractions',
+    wildlifeUnavailable: 'Rapports extraits illisibles (non déterminé)',
   },
   weekly: {
     metaTitle: 'Rapport hebdomadaire de risque d’importation {week} — bêta gratuite',

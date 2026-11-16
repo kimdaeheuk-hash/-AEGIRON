@@ -572,6 +572,10 @@ export type ObservationsDict = {
     cols: { region: string; first: string; latest: string; change: string; records: string };
     empty: string;
     unavailable: string;
+    wildlifeTitle: string;
+    wildlifeNote: string;
+    wildlifeNone: string;
+    wildlifeUnavailable: string;
   };
   /** 주간 해외유입 위험 보고서 무료 베타 /reports/weekly (2026-11-16) — {week} 은 ISO 주 */
   weekly: {
