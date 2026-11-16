@@ -124,3 +124,94 @@ def test_routes_and_daily_log_are_wired():
     after = src[src.index("def _after_cycle_bg"):src.index("def _log_inventory_daily")]
     assert "_log_inventory_daily()" in after
     assert "_log_inventory_daily(force=True)" in src
+
+
+# ── 정제 상품(가공 2차 데이터) — 캡틴 "원본 그대로 팔라는 얘기가 아니잖아" ──────────────────────
+from algorithms import refined_products
+
+
+@pytest.fixture
+def reports(isolated_db):
+    db = isolated_db
+    rows = [
+        # 같은 질병(별칭 다름)·같은 나라·30일 안 → 한 사건, 출처 2곳
+        ("2099-03-02T00:00", "who_don", "Cholera", "COD", "신규발생", 0.9, 1),
+        ("2099-03-05T00:00", "africa_cdc", "콜레라", "COD", "급증", 0.8, 1),
+        # 60일 뒤 → 새 사건
+        ("2099-05-10T00:00", "who_don", "콜레라", "COD", "진행중", 0.9, 1),
+        # 다른 나라 같은 주
+        ("2099-03-03T00:00", "promed", "콜레라", "AGO", "신규발생", 0.6, 0),
+        # 국가 미상 → 국가 패널 제외, 질병 패널엔 unlocated
+        ("2099-03-04T00:00", "news", "콜레라", None, "불명", 0.5, 1),
+    ]
+    with db.get_connection() as conn:
+        for at, src, dis, iso, typ, tr, known in rows:
+            conn.execute(
+                "INSERT INTO extracted_signals (extracted_at, source, disease, location, signal_type, severity, "
+                "source_trust, raw_text, country_iso3, known_disease) VALUES (?,?,?,?,?,'[]',?,'원문',?,?)",
+                (at, src, dis, "x", typ, tr, iso, known))
+        conn.execute(
+            "INSERT INTO lead_time_ledger (disease, country_iso3, crossed_at, severity, threshold, signal_ids, "
+            "declared_on, lead_days, outcome) VALUES ('콜레라','COD','2099-03-02T00:00',0.8,0.5,'[]','2099-03-12',10,'declared')")
+        conn.execute("INSERT INTO weekly_reports (week, generated_at, payload) VALUES (?,?,?)",
+                     ("2099-W09", "2099-03-02T00:00",
+                      json.dumps({"top_exposure": [{"country": "COD", "exposure_index": 33.3, "raw_score": 45.0}]})))
+    return db
+
+
+def test_events_dedupe_normalise_and_split_episodes(reports):
+    ev = refined_products.outbreak_events()
+    cod = sorted([e for e in ev if e["country_iso3"] == "COD"], key=lambda e: e["first_seen"])
+    assert len(cod) == 2  # 공백 60일 → 사건 둘
+    first = cod[0]
+    assert first["disease"] == "콜레라" and first["report_count"] == 2 and first["source_count"] == 2
+    # 확신도 = 1-(1-0.9)×0.5^(2-1) = 0.95
+    assert first["confidence"] == 0.95
+    assert first["declared_on"] == "2099-03-12" and first["lead_days_vs_declaration"] == 10
+    assert first["surge_reports"] == 1 and first["new_reports"] == 1
+    assert "raw_text" not in first and first["basis"].startswith("AI 구조화 추출")
+    # 국가 미상 보도는 사건에 안 들어감
+    assert all(e["country_iso3"] for e in ev)
+
+
+def test_country_week_panel_ranks_and_joins_exposure(reports):
+    rows = {(r["week"], r["country_iso3"]): r for r in refined_products.country_week_panel()}
+    cod = rows[("2099-W10", "COD")]
+    ago = rows[("2099-W10", "AGO")]
+    assert cod["report_count"] == 2 and cod["surge_reports"] == 1 and cod["active_events"] == 1
+    assert ago["unexplained_reports"] == 1
+    assert cod["activity_percentile"] == 100 and ago["activity_percentile"] == 50
+    assert all(k[1] for k in rows)  # 국가 미상 없음
+    # 노출 지수는 보고서가 있던 주에만(W09) — W10 은 None(지어내지 않음)
+    assert cod["korea_exposure_index"] is None
+
+
+def test_disease_week_panel_new_countries(reports):
+    rows = {(r["week"], r["disease"]): r for r in refined_products.disease_week_panel()}
+    w10 = rows[("2099-W10", "콜레라")]
+    assert w10["countries_affected"] == 2 and w10["new_countries"] == ["AGO", "COD"]
+    assert w10["unlocated_reports"] == 1
+    w19 = rows[("2099-W19", "콜레라")]
+    assert w19["new_countries"] == []  # COD 는 이미 나왔던 나라
+
+
+def test_refined_products_are_sold_paid_and_catalogued(reports):
+    r = data_products.export_rows("outbreak_events", paid=True)
+    assert r["license"] == "derived" and r["count"] == 3 and r["excluded"] == []  # COD 2 + AGO 1
+    w = data_products.export_rows("country_week_panel", paid=True, since="2099-03-06")
+    assert {x["week"] for x in w["rows"]} >= {"2099-W10"}
+    cat = {d["id"]: d for d in data_products.catalog(None)["datasets"]}
+    assert cat["outbreak_events"]["license"] == "derived" and cat["outbreak_events"]["coverage"]["rows"] == 3
+    assert list(cat)[:3] == ["outbreak_events", "country_week_panel", "disease_week_panel"]
+
+
+def test_every_table_dataset_columns_exist_in_schema(isolated_db):
+    """카탈로그의 칸 이름이 실제 표와 다르면 내보내기가 운영에서 터진다(weekly_reports.report → payload 실수, 2026-11-16)."""
+    with isolated_db.get_connection() as conn:
+        for ds_id, d in data_products.DATASETS.items():
+            if not d.get("table"):
+                continue
+            cols = {r["name"] for r in conn.execute(f"PRAGMA table_info({d['table']})").fetchall()}
+            missing = set(d["columns"]) - cols
+            assert not missing, (ds_id, missing)
+            assert d["time_column"] in cols, ds_id
