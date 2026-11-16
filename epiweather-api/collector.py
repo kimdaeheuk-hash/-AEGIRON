@@ -427,8 +427,23 @@ FREE_SOURCE_HEALTH_KEYS = {
 }
 
 
+def polar_weather_ok(pw: dict | None) -> bool:
+    """이 주기에 기상 자료가 **한 곳이라도** 있나. 자료를 살릴지 버릴지의 판정.
+
+    ★ 왜 서식에서 떼어냈나 (2026-11-16) ★
+    이 판정은 **자료의 성질**이고, 로그 줄을 만드는 일은 사람에게 보이는 일이다.
+    둘이 한 함수·한 try 에 묶여 있으면 **서식 버그 하나가 다시 층 전체를 버린다** —
+    11-14~15 사고가 정확히 그 모양이었다(`%.0f` ← None 이 터지자 `except` 가
+    이미 받아온 8개 관측지 자료를 None 으로 덮었고, `record_cycle` 이 수집 실패로 셌다).
+    그래서 호출부는 이 함수로 먼저 **정하고**, 줄을 찍는 건 그 뒤에 따로 한다.
+    """
+    regions = (pw or {}).get("regions") or []
+    no_weather = [r for r in regions if not (r.get("thaw") or {}).get("data_available")]
+    return bool(regions) and len(no_weather) < len(regions)
+
+
 def polar_summary_line(pw: dict) -> tuple[str, bool]:
-    """극지 관찰 요약 로그 줄과 '기상 자료가 한 곳이라도 있나'.
+    """극지 관찰 요약 로그 줄과 '기상 자료가 한 곳이라도 있나'(`polar_weather_ok`).
 
     점수가 없는 관측지(기상·뉴스 모두 없음)는 '점수 없음'으로 적는다 — 예전엔 `%.0f` 에 None 이 들어가
     로그 줄이 TypeError 로 죽었다(2026-11-15 10:00~익일 00:00, 소스 헬스 '중단').
@@ -446,8 +461,7 @@ def polar_summary_line(pw: dict) -> tuple[str, bool]:
     line = f"  극지 관찰: {len(regions)}개 관측지 · 등급 {pw.get('grade')} · 상위 {tops}"
     if no_weather:
         line += f" · 기상 자료 없음 {len(no_weather)}/{len(regions)}(판정 안 함)"
-    weather_ok = bool(regions) and len(no_weather) < len(regions)
-    return line, weather_ok
+    return line, polar_weather_ok(pw)
 
 
 WIKI_EBOLA_TITLE = "2026_Central_Africa_Ebola_epidemic"
@@ -1060,21 +1074,42 @@ def collect_free_sources() -> dict:
     # ★ 경보가 아니라 관찰이다 ★ watch_grade=True 로 경보 파이프라인과 분리돼
     # 있다. 여기서 수집하는 이유는 울리기 위해서가 아니라 **쌓기 위해서**다 —
     # 동토 해빙은 추세가 핵심인데, 부를 때만 계산하면 매번 그 순간만 보게 된다.
+    #
+    # ★ 요약 줄은 수집 try 밖이다 (2026-11-16) ★
+    # 2026-11-14 21시 ~ 11-15 23시에 이 층이 14주기 연속 `중단` 으로 잡혔다.
+    # 에러는 `TypeError: must be real number, not NoneType` 하나였고, 터진 자리는
+    # 수집이 아니라 **수집 결과를 찍는 요약 줄**이었다(`%.0f` ← score=None).
+    # 그런데 `except` 가 `result["polar_watch"] = None` 으로 덮어써서,
+    # **이미 성공적으로 받아온 8개 관측지 자료가 매 주기 버려졌다.**
+    # `record_cycle` 은 이 키가 None 이면 수집 실패로 세므로 소스까지 죽었다.
+    #
+    # 자료를 받아왔는가와 그걸 사람이 읽게 찍는 데 성공했는가는 **다른 사건**이다.
+    # 그래서 수집만 try 에 두고, 요약은 else 에서 따로 감싼다. 요약이 실패해도
+    # 자료는 남고 `log_error` 도 부르지 않는다 — 소스 헬스는 수집의 성패를
+    # 말하는 자리이지 서식 버그를 말하는 자리가 아니다.
     try:
         from algorithms.polar_signals import polar_watch_all
         pw = polar_watch_all()
-        line, weather_ok = polar_summary_line(pw)
-        log(line)
-        # 8곳 모두 기상 자료가 없으면 이 층의 측정이 없는 것이다 — 소스 헬스가 보게 None.
-        # (일부만 없으면 값은 살린다. 2026-11-15 10:00~ 에는 점수가 빈 관측지 하나 때문에 로그 줄이
-        #  TypeError 로 죽어, 계산은 끝났는데 층 전체가 '실패'로 버려졌다.)
-        result["polar_watch"] = pw if weather_ok else None
-        if not weather_ok:
-            log("  ❌ 극지 관찰: 모든 관측지 기상 자료 없음 — 이 주기 측정 없음(소스 헬스 실패로 셈)")
     except Exception as e:
         result["polar_watch"] = None
         log(f"  ❌ 극지 관찰 실패: {type(e).__name__}: {e}")
         log_error("PolarWatch", e)
+    else:
+        # ① 먼저 **자료로** 정한다. 8곳 모두 기상 자료가 없으면 이 주기엔 측정이
+        #    없는 것이라 소스 헬스가 보게 None 으로 둔다(#124). 일부만 없으면 살린다.
+        weather_ok = polar_weather_ok(pw)
+        result["polar_watch"] = pw if weather_ok else None
+        # ② 그 다음에 찍는다. 찍다가 터져도 ①의 판정은 이미 끝났으므로 자료가
+        #    안 날아간다. `log_error` 도 부르지 않는다 — 소스 헬스는 수집의 성패를
+        #    말하는 자리이지 서식 버그를 말하는 자리가 아니다.
+        try:
+            log(polar_summary_line(pw)[0])
+        except Exception as e:
+            # else 블록의 예외는 위 except 가 못 잡는다 — 여기서 막지 않으면
+            # 주기 전체가 죽는다(수집은 이미 끝났는데).
+            log(f"  ⚠ 극지 관찰 요약 줄 생성 실패(자료는 보존): {type(e).__name__}: {e}")
+        if not weather_ok:
+            log("  ❌ 극지 관찰: 모든 관측지 기상 자료 없음 — 이 주기 측정 없음(소스 헬스 실패로 셈)")
 
     # ── 현지어 위키 신호 (2026-11-02 수집 편입) ─────────────────────────
     # ★ 부를 때만 계산하면 추세가 안 쌓인다 ★ 극지(09-01)·발할라(09-03)와

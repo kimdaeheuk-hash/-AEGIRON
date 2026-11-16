@@ -171,6 +171,9 @@ def test_healthy_cycle_reports_clean_summary():
     # 추출층은 하루 1회 슬롯이 남긴 상태를 보므로, '온전한 주기'를 만들려면 그
     # 성공도 같이 있어야 한다 — 이게 없으면 판정불가 1이 뜨는 게 정상이다.
     qh.record_extraction_outcome(_extraction(saved=3))
+    # 고위험 병원체 제목 조회(2026-11-16 추가, 일곱 번째)도 같은 모양이다 —
+    # 경보 조립 쪽이 남긴 상태를 보므로 result dict 만으로는 판정이 안 된다.
+    qh.record_sentinel_cycle(5, google=True)
     qh.record_cycle(_result())
     line = qh.summary_line()
     assert line.startswith("🔎 품질 불변식: 정상")
