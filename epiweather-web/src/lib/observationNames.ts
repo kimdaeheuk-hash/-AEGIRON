@@ -14,6 +14,42 @@ import type { Locale } from '@/i18n';
 type T = { en: string; fr: string };
 
 const DISEASE: Record<string, T> = {
+  '로키산 홍반열': {
+    en: 'Rocky Mountain spotted fever',
+    fr: 'fièvre pourprée des montagnes Rocheuses',
+  },
+  리프트밸리열: {
+    en: 'Rift Valley fever',
+    fr: 'fièvre de la vallée du Rift',
+  },
+  '수막구균 감염증': {
+    en: 'Meningococcal disease',
+    fr: 'infection à méningocoque',
+  },
+  '원인불명 폐렴': {
+    en: 'pneumonia of unknown cause',
+    fr: 'pneumonie d’origine inconnue',
+  },
+  '원인 미상 폐렴': {
+    en: 'pneumonia of unknown cause',
+    fr: 'pneumonie d’origine inconnue',
+  },
+  '호흡기 바이러스': {
+    en: 'respiratory virus',
+    fr: 'virus respiratoire',
+  },
+  '안데스 바이러스': {
+    en: 'Andes virus',
+    fr: 'virus des Andes',
+  },
+  페스트: {
+    en: 'plague',
+    fr: 'peste',
+  },
+  '수단형 에볼라': {
+    en: 'Ebola (Sudan virus)',
+    fr: 'Ebola (virus Soudan)',
+  },
   에볼라: {
     en: 'Ebola',
     fr: 'Ebola',
@@ -209,6 +245,22 @@ const BUNDIBUGYO = /bundibugyo|분디부교|분두비기요|붕디부[고교]/i;
 const BUNDIBUGYO_NAME: T = { en: 'Ebola (Bundibugyo)', fr: 'Ebola (Bundibugyo)' };
 
 const PLACE: Record<string, T> = {
+  시베리아: {
+    en: 'Siberia',
+    fr: 'Sibérie',
+  },
+  '대서양 크루즈선': {
+    en: 'cruise ship, Atlantic',
+    fr: 'navire de croisière, Atlantique',
+  },
+  '아르헨티나 크루즈선': {
+    en: 'cruise ship, Argentina',
+    fr: 'navire de croisière, Argentine',
+  },
+  크루즈선: {
+    en: 'cruise ship',
+    fr: 'navire de croisière',
+  },
   콩고민주공화국: {
     en: 'DR Congo',
     fr: 'RD Congo',

@@ -16,8 +16,9 @@
 import { API_BASE } from '@/lib/api';
 import type { DashLang } from '@/lib/dashLang';
 import { KO_ISO3 } from '@/lib/isoGeo';
-import { countryLabel, isoInEnglish } from '@/lib/countryNames';
-import { diseaseIn, diseaseName, labelName, placeName } from '@/lib/observationNames';
+import { cdcHeadline, countryText, gdacsTitle } from '@/lib/backendText';
+import { countryLabel } from '@/lib/countryNames';
+import { diseaseName, labelName, placeName } from '@/lib/observationNames';
 
 /** ISO3 → 한국어 나라 이름(가장 짧은 표기), 없으면 코드 그대로 */
 const KO_NAME: Record<string, string> = Object.fromEntries(
@@ -372,22 +373,6 @@ const SOCIAL: Source = {
       ),
 };
 
-/**
- * CDC 여행경보 제목 → 화면 언어 (2026-11-16, 캡틴 '번역들이 꼬인 거 같은데').
- * CDC 는 영문 제목만 준다('Ebola Bundibugyo Virus Disease in Ituri and Nord-Kivu Provinces of the
- * Democratic Republic of the Congo'). ko/fr 은 '질병 · 나라 (지역)'으로 짧게 쓴다. 지역 이름은 고유명사라
- * 원문 표기를 둔다. 질병이나 나라를 못 읽으면 원문 그대로(지어내지 않음). en 은 원문.
- */
-function cdcTarget(headline: string | null, lang: DashLang): string | null {
-  if (!headline || lang === 'en') return headline;
-  const disease = diseaseIn(headline, lang);
-  const country = countryLabel(isoInEnglish(headline), lang);
-  if (!disease || !country) return headline;
-  const m = /\bin (.+?) (?:provinces?|regions?|states?|districts?|departments?|counties) of\b/i.exec(headline);
-  const regions = m ? m[1].replace(/,? and /g, '·').replace(/, /g, '·') : null;
-  return regions ? `${disease} · ${country} (${regions})` : `${disease} · ${country}`;
-}
-
 const TRAVEL: Source = {
   name: { ko: 'CDC 여행경보', en: 'CDC travel notices', fr: 'Avis de voyage du CDC' },
   path: '/api/travel-notices',
@@ -396,7 +381,7 @@ const TRAVEL: Source = {
       .slice(0, 3)
       .map((n) =>
         row({
-          target: cdcTarget(str(n.headline), lang) ?? DASH,
+          target: cdcHeadline(str(n.headline), lang) ?? DASH,
           measured: `CDC Level ${fmt(num(n.level))}`,
           derived: DASH,
           time: str(n.pub_date)?.slice(5, 16) ?? DASH,
@@ -503,14 +488,14 @@ const KOREA_ROUTES: Source = {
 const DISASTER: Source = {
   name: { ko: '재난 감시창(GDACS)', en: 'Disaster watch windows (GDACS)', fr: 'Fenêtres de veille catastrophes (GDACS)' },
   path: '/api/disaster-watch',
-  rows: (b, { t, fmt, pl }) =>
+  rows: (b, { t, fmt, pl }, lang) =>
     arr(b.countries)
       .slice(0, 4)
       .map((c) => {
         const w = arr(c.open_windows)[0] ?? {};
         return row({
-          target: pl(str(c.country)) ?? str(c.country_iso3) ?? DASH,
-          measured: t.alertLevel(str(w.alert_level) ?? DASH, (str(w.title) ?? DASH).slice(0, 70)),
+          target: countryText(str(c.country), str(c.country_iso3), lang) ?? pl(str(c.country)) ?? DASH,
+          measured: t.alertLevel(str(w.alert_level) ?? DASH, (gdacsTitle(str(w.title), lang) ?? DASH).slice(0, 70)),
           derived: t.windows(fmt(num(c.window_count))),
           time: day(w.disaster_date),
           source: 'GDACS',

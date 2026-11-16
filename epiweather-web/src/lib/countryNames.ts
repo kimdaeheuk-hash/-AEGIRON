@@ -52,14 +52,36 @@ export function countryLabel(iso3: string | null | undefined, locale: Locale): s
   return name && name !== iso2 ? name : null;
 }
 
-const EN_KEYS = Object.keys(EN_ISO3).sort((a, b) => b.length - a.length);
+/** 영문 이름 비교 키 — 글자 외(’ ' - , 등)는 공백으로. 'côte d’ivoire' 와 "côte d'ivoire" 가 같은 키가 된다. */
+const normEn = (t: string) =>
+  t
+    .toLowerCase()
+    .replace(/[^a-z\u00c0-\u024f]+/g, ' ')
+    .trim();
+const EN_NORM: Record<string, string> = Object.fromEntries(Object.entries(EN_ISO3).map(([k, iso]) => [normEn(k), iso]));
+const EN_KEYS = Object.keys(EN_NORM).sort((a, b) => b.length - a.length);
 
 /** 영문 문장 안의 나라 하나(가장 긴 이름 우선 — 'democratic republic of the congo' 가 'congo' 보다 먼저). 못 찾으면 null. */
 export function isoInEnglish(text: string | null | undefined): string | null {
   if (!text) return null;
-  const low = ` ${text.toLowerCase().replace(/[^a-zÀ-ɏ]+/g, ' ')} `;
+  const low = ` ${normEn(text)} `;
   for (const k of EN_KEYS) {
-    if (low.includes(` ${k} `)) return EN_ISO3[k];
+    if (low.includes(` ${k} `)) return EN_NORM[k];
   }
   return null;
+}
+
+/** 영문 문장 안의 나라 전부(나온 순서, 겹치는 짧은 이름은 건너뜀). 'Burkina Faso, Côte d’Ivoire, and Ghana' → 3개. */
+export function isosInEnglish(text: string | null | undefined): string[] {
+  if (!text) return [];
+  let low = ` ${normEn(text)} `;
+  const found: { iso: string; at: number }[] = [];
+  for (const k of EN_KEYS) {
+    const at = low.indexOf(` ${k} `);
+    if (at < 0) continue;
+    if (!found.some((f) => f.iso === EN_NORM[k])) found.push({ iso: EN_NORM[k], at });
+    // 같은 자리를 짧은 이름이 다시 잡지 않게 지운다('democratic republic of the congo' 뒤의 'congo')
+    low = low.slice(0, at) + ' '.repeat(k.length + 1) + low.slice(at + k.length + 1);
+  }
+  return found.sort((a, b) => a.at - b.at).map((f) => f.iso);
 }

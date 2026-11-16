@@ -7,7 +7,8 @@
 
 import type { Locale } from '@/i18n';
 import { countryLabel } from './countryNames';
-import { placeName } from './observationNames';
+import { alertLabel, countryCell, evidenceLine, isUntranslated, tierName } from './backendText';
+import { diseaseName, placeName } from './observationNames';
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ??
@@ -103,10 +104,21 @@ export type AlertItem = {
   evidence?: string[];
 };
 
-export async function getTopAlerts(): Promise<{ date?: string; items: AlertItem[] } | null> {
+/** 경보 상위. 서버 라벨·근거·등급은 한국어라 화면 언어로 옮긴다(아는 틀만 — backendText). */
+export async function getTopAlerts(locale: Locale = 'ko'): Promise<{ date?: string; items: AlertItem[] } | null> {
   const d = await getJson<{ date?: string; dashboard?: { top?: AlertItem[] } }>('/api/alerts');
   if (!d?.dashboard) return null;
-  return { date: d.date, items: d.dashboard.top ?? [] };
+  const items = (d.dashboard.top ?? []).map((a) => ({
+    ...a,
+    label: alertLabel(a.label, locale),
+    tier: tierName(a.tier, locale),
+    evidence: a.evidence?.map((ev) => {
+      const out = evidenceLine(ev, locale);
+      // 모르는 틀은 지어 옮기지 않는다 — 원문임을 밝혀 둔다
+      return isUntranslated(out, locale) ? `${out} ${locale === 'fr' ? '(original en coréen)' : '(original in Korean)'}` : out;
+    }),
+  }));
+  return { date: d.date, items };
 }
 
 export type Prediction = {
@@ -125,9 +137,19 @@ export type Prediction = {
   ots_submitted_at?: string | null;
 };
 
-export async function getPredictions(): Promise<Prediction[] | null> {
+/** 예측 원장. 나라·질병 이름만 화면 언어로(원장 값·해시는 그대로). */
+export async function getPredictions(locale: Locale = 'ko'): Promise<Prediction[] | null> {
   const d = await getJson<{ predictions?: Prediction[] }>('/api/predictions');
-  return d?.predictions ?? null;
+  if (!d?.predictions) return null;
+  if (locale === 'ko') return d.predictions;
+  return d.predictions.map((p) => ({
+    ...p,
+    country: countryCell(/^[A-Z]{3}$/.test(p.country) ? p.country : null, p.country, locale),
+    disease: (() => {
+      const dz = diseaseName(p.disease, locale) ?? p.disease;
+      return dz === p.disease ? alertLabel(p.disease, locale) : dz;
+    })(),
+  }));
 }
 
 export type Scorecard = {
@@ -163,9 +185,18 @@ export type Ledger = {
   entries: LedgerEntry[];
 };
 
-export async function getLedger(): Promise<Ledger | null> {
+/** 선행성 원장. 질병 이름만 화면 언어로(값은 그대로). '종합 위험도(GAI 기반)' 같은 라벨은 경보 라벨 표로. */
+export async function getLedger(locale: Locale = 'ko'): Promise<Ledger | null> {
   const d = await getJson<Ledger>('/api/lead-time-ledger?limit=50');
-  return d?.summary && Array.isArray(d.entries) ? d : null;
+  if (!(d?.summary && Array.isArray(d.entries))) return null;
+  if (locale === 'ko') return d;
+  return {
+    ...d,
+    entries: d.entries.map((e) => {
+      const dz = diseaseName(e.disease, locale) ?? e.disease;
+      return { ...e, disease: dz === e.disease ? alertLabel(e.disease, locale) : dz };
+    }),
+  };
 }
 
 /** 예측 판정 상태 — 백엔드 outcome·correct 를 화면 네 갈래로. */

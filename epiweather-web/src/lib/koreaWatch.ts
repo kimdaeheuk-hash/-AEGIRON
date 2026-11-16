@@ -15,6 +15,7 @@
 import { getDictionary, type Locale } from '@/i18n';
 import type { CountryCard } from './countryCards';
 import { getCountryCards } from './countryCards';
+import { countryText } from './backendText';
 import { getGlobeData } from './globeData';
 
 const API_BASE =
@@ -108,7 +109,7 @@ export async function getKoreaWatch(locale: Locale): Promise<KoreaWatch> {
         .slice(0, 10)
         .map((a, i) => ({
           id: `u${i}`,
-          title: str(a.location) ?? '—',
+          title: countryText(str(a.location), null, locale) ?? '—',
           detail: [str(a.source), str(a.signal_date) ?? str(a.extracted_at)?.slice(0, 10)].filter(Boolean).join(' · '),
         }))
     : null;
@@ -167,7 +168,7 @@ export async function getKoreaWatch(locale: Locale): Promise<KoreaWatch> {
           .map(([d, v], i) => ({
             id: `h${i}`,
             title: d,
-            detail: `${v.n} · ${[...v.places].slice(0, 4).join(', ')} · ${v.last.slice(0, 10)}`,
+            detail: `${v.n} · ${[...v.places].slice(0, 4).map((p) => countryText(p, null, locale) ?? p).join(', ')} · ${v.last.slice(0, 10)}`,
           }));
       })()
     : null;

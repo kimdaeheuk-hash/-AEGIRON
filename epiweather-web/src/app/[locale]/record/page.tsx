@@ -31,7 +31,7 @@ export default async function RecordPage(props: { params: Promise<{ locale: stri
   const R = x.record;
   const na = x.live.unavailable;
   const [score, predictions, ledger, alerts, weekly, importReport] = await Promise.all([
-    getScorecard(), getPredictions(), getLedger(), getTopAlerts(), getWeeklyForecasts(), getKoreaImportReport(locale),
+    getScorecard(), getPredictions(locale), getLedger(locale), getTopAlerts(locale), getWeeklyForecasts(), getKoreaImportReport(locale),
   ]);
 
   return (
@@ -73,7 +73,7 @@ export default async function RecordPage(props: { params: Promise<{ locale: stri
 
       <Section>
         <SectionHeading eyebrow="KOREA IMPORT REPORT" title={R.importReport.title} lead={R.importReport.lead} />
-        <ImportReportView report={importReport} labels={R.importReport} weeklyLabels={R.weekly} />
+        <ImportReportView report={importReport} labels={R.importReport} weeklyLabels={R.weekly} locale={locale} />
         <p style={{ marginTop: 10 }}>
           <a href={localePath(locale, 'reports/weekly')} style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>
             {x.observations.weekly.eyebrow} →

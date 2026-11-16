@@ -7,6 +7,7 @@ import { List, ListItem } from '@astryxdesign/core/List';
 import { Heading, Text } from '@astryxdesign/core/Text';
 import { Token } from '@astryxdesign/core/Token';
 import { VStack } from '@astryxdesign/core/VStack';
+import { extraCaveats } from '@/lib/backendText';
 import { AstryxProvider } from '@/components/AstryxProvider';
 import { alternateLanguages, getDictionary, isLocale, localePath, localeUrl, type Locale } from '@/i18n';
 import { getWeeklyReport, isIsoWeek, type WeeklyRow } from '@/lib/weeklyReport';
@@ -255,13 +256,14 @@ export default async function WeeklyReportPage(props: Params) {
                           ))}
                         </List>
                       )}
-                      {locale !== 'ko' && r.caveats.length ? (
+                      {/* 위 목록이 이미 옮겨 싣는 유의사항은 빼고, 화면 사전에 없는 새 유의사항만 원문으로 (2026-11-16) */}
+                      {locale !== 'ko' && extraCaveats(r.caveats).length ? (
                         <VStack gap={1}>
                           <Text type="supporting" weight="semibold">
                             {t.serverCaveats}
                           </Text>
                           <List density="compact" listStyle="disc">
-                            {r.caveats.map((cv) => (
+                            {extraCaveats(r.caveats).map((cv) => (
                               <ListItem key={cv} label={<Text type="supporting">{cv}</Text>} />
                             ))}
                           </List>
