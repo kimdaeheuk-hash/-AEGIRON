@@ -18,7 +18,7 @@ export const extraPagesFr: ExtraDict['pages'] = {
       title: 'Ouvrez vous-même le même écran',
       body: 'Le tableau de bord de production s’ouvre sans connexion et se met à jour en temps réel, comme sur les captures ci-dessus.',
       label: 'Ouvrir le tableau de bord',
-      href: '/dashboard',
+      href: '/dashboard?lang=fr',
     },
   },
 
@@ -48,7 +48,7 @@ export const extraPagesFr: ExtraDict['pages'] = {
       alt: 'Écran de détection des importations d’AEGIRON — carte du réseau aérien de l’origine jusqu’à la Corée',
       caption: 'L’écran de détection des importations du tableau de bord en fonctionnement (capture). Il estime le moment d’arrivée et le point d’entrée depuis une origine jusqu’en Corée ; les chiffres sont un scénario de modèle selon les hypothèses choisies.',
       credit: 'Écran d’exploitation AEGIRON',
-      sourceUrl: '/dashboard',
+      sourceUrl: '/dashboard?lang=fr',
     },
     blocks: [
       {
@@ -322,7 +322,7 @@ export const extraPagesFr: ExtraDict['pages'] = {
       title: 'Voyez les signaux de chaque maladie',
       body: 'Les derniers signaux par maladie sont sur le tableau de bord et dans les briefings quotidiens.',
       label: 'Ouvrir le tableau de bord',
-      href: '/dashboard',
+      href: '/dashboard?lang=fr',
     },
   },
 };

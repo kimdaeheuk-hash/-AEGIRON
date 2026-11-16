@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getDictionary, isLocale, localePath, localeUrl, alternateLanguages, locales, type Locale } from '@/i18n';
+import { dashboardHref, getDictionary, isLocale, localePath, localeUrl, alternateLanguages, locales, type Locale } from '@/i18n';
 import { Section, SectionHeading } from '@/components/site/Section';
 import params from '@/data/disease-params.json';
 
@@ -67,7 +67,7 @@ export default async function DiseasePage(props: { params: Promise<{ locale: str
               </li>
             ))}
           </ul>
-          <Link href="/dashboard" style={{ display: 'inline-block', marginTop: 22, fontFamily: 'var(--mono)', fontSize: 12.5, color: 'var(--accent)', textDecoration: 'none', fontWeight: 700 }}>
+          <Link href={dashboardHref(locale)} style={{ display: 'inline-block', marginTop: 22, fontFamily: 'var(--mono)', fontSize: 12.5, color: 'var(--accent)', textDecoration: 'none', fontWeight: 700 }}>
             {L.openDashboard} →
           </Link>
         </div>

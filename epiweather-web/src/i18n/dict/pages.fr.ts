@@ -94,7 +94,7 @@ export const pagesFr: PagesDict = {
       title: 'Voyez les cinq étapes tourner par vous-même',
       body: 'Sur le tableau de bord en direct, regardez tout le processus — de la collecte à la réponse — tourner en temps réel, sans connexion.',
       label: 'Ouvrir le tableau de bord',
-      href: '/dashboard',
+      href: '/dashboard?lang=fr',
     },
   },
 
@@ -311,7 +311,7 @@ export const pagesFr: PagesDict = {
       title: 'Deux couches, un seul flux',
       body: 'Détecter → juger → prévoir → simuler → prescrire → auto-vérifier → sceller. L’écran où ce flux tourne réellement est le tableau de bord en direct.',
       label: 'Tableau de bord en direct',
-      href: '/dashboard',
+      href: '/dashboard?lang=fr',
     },
   },
 
@@ -419,7 +419,7 @@ export const pagesFr: PagesDict = {
       title: 'Voyez les valeurs que ces moteurs produisent réellement',
       body: 'Le tableau de bord montre les signaux et indicateurs que ces modules génèrent en ce moment.',
       label: 'Ouvrir le tableau de bord',
-      href: '/dashboard',
+      href: '/dashboard?lang=fr',
     },
   },
 
@@ -615,7 +615,7 @@ export const pagesFr: PagesDict = {
       title: 'Vérifiez l’état actuel de chaque source',
       body: 'Le tableau de bord montre le dernier état de collecte de chaque source et les indicateurs que produisent ses signaux.',
       label: 'Ouvrir le tableau de bord',
-      href: '/dashboard',
+      href: '/dashboard?lang=fr',
     },
   },
 
@@ -793,7 +793,7 @@ export const pagesFr: PagesDict = {
       title: 'Ce que le système observe aujourd’hui',
       body: 'Le tableau de bord montre tels quels les signaux qui fondent chaque bulletin.',
       label: 'Ouvrir le tableau de bord',
-      href: '/dashboard',
+      href: '/dashboard?lang=fr',
     },
   },
 

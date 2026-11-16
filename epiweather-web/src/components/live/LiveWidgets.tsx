@@ -52,7 +52,7 @@ export function OpsCounters({ ops, labels }: { ops: OpsStatus | null; labels: L 
   );
 }
 
-export function RiskTop({ rows, labels }: { rows: RiskRow[] | null; labels: L }) {
+export function RiskTop({ rows, labels, dashHref = '/dashboard' }: { rows: RiskRow[] | null; labels: L; dashHref?: string }) {
   if (!rows || rows.length === 0) return <Unavailable text={labels.riskUnavailable} />;
   const max = Math.max(...rows.map((r) => r.risk_score), 1);
   return (
@@ -70,7 +70,7 @@ export function RiskTop({ rows, labels }: { rows: RiskRow[] | null; labels: L })
           <span style={{ fontFamily: 'var(--mono)', fontSize: 13, textAlign: 'right', fontWeight: 700 }}>{r.risk_score.toFixed(1)}</span>
         </div>
       ))}
-      <Link href="/dashboard" style={{ marginTop: 8, fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--accent)', textDecoration: 'none', fontWeight: 700 }}>
+      <Link href={dashHref} style={{ marginTop: 8, fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--accent)', textDecoration: 'none', fontWeight: 700 }}>
         {labels.riskOpen} →
       </Link>
     </div>

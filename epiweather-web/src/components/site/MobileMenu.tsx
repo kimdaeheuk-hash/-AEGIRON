@@ -12,8 +12,8 @@ import type { NavGroup } from './SiteNav';
  * 새로 그려지며(=닫힌 상태로) 시작하게 한다.
  */
 export function MobileMenu({
-  groups, openLabel, closeLabel, dashboard,
-}: { groups: NavGroup[]; openLabel: string; closeLabel: string; dashboard: string }) {
+  groups, openLabel, closeLabel, dashboard, dashboardHref = '/dashboard',
+}: { groups: NavGroup[]; openLabel: string; closeLabel: string; dashboard: string; dashboardHref?: string }) {
   const pathname = usePathname();
   return (
     <details key={pathname} className="mobile-menu">
@@ -39,7 +39,7 @@ export function MobileMenu({
             )}
           </div>
         ))}
-        <Link href="/dashboard" className="mobile-cta">{dashboard} →</Link>
+        <Link href={dashboardHref} className="mobile-cta">{dashboard} →</Link>
       </div>
     </details>
   );

@@ -39,6 +39,11 @@ export function isLocale(value: string): value is Locale {
 export const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') ?? 'https://epiweather-web.vercel.app';
 
+/** 라이브 대시보드 링크 — 대시보드는 로케일 경로 밖이라 언어를 ?lang= 으로 붙인다(2026-11-16). */
+export function dashboardHref(locale: Locale): string {
+  return locale === 'ko' ? '/dashboard' : `/dashboard?lang=${locale}`;
+}
+
 /** 로케일별 정식 경로. canonical과 hreflang이 같은 규칙을 쓰게 한 곳에서 만든다. */
 export function localePath(locale: Locale, path = ''): string {
   const clean = path.replace(/^\/+/, '').replace(/\/+$/, '');

@@ -460,7 +460,7 @@ export const fr: Dictionary = {
       {
         title: 'Le système en direct',
         body: 'Le tableau de bord montre les données opérationnelles de collecte et d’alerte telles qu’elles tournent. Dans la console de simulation, les valeurs supposées et modélisées sont signalées comme telles à l’écran.',
-        href: '/dashboard',
+        href: '/dashboard?lang=fr',
         linkLabel: 'Ouvrir le tableau de bord',
       },
       {

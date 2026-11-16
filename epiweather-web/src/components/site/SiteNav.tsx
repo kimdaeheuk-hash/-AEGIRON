@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { Dictionary } from '@/i18n/types';
-import { localePath, type Locale } from '@/i18n/config';
+import { dashboardHref, localePath, type Locale } from '@/i18n/config';
 import { Logo } from './Logo';
 import { LocaleSwitcher } from './LocaleSwitcher';
 import { MobileMenu } from './MobileMenu';
@@ -98,10 +98,10 @@ export function SiteNav({ locale, dict }: { locale: Locale; dict: Dictionary }) 
 
         <div className="nav-actions">
           <LocaleSwitcher current={locale} label={dict.nav.language} />
-          <Link href="/dashboard" className="nav-cta">
+          <Link href={dashboardHref(locale)} className="nav-cta">
             {dict.nav.dashboard} →
           </Link>
-          <MobileMenu groups={groups} openLabel={dict.nav.openMenu} closeLabel={dict.nav.closeMenu} dashboard={dict.nav.dashboard} />
+          <MobileMenu groups={groups} openLabel={dict.nav.openMenu} closeLabel={dict.nav.closeMenu} dashboard={dict.nav.dashboard} dashboardHref={dashboardHref(locale)} />
         </div>
       </nav>
     </header>
