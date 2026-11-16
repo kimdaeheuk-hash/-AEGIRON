@@ -3008,7 +3008,7 @@ def ai_infer(req: AIInferRequest):
         return {
             "mode": "decision_tree_fast", "alert_level": alert_level,
             "decision_tree": tree_result, "llm_analysis": None, "llm_pending": True,
-            "note": "의사결정 트리 즉시 결과 — LLM 정책 분석은 이어서 계산 중(60~120초 걸릴 수 있음)",
+            "note": "의사결정 트리 즉시 결과 — LLM(Claude) 정책 분석은 이어서 계산 중",
         }
 
     # ★ Meta 우선·Claude 폴백(2026-11-03) ★ req.api_key는 Claude 키(하위 호환),

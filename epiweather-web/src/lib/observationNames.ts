@@ -14,6 +14,42 @@ import type { Locale } from '@/i18n';
 type T = { en: string; fr: string };
 
 const DISEASE: Record<string, T> = {
+  '로키산 홍반열': {
+    en: 'Rocky Mountain spotted fever',
+    fr: 'fièvre pourprée des montagnes Rocheuses',
+  },
+  리프트밸리열: {
+    en: 'Rift Valley fever',
+    fr: 'fièvre de la vallée du Rift',
+  },
+  '수막구균 감염증': {
+    en: 'Meningococcal disease',
+    fr: 'infection à méningocoque',
+  },
+  '원인불명 폐렴': {
+    en: 'pneumonia of unknown cause',
+    fr: 'pneumonie d’origine inconnue',
+  },
+  '원인 미상 폐렴': {
+    en: 'pneumonia of unknown cause',
+    fr: 'pneumonie d’origine inconnue',
+  },
+  '호흡기 바이러스': {
+    en: 'respiratory virus',
+    fr: 'virus respiratoire',
+  },
+  '안데스 바이러스': {
+    en: 'Andes virus',
+    fr: 'virus des Andes',
+  },
+  페스트: {
+    en: 'plague',
+    fr: 'peste',
+  },
+  '수단형 에볼라': {
+    en: 'Ebola (Sudan virus)',
+    fr: 'Ebola (virus Soudan)',
+  },
   에볼라: {
     en: 'Ebola',
     fr: 'Ebola',
@@ -209,6 +245,22 @@ const BUNDIBUGYO = /bundibugyo|분디부교|분두비기요|붕디부[고교]/i;
 const BUNDIBUGYO_NAME: T = { en: 'Ebola (Bundibugyo)', fr: 'Ebola (Bundibugyo)' };
 
 const PLACE: Record<string, T> = {
+  시베리아: {
+    en: 'Siberia',
+    fr: 'Sibérie',
+  },
+  '대서양 크루즈선': {
+    en: 'cruise ship, Atlantic',
+    fr: 'navire de croisière, Atlantique',
+  },
+  '아르헨티나 크루즈선': {
+    en: 'cruise ship, Argentina',
+    fr: 'navire de croisière, Argentine',
+  },
+  크루즈선: {
+    en: 'cruise ship',
+    fr: 'navire de croisière',
+  },
   콩고민주공화국: {
     en: 'DR Congo',
     fr: 'RD Congo',
@@ -721,3 +773,65 @@ export function labelName(raw: string | null, locale: Locale): string | null {
   const d = diseaseName(raw, locale);
   return d !== raw ? d : placeName(raw, locale);
 }
+
+/**
+ * 문장 안의 질병명 → 화면 언어 (2026-11-16, 캡틴 '번역들이 꼬인 거 같은데').
+ * CDC 여행경보·WHO DON 제목처럼 출처가 영문만 주거나, 추출 원문이 한·영으로 섞인 문장에 쓴다.
+ * 사전의 한국어 키와 그 영문 표기를 함께 찾아 가장 긴 일치를 고른다. 조류인플루엔자 아형(H9N2 등)은 붙여 둔다.
+ * 못 찾으면 null(지어내지 않음).
+ */
+function wordIn(hay: string, needle: string): boolean {
+  let i = hay.indexOf(needle);
+  while (i >= 0) {
+    const before = hay[i - 1] ?? ' ';
+    const after = hay[i + needle.length] ?? ' ';
+    if (!/[a-z]/.test(before) && !/[a-z]/.test(after)) return true;
+    i = hay.indexOf(needle, i + 1);
+  }
+  return false;
+}
+
+export function diseaseIn(text: string | null | undefined, locale: Locale): string | null {
+  if (!text) return null;
+  const sub = /\b(H\d{1,2}N\d{1,2})\b/i.exec(text)?.[1]?.toUpperCase();
+  if (BUNDIBUGYO.test(text)) return locale === 'ko' ? '에볼라(분디부교)' : BUNDIBUGYO_NAME[locale];
+  const low = text.toLowerCase();
+  let best: { ko: string; v: T; len: number } | null = null;
+  for (const [ko, v] of Object.entries(DISEASE)) {
+    if (!HANGUL.test(ko)) continue;
+    const en = v.en.toLowerCase();
+    // 영문은 낱말 경계로(‘summers’ 안의 ‘mers’ 를 메르스로 읽지 않게), 한국어는 부분 일치(조사가 붙는다)
+    const hits = [low.includes(ko) ? ko.length : 0, en.length >= 4 && wordIn(low, en) ? en.length : 0];
+    const len = Math.max(...hits);
+    if (len && (!best || len > best.len)) best = { ko, v, len };
+  }
+  if (!best) return null;
+  const name = locale === 'ko' ? best.ko : best.v[locale];
+  return sub && !name.includes(sub) ? `${name} ${sub}` : name;
+}
+
+/**
+ * 한국어가 섞인 짧은 제목을 en/fr 로 (2026-11-16). 아는 질병명·지명만 바꾸고 나머지는 둔다.
+ * 예: '에볼라 DRC 2026' → 'Ebola DRC 2026'. ko 이거나 한글이 없으면 그대로.
+ */
+export function koTitleTo(raw: string | null, locale: Locale): string | null {
+  if (!raw || locale === 'ko' || !hasHangul(raw)) return raw;
+  let out = raw;
+  const keys = Object.keys(DISEASE)
+    .filter((k) => HANGUL.test(k))
+    .sort((a, b) => b.length - a.length);
+  for (const k of keys) if (out.includes(k)) out = out.split(k).join(DISEASE[k][locale]);
+  for (const [k, v] of Object.entries(TITLE_WORDS)) if (out.includes(k)) out = out.split(k).join(v[locale]);
+  out = out.replace(/(\d+)차/g, (_, n) => (locale === 'en' ? `#${n}` : `n°${n}`));
+  const placed = placeName(out, locale) ?? out;
+  return placed.charAt(0).toUpperCase() + placed.slice(1);
+}
+
+/** 옛 시드 제목(발병 타임라인 백필)에만 나오는 지명·낱말. */
+const TITLE_WORDS: Record<string, T> = {
+  글로벌: { en: 'global', fr: 'mondial' },
+  케랄라: { en: 'Kerala', fr: 'Kerala' },
+  에콰퇴르: { en: 'Équateur', fr: 'Équateur' },
+  북키부: { en: 'North Kivu', fr: 'Nord-Kivu' },
+  '우한 초기': { en: 'Wuhan early cluster', fr: 'Wuhan, premier foyer' },
+};

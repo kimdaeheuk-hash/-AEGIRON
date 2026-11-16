@@ -6,6 +6,7 @@
  * 위치를 못 읽은 기록은 찍지 않고 unlocated 로 센다 — 아무 데나 찍지 않는다.
  */
 import type { Locale } from '@/i18n';
+import { countryLabel } from './countryNames';
 import { EN_ISO3, KO_ISO3 } from './isoGeo';
 import { diseaseName, labelName, placeName } from './observationNames';
 
@@ -93,21 +94,6 @@ export function locationIsos(raw: string | null, isoHint: string | null): string
     if (key && EN_ISO3[key]) found.add(EN_ISO3[key]);
   }
   return [...found];
-}
-
-/** ISO3 → 한국어 이름(name_i18n 표를 거꾸로). en/fr 은 그 한국어 이름을 지명 사전으로 옮긴다. */
-const KO_NAME: Record<string, string> = Object.fromEntries(
-  Object.entries(KO_ISO3)
-    .sort((a, b) => a[0].length - b[0].length)
-    .reverse()
-    .map(([ko, iso]) => [iso, ko]),
-);
-
-/** 나라 표시 이름 — 화면 언어로. 사전에 없으면 null(화면이 지도 데이터의 영문명을 쓴다). */
-function countryLabel(iso3: string, locale: Locale): string | null {
-  const ko = KO_NAME[iso3];
-  if (!ko) return null;
-  return locale === 'ko' ? ko : placeName(ko, locale);
 }
 
 /** 같은 (레이어, 나라)는 한 점으로 합친다. */

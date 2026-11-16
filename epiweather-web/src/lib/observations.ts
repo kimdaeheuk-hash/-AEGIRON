@@ -10,11 +10,12 @@
  * 값이 없는 칸은 비워 두지 않고 '값 없음'으로 쓴다.
  *
  * 번역: 질병명·지명·극지 지역·유전체/SNS 라벨·사건 유형은 observationNames 사전으로 en/fr 표기를 바꾼다
- * (사전에 없으면 원문). 보도 요약(raw_text)은 자유 문장이라 번역하지 않고 비고에 '한국어 원문'을 표시한다.
+ * (사전에 없으면 원문). 보도 요약(raw_text)은 AI 가 한국어로 쓴 자유 문장이라 번역하지 않는다 — en/fr 은 한국어판 안내로 바꿔 싣는다(2026-11-16).
  */
 import type { Locale } from '@/i18n';
 import type { ObservationSectionKey } from '@/i18n/types';
-import { diseaseName, hasHangul, labelName, placeName } from './observationNames';
+import { cdcHeadline, countryText, gdacsTitle } from './backendText';
+import { diseaseName, hasHangul, labelName } from './observationNames';
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ?? 'https://epiweather-api-production.up.railway.app';
@@ -55,6 +56,8 @@ type V = {
   locale: Locale;
   /** en/fr 화면에서 한국어 원문 그대로인 보도 요약에 붙이는 표시 */
   koSource: string;
+  /** en/fr: 한국어로만 쓰인 AI 보도 요약 자리에 대신 싣는 문구(2026-11-16) */
+  koSummaryOnly: string;
   none: string;
   thawDays: (n: string) => string;
   anomaly: (n: string) => string;
@@ -94,6 +97,7 @@ const VALUES: Record<Locale, V> = {
   ko: {
     locale: 'ko',
     koSource: '',
+    koSummaryOnly: '',
     none: '값 없음',
     thawDays: (n) => `최근 30일 중 영상 ${n}일`,
     anomaly: (n) => `10년 같은 달 평균 대비 ${n}℃`,
@@ -131,6 +135,7 @@ const VALUES: Record<Locale, V> = {
   en: {
     locale: 'en',
     koSource: 'summary in Korean (source language)',
+    koSummaryOnly: 'AI report summary available in Korean only — see the Korean page',
     none: 'No value',
     thawDays: (n) => `${n} above-zero days in last 30`,
     anomaly: (n) => `${n}℃ vs same-month 10-yr mean`,
@@ -168,6 +173,7 @@ const VALUES: Record<Locale, V> = {
   fr: {
     locale: 'fr',
     koSource: 'résumé en coréen (langue source)',
+    koSummaryOnly: 'Résumé IA disponible en coréen uniquement — voir la page coréenne',
     none: 'Pas de valeur',
     thawDays: (n) => `${n} jours au-dessus de zéro sur 30`,
     anomaly: (n) => `${n}℃ vs moyenne du même mois sur 10 ans`,
@@ -312,7 +318,7 @@ function localNote(raw: string | null, v: V): string | null {
 /** 출처 문자열의 한국어 괄호 설명('(무료·키 불필요)')은 en/fr 에서 뺀다 — 출처 이름은 그대로. */
 function localSource(raw: string | null, locale: Locale): string | null {
   if (!raw || locale === 'ko') return raw;
-  return raw.replace(/\s*\([^)]*[\uac00-\ud7a3][^)]*\)/g, '').trim() || raw;
+  return raw.replace(/\s*\([^)]*[\uac00-\ud7a3][^)]*\)/g, '').replace('공개 preview', 'public preview').trim() || raw;
 }
 
 type Built = { rows: ObservationRow[]; total?: number };
@@ -347,12 +353,14 @@ const events: Builder = (b, v) => {
     id: `ev-${str(r.id) ?? i}`,
     target: j([
       diseaseName(str(r.disease), v.locale),
-      clip(placeName(str(r.location), v.locale), 50) ?? str(r.country_iso3),
+      clip(countryText(str(r.location), null, v.locale), 50) ?? str(r.country_iso3),
     ]),
-    measured: j([clip(str(r.raw_text), 160)]),
+    // 보도 요약(raw_text)은 AI 가 한국어로 쓴 요약이라 en/fr 에 그대로 실으면 한국어 문단이 표를 덮는다.
+    // 기계로 옮기지 않고(수치 왜곡 위험) 한국어판에서 보라고 적는다 (2026-11-16 캡틴 '다른 곳도 살펴봐')
+    measured: j([v.locale !== 'ko' && hasHangul(str(r.raw_text)) ? v.koSummaryOnly : clip(str(r.raw_text), 160)]),
     derived: j([labelName(str(r.signal_type), v.locale)]),
     time: when(r.extracted_at ?? r.signal_date, v.none),
-    note: j([str(r.source), str(r.ai_provider), v.locale !== 'ko' && hasHangul(str(r.raw_text)) && v.koSource]),
+    note: j([str(r.source), str(r.ai_provider)]),
   }));
   return { rows, total: latest.length };
 };
@@ -441,9 +449,9 @@ const disaster: Builder = (b, v) => {
     const first = arr(c.open_windows)[0] ?? {};
     return {
       id: `di-${str(c.country_iso3) ?? i}`,
-      target: str(c.country) ?? str(c.country_iso3) ?? v.none,
+      target: countryText(str(c.country), str(c.country_iso3), v.locale) ?? v.none,
       measured: j([
-        clip(str(first.title), 110),
+        clip(gdacsTitle(str(first.title), v.locale), 110),
         str(first.alert_level) && `GDACS ${str(first.alert_level)}`,
         fmt(first.days_since_disaster, 0) !== null && v.daysSince(fmt(first.days_since_disaster, 0)!),
       ]),
@@ -469,7 +477,7 @@ const travel: Builder = (b, v) => {
   );
   const rows = sorted.map((n, i) => ({
     id: `tv-${i}`,
-    target: clip(str(n.headline), 90) ?? v.none,
+    target: clip(cdcHeadline(str(n.headline), v.locale), 90) ?? v.none,
     measured: j([num(n.level) !== null && v.level(String(num(n.level)))]),
     derived: v.none,
     time: when(n.pub_date, v.none),
@@ -489,7 +497,7 @@ function satellite(
     const j = joiner(v);
     const rows = arr(b.countries).map((c, i) => ({
       id: `${prefix}-${str(c.country) ?? i}`,
-      target: str(c.country) ?? v.none,
+      target: countryText(str(c.country), null, locale) ?? v.none,
       measured:
         c.data_available === false
           ? v.none
@@ -598,11 +606,17 @@ const unexplained: Builder = (b, v) => {
   const alerts = arr(b.alerts);
   const rows = alerts.map((a, i) => ({
     id: `un-${i}`,
-    target: clip(placeName(str(a.location), v.locale), 50) ?? v.none,
-    measured: j([clip(str(a.raw_disease_text) ?? str(a.raw_text), 160)]),
+    target: clip(countryText(str(a.location), null, v.locale), 50) ?? v.none,
+    measured: j([
+      v.locale !== 'ko' && hasHangul(str(a.raw_disease_text) ?? str(a.raw_text))
+        ? (diseaseName(str(a.raw_disease_text), v.locale) !== str(a.raw_disease_text)
+            ? diseaseName(str(a.raw_disease_text), v.locale)
+            : v.koSummaryOnly)
+        : clip(str(a.raw_disease_text) ?? str(a.raw_text), 160),
+    ]),
     derived: v.none,
     time: when(a.signal_date ?? a.extracted_at, v.none),
-    note: j([str(a.source), v.locale !== 'ko' && hasHangul(str(a.raw_disease_text) ?? str(a.raw_text)) && v.koSource]),
+    note: j([str(a.source)]),
   }));
   return { rows, total: alerts.length };
 };

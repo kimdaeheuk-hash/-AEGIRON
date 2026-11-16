@@ -4,6 +4,8 @@ import {
   type Prediction, type Scorecard, type Ledger, type AlertItem, type WeeklyForecasts, type KoreaImportReport, type ImportRow,
 } from '@/lib/live';
 import { fmtTime, TierBadge, Unavailable } from './LiveWidgets';
+import type { Locale } from '@/i18n';
+import { isoMonth } from '@/lib/backendText';
 
 /**
  * 공개 예측 원장 위젯 — 판정 대기·실패까지 지우지 않고 그대로 보인다.
@@ -277,12 +279,13 @@ function ImportTable({ rows, labels, withIndex, byPax }: { rows: ImportRow[]; la
   );
 }
 
-export function ImportReportView({ report, labels, weeklyLabels }: { report: KoreaImportReport | null; labels: R['importReport']; weeklyLabels: R['weekly'] }) {
+export function ImportReportView({ report, labels, weeklyLabels, locale = 'ko' }: { report: KoreaImportReport | null; labels: R['importReport']; weeklyLabels: R['weekly']; locale?: Locale }) {
   if (!report) return <Unavailable text={labels.notYet} />;
   const s = report.summary;
   // 연결 기준 — 옛 보고서(connectivity 없음)는 노선 수 기준이었다.
   const byPax = report.connectivity?.basis === 'passengers';
-  const period = report.connectivity?.period?.length === 2 ? `${report.connectivity.period[0]}~${report.connectivity.period[1]}` : '—';
+  // '2026년 01월' 은 en/fr 에서 '2026-01' 로 — 한국어 날짜가 영문 문장 안에 박히지 않게 (2026-11-16)
+  const period = report.connectivity?.period?.length === 2 ? `${isoMonth(report.connectivity.period[0], locale)}~${isoMonth(report.connectivity.period[1], locale)}` : '—';
   const h3 = { fontWeight: 700, fontSize: 15, margin: '22px 0 10px' } as const;
   return (
     <div>

@@ -23,6 +23,7 @@
 from __future__ import annotations
 import sqlite3
 import json
+import re
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
 
@@ -1073,7 +1074,41 @@ def list_timeline_events() -> list[dict]:
             FROM outbreak_timeline GROUP BY event_id ORDER BY latest_date DESC
             """,
         ).fetchall()
-        return [dict(r) for r in rows]
+        return [_timeline_display_fields(dict(r)) for r in rows]
+
+
+_TIMELINE_ID_TAIL = re.compile(r"_([a-z]{3})_(\d{4})$")
+
+# 표시에만 쓰는 별칭. DISEASE_ALIASES 는 중복 제거·선행성 원장·채점이 같이 쓰므로 여기서 늘리지 않는다
+# (늘리면 기존 원장 행의 질병 키가 바뀐다 — 그건 따로 판단할 일). WHO DON 제목의 MERS 정식 영문명.
+_DISPLAY_ONLY_ALIASES = {"MERS": ("middle east respiratory syndrome",)}
+
+
+def _timeline_display_fields(row: dict) -> dict:
+    """화면 표시용 필드를 덧붙인다(2026-11-16, 캡틴 '번역들이 꼬인 거 같은데').
+
+    event_name 은 예측 채점의 대조 키라(declaration_ingest.event_name_for) **바꾸지 않는다**.
+    그 문자열은 추출된 질병명·지역 원문을 이어 붙여 'Ebola disease … 에볼라 Kenya and Nigeria 2026'
+    처럼 언어가 섞인다. 화면이 제 언어로 다시 쓰도록 구조 필드만 따로 준다:
+    - iso3 · year: event_id 꼬리(`{질병}_{iso3}_{연도}`)에서. 꼬리 모양이 아니면(옛 시드) null.
+    - disease_key: 정규 질병 키(event_dedup.DISEASE_ALIASES 에 걸릴 때만). 못 걸리면 null —
+      모르는 질병을 지어내 붙이지 않는다(화면은 원문 event_name 을 그대로 쓴다).
+    """
+    from algorithms.event_dedup import DISEASE_ALIASES
+
+    m = _TIMELINE_ID_TAIL.search(row.get("event_id") or "")
+    row["iso3"] = m.group(1).upper() if m else None
+    row["year"] = int(m.group(2)) if m else None
+    lowered = (row.get("event_name") or "").lower()
+    row["disease_key"] = next(
+        (
+            k
+            for k, aliases in DISEASE_ALIASES.items()
+            if any(a.lower() in lowered for a in (*aliases, *_DISPLAY_ONLY_ALIASES.get(k, ())))
+        ),
+        None,
+    )
+    return row
 
 
 def upsert_sentinel(

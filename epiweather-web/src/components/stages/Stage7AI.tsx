@@ -56,7 +56,9 @@ function ageLabel(r: InferResponse, tr: Tr): string {
 function providerLabel(r: InferResponse, tr: Tr): string {
   if (r.llm_provider === 'meta_model_api') return `Meta ${r.llm_model ?? ''}`.trim();
   if (r.llm_provider === 'anthropic') {
-    return r.meta_error ? tr('Claude (Meta 실패 후 폴백)', 'Claude (fallback after Meta failed)', 'Claude (secours après échec de Meta)') : 'Claude';
+    if (r.meta_error) return tr('Claude (Meta 실패 후 폴백)', 'Claude (fallback after Meta failed)', 'Claude (secours après échec de Meta)');
+    // 실제로 답한 모델 이름(서버 쪽 거절 폴백이 돌았으면 다른 이름이 온다 — 2026-11-16)
+    return r.llm_model ? `Claude · ${r.llm_model}` : 'Claude';
   }
   return 'Claude';
 }
@@ -176,7 +178,7 @@ export default function Stage7AI() {
     <div style={{ animation: 'fade .25s' }}>
       <div className="ptitle">{tr('AI 통합 역학 추론', 'AI integrated epidemiological reasoning', 'Raisonnement épidémiologique intégré par IA')}</div>
       <div className="psub">
-        {tr('7단계 전체 상황을 FastAPI 추론 엔진(의사결정 트리 + RAG + Meta Model API 우선)으로 종합 분석.', 'Analyses the whole situation across the stages with the FastAPI reasoning engine (decision tree + RAG + Meta Model API first).', 'Analyse l’ensemble de la situation avec le moteur de raisonnement FastAPI (arbre de décision + RAG + Meta Model API en priorité).')}
+        {tr('7단계 전체 상황을 FastAPI 추론 엔진(의사결정 트리 + RAG + Claude)으로 종합 분석.', 'Analyses the whole situation across the stages with the FastAPI reasoning engine (decision tree + RAG + Claude).', 'Analyse l’ensemble de la situation avec le moteur de raisonnement FastAPI (arbre de décision + RAG + Claude).')}
       </div>
       <LiveObserved stage={7} />
 
@@ -213,7 +215,7 @@ export default function Stage7AI() {
 
         {status === 'idle' && (
           <div style={{ color: 'var(--muted2)', fontFamily: 'var(--mono)', fontSize: 11.5, textAlign: 'center', padding: '18px 0', lineHeight: 1.6 }}>
-            {tr('7단계 전체 신호·예측·대응 효과를 근거로 의사결정 트리 + RAG + LLM(Meta 우선·Claude 폴백)이 통합 정책 권고를 추론합니다.', 'From the signals, forecasts and response effects of all stages, a decision tree + RAG + LLM (Meta first, Claude fallback) reasons out integrated policy recommendations.', 'À partir des signaux, prévisions et effets de réponse de toutes les étapes, un arbre de décision + RAG + LLM (Meta d’abord, Claude en secours) formule des recommandations intégrées.')}
+            {tr('7단계 전체 신호·예측·대응 효과를 근거로 의사결정 트리 + RAG + LLM(Claude)이 통합 정책 권고를 추론합니다.', 'From the signals, forecasts and response effects of all stages, a decision tree + RAG + LLM (Claude) reasons out integrated policy recommendations.', 'À partir des signaux, prévisions et effets de réponse de toutes les étapes, un arbre de décision + RAG + LLM (Claude) formule des recommandations intégrées.')}
           </div>
         )}
 
@@ -294,7 +296,7 @@ export default function Stage7AI() {
             {llmLoading && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--muted)', fontFamily: 'var(--mono)', fontSize: 11.5 }}>
                 <div style={{ width: 14, height: 14, border: '2px solid var(--line2)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'sp .8s linear infinite' }} />
-                {tr('LLM 정책 분석 계산 중… (Meta 추론 모델 실측 60~120초 — 위 의사결정 트리는 지금 바로 쓸 수 있음)', 'Computing LLM policy analysis… (Meta reasoning model measured at 60–120 s; the decision tree above is usable now)', 'Analyse LLM en cours… (modèle Meta mesuré à 60–120 s ; l’arbre de décision ci-dessus est déjà utilisable)')}
+                {tr('Claude 정책 분석 계산 중… (위 의사결정 트리는 지금 바로 쓸 수 있음)', 'Computing Claude policy analysis… (the decision tree above is usable now)', 'Analyse Claude en cours… (l’arbre de décision ci-dessus est déjà utilisable)')}
               </div>
             )}
             {llmError && (

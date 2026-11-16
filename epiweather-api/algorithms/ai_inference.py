@@ -1,5 +1,16 @@
 """
-AI 통합 추론 — Claude 우선·Meta 폴백 + RAG.
+AI 통합 추론 — Claude(Opus 5.5) + RAG. Meta 폴백은 기본 꺼짐(2026-11-16).
+
+★ 2026-11-16 캡틴 "AI 추론 실행이 너무 느려 — 뮤즈 AI 말고 기존 너로 변경" ★
+운영 실측: /api/ai/infer 전체 호출 93~99초(10:09·10:11 UTC). 원인은 Claude 호출의
+25초 시간 제한 × SDK 기본 재시도 2회(최대 75초 낭비) 뒤 Meta(Muse) 폴백.
+- 모델을 Claude Opus 5.5 로, 응답을 스트리밍으로 받는다(긴 출력도 읽기 시간 제한에
+  안 걸린다), 생각 깊이 effort=low(정책 요약 4문항이라 깊은 추론보다 속도가 우선).
+- 재시도 1회, 시간 제한 60초. 같은 요청을 세 번 기다리지 않는다.
+- Claude 가 실패해도 Meta 로 넘어가지 않는다(AEGIRON_INFER_META_FALLBACK=on 일 때만).
+  실패는 실패로 말하고 화면은 의사결정 트리 결과를 쓴다 — 100초 기다린 끝의 답보다 낫다.
+- 안전 분류기가 거절하면 서버 쪽 폴백("default")이 같은 요청을 다른 모델로 다시 돌린다.
+  누가 답했는지는 응답의 model 로 그대로 적는다.
 
 설계:
   1. 의사결정 트리로 즉시 권고 생성 (LLM 없이)
@@ -31,7 +42,17 @@ from .knowledge_base import retrieve, get_all_as_text
 from .decision_tree import classify_alert_level, get_priority_actions
 from . import meta_api as _meta
 
-_CLAUDE_MODEL = "claude-sonnet-4-6"
+_CLAUDE_MODEL = "claude-opus-5-5"
+# 생각은 끌 수 없는 모델이라(Opus 5.5) 깊이로 조절한다. 4문항 정책 요약 — 속도 우선.
+_CLAUDE_EFFORT = "low"
+# 생각 토큰이 상한을 나눠 쓴다 — 1200 이면 답이 잘릴 수 있다. 분량은 프롬프트(항목당 2~3문장)가 잡는다.
+_CLAUDE_MAX_TOKENS = 4000
+# 스트리밍이라 이 값은 '한 번의 읽기 대기' 상한에 가깝다. 재시도는 1회(429·5xx·연결 오류).
+_CLAUDE_TIMEOUT_SEC = 60.0
+_CLAUDE_MAX_RETRIES = 1
+_SERVER_FALLBACK_BETA = "server-side-fallback-2026-07-01"
+# Claude 실패 시 Meta 로 넘길지(기본 off — 캡틴 지시로 Muse 를 정책 추론 경로에서 뺐다)
+META_FALLBACK_ENV = "AEGIRON_INFER_META_FALLBACK"
 # ★ Meta 상한 8000(2026-11-03) ★ muse-spark-1.3은 추론 모델이라 max_tokens를
 # 생각+답이 나눠 쓴다. 직접 호출 실측: "Say hello."에 추론 354 + 답 18 토큰.
 # 1200으론 실전 프롬프트의 생각이 상한을 다 먹어 답이 null로 온다(HTTP 200).
@@ -144,33 +165,51 @@ def _call_meta(system_text: str, user_text: str) -> tuple[str, dict]:
         raise
 
 
+def _meta_fallback_on() -> bool:
+    return os.environ.get(META_FALLBACK_ENV, "off").lower() in ("on", "1", "true")
+
+
 def _call_claude(system_text: str, user_text: str, key: str,
-                 use_cache: bool) -> tuple[str, dict, bool]:
-    """Claude 1회 호출. (본문, 사용량, 캐시 히트 여부)."""
+                 use_cache: bool) -> tuple[str, dict, bool, str]:
+    """Claude 1회 호출(스트리밍). (본문, 사용량, 캐시 히트 여부, 실제로 답한 모델)."""
     import anthropic
-    client = anthropic.Anthropic(api_key=key, timeout=25.0)
+    client = anthropic.Anthropic(
+        api_key=key, timeout=_CLAUDE_TIMEOUT_SEC, max_retries=_CLAUDE_MAX_RETRIES)
 
     system_blocks: list = [{"type": "text", "text": system_text}]
     if use_cache:
         system_blocks[0]["cache_control"] = {"type": "ephemeral"}
 
-    response = client.messages.create(
+    with client.beta.messages.stream(
         model=_CLAUDE_MODEL,
-        max_tokens=1200,
+        max_tokens=_CLAUDE_MAX_TOKENS,
         system=system_blocks,
         messages=[{"role": "user", "content": user_text}],
-    )
+        output_config={"effort": _CLAUDE_EFFORT},
+        betas=[_SERVER_FALLBACK_BETA],
+        fallbacks="default",
+    ) as stream:
+        response = stream.get_final_message()
+
+    if response.stop_reason == "refusal":
+        # 폴백 모델까지 거절했다 — 빈 답을 성공으로 내지 않는다
+        raise RuntimeError("Claude 거절(stop_reason=refusal, 폴백 포함)")
     llm_text = "".join(
         block.text for block in response.content if block.type == "text"
     ).strip()
+    if not llm_text:
+        raise RuntimeError(f"Claude 응답 본문 없음(stop_reason={response.stop_reason})")
     usage = response.usage
     cache_stats = {
         "input_tokens": usage.input_tokens,
         "output_tokens": usage.output_tokens,
-        "cache_creation_tokens": getattr(usage, "cache_creation_input_tokens", 0),
-        "cache_read_tokens": getattr(usage, "cache_read_input_tokens", 0),
+        "cache_creation_tokens": getattr(usage, "cache_creation_input_tokens", 0) or 0,
+        "cache_read_tokens": getattr(usage, "cache_read_input_tokens", 0) or 0,
+        # 상한에 닿아 잘렸으면 화면·로그가 알 수 있게 남긴다
+        "stop_reason": response.stop_reason,
     }
-    return llm_text, cache_stats, cache_stats["cache_read_tokens"] > 0
+    served = getattr(response, "model", None) or _CLAUDE_MODEL
+    return llm_text, cache_stats, cache_stats["cache_read_tokens"] > 0, served
 
 
 def run_ai_inference(
@@ -263,6 +302,7 @@ def run_ai_inference(
 제목 없이 1~4 번호만."""
 
     # ★ Claude가 먼저 쓰고, 죽으면 Meta가 잇는다(2026-11-03 밤 순서 뒤집음) ★
+    # (2026-11-16) Claude 키가 있으면 Meta 폴백은 AEGIRON_INFER_META_FALLBACK=on 일 때만.
     # infer는 max_tokens 8000 + 추론 생각 토큰이라 Meta 실측 60~120초.
     # Vercel 60초 안에 Meta는 절대 못 끝나서, Meta 우선이면 매 호출 20초를
     # 태우고 Claude로 간다. 그래서 Claude를 먼저, Claude 오류 때만 Meta 폴백.
@@ -274,7 +314,7 @@ def run_ai_inference(
     if claude_key:
         try:
             _t0 = time.monotonic()
-            llm_text, cache_stats, cache_hit = _call_claude(
+            llm_text, cache_stats, cache_hit, served_model = _call_claude(
                 system_text, user_content, claude_key, use_cache)
             timings_ms["claude_ms"] = int((time.monotonic() - _t0) * 1000)
             return {
@@ -283,7 +323,7 @@ def run_ai_inference(
                 "rag_documents_used": [d["title"] for d in rag_docs],
                 "llm_analysis": llm_text,
                 "llm_provider": "anthropic",
-                "llm_model": _CLAUDE_MODEL,
+                "llm_model": served_model,
                 "meta_error": None,
                 "claude_error": None,
                 "cache_hit": cache_hit,
@@ -298,6 +338,10 @@ def run_ai_inference(
         claude_error = "키 없음"
     if not meta_key:
         raise RuntimeError(f"Claude 실패 후 Meta 폴백 불가(키 없음): {claude_error}")
+    if claude_key and not _meta_fallback_on():
+        # Claude 키가 있는데 실패했다 — Meta(60~120초)로 넘기지 않고 실패로 끝낸다.
+        raise RuntimeError(
+            f"Claude 실패(Meta 폴백 꺼짐 — {META_FALLBACK_ENV}=on 이면 켜짐): {claude_error}")
     _t0 = time.monotonic()
     try:
         llm_text, usage = _call_meta(meta_system_text, user_content)

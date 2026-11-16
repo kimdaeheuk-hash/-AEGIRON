@@ -3,7 +3,10 @@ import dynamic from 'next/dynamic';
 import { useDashboard } from '@/lib/useDashboard';
 import type { Country, StreamEvent, Outbreak, ChainWarning, AlertItem, AlertDashboard, TierSummaryEntry, PredictionAccuracy, VerifiedPrediction } from '@/lib/api';
 import { API_BASE } from '@/lib/api';
-import { numLocale, useDashLang, useT, type Tr } from '@/lib/dashLang';
+import { countryLabel } from '@/lib/countryNames';
+import { numLocale, useDashLang, useT, type DashLang, type Tr } from '@/lib/dashLang';
+import { alertLabel, evidenceLine, isUntranslated, tierName } from '@/lib/backendText';
+import { diseaseIn, diseaseName, koTitleTo, placeName } from '@/lib/observationNames';
 
 // 로딩 문구에 '실제로' 부르는 호스트를 쓴다(예전엔 localhost:8000 이 박혀 있어 운영에서도 그렇게 보였다).
 const API_HOST = API_BASE.replace(/^https?:\/\//, '');
@@ -39,13 +42,14 @@ function scoreColor(score: number): string {
 // ── 화면 1: GAI 배너 ──────────────────────────────────────────
 function Screen1Banner({ gai, tier, countries }: { gai: number; tier: string; countries: Country[] }) {
   const tr = useT();
+  const lang = useDashLang();
   const col = scoreColor(gai);
   const top5 = countries.slice(0, 8);
   return (
     <div className="card" style={{ background: `linear-gradient(135deg, rgba(14,22,35,.9), rgba(14,22,35,.6))`, border: `1px solid ${col}33` }}>
       <div className="card-h">
         <span className="lbl">🌐 {tr('글로벌 이상지수 (GAI)', 'Global Anomaly Index (GAI)', 'Indice mondial d’anomalie (GAI)')}</span>
-        <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: tierColor(tier), border: `1px solid ${tierColor(tier)}44`, borderRadius: 6, padding: '2px 8px' }}>{tier}</span>
+        <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: tierColor(tier), border: `1px solid ${tierColor(tier)}44`, borderRadius: 6, padding: '2px 8px' }}>{tierName(tier, lang)}</span>
       </div>
       {/* 실제 지도 (Leaflet + OpenStreetMap) */}
       <GlobalRiskMap countries={countries} />
@@ -83,7 +87,7 @@ function Screen1Banner({ gai, tier, countries }: { gai: number; tier: string; co
  * 값이 없는 칸은 비워 두지 않고 '질병 미상'·'위치 미상'으로 쓴다 — 모른다는 것도 정보다.
  * 어느 형식에도 안 맞으면 원문 대신 '형식을 알 수 없는 이벤트'라고만 쓴다.
  */
-function describeEvent(ev: StreamEvent, tr: Tr): { title: string; meta: string } {
+function describeEvent(ev: StreamEvent, tr: Tr, lang: DashLang): { title: string; meta: string } {
   if (ev.title || ev.text) {
     return {
       title: String(ev.title ?? ev.text),
@@ -91,8 +95,11 @@ function describeEvent(ev: StreamEvent, tr: Tr): { title: string; meta: string }
     };
   }
   if (ev.tier !== undefined || ev.representative || ev.sources) {
-    const disease = ev.disease ?? ev.representative?.disease ?? tr('질병 미상', 'disease unknown', 'maladie inconnue');
-    const where = ev.representative?.location || (ev.countries?.length ? ev.countries.join(', ') : tr('위치 미상', 'location unknown', 'lieu inconnu'));
+    // 서버가 준 질병·장소·등급은 한국어 — 화면 언어로 (2026-11-16)
+    const rawDisease = ev.disease ?? ev.representative?.disease;
+    const disease = rawDisease ? (diseaseName(rawDisease, lang) ?? rawDisease) : tr('질병 미상', 'disease unknown', 'maladie inconnue');
+    const rawWhere = ev.representative?.location || (ev.countries?.length ? ev.countries.join(', ') : null);
+    const where = rawWhere ? (placeName(rawWhere, lang) ?? rawWhere) : tr('위치 미상', 'location unknown', 'lieu inconnu');
     const srcs = ev.sources?.length ? ev.sources.join(', ') : (ev.representative?.source ?? '—');
     const parts = [
       srcs,
@@ -100,7 +107,7 @@ function describeEvent(ev: StreamEvent, tr: Tr): { title: string; meta: string }
       typeof ev.merged_score === 'number' ? tr(`점수 ${Math.round(ev.merged_score)}`, `score ${Math.round(ev.merged_score)}`, `score ${Math.round(ev.merged_score)}`) : null,
       ev.latest_signal_date ? String(ev.latest_signal_date).slice(0, 10) : null,
     ].filter(Boolean);
-    return { title: `${ev.tier ? `${ev.tier} · ` : ''}${disease} · ${where}`, meta: parts.join(' · ') };
+    return { title: `${ev.tier ? `${tierName(String(ev.tier), lang)} · ` : ''}${disease} · ${where}`, meta: parts.join(' · ') };
   }
   return { title: tr('형식을 알 수 없는 이벤트', 'Event in an unknown format', 'Événement au format inconnu'), meta: ev.source ?? ev.layer ?? '—' };
 }
@@ -108,6 +115,7 @@ function describeEvent(ev: StreamEvent, tr: Tr): { title: string; meta: string }
 // ── 화면 2: 이벤트 스트림 ─────────────────────────────────────
 function Screen2Events({ events, total }: { events: StreamEvent[]; total: number }) {
   const tr = useT();
+  const lang = useDashLang();
   return (
     <div className="card" style={{ maxHeight: 300, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <div className="card-h">
@@ -123,10 +131,10 @@ function Screen2Events({ events, total }: { events: StreamEvent[]; total: number
             <div key={i} style={{ padding: '8px 0', borderBottom: '1px solid var(--line)', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontFamily: 'var(--kr)', fontSize: 12, color: 'var(--txt)', lineHeight: 1.4 }}>
-                  {describeEvent(ev, tr).title}
+                  {describeEvent(ev, tr, lang).title}
                 </div>
                 <div style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted2)', marginTop: 3 }}>
-                  {describeEvent(ev, tr).meta}
+                  {describeEvent(ev, tr, lang).meta}
                 </div>
               </div>
               {conf != null && (
@@ -143,8 +151,26 @@ function Screen2Events({ events, total }: { events: StreamEvent[]; total: number
 }
 
 // ── 화면 3: 발병 타임라인 ─────────────────────────────────────
+/**
+ * 타임라인 제목을 화면 언어로 (2026-11-16, 캡틴 '번역들이 꼬인 거 같은데').
+ * event_name 은 예측 채점 대조 키라 추출 원문이 이어 붙어 언어가 섞인다
+ * ('Ebola disease … 에볼라 Kenya and Nigeria 2026'). 질병(웹 사전 → 백엔드 정규 키)·ISO3·연도가
+ * 다 읽힐 때만 '질병 · 나라 · 연도'로 다시 쓰고, 원문은 아래 작은 줄에 남긴다. 하나라도 없으면 null(원문 그대로).
+ */
+function outbreakTitle(ob: Outbreak, lang: DashLang): string | null {
+  if (!ob.iso3 || !ob.year) return null;
+  const country = countryLabel(ob.iso3, lang);
+  const fromKey =
+    ob.disease_key &&
+    (lang === 'ko' ? (ob.disease_key === 'MERS' ? '메르스' : ob.disease_key) : diseaseName(ob.disease_key, lang));
+  const disease = diseaseIn(ob.event_name, lang) ?? fromKey;
+  if (!country || !disease) return null;
+  return `${disease.charAt(0).toUpperCase()}${disease.slice(1)} · ${country} · ${ob.year}`;
+}
+
 function Screen3Timeline({ outbreaks }: { outbreaks: Outbreak[] }) {
   const tr = useT();
+  const lang = useDashLang();
   return (
     <div className="card" style={{ maxHeight: 300, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <div className="card-h">
@@ -157,8 +183,12 @@ function Screen3Timeline({ outbreaks }: { outbreaks: Outbreak[] }) {
           <div key={ob.id ?? i} style={{ padding: '7px 0', borderBottom: '1px solid var(--line)', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
             <div style={{ width: 3, background: 'var(--accent)', borderRadius: 2, alignSelf: 'stretch', flexShrink: 0 }} />
             <div style={{ flex: 1 }}>
-              <div style={{ fontFamily: 'var(--disp)', fontSize: 12, fontWeight: 700, color: 'var(--txt)' }}>
-                {ob.event_name ?? ob.event_id ?? '—'}
+              {/* 원문(채점 대조 키)은 언어가 섞여 있어 본문 대신 마우스를 올리면 보이게 둔다 (2026-11-16) */}
+              <div
+                style={{ fontFamily: 'var(--disp)', fontSize: 12, fontWeight: 700, color: 'var(--txt)' }}
+                title={outbreakTitle(ob, lang) && ob.event_name ? `${tr('원문', 'Source text', 'Texte source')}: ${ob.event_name}` : undefined}
+              >
+                {outbreakTitle(ob, lang) ?? koTitleTo(ob.event_name ?? null, lang) ?? ob.event_id ?? '—'}
               </div>
               <div style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>
                 {ob.milestone ?? ''}{ob.event_date ? ` · ${String(ob.event_date).slice(0, 10)}` : ''}
@@ -217,6 +247,7 @@ function Screen5Forecast({
 }) {
   const acc = trackRecord.accuracy;
   const tr = useT();
+  const lang = useDashLang();
   return (
     <div className="card">
       <div className="card-h">
@@ -231,7 +262,7 @@ function Screen5Forecast({
           <div key={item.label} className="oc">
             <div className="ok">{item.label}</div>
             <div className="ov" style={{ color: scoreColor(item.score) }}>{Math.round(item.score)}</div>
-            <div className="od" style={{ color: tierColor(item.tier) }}>{item.tier}</div>
+            <div className="od" style={{ color: tierColor(item.tier) }}>{tierName(item.tier, lang)}</div>
           </div>
         ))}
       </div>
@@ -298,6 +329,7 @@ function Screen6Alerts({
 }) {
   const topItems: AlertItem[] = dashboard?.top ?? [];
   const tr = useT();
+  const lang = useDashLang();
 
   const tierDefs: { key: string; label: string; col: string }[] = [
     { key: 'critical', label: 'CRITICAL', col: '#ef4444' },
@@ -336,10 +368,10 @@ function Screen6Alerts({
               <div key={i} style={{ padding: '8px 10px', background: `${col}0d`, borderRadius: 8, border: `1px solid ${col}22` }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{ fontFamily: 'var(--mono)', fontSize: 9, color: col, border: `1px solid ${col}44`, borderRadius: 4, padding: '1px 5px', flexShrink: 0 }}>
-                    {(a.tier ?? '').toUpperCase()}
+                    {tierName(a.tier ?? '', lang).toUpperCase()}
                   </div>
                   <div style={{ flex: 1, fontFamily: 'var(--kr)', fontSize: 12, color: 'var(--txt)', lineHeight: 1.4 }}>
-                    {a.label ?? a.metric ?? a.message ?? '—'}
+                    {a.label ? alertLabel(a.label, lang) : (a.metric ?? a.message ?? '—')}
                   </div>
                   {a.score != null && (
                     <div style={{ fontFamily: 'var(--mono)', fontSize: 12, color: col, flexShrink: 0 }}>{Math.round(a.score)}</div>
@@ -350,7 +382,8 @@ function Screen6Alerts({
                   <div style={{ marginTop: 6, paddingLeft: 8, borderLeft: `2px solid ${col}33` }}>
                     {a.evidence.map((e, ei) => (
                       <div key={ei} style={{ fontFamily: 'var(--mono)', fontSize: 9.5, color: 'var(--muted2)', lineHeight: 1.6 }}>
-                        · {e}
+                        · {evidenceLine(String(e), lang)}
+                        {isUntranslated(evidenceLine(String(e), lang), lang) ? ` ${tr('', '(original in Korean)', '(original en coréen)')}` : ''}
                       </div>
                     ))}
                   </div>

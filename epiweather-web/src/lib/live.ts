@@ -5,6 +5,11 @@
  * 못 읽으면 null — 화면은 지어낸 값 대신 "지금 읽어 오지 못했다"를 쓴다.
  */
 
+import type { Locale } from '@/i18n';
+import { countryLabel } from './countryNames';
+import { alertLabel, countryCell, evidenceLine, isUntranslated, tierName } from './backendText';
+import { diseaseName, placeName } from './observationNames';
+
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ??
   'https://epiweather-api-production.up.railway.app';
@@ -73,13 +78,22 @@ export type RiskRow = {
   dominant_disease?: string | null;
 };
 
-export async function getRiskTop(n = 8): Promise<RiskRow[] | null> {
+/**
+ * 위험 상위 나라. 백엔드 name 은 손으로 정리한 몇 나라만 한국어이고 나머지는 영문이라
+ * (2026-11-16 캡틴 '번역들이 꼬인 거 같은데' — 'Sudan · 사우디아라비아 · Cambodia' 혼용)
+ * 화면 언어에 맞춰 ISO3 로 이름을 다시 붙인다. 사전에 없는 나라는 받은 이름을 지명 사전으로 옮긴다.
+ */
+export async function getRiskTop(n = 8, locale: Locale = 'ko'): Promise<RiskRow[] | null> {
   const d = await getJson<{ countries?: RiskRow[] }>('/api/risk-index');
   if (!d?.countries) return null;
   return [...d.countries]
     .filter((c) => typeof c.risk_score === 'number')
     .sort((a, b) => b.risk_score - a.risk_score)
-    .slice(0, n);
+    .slice(0, n)
+    .map((c) => ({
+      ...c,
+      name: localName(c.country, c.name, locale) ?? c.name,
+    }));
 }
 
 export type AlertItem = {
@@ -90,10 +104,21 @@ export type AlertItem = {
   evidence?: string[];
 };
 
-export async function getTopAlerts(): Promise<{ date?: string; items: AlertItem[] } | null> {
+/** 경보 상위. 서버 라벨·근거·등급은 한국어라 화면 언어로 옮긴다(아는 틀만 — backendText). */
+export async function getTopAlerts(locale: Locale = 'ko'): Promise<{ date?: string; items: AlertItem[] } | null> {
   const d = await getJson<{ date?: string; dashboard?: { top?: AlertItem[] } }>('/api/alerts');
   if (!d?.dashboard) return null;
-  return { date: d.date, items: d.dashboard.top ?? [] };
+  const items = (d.dashboard.top ?? []).map((a) => ({
+    ...a,
+    label: alertLabel(a.label, locale),
+    tier: tierName(a.tier, locale),
+    evidence: a.evidence?.map((ev) => {
+      const out = evidenceLine(ev, locale);
+      // 모르는 틀은 지어 옮기지 않는다 — 원문임을 밝혀 둔다
+      return isUntranslated(out, locale) ? `${out} ${locale === 'fr' ? '(original en coréen)' : '(original in Korean)'}` : out;
+    }),
+  }));
+  return { date: d.date, items };
 }
 
 export type Prediction = {
@@ -112,9 +137,19 @@ export type Prediction = {
   ots_submitted_at?: string | null;
 };
 
-export async function getPredictions(): Promise<Prediction[] | null> {
+/** 예측 원장. 나라·질병 이름만 화면 언어로(원장 값·해시는 그대로). */
+export async function getPredictions(locale: Locale = 'ko'): Promise<Prediction[] | null> {
   const d = await getJson<{ predictions?: Prediction[] }>('/api/predictions');
-  return d?.predictions ?? null;
+  if (!d?.predictions) return null;
+  if (locale === 'ko') return d.predictions;
+  return d.predictions.map((p) => ({
+    ...p,
+    country: countryCell(/^[A-Z]{3}$/.test(p.country) ? p.country : null, p.country, locale),
+    disease: (() => {
+      const dz = diseaseName(p.disease, locale) ?? p.disease;
+      return dz === p.disease ? alertLabel(p.disease, locale) : dz;
+    })(),
+  }));
 }
 
 export type Scorecard = {
@@ -150,9 +185,18 @@ export type Ledger = {
   entries: LedgerEntry[];
 };
 
-export async function getLedger(): Promise<Ledger | null> {
+/** 선행성 원장. 질병 이름만 화면 언어로(값은 그대로). '종합 위험도(GAI 기반)' 같은 라벨은 경보 라벨 표로. */
+export async function getLedger(locale: Locale = 'ko'): Promise<Ledger | null> {
   const d = await getJson<Ledger>('/api/lead-time-ledger?limit=50');
-  return d?.summary && Array.isArray(d.entries) ? d : null;
+  if (!(d?.summary && Array.isArray(d.entries))) return null;
+  if (locale === 'ko') return d;
+  return {
+    ...d,
+    entries: d.entries.map((e) => {
+      const dz = diseaseName(e.disease, locale) ?? e.disease;
+      return { ...e, disease: dz === e.disease ? alertLabel(e.disease, locale) : dz };
+    }),
+  };
 }
 
 /** 예측 판정 상태 — 백엔드 outcome·correct 를 화면 네 갈래로. */
@@ -319,9 +363,16 @@ export type KoreaImportReport = {
 };
 
 /** 없으면(첫 주 생성 전 404 포함) null — 화면은 '아직 없음/읽지 못함'을 쓴다. */
-export async function getKoreaImportReport(): Promise<KoreaImportReport | null> {
+/** 백엔드 나라 이름(일부만 한국어)을 화면 언어로 — getRiskTop 과 같은 이유. */
+function localName(iso3: string, name: string | null, locale: Locale): string | null {
+  return countryLabel(iso3, locale) ?? (locale === 'ko' || !name ? name : (placeName(name, locale) ?? name));
+}
+
+export async function getKoreaImportReport(locale: Locale = 'ko'): Promise<KoreaImportReport | null> {
   const d = await getJson<KoreaImportReport>('/api/korea-import-report');
-  return d?.week && Array.isArray(d.top_exposure) ? d : null;
+  if (!(d?.week && Array.isArray(d.top_exposure))) return null;
+  const fix = (rows: ImportRow[] | undefined) => (rows ?? []).map((r) => ({ ...r, name: localName(r.country, r.name, locale) }));
+  return { ...d, top_exposure: fix(d.top_exposure), no_direct_route_high: fix(d.no_direct_route_high) };
 }
 
 /** 2026 · 43 → "2026-W43" */

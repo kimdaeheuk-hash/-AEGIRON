@@ -15,7 +15,8 @@
 import type { Locale } from '@/i18n';
 import type { GlobeData, GlobeLayer } from './globeData';
 import { EN_ISO3, KO_ISO3 } from './isoGeo';
-import { placeName } from './observationNames';
+import { cdcHeadline } from './backendText';
+import { diseaseName, placeName } from './observationNames';
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ?? 'https://epiweather-api-production.up.railway.app';
@@ -143,11 +144,11 @@ async function fromBackend(locale: Locale): Promise<CardsData | null> {
         trade: num(counts.trade) ?? 0,
       },
       travelLevel: num(c.travel_level),
-      travelTitles: Array.isArray(c.travel_titles) ? (c.travel_titles as unknown[]).map(String) : [],
+      travelTitles: Array.isArray(c.travel_titles) ? (c.travel_titles as unknown[]).map((t) => cdcHeadline(String(t), locale) ?? String(t)) : [],
       intensity: num(c.intensity) ?? 0,
       grade: grade === 'high' || grade === 'elevated' ? grade : 'watch',
       riskScore: num(c.risk_score),
-      dominantDisease: str(c.dominant_disease),
+      dominantDisease: diseaseName(str(c.dominant_disease), locale),
       korea: { routes: num(korea.routes), passengers: num(korea.passengers) },
       evidence: arr(c.evidence).map((e) => ({
         layer: (str(e.layer) ?? 'event') as CountryCard['evidence'][number]['layer'],
@@ -224,7 +225,7 @@ export async function getCountryCards(locale: Locale, globe: GlobeData): Promise
     c.lat = num(r.lat);
     c.lng = num(r.lng);
     c.riskScore = num(r.risk_score);
-    c.dominantDisease = str(r.dominant_disease);
+    c.dominantDisease = diseaseName(str(r.dominant_disease), locale);
   }
 
   // 한국 연결 — 유입 보고서의 노출 국가 목록

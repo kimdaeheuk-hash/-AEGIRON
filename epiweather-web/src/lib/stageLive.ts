@@ -16,6 +16,8 @@
 import { API_BASE } from '@/lib/api';
 import type { DashLang } from '@/lib/dashLang';
 import { KO_ISO3 } from '@/lib/isoGeo';
+import { cdcHeadline, countryText, gdacsTitle } from '@/lib/backendText';
+import { countryLabel } from '@/lib/countryNames';
 import { diseaseName, labelName, placeName } from '@/lib/observationNames';
 
 /** ISO3 → 한국어 나라 이름(가장 짧은 표기), 없으면 코드 그대로 */
@@ -374,12 +376,12 @@ const SOCIAL: Source = {
 const TRAVEL: Source = {
   name: { ko: 'CDC 여행경보', en: 'CDC travel notices', fr: 'Avis de voyage du CDC' },
   path: '/api/travel-notices',
-  rows: (b, { fmt }) =>
+  rows: (b, { fmt }, lang) =>
     arr(b.high_severity_notices)
       .slice(0, 3)
       .map((n) =>
         row({
-          target: str(n.headline) ?? DASH,
+          target: cdcHeadline(str(n.headline), lang) ?? DASH,
           measured: `CDC Level ${fmt(num(n.level))}`,
           derived: DASH,
           time: str(n.pub_date)?.slice(5, 16) ?? DASH,
@@ -419,13 +421,14 @@ const TRADE: Source = {
 const RISK: Source = {
   name: { ko: '나라별 위험지수', en: 'Country risk index', fr: 'Indice de risque par pays' },
   path: '/api/risk-index',
-  rows: (b, { t, fmt, dz, pl }) =>
+  rows: (b, { t, fmt, dz, pl }, lang) =>
     arr(b.countries)
       .filter((c) => c.has_signal === true)
       .slice(0, 3)
       .map((c) =>
         row({
-          target: pl(str(c.name)) ?? str(c.country) ?? DASH,
+          // 백엔드 name 은 일부만 한국어('Sudan · 사우디아라비아' 혼용) — ISO3 로 화면 언어 이름을 먼저 (2026-11-16)
+          target: countryLabel(str(c.country), lang) ?? pl(str(c.name)) ?? str(c.country) ?? DASH,
           measured: t.mainDisease(dz(str(c.dominant_disease)) ?? DASH),
           derived: t.riskScore(fmt(num(c.risk_score), 1)),
           time: t.hourly,
@@ -485,14 +488,14 @@ const KOREA_ROUTES: Source = {
 const DISASTER: Source = {
   name: { ko: '재난 감시창(GDACS)', en: 'Disaster watch windows (GDACS)', fr: 'Fenêtres de veille catastrophes (GDACS)' },
   path: '/api/disaster-watch',
-  rows: (b, { t, fmt, pl }) =>
+  rows: (b, { t, fmt, pl }, lang) =>
     arr(b.countries)
       .slice(0, 4)
       .map((c) => {
         const w = arr(c.open_windows)[0] ?? {};
         return row({
-          target: pl(str(c.country)) ?? str(c.country_iso3) ?? DASH,
-          measured: t.alertLevel(str(w.alert_level) ?? DASH, (str(w.title) ?? DASH).slice(0, 70)),
+          target: countryText(str(c.country), str(c.country_iso3), lang) ?? pl(str(c.country)) ?? DASH,
+          measured: t.alertLevel(str(w.alert_level) ?? DASH, (gdacsTitle(str(w.title), lang) ?? DASH).slice(0, 70)),
           derived: t.windows(fmt(num(c.window_count))),
           time: day(w.disaster_date),
           source: 'GDACS',
