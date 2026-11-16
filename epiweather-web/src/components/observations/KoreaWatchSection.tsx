@@ -1,5 +1,6 @@
 import { Card } from '@astryxdesign/core/Card';
 import { HStack } from '@astryxdesign/core/HStack';
+import { Link } from '@astryxdesign/core/Link';
 import { List, ListItem } from '@astryxdesign/core/List';
 import { Heading, Text } from '@astryxdesign/core/Text';
 import { Token } from '@astryxdesign/core/Token';
@@ -43,6 +44,11 @@ export default async function KoreaWatchSection({ locale }: { locale: Locale }) 
             <Heading level={2}>{t.title}</Heading>
             <Text color="secondary">{t.lead}</Text>
             <Text type="supporting">{t.interpretation}</Text>
+            <Link href={localePath(locale, 'reports/weekly')}>
+              <Text weight="semibold" color="inherit">
+                {o.weekly.eyebrow} →
+              </Text>
+            </Link>
           </VStack>
 
           <Card padding={4}>

@@ -573,6 +573,26 @@ export type ObservationsDict = {
     empty: string;
     unavailable: string;
   };
+  /** 주간 해외유입 위험 보고서 무료 베타 /reports/weekly (2026-11-16) — {week} 은 ISO 주 */
+  weekly: {
+    metaTitle: string;
+    metaDescription: string;
+    eyebrow: string;
+    title: string;
+    lead: string;
+    betaTitle: string;
+    betaBody: string;
+    subscribe: string;
+    weeksLabel: string;
+    latest: string;
+    travelLabel: string;
+    openCountry: string;
+    indexNote: string;
+    serverCaveats: string;
+    printHint: string;
+    missing: string;
+    unavailable: string;
+  };
   /** /korea 아래 한국 관점(안보) 관측 묶음 (2026-11-16) */
   korea: {
     eyebrow: string;
