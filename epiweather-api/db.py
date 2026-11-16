@@ -352,6 +352,23 @@ CREATE TABLE IF NOT EXISTS observations (
 CREATE INDEX IF NOT EXISTS idx_observations_key ON observations(layer, target, metric, id);
 CREATE INDEX IF NOT EXISTS idx_observations_layer_time ON observations(layer, confirmed_at);
 
+-- 발병국 대응 조치(2026-11-16) — WHO DON 'Response' 단락을 정해진 낱말로 읽은 것. 실행 정도·효과는 판정하지 않는다.
+CREATE TABLE IF NOT EXISTS don_response_measures (
+    don_id            TEXT NOT NULL,
+    iso3              TEXT NOT NULL,
+    measure           TEXT NOT NULL,   -- don_response.MEASURES 키
+    disease           TEXT,
+    published         TEXT NOT NULL,   -- DON 발행일
+    evidence          TEXT NOT NULL,   -- 근거 문장(영어 원문)
+    url               TEXT,
+    title             TEXT,
+    country_from      TEXT,            -- title | body
+    shared_countries  INTEGER NOT NULL DEFAULT 1,  -- 같은 발표가 말한 나라 수(나라별로 갈라 읽지 않음)
+    seen_at           TEXT NOT NULL,
+    PRIMARY KEY (don_id, iso3, measure)
+);
+CREATE INDEX IF NOT EXISTS idx_don_response_iso3 ON don_response_measures(iso3, published);
+
 -- 스키마 버전(2026-11-02). init_db()가 매 호출마다 DDL 전문을 돌리지 않게
 -- 1행짜리 버전표로 판정한다. 스키마를 바꾸면 SCHEMA_VERSION을 올릴 것.
 CREATE TABLE IF NOT EXISTS _schema_version (
@@ -394,7 +411,8 @@ def get_connection() -> sqlite3.Connection:
 # _migrate 자체가 버전 게이트 뒤에 있으므로).
 # v4 (2026-11-03): match_ledger 추가.
 # v5 (2026-11-15): observations(관측값 시계열) 추가.
-SCHEMA_VERSION = 5
+# v6 (2026-11-16): don_response_measures(발병국 대응 조치) 추가.
+SCHEMA_VERSION = 6
 
 
 def _db_version(conn: sqlite3.Connection) -> int:
@@ -742,6 +760,35 @@ def observation_coverage() -> list[dict]:
             "FROM observations GROUP BY layer ORDER BY layer"
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+def upsert_don_response(r: dict) -> bool:
+    """대응 조치 한 건. 같은 (DON, 나라, 조치)는 처음 것을 지킨다. 새로 넣었으면 True."""
+    with get_connection() as conn:
+        cur = conn.execute(
+            "INSERT OR IGNORE INTO don_response_measures (don_id, iso3, measure, disease, published, evidence, url, "
+            "title, country_from, shared_countries, seen_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (r["don_id"], r["iso3"], r["measure"], r.get("disease"), r["published"], r["evidence"], r.get("url"),
+             r.get("title"), r.get("country_from"), int(r.get("shared_countries") or 1),
+             datetime.now(timezone.utc).isoformat()),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+
+
+def list_don_responses(iso3: str | None = None, since: str | None = None, limit: int = 500) -> list[dict]:
+    sql = "SELECT * FROM don_response_measures WHERE 1=1"
+    args: list = []
+    if iso3:
+        sql += " AND iso3 = ?"
+        args.append(iso3)
+    if since:
+        sql += " AND published >= ?"
+        args.append(since)
+    sql += " ORDER BY published DESC, don_id, measure LIMIT ?"
+    args.append(limit)
+    with get_connection() as conn:
+        return [dict(r) for r in conn.execute(sql, args).fetchall()]
 
 
 def latest_daily_brief(lang: str = "ko", max_age_days: int = 2) -> tuple[str, dict] | None:
