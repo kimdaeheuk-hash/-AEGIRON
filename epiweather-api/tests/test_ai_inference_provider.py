@@ -1,4 +1,4 @@
-"""Stage 7 추론 LLM 제공자 — Claude 우선·Meta 폴백(2026-11-03 밤 순서 뒤집음).
+"""Stage 7 추론 LLM 제공자 — Claude(Opus 5.5) 우선. Meta 폴백은 2026-11-16 부터 스위치로만.
 
 infer는 max_tokens 8000 + 추론 생각 토큰이라 Meta 실측 60~120초.
 Vercel 60초 안에 Meta는 절대 못 끝나서 Meta 우선이면 매 호출 20초를
@@ -59,16 +59,47 @@ class _ClaudeUsage:
 class _ClaudeResp:
     content = [_ClaudeBlock("1) 평가 2) 개입 3) 취약계층 4) 결정")]
     usage = _ClaudeUsage()
+    stop_reason = "end_turn"
+    model = "claude-opus-5-5"
 
 
-class _ClaudeClient:
-    def __init__(self, *a, **kw):
-        pass
+class _Stream:
+    def __init__(self, resp):
+        self._resp = resp
 
-    class messages:
-        @staticmethod
-        def create(**kw):
-            return _ClaudeResp()
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def get_final_message(self):
+        return self._resp
+
+
+def _client_cls(resp=None, sent=None, init_kw=None):
+    """anthropic.Anthropic 대역 — beta.messages.stream(...) 컨텍스트 관리자."""
+    class _C:
+        def __init__(self, *a, **kw):
+            if init_kw is not None:
+                init_kw.update(kw)
+            outer = self
+
+            class _Msgs:
+                @staticmethod
+                def stream(**kw):
+                    if sent is not None:
+                        sent.update(kw)
+                    return _Stream(resp or _ClaudeResp())
+
+            class _Beta:
+                messages = _Msgs
+
+            outer.beta = _Beta
+    return _C
+
+
+_ClaudeClient = _client_cls()
 
 
 class _BoomClient:
@@ -86,7 +117,7 @@ def test_claude_first_when_keys_present(monkeypatch):
         out = ai.run_ai_inference(_situation())
     m.assert_not_called()
     assert out["llm_provider"] == "anthropic"
-    assert out["llm_model"] == "claude-sonnet-4-6"
+    assert out["llm_model"] == "claude-opus-5-5"
     assert out["meta_error"] is None
     assert out["provider_path"] == "claude_first"
     assert "1) 평가" in out["llm_analysis"]
@@ -95,6 +126,7 @@ def test_claude_first_when_keys_present(monkeypatch):
 def test_claude_error_falls_back_to_meta(monkeypatch):
     """Claude 오류 때만 Meta 폴백 — 사용량 정규화도 여기서 본다."""
     _reset(monkeypatch)
+    monkeypatch.setenv(ai.META_FALLBACK_ENV, "on")
     monkeypatch.setenv(meta_api.KEY_ENV, "meta-key")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "claude-key")
     with patch("requests.post", return_value=_meta_resp(
@@ -138,6 +170,7 @@ def test_no_keys_raises(monkeypatch):
 def test_require_local_blocks_meta_fallback(monkeypatch):
     """Claude 오류 + 주권 모드면 호스팅 Meta 폴백이 HTTP 전에 막힌다."""
     _reset(monkeypatch)
+    monkeypatch.setenv(ai.META_FALLBACK_ENV, "on")
     monkeypatch.setenv(meta_api.KEY_ENV, "meta-key")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "claude-key")
     monkeypatch.setenv("AEGIRON_REQUIRE_LOCAL", "on")
@@ -201,30 +234,75 @@ def test_meta_system_omits_full_kb_dump_but_keeps_rag(monkeypatch):
 
 
 def test_claude_system_keeps_full_kb_dump(monkeypatch):
-    """Claude 경로는 전체 지식베이스+캐싱 그대로(동작 변경 없음)."""
+    """Claude 경로는 전체 지식베이스+캐싱 그대로."""
     _reset(monkeypatch)
     monkeypatch.setenv("ANTHROPIC_API_KEY", "claude-key")
     sent = {}
-
-    class _CapClient:
-        def __init__(self, *a, **kw):
-            pass
-
-        class messages:
-            @staticmethod
-            def create(**kw):
-                sent.update(kw)
-                return _ClaudeResp()
-
-    with patch("anthropic.Anthropic", _CapClient):
+    with patch("anthropic.Anthropic", _client_cls(sent=sent)):
         ai.run_ai_inference(_situation())
     assert "한국 방역 지식베이스" in sent["system"][0]["text"]
     assert sent["system"][0].get("cache_control") == {"type": "ephemeral"}
 
 
+def test_claude_call_is_fast_shape(monkeypatch):
+    """2026-11-16 운영 93~99초의 원인(25초×재시도 2회 → Meta)을 다시 들이지 않는다:
+    Opus 5.5 · 스트리밍 · effort low · 재시도 1회 · 서버 쪽 거절 폴백."""
+    _reset(monkeypatch)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "claude-key")
+    sent, init_kw = {}, {}
+    with patch("anthropic.Anthropic", _client_cls(sent=sent, init_kw=init_kw)):
+        out = ai.run_ai_inference(_situation())
+    assert sent["model"] == "claude-opus-5-5"
+    assert sent["output_config"] == {"effort": "low"}
+    assert sent["fallbacks"] == "default"
+    assert "server-side-fallback-2026-07-01" in sent["betas"]
+    assert sent["max_tokens"] >= 4000  # 생각 토큰이 상한을 나눠 쓴다
+    assert init_kw["max_retries"] <= 1
+    assert out["usage"]["stop_reason"] == "end_turn"
+
+
+def test_claude_error_does_not_fall_back_to_meta_by_default(monkeypatch):
+    """캡틴 지시(뮤즈 말고 Claude) — Claude 가 실패해도 기본으로는 Meta 를 부르지 않는다."""
+    _reset(monkeypatch)
+    monkeypatch.setenv(meta_api.KEY_ENV, "meta-key")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "claude-key")
+    with patch("requests.post") as m, patch("anthropic.Anthropic", _BoomClient), \
+            pytest.raises(RuntimeError, match="Meta 폴백 꺼짐"):
+        ai.run_ai_inference(_situation())
+    m.assert_not_called()
+
+
+def test_refusal_is_not_success(monkeypatch):
+    """폴백까지 거절하면 빈 답을 성공으로 내지 않는다."""
+    _reset(monkeypatch)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "claude-key")
+
+    class _Refused(_ClaudeResp):
+        stop_reason = "refusal"
+        content = ()
+
+    with patch("anthropic.Anthropic", _client_cls(resp=_Refused())), \
+            pytest.raises(RuntimeError, match="refusal"):
+        ai.run_ai_inference(_situation())
+
+
+def test_served_model_is_reported(monkeypatch):
+    """서버 쪽 폴백이 다른 모델로 답했으면 그 모델 이름을 그대로 적는다."""
+    _reset(monkeypatch)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "claude-key")
+
+    class _Fallback(_ClaudeResp):
+        model = "claude-opus-4-8"
+
+    with patch("anthropic.Anthropic", _client_cls(resp=_Fallback())):
+        out = ai.run_ai_inference(_situation())
+    assert out["llm_model"] == "claude-opus-4-8"
+
+
 def test_both_fail_reports_both(monkeypatch):
     """Claude 오류 + Meta HTTP 실패면 둘 다 실패로 말한다(상태코드+본문)."""
     _reset(monkeypatch)
+    monkeypatch.setenv(ai.META_FALLBACK_ENV, "on")
     monkeypatch.setenv(meta_api.KEY_ENV, "meta-key")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "claude-key")
     with patch("requests.post", return_value=_HttpFail()), \
