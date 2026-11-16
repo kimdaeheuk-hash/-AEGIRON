@@ -20,3 +20,11 @@ export function useDashLang(): DashLang {
 export function numLocale(lang: DashLang): string {
   return lang === 'ko' ? 'ko-KR' : lang === 'fr' ? 'fr-FR' : 'en-US';
 }
+
+/** 한 줄 번역 — t('한국어', 'English', 'Français'). 단계 화면 안 문구에 쓴다. */
+export type Tr = (ko: string, en: string, fr: string) => string;
+
+export function useT(): Tr {
+  const lang = useDashLang();
+  return (ko, en, fr) => (lang === 'en' ? en : lang === 'fr' ? fr : ko);
+}

@@ -3,6 +3,7 @@ import dynamic from 'next/dynamic';
 import { useDashboard } from '@/lib/useDashboard';
 import type { Country, StreamEvent, Outbreak, ChainWarning, AlertItem, AlertDashboard, TierSummaryEntry, PredictionAccuracy, VerifiedPrediction } from '@/lib/api';
 import { API_BASE } from '@/lib/api';
+import { numLocale, useDashLang, useT, type Tr } from '@/lib/dashLang';
 
 // 로딩 문구에 '실제로' 부르는 호스트를 쓴다(예전엔 localhost:8000 이 박혀 있어 운영에서도 그렇게 보였다).
 const API_HOST = API_BASE.replace(/^https?:\/\//, '');
@@ -12,7 +13,7 @@ const GlobalRiskMap = dynamic(() => import('@/components/GlobalRiskMap'), {
   ssr: false,
   loading: () => (
     <div className="grm-wrap" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted2)', fontFamily: 'var(--mono)', fontSize: 11 }}>
-      지도 불러오는 중...
+      …
     </div>
   ),
 });
@@ -37,12 +38,13 @@ function scoreColor(score: number): string {
 
 // ── 화면 1: GAI 배너 ──────────────────────────────────────────
 function Screen1Banner({ gai, tier, countries }: { gai: number; tier: string; countries: Country[] }) {
+  const tr = useT();
   const col = scoreColor(gai);
   const top5 = countries.slice(0, 8);
   return (
     <div className="card" style={{ background: `linear-gradient(135deg, rgba(14,22,35,.9), rgba(14,22,35,.6))`, border: `1px solid ${col}33` }}>
       <div className="card-h">
-        <span className="lbl">🌐 글로벌 이상지수 (GAI)</span>
+        <span className="lbl">🌐 {tr('글로벌 이상지수 (GAI)', 'Global Anomaly Index (GAI)', 'Indice mondial d’anomalie (GAI)')}</span>
         <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: tierColor(tier), border: `1px solid ${tierColor(tier)}44`, borderRadius: 6, padding: '2px 8px' }}>{tier}</span>
       </div>
       {/* 실제 지도 (Leaflet + OpenStreetMap) */}
@@ -81,7 +83,7 @@ function Screen1Banner({ gai, tier, countries }: { gai: number; tier: string; co
  * 값이 없는 칸은 비워 두지 않고 '질병 미상'·'위치 미상'으로 쓴다 — 모른다는 것도 정보다.
  * 어느 형식에도 안 맞으면 원문 대신 '형식을 알 수 없는 이벤트'라고만 쓴다.
  */
-function describeEvent(ev: StreamEvent): { title: string; meta: string } {
+function describeEvent(ev: StreamEvent, tr: Tr): { title: string; meta: string } {
   if (ev.title || ev.text) {
     return {
       title: String(ev.title ?? ev.text),
@@ -89,30 +91,31 @@ function describeEvent(ev: StreamEvent): { title: string; meta: string } {
     };
   }
   if (ev.tier !== undefined || ev.representative || ev.sources) {
-    const disease = ev.disease ?? ev.representative?.disease ?? '질병 미상';
-    const where = ev.representative?.location || (ev.countries?.length ? ev.countries.join(', ') : '위치 미상');
+    const disease = ev.disease ?? ev.representative?.disease ?? tr('질병 미상', 'disease unknown', 'maladie inconnue');
+    const where = ev.representative?.location || (ev.countries?.length ? ev.countries.join(', ') : tr('위치 미상', 'location unknown', 'lieu inconnu'));
     const srcs = ev.sources?.length ? ev.sources.join(', ') : (ev.representative?.source ?? '—');
     const parts = [
       srcs,
-      typeof ev.source_count === 'number' ? `출처 ${ev.source_count}곳` : null,
-      typeof ev.merged_score === 'number' ? `점수 ${Math.round(ev.merged_score)}` : null,
+      typeof ev.source_count === 'number' ? tr(`출처 ${ev.source_count}곳`, `${ev.source_count} sources`, `${ev.source_count} sources`) : null,
+      typeof ev.merged_score === 'number' ? tr(`점수 ${Math.round(ev.merged_score)}`, `score ${Math.round(ev.merged_score)}`, `score ${Math.round(ev.merged_score)}`) : null,
       ev.latest_signal_date ? String(ev.latest_signal_date).slice(0, 10) : null,
     ].filter(Boolean);
     return { title: `${ev.tier ? `${ev.tier} · ` : ''}${disease} · ${where}`, meta: parts.join(' · ') };
   }
-  return { title: '형식을 알 수 없는 이벤트', meta: ev.source ?? ev.layer ?? '—' };
+  return { title: tr('형식을 알 수 없는 이벤트', 'Event in an unknown format', 'Événement au format inconnu'), meta: ev.source ?? ev.layer ?? '—' };
 }
 
 // ── 화면 2: 이벤트 스트림 ─────────────────────────────────────
 function Screen2Events({ events, total }: { events: StreamEvent[]; total: number }) {
+  const tr = useT();
   return (
     <div className="card" style={{ maxHeight: 300, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <div className="card-h">
-        <span className="lbl">📡 실시간 이벤트 스트림</span>
-        <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted2)' }}>총 {total}건</span>
+        <span className="lbl">📡 {tr('실시간 이벤트 스트림', 'Live event stream', 'Flux d’événements en direct')}</span>
+        <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted2)' }}>{tr(`총 ${total}건`, `${total} total`, `${total} au total`)}</span>
       </div>
       <div style={{ overflowY: 'auto', flex: 1 }}>
-        {events.length === 0 && <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)', padding: 8 }}>수집된 이벤트 없음</div>}
+        {events.length === 0 && <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)', padding: 8 }}>{tr('수집된 이벤트 없음', 'No events collected', 'Aucun événement collecté')}</div>}
         {events.map((ev, i) => {
           const conf = typeof ev.confidence === 'number' ? ev.confidence : null;
           const confCol = conf != null ? (conf >= 0.7 ? '#34d399' : conf >= 0.4 ? '#fbbf24' : '#f97316') : 'var(--muted2)';
@@ -120,10 +123,10 @@ function Screen2Events({ events, total }: { events: StreamEvent[]; total: number
             <div key={i} style={{ padding: '8px 0', borderBottom: '1px solid var(--line)', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontFamily: 'var(--kr)', fontSize: 12, color: 'var(--txt)', lineHeight: 1.4 }}>
-                  {describeEvent(ev).title}
+                  {describeEvent(ev, tr).title}
                 </div>
                 <div style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted2)', marginTop: 3 }}>
-                  {describeEvent(ev).meta}
+                  {describeEvent(ev, tr).meta}
                 </div>
               </div>
               {conf != null && (
@@ -141,14 +144,15 @@ function Screen2Events({ events, total }: { events: StreamEvent[]; total: number
 
 // ── 화면 3: 발병 타임라인 ─────────────────────────────────────
 function Screen3Timeline({ outbreaks }: { outbreaks: Outbreak[] }) {
+  const tr = useT();
   return (
     <div className="card" style={{ maxHeight: 300, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <div className="card-h">
-        <span className="lbl">🕒 발병 타임라인</span>
-        <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted2)' }}>{outbreaks.length}건</span>
+        <span className="lbl">🕒 {tr('발병 타임라인', 'Outbreak timeline', 'Chronologie des épidémies')}</span>
+        <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted2)' }}>{outbreaks.length}{tr('건', '', '')}</span>
       </div>
       <div style={{ overflowY: 'auto', flex: 1 }}>
-        {outbreaks.length === 0 && <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)', padding: 8 }}>활성 이벤트 없음</div>}
+        {outbreaks.length === 0 && <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)', padding: 8 }}>{tr('활성 이벤트 없음', 'No active events', 'Aucun événement actif')}</div>}
         {outbreaks.map((ob, i) => (
           <div key={ob.id ?? i} style={{ padding: '7px 0', borderBottom: '1px solid var(--line)', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
             <div style={{ width: 3, background: 'var(--accent)', borderRadius: 2, alignSelf: 'stretch', flexShrink: 0 }} />
@@ -174,10 +178,11 @@ function Screen3Timeline({ outbreaks }: { outbreaks: Outbreak[] }) {
 
 // ── 화면 4: 국가별 위험 랭킹 ──────────────────────────────────
 function Screen4Ranking({ top20 }: { top20: Country[] }) {
+  const tr = useT();
   return (
     <div className="card">
       <div className="card-h">
-        <span className="lbl">🏴 국가별 위험지수 상위 20</span>
+        <span className="lbl">🏴 {tr('국가별 위험지수 상위 20', 'Top 20 countries by risk index', '20 premiers pays par indice de risque')}</span>
       </div>
       <div className="rank-grid">
         {top20.slice(0, 20).map((c, i) => {
@@ -211,16 +216,17 @@ function Screen5Forecast({
   trackRecord: { accuracy: PredictionAccuracy; recent_verified: VerifiedPrediction[] };
 }) {
   const acc = trackRecord.accuracy;
+  const tr = useT();
   return (
     <div className="card">
       <div className="card-h">
-        <span className="lbl">🧠 AI 예측 패널</span>
+        <span className="lbl">🧠 {tr('AI 예측 패널', 'AI forecast panel', 'Panneau de prévision IA')}</span>
       </div>
       {/* 7일·14일 */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
         {([
-          { label: '7일 예측', score: score7, tier: tier7 },
-          { label: '14일 예측', score: score14, tier: tier14 },
+          { label: tr('7일 예측', '7-day forecast', 'Prévision 7 j'), score: score7, tier: tier7 },
+          { label: tr('14일 예측', '14-day forecast', 'Prévision 14 j'), score: score14, tier: tier14 },
         ] as const).map(item => (
           <div key={item.label} className="oc">
             <div className="ok">{item.label}</div>
@@ -233,7 +239,7 @@ function Screen5Forecast({
       {warnings.length > 0 && (
         <>
           <div style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted)', letterSpacing: '.14em', marginBottom: 7 }}>
-            활성 체인 경보
+            {tr('활성 체인 경보', 'Active chain warnings', 'Alertes de chaîne actives')}
           </div>
           {warnings.map((w, i) => (
             <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 5 }}>
@@ -249,11 +255,11 @@ function Screen5Forecast({
       {/* 예측 트랙레코드 — "우리가 X% 맞췄다"의 실측 근거 */}
       <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--line)' }}>
         <div style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted)', letterSpacing: '.14em', marginBottom: 7 }}>
-          예측 트랙레코드
+          {tr('예측 트랙레코드', 'Forecast track record', 'Historique des prévisions')}
         </div>
         {acc.total_verified === 0 ? (
           <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)' }}>
-            아직 검증된 예측 없음 — 표본이 쌓이면 적중률이 계산됨
+            {tr('아직 검증된 예측 없음 — 표본이 쌓이면 적중률이 계산됨', 'No verified forecasts yet; accuracy is computed once samples accumulate', 'Aucune prévision vérifiée pour l’instant ; la précision sera calculée quand l’échantillon grandira')}
           </div>
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 10 }}>
@@ -261,11 +267,11 @@ function Screen5Forecast({
               <div style={{ fontFamily: 'var(--mono)', fontSize: 22, fontWeight: 800, color: 'var(--ok)' }}>
                 {acc.accuracy != null ? `${Math.round(acc.accuracy * 100)}%` : '—'}
               </div>
-              <div style={{ fontFamily: 'var(--mono)', fontSize: 8, color: 'var(--muted2)' }}>적중률</div>
+              <div style={{ fontFamily: 'var(--mono)', fontSize: 8, color: 'var(--muted2)' }}>{tr('적중률', 'accuracy', 'précision')}</div>
             </div>
             <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted2)', lineHeight: 1.7 }}>
-              검증 {acc.total_verified}건 중 {acc.correct}건 적중
-              {acc.mean_lead_days != null && <><br />평균 선행일수 D−{Math.round(acc.mean_lead_days)}</>}
+              {tr(`검증 ${acc.total_verified}건 중 ${acc.correct}건 적중`, `${acc.correct} of ${acc.total_verified} verified forecasts correct`, `${acc.correct} sur ${acc.total_verified} prévisions vérifiées justes`)}
+              {acc.mean_lead_days != null && <><br />{tr('평균 선행일수', 'Mean lead time', 'Avance moyenne')} D−{Math.round(acc.mean_lead_days)}</>}
             </div>
           </div>
         )}
@@ -291,6 +297,7 @@ function Screen6Alerts({
   tierSummary: Record<string, TierSummaryEntry> | null;
 }) {
   const topItems: AlertItem[] = dashboard?.top ?? [];
+  const tr = useT();
 
   const tierDefs: { key: string; label: string; col: string }[] = [
     { key: 'critical', label: 'CRITICAL', col: '#ef4444' },
@@ -302,7 +309,7 @@ function Screen6Alerts({
   return (
     <div className="card">
       <div className="card-h">
-        <span className="lbl">🚨 경보 센터</span>
+        <span className="lbl">🚨 {tr('경보 센터', 'Alert centre', 'Centre d’alertes')}</span>
         {tierSummary && (
           <div style={{ display: 'flex', gap: 10 }}>
             {tierDefs.map(({ key, col }) => {
@@ -320,7 +327,7 @@ function Screen6Alerts({
 
       {/* 활성 경보 목록 */}
       {topItems.length === 0 ? (
-        <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--ok)', padding: '8px 0' }}>✓ 활성 경보 없음</div>
+        <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--ok)', padding: '8px 0' }}>✓ {tr('활성 경보 없음', 'No active alerts', 'Aucune alerte active')}</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {topItems.map((a, i) => {
@@ -360,18 +367,21 @@ function Screen6Alerts({
 // ── 메인 컴포넌트 ─────────────────────────────────────────────
 export default function Stage9Dashboard() {
   const { data, loading, error, lastUpdated, live } = useDashboard(30_000);
+  const tr = useT();
+  const lang = useDashLang();
+  const title = tr('실시간 대시보드', 'Live dashboard', 'Tableau de bord en direct');
 
   if (loading) {
     return (
       <div style={{ animation: 'fade .25s' }}>
-        <div className="ptitle">실시간 대시보드</div>
-        <div className="psub">백엔드 서버에서 실시간 데이터를 가져오는 중...</div>
+        <div className="ptitle">{title}</div>
+        <div className="psub">{tr('백엔드 서버에서 실시간 데이터를 가져오는 중...', 'Fetching live data from the backend server…', 'Récupération des données en direct depuis le serveur…')}</div>
         <div style={{
           display: 'flex', alignItems: 'center', gap: 10,
           padding: 20, fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--muted)',
         }}>
           <span style={{ animation: 'sp 1.2s linear infinite', display: 'inline-block' }}>⟳</span>
-          서버 연결 중 — {API_HOST}
+          {tr('서버 연결 중', 'Connecting to server', 'Connexion au serveur')} — {API_HOST}
         </div>
       </div>
     );
@@ -380,14 +390,14 @@ export default function Stage9Dashboard() {
   if (error || !data) {
     return (
       <div style={{ animation: 'fade .25s' }}>
-        <div className="ptitle">실시간 대시보드</div>
+        <div className="ptitle">{title}</div>
         <div style={{ padding: '16px 0' }}>
           <div style={{ fontFamily: 'var(--mono)', fontSize: 12, color: '#ef4444', marginBottom: 10 }}>
-            ⚠ 백엔드 서버에 연결할 수 없습니다
+            ⚠ {tr('백엔드 서버에 연결할 수 없습니다', 'Cannot connect to the backend server', 'Impossible de joindre le serveur')}
           </div>
           <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted2)', lineHeight: 1.8 }}>
-            연결 대상: {API_HOST}<br />
-            <span style={{ color: 'var(--ok)' }}>위 주소가 맞는데도 안 되면 CORS·방화벽·확장프로그램 확인</span>
+            {tr('연결 대상', 'Target', 'Cible')}: {API_HOST}<br />
+            <span style={{ color: 'var(--ok)' }}>{tr('위 주소가 맞는데도 안 되면 CORS·방화벽·확장프로그램 확인', 'If the address is right and it still fails, check CORS, firewall and browser extensions', 'Si l’adresse est correcte et que cela échoue, vérifiez CORS, pare-feu et extensions')}</span>
           </div>
           {error && (
             <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: '#f97316', marginTop: 8, background: 'rgba(249,115,22,.08)', padding: '8px 10px', borderRadius: 8 }}>
@@ -411,13 +421,13 @@ export default function Stage9Dashboard() {
       {/* 헤더 */}
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 4, flexWrap: 'wrap', gap: 8 }}>
         <div>
-          <div className="ptitle">실시간 대시보드</div>
-          <div className="psub">백엔드 실시간 데이터 · {live ? 'WebSocket 실시간 푸시' : '30초 폴링(WebSocket 미연결)'}</div>
+          <div className="ptitle">{title}</div>
+          <div className="psub">{tr('백엔드 실시간 데이터', 'Live backend data', 'Données du serveur en direct')} · {live ? tr('WebSocket 실시간 푸시', 'WebSocket live push', 'push WebSocket en direct') : tr('30초 폴링(WebSocket 미연결)', '30 s polling (WebSocket not connected)', 'interrogation toutes les 30 s (WebSocket non connecté)')}</div>
         </div>
         {lastUpdated && (
           <div style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted2)', textAlign: 'right' }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--ok)', boxShadow: '0 0 6px var(--ok)', display: 'inline-block', marginRight: 5, animation: 'blink 1.6s infinite' }} />
-            갱신 {lastUpdated.toLocaleTimeString('ko-KR')}
+            {tr('갱신', 'Updated', 'Mis à jour')} {lastUpdated.toLocaleTimeString(numLocale(lang))}
           </div>
         )}
       </div>

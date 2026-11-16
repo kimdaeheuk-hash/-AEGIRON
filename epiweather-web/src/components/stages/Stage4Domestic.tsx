@@ -3,9 +3,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useStore } from '@/lib/store';
 import { REGIONS, riskColor, statusOf } from '@/lib/algorithms';
 import LiveObserved from './LiveObserved';
+import { useDashLang, useT } from '@/lib/dashLang';
+import { nameOf } from '@/lib/dashNames';
 
 export default function Stage4Domestic() {
   const { dom, week, reg, setWeek, setReg } = useStore();
+  const tr = useT();
+  const lang = useDashLang();
   const [playing, setPlaying] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -35,19 +39,20 @@ export default function Stage4Domestic() {
 
   return (
     <div style={{ animation: 'fade .25s' }}>
-      <div className="ptitle">국내 확산 예보</div>
+      <div className="ptitle">{tr('국내 확산 예보', 'Domestic spread forecast', 'Prévision de propagation nationale')}</div>
       <div className="psub">
-        유입 관문(인천)에서 시작된 확산을 전국 지도로.{' '}
-        <em style={{ color: 'var(--violet)', fontStyle: 'normal', fontWeight: 600 }}>▶ 재생</em>하면 수도권→전국 파동.
+        {tr('유입 관문(인천)에서 시작된 확산을 전국 지도로. ▶ 재생하면 수도권→전국 파동.',
+          'Spread starting at the entry gateway (Incheon), on a national map. Press ▶ Play to see the wave move from the capital area across the country.',
+          'La propagation depuis la porte d’entrée (Incheon), sur une carte nationale. Appuyez sur ▶ Lecture pour voir la vague passer de la capitale au reste du pays.')}
       </div>
       <LiveObserved stage={4} />
       <div className="grid2">
         {/* 지도 */}
         <div className="card">
           <div className="card-h">
-            <span className="lbl">전국 위험도</span>
+            <span className="lbl">{tr('전국 위험도', 'Nationwide risk', 'Risque national')}</span>
             <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)' }}>
-              {week === 0 ? '현재' : `+${week}주`}
+              {week === 0 ? tr('현재', 'Now', 'Maintenant') : tr(`+${week}주`, `+${week} wk`, `+${week} sem`)}
             </span>
           </div>
 
@@ -78,7 +83,7 @@ export default function Stage4Domestic() {
                     <span style={{ position: 'absolute', top: 4, left: 5, fontSize: 10 }}>◎</span>
                   )}
                   <span style={{ fontSize: 11, fontWeight: 700, color: '#fff', textShadow: '0 1px 4px rgba(0,0,0,.6)' }}>
-                    {r.nm}
+                    {nameOf(r.nm, lang)}
                   </span>
                   <span style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 700, color: '#fff', alignSelf: 'flex-end', textShadow: '0 1px 4px rgba(0,0,0,.55)' }}>
                     {rv}
@@ -92,7 +97,7 @@ export default function Stage4Domestic() {
           <div style={{ marginTop: 14 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <div style={{ fontFamily: 'var(--mono)', fontSize: 11.5 }}>
-                {week === 0 ? <><b>현재</b></> : <><b>+{week}주</b></>}
+                {week === 0 ? <b>{tr('현재', 'Now', 'Maintenant')}</b> : <b>{tr(`+${week}주`, `+${week} wk`, `+${week} sem`)}</b>}
               </div>
               <button
                 onClick={playing ? stop : play}
@@ -103,7 +108,7 @@ export default function Stage4Domestic() {
                   borderRadius: 7, padding: '6px 11px', cursor: 'pointer',
                 }}
               >
-                {playing ? '⏸' : '▶'} 재생
+                {playing ? '⏸' : '▶'} {tr('재생', 'Play', 'Lecture')}
               </button>
             </div>
             <div style={{ position: 'relative', height: 28, display: 'flex', alignItems: 'center' }}>
@@ -127,7 +132,7 @@ export default function Stage4Domestic() {
                     fontFamily: 'var(--mono)', fontSize: 8.5, marginTop: 6,
                     color: t === week ? 'var(--txt)' : 'var(--muted)', whiteSpace: 'nowrap',
                   }}>
-                    {t === 0 ? '현재' : `+${t}주`}
+                    {t === 0 ? tr('현재', 'Now', 'Maint.') : tr(`+${t}주`, `+${t} wk`, `+${t} sem`)}
                   </div>
                 </div>
               ))}
@@ -138,19 +143,19 @@ export default function Stage4Domestic() {
         {/* 지역 상세 */}
         <div className="card">
           <div className="card-h">
-            <span className="lbl">지역 추론</span>
-            <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)' }}>{selReg.nm}</span>
+            <span className="lbl">{tr('지역 추론', 'Regional inference', 'Inférence régionale')}</span>
+            <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)' }}>{nameOf(selReg.nm, lang)}</span>
           </div>
           <div className="outcomes">
             <div className="oc">
-              <div className="ok">📍 {selReg.nm}</div>
+              <div className="ok">📍 {nameOf(selReg.nm, lang)}</div>
               <div className="ov" style={{ color: riskColor(v) }}>{v}<small style={{ fontSize: 10, fontWeight: 400, color: 'var(--muted)' }}>/100</small></div>
-              <div className="od">{statusOf(v)} · 베이스라인 +{v - base}</div>
+              <div className="od">{nameOf(statusOf(v), lang)} · {tr('베이스라인', 'baseline', 'référence')} +{v - base}</div>
             </div>
             <div className="oc">
-              <div className="ok">🛡 65세+</div>
+              <div className="ok">🛡 {tr('65세+', 'Age 65+', '65 ans et +')}</div>
               <div className="ov">{selReg.eld}<small style={{ fontSize: 10, fontWeight: 400, color: 'var(--muted)' }}>%</small></div>
-              <div className="od">취약가중</div>
+              <div className="od">{tr('취약가중', 'vulnerability weight', 'pondération vulnérabilité')}</div>
             </div>
           </div>
         </div>

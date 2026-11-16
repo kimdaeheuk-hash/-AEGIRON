@@ -15,6 +15,7 @@ import Stage8Biodefense from './stages/Stage8Biodefense';
 import Stage9Dashboard from './stages/Stage9Dashboard';
 import { DASH_LANGS, DashLangContext, numLocale, type DashLang } from '@/lib/dashLang';
 import { placeName } from '@/lib/observationNames';
+import { nameOf } from '@/lib/dashNames';
 
 const STAGES = [
   { id: 0, sub: 'SYNTHETIC',    ic: '🧬' },
@@ -29,7 +30,7 @@ const STAGES = [
   { id: 9, sub: 'LIVE DATA', ic: '📡' },
 ];
 
-/** 대시보드 틀 문구 — 3개 언어 (2026-11-16, ⑪). 단계 안의 시뮬레이션 화면은 아직 한국어(화면에 그렇게 적음). */
+/** 대시보드 틀 문구 — 3개 언어 (2026-11-16, ⑪). 8단계 상세·HEIMDALL·VALHALLA 패널은 한국어로 둠(화면에 그렇게 적음). */
 const T: Record<DashLang, {
   stages: string[]; brand: string; tagline: string; parallel: string;
   estate: [string, string, string]; origin: string; threat: string; response: string;
@@ -56,7 +57,7 @@ const T: Record<DashLang, {
     from: (c, t) => `${t} from ${c}`, model: '(model)',
     stat: { 0: 'Scan', 4: '+4 wk', 5: 'Nationwide', 7: '9 steps', 8: 'Sim' }, tag: { 1: 'demo', 2: 'assumed', 3: 'estimate', 6: 'model' },
     language: 'Language',
-    koOnly: 'The frame and the “What is actually observed now” panels are in English. The model-scenario screens inside each stage are still in Korean.',
+    koOnly: 'Stage screens are in English. Still in Korean: the detailed panels of stage 8 (biodefence) and the HEIMDALL and VALHALLA panels, plus any text the server sends in Korean (shown as received).',
   },
   fr: {
     stages: ['Détection des menaces synthétiques', 'Traçage de l’origine', 'Signaux citoyens', 'Importation mondiale', 'Propagation nationale', 'Prévision d’arrivée', 'Réponse de défense', 'Raisonnement IA', 'Stock stratégique', 'Tableau de bord en direct'],
@@ -67,7 +68,7 @@ const T: Record<DashLang, {
     from: (c, t) => `${t} depuis ${c}`, model: '(modèle)',
     stat: { 0: 'Scan', 4: '+4 sem', 5: 'National', 7: '9 étapes', 8: 'Sim' }, tag: { 1: 'démo', 2: 'hypothèse', 3: 'estimation', 6: 'modèle' },
     language: 'Langue',
-    koOnly: 'Le cadre et les panneaux « Ce qui est réellement observé maintenant » sont en français. Les écrans de scénario de modèle à l’intérieur de chaque étape sont encore en coréen.',
+    koOnly: 'Les écrans des étapes sont en français. Encore en coréen : les panneaux détaillés de l’étape 8 (biodéfense), les panneaux HEIMDALL et VALHALLA, et tout texte que le serveur envoie en coréen (affiché tel quel).',
   },
 };
 
@@ -123,7 +124,7 @@ export default function Command({ initialLang = 'ko' }: { initialLang?: DashLang
   const estateText = rtSafe < 1 ? t.estate[0] : rtSafe < 1.5 ? t.estate[1] : t.estate[2];
   const estateCol = rtSafe < 1 ? 'var(--ok)' : rtSafe < 1.5 ? '#fbbf24' : '#ef4444';
   const city = originsCatalog.find(c => c.id === origin) ?? originsCatalog[0];
-  const cityName = lang === 'ko' ? city.nm : (placeName(city.nm, lang) ?? city.nm);
+  const cityName = lang === 'ko' ? city.nm : nameOf(city.nm, lang) !== city.nm ? nameOf(city.nm, lang) : (placeName(city.nm, lang) ?? city.nm);
   const threatName = lang === 'ko' ? THREAT[threat].nm : THREAT_NAME[lang][threat];
 
   const stageComponents = [

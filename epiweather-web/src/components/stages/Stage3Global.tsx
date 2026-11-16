@@ -2,6 +2,8 @@
 import { useStore } from '@/lib/store';
 import { proj, arc } from '@/lib/algorithms';
 import LiveObserved from './LiveObserved';
+import { useDashLang, useT } from '@/lib/dashLang';
+import { nameOf } from '@/lib/dashNames';
 
 const VW = 1000, VH = 400;
 const KR = { lon: 127, lat: 37 };
@@ -14,6 +16,8 @@ function esc(s: string): string {
 
 export default function Stage3Global() {
   const { glob, originsCatalog } = useStore();
+  const tr = useT();
+  const lang = useDashLang();
   if (!glob) return null;
 
   const kr = proj(KR.lon, KR.lat, VW, VH);
@@ -51,7 +55,7 @@ export default function Stage3Global() {
     const a = proj(c.lon, c.lat, VW, VH);
     const col = c.er >= .75 ? '#fbbf24' : '#2a3647';
     return `<circle cx="${a.x}" cy="${a.y}" r="5" fill="${col}" stroke="#0a0e14" stroke-width="1.5"/>`
-      + `<text x="${a.x}" y="${a.y - 8}" fill="var(--muted)" font-size="9" text-anchor="middle">${esc(c.nm)}</text>`;
+      + `<text x="${a.x}" y="${a.y - 8}" fill="var(--muted)" font-size="9" text-anchor="middle">${esc(nameOf(c.nm, lang))}</text>`;
   }).join('');
 
   const autoDots = auto.map(c => {
@@ -64,30 +68,30 @@ export default function Stage3Global() {
     const a = proj(c.lon, c.lat, VW, VH);
     return `<circle cx="${a.x}" cy="${a.y}" r="14" fill="none" stroke="#f43f5e" stroke-width="1.5" opacity=".5"><animate attributeName="r" values="8;18;8" dur="2s" repeatCount="indefinite"/><animate attributeName="opacity" values=".6;0;.6" dur="2s" repeatCount="indefinite"/></circle>`
       + `<circle cx="${a.x}" cy="${a.y}" r="8" fill="#f43f5e" stroke="#0a0e14" stroke-width="1.5"/>`
-      + `<text x="${a.x}" y="${a.y - 11}" fill="#fff" font-size="11" font-weight="700" text-anchor="middle">${esc(c.nm)}</text>`;
+      + `<text x="${a.x}" y="${a.y - 11}" fill="#fff" font-size="11" font-weight="700" text-anchor="middle">${esc(nameOf(c.nm, lang))}</text>`;
   })();
 
   const arcs = originArc;
   const dots = autoDots + curatedDots + originDot;
 
-  const krDot = `<circle cx="${kr.x}" cy="${kr.y}" r="9" fill="#38bdf8" stroke="#0a0e14" stroke-width="2"/><text x="${kr.x}" y="${kr.y + 20}" fill="#38bdf8" font-size="11" font-weight="700" text-anchor="middle">한국 ◎</text>`;
+  const krDot = `<circle cx="${kr.x}" cy="${kr.y}" r="9" fill="#38bdf8" stroke="#0a0e14" stroke-width="2"/><text x="${kr.x}" y="${kr.y + 20}" fill="#38bdf8" font-size="11" font-weight="700" text-anchor="middle">${tr('한국', 'Korea', 'Corée')} ◎</text>`;
 
   const sorted = [...glob.dist].sort((a, b) => b.w - a.w);
 
   return (
     <div style={{ animation: 'fade .25s' }}>
-      <div className="ptitle">글로벌 유입 감지</div>
+      <div className="ptitle">{tr('글로벌 유입 감지', 'Global import detection', 'Détection des importations mondiales')}</div>
       <div className="psub">
-        한국은 발생국이 아니라{' '}
-        <em style={{ color: 'var(--violet)', fontStyle: 'normal', fontWeight: 600 }}>유입 대비국</em>.
-        해외 발원지에서 항공망 타고 한국 도착 시점·관문을 예측.
+        {tr('한국은 발생국이 아니라 유입 대비국. 해외 발원지에서 항공망 타고 한국 도착 시점·관문을 예측.',
+          'Korea is not where outbreaks start but where they arrive. It forecasts when and through which gateway an overseas outbreak reaches Korea via air routes.',
+          'La Corée n’est pas le point de départ mais le point d’arrivée. Il prévoit quand et par quelle porte un foyer étranger atteint la Corée par voie aérienne.')}
       </div>
       <LiveObserved stage={3} />
 
       <div className="card">
         <div className="card-h">
-          <span className="lbl">글로벌 항공망 지도</span>
-          <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)' }}>{glob.city.nm} 발원</span>
+          <span className="lbl">{tr('글로벌 항공망 지도', 'Global air network map', 'Carte du réseau aérien mondial')}</span>
+          <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)' }}>{tr(`${glob.city.nm} 발원`, `Origin: ${nameOf(glob.city.nm, lang)}`, `Origine : ${nameOf(glob.city.nm, lang)}`)}</span>
         </div>
         <svg
           viewBox={`0 0 ${VW} ${VH}`}
@@ -98,33 +102,33 @@ export default function Stage3Global() {
 
       <div className="grid2">
         <div className="card">
-          <div className="card-h"><span className="lbl">유입 위험 추론</span></div>
+          <div className="card-h"><span className="lbl">{tr('유입 위험 추론', 'Import risk inference', 'Inférence du risque d’importation')}</span></div>
           <div className="outcomes">
             <div className="oc">
-              <div className="ok">✈ 한국 첫 유입</div>
+              <div className="ok">✈ {tr('한국 첫 유입', 'First arrival in Korea', 'Première arrivée en Corée')}</div>
               <div className="ov" style={{ color: riskCol }}>D+{glob.arrival}</div>
-              <div className="od">발원지 기준</div>
+              <div className="od">{tr('발원지 기준', 'from origin', 'depuis l’origine')}</div>
             </div>
             <div className="oc">
-              <div className="ok">🌐 유입 위험지수</div>
+              <div className="ok">🌐 {tr('유입 위험지수', 'Import risk index', 'Indice de risque d’importation')}</div>
               <div className="ov" style={{ color: riskCol }}>{glob.risk}</div>
-              <div className="od">출현×여객</div>
+              <div className="od">{tr('출현×여객', 'emergence × passengers', 'émergence × passagers')}</div>
             </div>
             <div className="oc">
-              <div className="ok">🟢 WHO 선행</div>
+              <div className="ok">🟢 {tr('WHO 선행', 'Ahead of WHO', 'Avance sur l’OMS')}</div>
               <div className="ov" style={{ color: 'var(--ok)' }}>D−{glob.detectLead}</div>
-              <div className="od">조기탐지</div>
+              <div className="od">{tr('조기탐지', 'early detection', 'détection précoce')}</div>
             </div>
             <div className="oc">
-              <div className="ok">🏷 발원 특성</div>
-              <div className="ov" style={{ fontSize: 12 }}>{glob.city.note}</div>
-              <div className="od">출현 {Math.round(glob.city.er * 100)}</div>
+              <div className="ok">🏷 {tr('발원 특성', 'Origin profile', 'Profil de l’origine')}</div>
+              <div className="ov" style={{ fontSize: 12 }}>{glob.city.note ? nameOf(glob.city.note, lang) : glob.city.note}</div>
+              <div className="od">{tr('출현', 'emergence', 'émergence')} {Math.round(glob.city.er * 100)}</div>
             </div>
           </div>
         </div>
 
         <div className="card">
-          <div className="card-h"><span className="lbl">입국 관문별 도착</span></div>
+          <div className="card-h"><span className="lbl">{tr('입국 관문별 도착', 'Arrival by entry gateway', 'Arrivée par point d’entrée')}</span></div>
           {sorted.map((x, i) => {
             const day = glob.arrival + Math.round(i * 1.5);
             const pct = Math.round(x.w * 100);
@@ -132,8 +136,8 @@ export default function Stage3Global() {
             return (
               <div key={x.port.id} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
                 <div style={{ fontSize: 12, width: 100 }}>
-                  {x.port.nm}
-                  <small style={{ display: 'block', fontFamily: 'var(--mono)', fontSize: 8.5, color: 'var(--muted2)' }}>{x.port.eng}</small>
+                  {nameOf(x.port.nm, lang)}
+                  <small style={{ display: 'block', fontFamily: 'var(--mono)', fontSize: 8.5, color: 'var(--muted2)' }}>{nameOf(x.port.eng, lang)}</small>
                 </div>
                 <div style={{ flex: 1, height: 7, background: 'rgba(255,255,255,.06)', borderRadius: 4, overflow: 'hidden' }}>
                   <div style={{ width: `${pct}%`, height: '100%', borderRadius: 4, background: col }} />

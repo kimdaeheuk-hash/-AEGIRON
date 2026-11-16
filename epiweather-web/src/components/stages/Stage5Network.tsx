@@ -2,9 +2,13 @@
 import { useStore } from '@/lib/store';
 import { REGIONS, MOBILITY, clamp } from '@/lib/algorithms';
 import LiveObserved from './LiveObserved';
+import { useDashLang, useT } from '@/lib/dashLang';
+import { nameOf } from '@/lib/dashNames';
 
 export default function Stage5Network() {
   const { dom } = useStore();
+  const tr = useT();
+  const lang = useDashLang();
   if (!dom) return null;
 
   const MAX_D = 35;
@@ -41,7 +45,7 @@ export default function Stage5Network() {
     }
     let svg = glow;
     svg += `<circle cx="${reg.x}" cy="${reg.y}" r="${rad}" fill="${col}" stroke="#0a0e14" stroke-width="2"/>`;
-    svg += `<text x="${reg.x}" y="${reg.y + 4}" fill="#fff" font-size="9" font-weight="700" text-anchor="middle">${reg.nm}</text>`;
+    svg += `<text x="${reg.x}" y="${reg.y + 4}" fill="#fff" font-size="9" font-weight="700" text-anchor="middle">${lang === 'ko' ? reg.nm : reg.id}</text>`;
     if (!isO && d != null && d >= 0 && d <= MAX_D) {
       svg += `<text x="${reg.x}" y="${reg.y + rad + 10}" fill="${col}" font-size="8.5" font-family="var(--mono)" text-anchor="middle">D+${d}</text>`;
     }
@@ -60,18 +64,18 @@ export default function Stage5Network() {
 
   return (
     <div style={{ animation: 'fade .25s' }}>
-      <div className="ptitle">다지역 도착 예측</div>
+      <div className="ptitle">{tr('다지역 도착 예측', 'Multi-region arrival forecast', 'Prévision d’arrivée multirégionale')}</div>
       <div className="psub">
-        이동량 네트워크 위에서 발원지에서 각 지역으로{' '}
-        <em style={{ color: 'var(--violet)', fontStyle: 'normal', fontWeight: 600 }}>병원체가 도착·확산할 시점</em>을
-        메타개체군 모델로 역추론.
+        {tr('이동량 네트워크 위에서 발원지에서 각 지역으로 병원체가 도착·확산할 시점을 메타개체군 모델로 역추론.',
+          'On the mobility network, a metapopulation model infers when the pathogen arrives and spreads from the origin to each region.',
+          'Sur le réseau de mobilité, un modèle de métapopulation déduit quand le pathogène arrive et se propage depuis l’origine vers chaque région.')}
       </div>
       <LiveObserved stage={5} />
       <div className="card">
         <div className="card-h">
-          <span className="lbl">확산 도착 네트워크</span>
+          <span className="lbl">{tr('확산 도착 네트워크', 'Spread arrival network', 'Réseau d’arrivée de la propagation')}</span>
           <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)' }}>
-            {origin} 발원 · {arr.length - 1}개 지역
+            {tr(`${origin} 발원 · ${arr.length - 1}개 지역`, `origin ${origin} · ${arr.length - 1} regions`, `origine ${origin} · ${arr.length - 1} régions`)}
           </span>
         </div>
         <div className="grid2">
@@ -89,10 +93,10 @@ export default function Stage5Network() {
                 }}>
                   <div style={{ width: 3, alignSelf: 'stretch', borderRadius: 3, background: '#f43f5e' }} />
                   <div style={{ flex: 1, fontSize: 12, fontWeight: 600 }}>
-                    {a.reg.nm} <small style={{ display: 'block', fontFamily: 'var(--mono)', fontSize: 9.5, color: 'var(--muted)', fontWeight: 400, marginTop: 1 }}>유입 관문</small>
+                    {nameOf(a.reg.nm, lang)} <small style={{ display: 'block', fontFamily: 'var(--mono)', fontSize: 9.5, color: 'var(--muted)', fontWeight: 400, marginTop: 1 }}>{tr('유입 관문', 'entry gateway', 'porte d’entrée')}</small>
                   </div>
                   <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: '#f43f5e', textAlign: 'right' }}>
-                    <b style={{ fontSize: 14, display: 'block' }}>D+0</b>발원
+                    <b style={{ fontSize: 14, display: 'block' }}>D+0</b>{tr('발원', 'origin', 'origine')}
                   </div>
                 </div>
               );
@@ -107,10 +111,10 @@ export default function Stage5Network() {
                 }}>
                   <div style={{ width: 3, alignSelf: 'stretch', borderRadius: 3, background: col }} />
                   <div style={{ flex: 1, fontSize: 12, fontWeight: 600 }}>
-                    {a.reg.nm} <small style={{ display: 'block', fontFamily: 'var(--mono)', fontSize: 9.5, color: 'var(--muted)', fontWeight: 400, marginTop: 1 }}>도착 예측</small>
+                    {nameOf(a.reg.nm, lang)} <small style={{ display: 'block', fontFamily: 'var(--mono)', fontSize: 9.5, color: 'var(--muted)', fontWeight: 400, marginTop: 1 }}>{tr('도착 예측', 'forecast arrival', 'arrivée prévue')}</small>
                   </div>
                   <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: col, textAlign: 'right' }}>
-                    <b style={{ fontSize: 14, display: 'block' }}>D+{a.d}</b>도착
+                    <b style={{ fontSize: 14, display: 'block' }}>D+{a.d}</b>{tr('도착', 'arrival', 'arrivée')}
                   </div>
                 </div>
               );
