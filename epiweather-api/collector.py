@@ -427,6 +427,43 @@ FREE_SOURCE_HEALTH_KEYS = {
 }
 
 
+def polar_weather_ok(pw: dict | None) -> bool:
+    """이 주기에 기상 자료가 **한 곳이라도** 있나. 자료를 살릴지 버릴지의 판정.
+
+    ★ 왜 서식에서 떼어냈나 (2026-11-16) ★
+    이 판정은 **자료의 성질**이고, 로그 줄을 만드는 일은 사람에게 보이는 일이다.
+    둘이 한 함수·한 try 에 묶여 있으면 **서식 버그 하나가 다시 층 전체를 버린다** —
+    11-14~15 사고가 정확히 그 모양이었다(`%.0f` ← None 이 터지자 `except` 가
+    이미 받아온 8개 관측지 자료를 None 으로 덮었고, `record_cycle` 이 수집 실패로 셌다).
+    그래서 호출부는 이 함수로 먼저 **정하고**, 줄을 찍는 건 그 뒤에 따로 한다.
+    """
+    regions = (pw or {}).get("regions") or []
+    no_weather = [r for r in regions if not (r.get("thaw") or {}).get("data_available")]
+    return bool(regions) and len(no_weather) < len(regions)
+
+
+def polar_summary_line(pw: dict) -> tuple[str, bool]:
+    """극지 관찰 요약 로그 줄과 '기상 자료가 한 곳이라도 있나'(`polar_weather_ok`).
+
+    점수가 없는 관측지(기상·뉴스 모두 없음)는 '점수 없음'으로 적는다 — 예전엔 `%.0f` 에 None 이 들어가
+    로그 줄이 TypeError 로 죽었다(2026-11-15 10:00~익일 00:00, 소스 헬스 '중단').
+    """
+    regions = pw.get("regions") or []
+    no_weather = [r for r in regions if not (r.get("thaw") or {}).get("data_available")]
+    top = sorted(regions, key=lambda r: -(r.get("polar_watch_score") or 0))[:3]
+
+    def fmt(r: dict) -> str:
+        s = r.get("polar_watch_score")
+        name = str(r.get("name") or r.get("region") or "?")[:10]
+        return f"{name}({'점수 없음' if s is None else f'{s:.0f}'})"
+
+    tops = ", ".join(fmt(r) for r in top) or "없음"
+    line = f"  극지 관찰: {len(regions)}개 관측지 · 등급 {pw.get('grade')} · 상위 {tops}"
+    if no_weather:
+        line += f" · 기상 자료 없음 {len(no_weather)}/{len(regions)}(판정 안 함)"
+    return line, polar_weather_ok(pw)
+
+
 WIKI_EBOLA_TITLE = "2026_Central_Africa_Ebola_epidemic"
 # 위키미디어 페이지뷰 집계는 보통 전날치가 다음날 정오(UTC) 전후까지 늦게 올라온다 — 그 안의 404 만 '정상 지연'이다.
 WIKI_LAG_UNTIL_UTC_HOUR = 12
@@ -502,45 +539,6 @@ def fetch_cdc_nwss() -> dict:
         "mean_concentration": round(float(row["avg_conc"]), 1) if row.get("avg_conc") else None,
         "max_concentration": round(max_conc, 1) if max_conc is not None else None,
     }
-
-
-# ── 극지 관찰 요약 줄 (2026-11-16) ────────────────────────────────────
-# ★ 왜 함수로 뺐나 ★ 이 줄을 만들다 터진 예외가 **이미 수집한 자료를 버렸다**
-# (아래 collect_free_sources 의 극지 블록 주석). 서식을 만드는 일과 자료를
-# 받아오는 일을 떼어놓아야, 찍는 데 실패해도 받은 것은 남는다.
-def _polar_score_text(region: dict) -> str:
-    """관측지 하나의 '이름(점수)' 표기.
-
-    ★ `polar_watch_score` 는 None 일 수 있고 그건 고장이 아니다 ★
-    `polar_signals.compute_region` 은 해빙 자료도 뉴스 신호도 없는 관측지에
-    대해 평균을 지어내지 않고 None 을 돌려준다 — "모른다"는 말이다.
-    그 None 을 `%.0f` 에 넣어 2026-11-14~15 에 14주기 동안 소스가 죽었다.
-    **0 으로 바꿔 찍지도 않는다** — 모르는 것을 0 점이라고 쓰면 그게 더 나쁜 거짓이다.
-    """
-    score = region.get("polar_watch_score")
-    name = str(region.get("name") or "?")[:10]
-    return f"{name}({'?' if score is None else format(float(score), '.0f')})"
-
-
-def _polar_summary_line(pw: dict | None) -> str:
-    """극지 관찰 한 줄. 점수를 모르는 관측지 수까지 찍는다.
-
-    ★ `점수 모름 N곳` 을 붙이는 이유 ★ 상위 3곳은 점수가 높은 순이라, 모르는
-    관측지는 거의 top 밖으로 밀려 `?` 가 화면에 안 나온다. 그러면 '여덟 곳 중
-    여섯 곳이 모름' 인 주기와 '전부 정상' 인 주기가 같은 줄로 보인다 —
-    이 리포가 반복해서 데인 모양(값 하나가 사고를 작아 보이게 하는 것)이다.
-    """
-    regions = (pw or {}).get("regions") or []
-    # 모르는 점수는 뒤로 보낸다. `or 0` 하나로 섞으면 0 점(측정값)과 None(모름)이
-    # 같은 자리에 놓인다 — 0 은 잰 것이고 None 은 못 잰 것이라 등급이 다르다.
-    top = sorted(regions,
-                 key=lambda r: (r.get("polar_watch_score") is None,
-                                -(r.get("polar_watch_score") or 0)))[:3]
-    unknown = sum(1 for r in regions if r.get("polar_watch_score") is None)
-    return ("  극지 관찰: %d개 관측지 · 등급 %s · 상위 %s%s"
-            % (len(regions), (pw or {}).get("grade"),
-               ", ".join(_polar_score_text(r) for r in top) or "없음",
-               f" · 점수 모름 {unknown}곳" if unknown else ""))
 
 
 def collect_free_sources() -> dict:
@@ -1091,18 +1089,27 @@ def collect_free_sources() -> dict:
     # 말하는 자리이지 서식 버그를 말하는 자리가 아니다.
     try:
         from algorithms.polar_signals import polar_watch_all
-        result["polar_watch"] = polar_watch_all()
+        pw = polar_watch_all()
     except Exception as e:
         result["polar_watch"] = None
         log(f"  ❌ 극지 관찰 실패: {type(e).__name__}: {e}")
         log_error("PolarWatch", e)
     else:
+        # ① 먼저 **자료로** 정한다. 8곳 모두 기상 자료가 없으면 이 주기엔 측정이
+        #    없는 것이라 소스 헬스가 보게 None 으로 둔다(#124). 일부만 없으면 살린다.
+        weather_ok = polar_weather_ok(pw)
+        result["polar_watch"] = pw if weather_ok else None
+        # ② 그 다음에 찍는다. 찍다가 터져도 ①의 판정은 이미 끝났으므로 자료가
+        #    안 날아간다. `log_error` 도 부르지 않는다 — 소스 헬스는 수집의 성패를
+        #    말하는 자리이지 서식 버그를 말하는 자리가 아니다.
         try:
-            log(_polar_summary_line(result["polar_watch"]))
+            log(polar_summary_line(pw)[0])
         except Exception as e:
             # else 블록의 예외는 위 except 가 못 잡는다 — 여기서 막지 않으면
             # 주기 전체가 죽는다(수집은 이미 끝났는데).
             log(f"  ⚠ 극지 관찰 요약 줄 생성 실패(자료는 보존): {type(e).__name__}: {e}")
+        if not weather_ok:
+            log("  ❌ 극지 관찰: 모든 관측지 기상 자료 없음 — 이 주기 측정 없음(소스 헬스 실패로 셈)")
 
     # ── 현지어 위키 신호 (2026-11-02 수집 편입) ─────────────────────────
     # ★ 부를 때만 계산하면 추세가 안 쌓인다 ★ 극지(09-01)·발할라(09-03)와

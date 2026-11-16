@@ -47,7 +47,7 @@ async function subset(family: string, weight: 400 | 700, text: string): Promise<
  * 이미지에 들어갈 문자열들을 주면, 그 글자만 담은 폰트를 돌려준다.
  * 한글이 섞여 있으면 한글 폰트를, 아니면 라틴 폰트를 쓴다.
  */
-export async function ogFonts(...texts: string[]): Promise<LoadedFont[]> {
+export async function ogFonts(...texts: string[]): Promise<LoadedFont[] | undefined> {
   const joined = texts.filter(Boolean).join(' ');
   // 부분셋에 없는 글자는 안 그려지므로, 브랜드명·숫자 등 고정 요소를 항상 포함한다.
   const charset = Array.from(
@@ -65,5 +65,8 @@ export async function ogFonts(...texts: string[]): Promise<LoadedFont[]> {
   const fonts: LoadedFont[] = [];
   if (regular) fonts.push({ name: OG_FONT_FAMILY, data: regular, weight: 400, style: 'normal' });
   if (bold) fonts.push({ name: OG_FONT_FAMILY, data: bold, weight: 700, style: 'normal' });
-  return fonts;
+  // ★ 빈 배열을 넘기면 빌드가 죽는다(2026-11-16 CI) ★ ImageResponse 는 `fonts: []` 를 받으면 기본 폰트를
+  // 쓰지 않고 "No fonts are loaded" 로 던진다 — Google Fonts 가 한 번 안 되면 /dashboard OG 프리렌더가
+  // 실패해 웹 빌드 전체가 멈췄다. undefined 면 기본 폰트(Geist)로 그린다(한글은 빈칸이지만 빌드·메타데이터는 산다).
+  return fonts.length ? fonts : undefined;
 }

@@ -11,9 +11,12 @@
 지나가는 코드 자리(`code_path`)와 주기(`cadence`)를 같이 둔다 — 코드가 바뀌면
 이 표도 바뀌어야 하고, 시험(test_baikal.py)이 간선의 끝점을 고정한다.
 
-  · VALHALLA 에서 나가는 데이터 간선은 **없다.** 대응제 준비태세는 경보 계산에
-    입력되지 않는 독립 축이다(alerts.py·gai.py·alert_intervention.py 어디에서도
-    valhalla 를 읽지 않는다, 2026-10-19 확인). 연결된 척 그리지 않는다.
+  · VALHALLA 에서 나가는 간선은 **관측 전용 두 개뿐이다**(2026-11-16 갱신). 경보 요약에
+    준비태세 한 줄(valhalla-forseti, 11-02)과 개입 브리핑에 대응제 커버리지 맥락
+    (valhalla-skuld, 11-03 alert_intervention.countermeasure_context). 둘 다 경보 점수·
+    SEIR 시나리오 숫자에는 입력되지 않는다 — gai.py·country_risk.py 는 여전히 발할라를
+    읽지 않는다. (2026-10-19 엔 간선 0개였다. 11-02·03 코드가 바뀌고 지도가 안 따라가
+    시험 2건이 11-05~11-16 깨져 있었다.)
   · 피드백 간선(VAR → SKULD)은 **기록만 된다.** 채점 결과가 예측 모델을 자동으로
     고치지 않는다(`automatic: False`). 자동 반영은 예측·경보 동작을 바꾸는 별도
     결정이라 이 층이 하지 않는다.
@@ -155,6 +158,16 @@ RELATIONS: tuple[dict[str, Any], ...] = (
         "code_path": "alerts.valhalla_watch_line ← valhalla_state.json",
         "observation_only": True,
     },
+    {
+        # ★ 개입 브리핑 맥락 간선(2026-11-03 코드 → 2026-11-16 지도 반영) ★ 0cea0ca 가
+        # alert_intervention.countermeasure_context 로 비축 커버리지·매칭 판정을 개입 브리핑에
+        # 붙였는데 지도·시험은 옛 계약('발할라 발신 간선 하나뿐')에 머물러 시험 2건이 11-05 부터
+        # 깨져 있었다. 브리핑에 '맥락'으로 붙을 뿐 SEIR 시나리오 숫자·경보 점수에는 입력되지 않는다.
+        "id": "valhalla-skuld", "from": "VALHALLA", "to": "SKULD", "kind": "data",
+        "label_ko": "대응제 커버리지 → 개입 브리핑 맥락(시나리오·경보 계산 미입력)", "cadence": "on_request",
+        "code_path": "alert_intervention.countermeasure_context ← db.list_countermeasures · match_ledger",
+        "observation_only": True,
+    },
 )
 
 # 피드백 루프 — 정답 적재 → 예측 → 채점. 세 고리가 다 돌아야 증거가 쌓인다
@@ -171,6 +184,7 @@ FEEDBACK_LOOP: tuple[dict[str, str], ...] = (
 CADENCE_KO = {
     "hourly": "매시",
     "daily_21utc": "매일 21:00 UTC",
+    "on_request": "요청 시",
 }
 
 # 우리가 쓰는 개념의 클래스. 개체(7개 시스템)와 흐름(간선)은 이 클래스의 인스턴스다.
