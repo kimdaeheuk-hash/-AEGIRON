@@ -563,4 +563,29 @@ export type ObservationsDict = {
     };
   };
   sections: Record<ObservationSectionKey, { title: string; lead: string }>;
+  /** 나라별 페이지 /observations/[iso3] (2026-11-16) — {name} 은 나라 이름으로 바뀐다 */
+  country: {
+    metaTitle: string;
+    metaDescription: string;
+    eyebrow: string;
+    back: string;
+    open: string;
+    noCard: string;
+    summaryTitle: string;
+    evidenceTitle: string;
+    travelTitle: string;
+    travelNone: string;
+    koreaTitle: string;
+    historyTitle: string;
+    historyLead: string;
+    historyLayers: { climate: string; trade: string; disaster: string };
+    historyEmpty: string;
+    historyUnavailable: string;
+    historyCols: { observed: string; confirmed: string; measured: string; derived: string };
+    checklistTitle: string;
+    checklistLead: string;
+    checks: { travel: string; disaster: string; trade: string; event: string; unexplained: string; korea: string; none: string };
+    responseTitle: string;
+    responseNote: string;
+  };
 };

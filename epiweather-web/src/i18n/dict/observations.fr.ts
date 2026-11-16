@@ -120,4 +120,56 @@ export const observationsFr: ObservationsDict = {
       lead: "Signalements ne correspondant à aucun nom de maladie connu · d'autres conditions comme la hausse des consultations ne sont pas mesurées faute de données",
     },
   },
+  country: {
+    metaTitle: '{name} — Synthèse des observations · AEGIRON',
+    metaDescription:
+      'Ce qu’AEGIRON a réellement reçu sur {name} : signalements d’épidémies, signaux inexpliqués, catastrophes, importations de fournitures médicales, avis aux voyageurs du CDC, liens avec la Corée, avec un historique de 30 jours.',
+    eyebrow: 'OBSERVATIONS PAR PAYS',
+    back: '← Retour aux observations et au globe',
+    open: 'Ouvrir la page du pays →',
+    noCard:
+      'Aucune observation n’est regroupée sous ce pays pour l’instant — cela signifie que rien n’a été reçu, pas qu’il n’y a aucun risque',
+    summaryTitle: 'Synthèse des observations',
+    evidenceTitle: 'Éléments',
+    travelTitle: 'Avis aux voyageurs du CDC',
+    travelNone: 'Aucun avis du CDC ne nomme ce pays',
+    koreaTitle: 'Lien avec la Corée',
+    historyTitle: 'Historique des observations sur 30 jours',
+    historyLead:
+      'Enregistré chaque heure · une nouvelle ligne n’apparaît que si la valeur change · « non déterminé » signifie illisible à ce moment-là (pas zéro) · historique depuis le 15/11/2026',
+    historyLayers: {
+      climate: 'Climat',
+      trade: 'Importations de fournitures médicales',
+      disaster: 'Fenêtres de surveillance post-catastrophe',
+    },
+    historyEmpty: 'Aucune valeur enregistrée sur cette période',
+    historyUnavailable: 'Historique illisible (non déterminé)',
+    historyCols: {
+      observed: 'Premier calcul',
+      confirmed: 'Dernière confirmation',
+      measured: 'Mesure (source)',
+      derived: 'Interprétation (estimation)',
+    },
+    checklistTitle: 'Points à vérifier',
+    checklistLead:
+      'Liste générée par des règles fixes selon les types d’observations reçues · ce n’est pas un avis médical ni sanitaire ; vérifiez d’abord la source d’origine pour chaque point',
+    checks: {
+      travel:
+        'Lire l’avis du CDC (zone et niveau) et vérifier s’il existe des consignes pour les voyageurs en provenance ou à destination de cette zone',
+      disaster:
+        'Une fenêtre de surveillance post-catastrophe est ouverte — vérifier dans la presse locale les nouveaux signalements des maladies de cette fenêtre (dans la période d’incubation)',
+      trade:
+        'Les importations de fournitures médicales dépassent la normale — possible préparation avant une annonce officielle, mais c’est un indicateur indirect ; vérifier les produits et le délai de déclaration (~2 mois)',
+      event:
+        'Vérifier la source d’origine et la date de chaque signalement — ce sont des données structurées par IA, pas des cas confirmés',
+      unexplained:
+        'Certains signalements ne correspondent à aucune maladie connue — lire l’original et vérifier s’il s’agit du même événement rapporté à nouveau',
+      korea:
+        'Relié à la Corée par avion — l’autorité compétente juge si une quarantaine ou des consignes aux voyageurs sont nécessaires, au vu des liaisons directes et du trafic à Incheon',
+      none: 'Aucune observation reçue pour l’instant, donc aucune liste n’est générée',
+    },
+    responseTitle: 'Mesures de riposte dans le pays touché',
+    responseNote:
+      'Pas encore extraites (non déterminé) — extraire des mesures comme confinement, quarantaine ou vaccination à partir des signalements demande une nouvelle extraction par IA ; c’est l’étape suivante',
+  },
 };

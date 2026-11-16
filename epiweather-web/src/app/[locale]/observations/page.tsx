@@ -8,7 +8,7 @@ import { Heading, Text } from '@astryxdesign/core/Text';
 import { Token } from '@astryxdesign/core/Token';
 import { VStack } from '@astryxdesign/core/VStack';
 import { AstryxProvider } from '@/components/AstryxProvider';
-import { getDictionary, isLocale, type Locale } from '@/i18n';
+import { getDictionary, isLocale, localePath, type Locale } from '@/i18n';
 import { apiUrl, getObservations, type ObservationRow } from '@/lib/observations';
 import { getGlobeData } from '@/lib/globeData';
 import { getCountryCards } from '@/lib/countryCards';
@@ -92,7 +92,13 @@ export default async function ObservationsPage(props: { params: Promise<{ locale
           </VStack>
 
           {/* 지구본 — 표의 값을 위치로 먼저 보여 준다(2026-11-15 캡틴: 발병지도·극지방) */}
-          <ObservationGlobe data={globe} cards={cards} labels={t.globe} />
+          <ObservationGlobe
+            data={globe}
+            cards={cards}
+            labels={t.globe}
+            countryHref={localePath(locale, PATH)}
+            openLabel={t.country.open}
+          />
 
           {sections.map((s) => {
             const label = t.sections[s.key];

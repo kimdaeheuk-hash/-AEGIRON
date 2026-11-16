@@ -124,4 +124,41 @@ export const observationsKo: ObservationsDict = {
       lead: '알려진 질병 이름에 맞지 않는 보도 · 병원 방문 급증 같은 다른 조건은 데이터가 없어 측정하지 않음',
     },
   },
+  country: {
+    metaTitle: '{name} — 관측 요약 · 아이기론',
+    metaDescription:
+      '{name}에 대해 아이기론이 실제로 받은 관측(발생 보도·설명불가 신호·재난·의료물자 수입·CDC 여행경보·한국 연결)과 30일 이력.',
+    eyebrow: '나라별 관측',
+    back: '← 관측 데이터·지구본으로',
+    open: '나라 페이지 열기 →',
+    noCard: '지금 이 나라로 묶인 관측이 없음 — 관측이 없다는 것이지 위험이 없다는 판정이 아님',
+    summaryTitle: '관측 요약',
+    evidenceTitle: '근거 기록',
+    travelTitle: 'CDC 여행경보',
+    travelNone: '이 나라 이름이 들어간 CDC 여행경보 없음',
+    koreaTitle: '한국 연결',
+    historyTitle: '30일 관측 이력',
+    historyLead:
+      '매시 저장한 값 · 값이 바뀔 때만 새 줄이 생김 · "판정 안 함"은 그 시각에 못 읽었다는 뜻(0이 아님) · 이력은 2026-11-15부터',
+    historyLayers: { climate: '기후', trade: '의료물자 수입', disaster: '재난 감시창' },
+    historyEmpty: '이 기간에 저장된 값 없음',
+    historyUnavailable: '이력을 읽지 못함(판정 안 함)',
+    historyCols: { observed: '처음 계산', confirmed: '마지막 확인', measured: '측정값(출처)', derived: '해석값(추정)' },
+    checklistTitle: '확인할 것',
+    checklistLead:
+      '받은 관측 종류에 따라 정해 둔 규칙으로 만든 확인 목록임 · 의료·방역 권고가 아니며, 각 항목은 원문 확인이 먼저임',
+    checks: {
+      travel: 'CDC 여행경보 원문(지역·권고 수준)을 확인하고, 해당 지역 출입국자 안내가 있는지 확인',
+      disaster: '재난 후 감시창이 열려 있음 — 창에 든 질병(잠복기 안) 보도가 새로 뜨는지 현지 보도를 확인',
+      trade:
+        '의료물자 수입이 평소보다 늘었음 — 공식 발표 전 준비 행동일 수 있으나 대리 지표이므로 품목·신고 지연(약 2개월)을 함께 확인',
+      event: '발생 보도의 원문 출처와 날짜를 확인 — AI가 구조화한 기록이라 확진 집계가 아님',
+      unexplained: '알려진 질병과 맞지 않는 보도가 있음 — 원문을 읽고 같은 사건의 반복 보도인지 확인',
+      korea: '한국과 항공으로 연결됨 — 직항 노선·인천 여객 규모를 보고 검역·입국자 안내 필요성을 담당 기관이 판단',
+      none: '지금 받은 관측이 없어 확인 목록을 만들지 않음',
+    },
+    responseTitle: '발병국의 대응 조치',
+    responseNote:
+      '아직 추출하지 않음(판정 안 함) — 보도에서 봉쇄·검역·백신 접종 같은 대응 조치를 뽑으려면 AI 추출을 새로 돌려야 해서 다음 단계로 미룸',
+  },
 };
