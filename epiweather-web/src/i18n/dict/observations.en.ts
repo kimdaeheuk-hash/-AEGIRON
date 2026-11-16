@@ -120,6 +120,36 @@ export const observationsEn: ObservationsDict = {
       lead: 'Reports that match no known disease name · other conditions such as hospital-visit spikes are not measured for lack of data',
     },
   },
+  korea: {
+    eyebrow: 'KOREA VIEW · LIVE OBSERVATIONS',
+    title: 'Observations linked to Korea right now',
+    lead: 'Only the observations actually received by the production server that connect to Korea · re-read every 15 minutes',
+    interpretation:
+      'Built on the reading of the request as a national biosecurity view — to be changed if another meaning was intended',
+    exposedTitle: 'Observed countries linked to Korea by air',
+    exposedLead:
+      'Countries with observations that have direct routes to Korea or Incheon passengers · ordered by observation intensity (an estimate)',
+    trendsTitle: 'Neighbouring-country weekly trends',
+    trendsLead:
+      'Japan’s official weekly sentinel surveillance (IDWR) and the probability of an increase next week (a forecast, scored separately)',
+    trendProb: 'Probability of increase next week (forecast)',
+    domesticTitle: 'Unexplained signals in Korea',
+    domesticLead: 'Reports not matching a known disease whose location reads as Korea',
+    tradeTitle: 'Korea’s medical-supply imports',
+    tradeLead:
+      'From stored UN Comtrade surges (only the top 10 countries per product are stored) · reporting lag ~2 months',
+    tradeNone:
+      'Korea is not among the top surges in the last 90 days — not exhaustive, so this means "not in the top", not "no change"',
+    securityTitle: 'Security view',
+    gapsLabel: 'Pathogens currently signalled that have no international emergency stockpile (WHO ICG)',
+    coveredLabel: 'Pathogens with an international emergency stockpile',
+    gapsNote: 'National stockpiles are not public and are not examined · "exists" does not mean "sufficient"',
+    highThreatLabel: 'Reports involving high-threat pathogens (in the latest 200 extractions)',
+    highThreatNote: 'AI-structured report records, not confirmed case counts · count · places · latest date',
+    empty: 'No such observation',
+    unavailable: 'Could not be read (undetermined)',
+    koreaUnavailable: 'The Korea inflow report could not be read, so the link to Korea is not determined',
+  },
   country: {
     metaTitle: '{name} — Observation summary · AEGIRON',
     metaDescription:

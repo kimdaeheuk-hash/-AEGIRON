@@ -120,6 +120,38 @@ export const observationsFr: ObservationsDict = {
       lead: "Signalements ne correspondant à aucun nom de maladie connu · d'autres conditions comme la hausse des consultations ne sont pas mesurées faute de données",
     },
   },
+  korea: {
+    eyebrow: 'VUE CORÉE · OBSERVATIONS EN DIRECT',
+    title: 'Observations liées à la Corée en ce moment',
+    lead: 'Uniquement les observations réellement reçues par le serveur de production qui concernent la Corée · relues toutes les 15 minutes',
+    interpretation:
+      'Construit en lisant la demande comme une vue de biosécurité nationale — à changer si un autre sens était voulu',
+    exposedTitle: 'Pays observés reliés à la Corée par avion',
+    exposedLead:
+      'Pays avec observations ayant des liaisons directes vers la Corée ou des passagers à Incheon · par intensité d’observation (estimation)',
+    trendsTitle: 'Tendances hebdomadaires des pays voisins',
+    trendsLead:
+      'Surveillance sentinelle hebdomadaire officielle du Japon (IDWR) et probabilité de hausse la semaine suivante (prévision, évaluée à part)',
+    trendProb: 'Probabilité de hausse la semaine suivante (prévision)',
+    domesticTitle: 'Signaux inexpliqués en Corée',
+    domesticLead: 'Signalements ne correspondant à aucune maladie connue et localisés en Corée',
+    tradeTitle: 'Importations de fournitures médicales de la Corée',
+    tradeLead:
+      'D’après les hausses UN Comtrade enregistrées (seuls les 10 premiers pays par produit) · délai de déclaration ~2 mois',
+    tradeNone:
+      'La Corée ne figure pas parmi les plus fortes hausses des 90 derniers jours — liste non exhaustive : « absent du haut du classement », pas « aucun changement »',
+    securityTitle: 'Vue sécurité',
+    gapsLabel: 'Pathogènes actuellement signalés sans stock d’urgence international (ICG de l’OMS)',
+    coveredLabel: 'Pathogènes disposant d’un stock d’urgence international',
+    gapsNote:
+      'Les stocks nationaux ne sont pas publics et ne sont pas examinés · « existe » ne veut pas dire « suffisant »',
+    highThreatLabel: 'Signalements impliquant des pathogènes à haut risque (parmi les 200 dernières extractions)',
+    highThreatNote: 'Données structurées par IA, pas des cas confirmés · nombre · lieux · dernière date',
+    empty: 'Aucune observation de ce type',
+    unavailable: 'Illisible (non déterminé)',
+    koreaUnavailable:
+      'Le rapport sur les entrées en Corée n’a pas pu être lu ; le lien avec la Corée n’est pas déterminé',
+  },
   country: {
     metaTitle: '{name} — Synthèse des observations · AEGIRON',
     metaDescription:

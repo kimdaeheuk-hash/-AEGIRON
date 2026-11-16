@@ -563,6 +563,32 @@ export type ObservationsDict = {
     };
   };
   sections: Record<ObservationSectionKey, { title: string; lead: string }>;
+  /** /korea 아래 한국 관점(안보) 관측 묶음 (2026-11-16) */
+  korea: {
+    eyebrow: string;
+    title: string;
+    lead: string;
+    interpretation: string;
+    exposedTitle: string;
+    exposedLead: string;
+    trendsTitle: string;
+    trendsLead: string;
+    trendProb: string;
+    domesticTitle: string;
+    domesticLead: string;
+    tradeTitle: string;
+    tradeLead: string;
+    tradeNone: string;
+    securityTitle: string;
+    gapsLabel: string;
+    coveredLabel: string;
+    gapsNote: string;
+    highThreatLabel: string;
+    highThreatNote: string;
+    empty: string;
+    unavailable: string;
+    koreaUnavailable: string;
+  };
   /** 나라별 페이지 /observations/[iso3] (2026-11-16) — {name} 은 나라 이름으로 바뀐다 */
   country: {
     metaTitle: string;
