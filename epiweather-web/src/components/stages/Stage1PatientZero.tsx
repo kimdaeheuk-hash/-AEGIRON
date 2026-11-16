@@ -4,6 +4,8 @@ import { useStore } from '@/lib/store';
 import { CHANNELS, clamp } from '@/lib/algorithms';
 import { API_BASE as API } from '@/lib/api';
 import LiveObserved from './LiveObserved';
+import { useDashLang, useT } from '@/lib/dashLang';
+import { nameOf } from '@/lib/dashNames';
 
 interface WhoSignal { title: string; date?: string; risk: number; source: string; link?: string }
 interface LocalSignalTitle { title: string; label?: { ko?: string | null; en?: string | null; fr?: string | null }; recent_14d?: number; baseline_14d?: number; ratio?: number; error?: string }
@@ -14,6 +16,8 @@ interface LocalSignal {
 
 export default function Stage1PatientZero() {
   const { pz, zsel, setZSel, origin } = useStore();
+  const tr = useT();
+  const lang = useDashLang();
 
   const [who, setWho] = useState<WhoSignal[] | null>(null);
   useEffect(() => {
@@ -63,11 +67,11 @@ export default function Stage1PatientZero() {
 
   return (
     <div style={{ animation: 'fade .25s' }}>
-      <div className="ptitle">최초 발원지 추적</div>
+      <div className="ptitle">{tr('최초 발원지 추적', 'Tracing the first origin', 'Traçage de l’origine première')}</div>
       <div className="psub">
-        스컹크웍스가 벽 너머 <em style={{ color: 'var(--violet)', fontStyle: 'normal', fontWeight: 600 }}>심장박동</em>을 잡았듯이,
-        진단 0명 시점에 격자 단위 발원지를 추론합니다.
-        6채널 약신호를 <em style={{ color: 'var(--violet)', fontStyle: 'normal', fontWeight: 600 }}>피셔 결합</em>으로 증폭.
+        {tr('스컹크웍스가 벽 너머 심장박동을 잡았듯이, 진단 0명 시점에 격자 단위 발원지를 추론합니다. 6채널 약신호를 피셔 결합으로 증폭.',
+          'Like picking up a heartbeat through a wall, it infers a grid-cell origin before anyone is diagnosed. Six weak channels are amplified with Fisher’s method.',
+          'Comme capter un battement de cœur à travers un mur, il déduit une origine par cellule avant tout diagnostic. Six signaux faibles sont amplifiés par la méthode de Fisher.')}
       </div>
       <LiveObserved stage={1} />
 
@@ -76,9 +80,9 @@ export default function Stage1PatientZero() {
         <div className="card">
           <div className="card-h">
             {/* 이 격자는 숨긴 정답을 합성 신호로 되맞히는 방법론 시연이다(patient_zero.py) — 화면에도 그렇게 쓴다. */}
-            <span className="lbl">격자 후방확률 · 10×10 · <b style={{ color: 'var(--amber)' }}>합성 데이터 시연</b></span>
+            <span className="lbl">{tr('격자 후방확률 · 10×10', 'Grid posterior · 10×10', 'Probabilité a posteriori · 10×10')} · <b style={{ color: 'var(--amber)' }}>{tr('합성 데이터 시연', 'synthetic-data demo', 'démo sur données synthétiques')}</b></span>
             <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)' }}>
-              최고확률 {(pz.top.prob * 100).toFixed(1)}% · 6채널 결합
+              {tr('최고확률', 'Top probability', 'Probabilité max')} {(pz.top.prob * 100).toFixed(1)}% · {tr('6채널 결합', '6 channels combined', '6 canaux combinés')}
             </span>
           </div>
           <div style={{
@@ -123,18 +127,18 @@ export default function Stage1PatientZero() {
             fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted)',
             marginTop: 8, alignItems: 'center',
           }}>
-            <span>낮음</span>
+            <span>{tr('낮음', 'Low', 'Faible')}</span>
             <span style={{
               height: 7, flex: 1, margin: '0 12px', borderRadius: 3,
               background: 'linear-gradient(90deg,#1a2433,#38bdf8,#fbbf24,#f43f5e)',
             }} />
-            <span>발원 의심</span>
+            <span>{tr('발원 의심', 'Suspected origin', 'Origine suspectée')}</span>
           </div>
         </div>
 
         {/* 후보 목록 */}
         <div className="card">
-          <div className="card-h"><span className="lbl">발원 후보 TOP 5</span></div>
+          <div className="card-h"><span className="lbl">{tr('발원 후보 TOP 5', 'Top 5 origin candidates', '5 origines candidates')}</span></div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
             {pz.cands.map((cell, i) => (
               <div key={i}
@@ -151,9 +155,9 @@ export default function Stage1PatientZero() {
                   #{i + 1}
                 </div>
                 <div style={{ flex: 1, fontSize: 12, fontWeight: 600 }}>
-                  격자({cell.r},{cell.c})
+                  {tr('격자', 'Cell', 'Cellule')}({cell.r},{cell.c})
                   <small style={{ display: 'block', fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted)', marginTop: 1 }}>
-                    {i === 0 ? '최우선 발원 후보' : '대안'}
+                    {i === 0 ? tr('최우선 발원 후보', 'Leading candidate', 'Candidate principale') : tr('대안', 'Alternative', 'Alternative')}
                   </small>
                 </div>
                 <div style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 700, color: 'var(--accent)', width: 50, textAlign: 'right' }}>
@@ -168,7 +172,7 @@ export default function Stage1PatientZero() {
               <div style={{
                 fontFamily: 'var(--mono)', fontSize: 9.5, color: 'var(--muted)',
                 textTransform: 'uppercase', letterSpacing: '.16em', margin: '12px 0 8px',
-              }}>선택 격자 · 6채널 약신호</div>
+              }}>{tr('선택 격자 · 6채널 약신호', 'Selected cell · 6 weak channels', 'Cellule choisie · 6 signaux faibles')}</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {zsel.zs.map((z, i) => {
                   const ch = CHANNELS[i];
@@ -182,7 +186,7 @@ export default function Stage1PatientZero() {
                       border: '1px solid var(--line)', borderRadius: 8,
                     }}>
                       <span style={{ fontSize: 14 }}>{ch.ic}</span>
-                      <span style={{ fontSize: 11, flex: 1 }}>{ch.nm}</span>
+                      <span style={{ fontSize: 11, flex: 1 }}>{nameOf(ch.nm, lang)}</span>
                       <div style={{ width: 60, height: 4, background: 'rgba(255,255,255,.06)', borderRadius: 2, overflow: 'hidden' }}>
                         <div style={{ width: `${pct}%`, height: '100%', borderRadius: 2, background: col }} />
                       </div>
@@ -201,10 +205,10 @@ export default function Stage1PatientZero() {
       {/* 발원지 현지어 위키피디아 신호 — 한국 데이터로는 못 보는 '현지' 실신호 대체재 */}
       <div className="card" style={{ marginTop: 14 }}>
         <div className="card-h">
-          <span className="lbl">발원지 현지어 위키피디아 신호 ({origin})</span>
-          {local?.lang && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted2)' }}>{local.lang}.wikipedia 실시간 · 최근14일 vs 이전14일</span>}
+          <span className="lbl">{tr('발원지 현지어 위키피디아 신호', 'Local-language Wikipedia signal at the origin', 'Signal Wikipédia en langue locale à l’origine')} ({origin})</span>
+          {local?.lang && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted2)' }}>{local.lang}.wikipedia {tr('실시간 · 최근14일 vs 이전14일', 'live · last 14 days vs previous 14', 'en direct · 14 derniers jours vs 14 précédents')}</span>}
         </div>
-        {!local && <div style={{ color: 'var(--muted)', fontFamily: 'var(--mono)', fontSize: 10.5, padding: '8px 0' }}>현지어 신호 불러오는 중...</div>}
+        {!local && <div style={{ color: 'var(--muted)', fontFamily: 'var(--mono)', fontSize: 10.5, padding: '8px 0' }}>{tr('현지어 신호 불러오는 중...', 'Loading local-language signal…', 'Chargement du signal local…')}</div>}
         {local && !local.available && <div style={{ color: 'var(--muted)', fontFamily: 'var(--mono)', fontSize: 10.5, padding: '8px 0' }}>{local.reason}</div>}
         {local?.available && (
           <>
@@ -223,10 +227,10 @@ export default function Stage1PatientZero() {
                     )}
                   </span>
                   {t.error ? (
-                    <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted2)' }}>조회 실패</span>
+                    <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted2)' }}>{tr('조회 실패', 'Fetch failed', 'Échec de lecture')}</span>
                   ) : (
                     <>
-                      <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted)' }}>{t.recent_14d} / {t.baseline_14d}회</span>
+                      <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted)' }}>{t.recent_14d} / {t.baseline_14d}{tr('회', '', '')}</span>
                       <span style={{ fontFamily: 'var(--mono)', fontSize: 10.5, width: 42, textAlign: 'right', color: (t.ratio ?? 1) > 2 ? '#ef4444' : (t.ratio ?? 1) > 1.3 ? '#fbbf24' : 'var(--ok)' }}>
                         ×{t.ratio}
                       </span>
@@ -243,13 +247,13 @@ export default function Stage1PatientZero() {
       {/* 실제 WHO 발생 동향 — 위 격자는 방법론 시연용 시뮬레이션, 아래는 실데이터 */}
       <div className="card" style={{ marginTop: 14 }}>
         <div className="card-h">
-          <span className="lbl">현재 실제 발원지 신호 (WHO)</span>
+          <span className="lbl">{tr('현재 실제 발원지 신호 (WHO)', 'Current real origin signals (WHO)', 'Signaux d’origine réels actuels (OMS)')}</span>
           <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted2)' }}>
-            ⚠ 위 10×10 격자는 방법론(Fisher 결합) 시연용 시뮬레이션, 위·아래 카드는 실시간 데이터
+            ⚠ {tr('위 10×10 격자는 방법론(Fisher 결합) 시연용 시뮬레이션, 위·아래 카드는 실시간 데이터', 'The 10×10 grid above is a simulation demonstrating the method (Fisher combination); the cards above and below are live data', 'La grille 10×10 ci-dessus est une simulation illustrant la méthode (combinaison de Fisher) ; les cartes au-dessus et en dessous sont des données en direct')}
           </span>
         </div>
         {who === null && (
-          <div style={{ color: 'var(--muted)', fontFamily: 'var(--mono)', fontSize: 10.5, padding: '8px 0' }}>실시간 WHO 신호 불러오는 중...</div>
+          <div style={{ color: 'var(--muted)', fontFamily: 'var(--mono)', fontSize: 10.5, padding: '8px 0' }}>{tr('실시간 WHO 신호 불러오는 중...', 'Loading live WHO signals…', 'Chargement des signaux OMS en direct…')}</div>
         )}
         {who && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>

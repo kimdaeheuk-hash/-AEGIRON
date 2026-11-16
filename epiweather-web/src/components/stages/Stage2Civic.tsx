@@ -2,6 +2,8 @@
 import { useStore } from '@/lib/store';
 import { CIVIC } from '@/lib/algorithms';
 import LiveObserved from './LiveObserved';
+import { useDashLang, useT } from '@/lib/dashLang';
+import { nameOf } from '@/lib/dashNames';
 
 // ★ 2026-10-18 ★ 예전엔 여기서 localhost:8000(하드코딩)의 '2020 COVID 백테스트'를 불러
 // "✅ 실측 검증 — 검색이 대구 집단감염보다 28일 먼저" 를 띄웠다. 운영에선 늘 연결 거부였고,
@@ -11,16 +13,18 @@ import LiveObserved from './LiveObserved';
 
 export default function Stage2Civic() {
   const { civicOn, toggleCivic } = useStore();
+  const tr = useT();
+  const lang = useDashLang();
   const active = CIVIC.filter(s => civicOn[s.id]);
   const lead = active.length ? Math.max(...active.map(s => s.lead)) : 0;
 
   return (
     <div style={{ animation: 'fade .25s' }}>
-      <div className="ptitle">민간 우선 신호망</div>
+      <div className="ptitle">{tr('민간 우선 신호망', 'Civic-first signal network', 'Réseau de signaux citoyens')}</div>
       <div className="psub">
-        코로나의 교훈 — 정부 발표는 늦었다. 아래 다섯 가지 민간 신호(자가증상·하수·OTC·키트·검사소)가 그 공백을 메울 수 있는지를
-        보는 시나리오입니다. 신호별 선행일수는 데이터 파트너십 전까지의{' '}
-        <em style={{ color: 'var(--amber)', fontStyle: 'normal', fontWeight: 600 }}>가정값</em>이며, 아직 실측으로 검증된 신호는 없습니다.
+        {tr('코로나의 교훈 — 정부 발표는 늦었다. 아래 다섯 가지 민간 신호(자가증상·하수·OTC·키트·검사소)가 그 공백을 메울 수 있는지를 보는 시나리오입니다. 신호별 선행일수는 데이터 파트너십 전까지의 가정값이며, 아직 실측으로 검증된 신호는 없습니다.',
+          'The COVID lesson: official announcements came late. This scenario asks whether the five civic signals below (self-reported symptoms, wastewater, OTC, test kits, labs) could fill that gap. Lead times per signal are assumed values until data partnerships exist; no signal has been verified by measurement yet.',
+          'La leçon du COVID : les annonces officielles sont arrivées tard. Ce scénario examine si les cinq signaux citoyens ci-dessous (symptômes, eaux usées, sans ordonnance, autotests, laboratoires) pourraient combler ce retard. Les délais d’avance sont des hypothèses en attendant des partenariats de données ; aucun signal n’a encore été vérifié par la mesure.')}
       </div>
       <LiveObserved stage={2} />
       <div className="card">
@@ -32,19 +36,20 @@ export default function Stage2Civic() {
           display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
         }}>
           <div style={{ flex: 1, minWidth: 260, fontFamily: 'var(--disp)', fontWeight: 800, fontSize: 16, lineHeight: 1.3 }}>
-            시민·민간 신호 융합 —{' '}
-            <b style={{ color: 'var(--violet)' }}>정부 D-0보다 먼저</b>
+            {tr('시민·민간 신호 융합 —', 'Citizen and civic signals combined —', 'Signaux citoyens combinés —')}{' '}
+            <b style={{ color: 'var(--violet)' }}>{tr('정부 D-0보다 먼저', 'ahead of the government’s D-0', 'avant le J-0 officiel')}</b>
           </div>
           <div style={{ fontFamily: 'var(--mono)', fontWeight: 700, fontSize: 34, color: 'var(--violet)', textAlign: 'right' }}>
-            +{lead}일
-            <small style={{ display: 'block', fontSize: 9.5, color: 'var(--muted)', letterSpacing: '.14em', marginTop: 2 }}>정부 대비 선행 · 가정값</small>
+            +{lead}{tr('일', 'd', ' j')}
+            <small style={{ display: 'block', fontSize: 9.5, color: 'var(--muted)', letterSpacing: '.14em', marginTop: 2 }}>{tr('정부 대비 선행 · 가정값', 'lead over government · assumed', 'avance sur l’officiel · hypothèse')}</small>
           </div>
         </div>
 
         {/* 상시 고지 — 선행일수는 가정값 */}
         <div style={{ marginTop: 12, padding: '9px 13px', borderRadius: 11, background: 'rgba(251,191,36,.06)', border: '1px solid rgba(251,191,36,.3)', fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted)', lineHeight: 1.6 }}>
-          ⚠ 아래 신호별 선행일수(D−14 등)는 <b style={{ color: 'var(--amber)' }}>시나리오 가정값</b>이며 실측이 아닙니다.
-          민간 신호가 정부 발표보다 앞선다는 것을 검증한 기록은 아직 없습니다.
+          ⚠ {tr('아래 신호별 선행일수(D−14 등)는 시나리오 가정값이며 실측이 아닙니다. 민간 신호가 정부 발표보다 앞선다는 것을 검증한 기록은 아직 없습니다.',
+            'The lead times below (D−14 etc.) are scenario assumptions, not measurements. There is no record yet verifying that civic signals precede official announcements.',
+            'Les délais ci-dessous (J−14, etc.) sont des hypothèses de scénario, pas des mesures. Aucun relevé ne vérifie encore que les signaux citoyens précèdent les annonces officielles.')}
         </div>
 
         {/* 신호 목록 */}
@@ -71,14 +76,14 @@ export default function Stage2Civic() {
                   {s.ic}
                 </div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 700 }}>{s.nm}</div>
+                  <div style={{ fontSize: 12.5, fontWeight: 700 }}>{nameOf(s.nm, lang)}</div>
                   <div style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted)', marginTop: 1 }}>
-                    {s.sub} · 품질 {Math.round(s.q * 100)} · 볼륨 {Math.round(s.v * 100)}
+                    {s.sub} · {tr('품질', 'quality', 'qualité')} {Math.round(s.q * 100)} · {tr('볼륨', 'volume', 'volume')} {Math.round(s.v * 100)}
                   </div>
                 </div>
                 <div style={{ fontFamily: 'var(--mono)', fontWeight: 700, textAlign: 'right' }}>
                   <div style={{ fontSize: 16, color: 'var(--violet)' }}>D−{s.lead}</div>
-                  <div style={{ fontSize: 8.5, color: 'var(--muted)' }}>선행</div>
+                  <div style={{ fontSize: 8.5, color: 'var(--muted)' }}>{tr('선행', 'lead', 'avance')}</div>
                 </div>
               </div>
             );
@@ -100,12 +105,12 @@ export default function Stage2Civic() {
               🏛
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 12.5, fontWeight: 700 }}>정부 공식 발표</div>
-              <div style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted)', marginTop: 1 }}>GOV · 기준선</div>
+              <div style={{ fontSize: 12.5, fontWeight: 700 }}>{tr('정부 공식 발표', 'Official government announcement', 'Annonce officielle')}</div>
+              <div style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted)', marginTop: 1 }}>GOV · {tr('기준선', 'baseline', 'référence')}</div>
             </div>
             <div style={{ fontFamily: 'var(--mono)', fontWeight: 700, textAlign: 'right' }}>
               <div style={{ fontSize: 16, color: '#ef4444' }}>D-0</div>
-              <div style={{ fontSize: 8.5, color: 'var(--muted)' }}>기준</div>
+              <div style={{ fontSize: 8.5, color: 'var(--muted)' }}>{tr('기준', 'base', 'réf.')}</div>
             </div>
           </div>
         </div>

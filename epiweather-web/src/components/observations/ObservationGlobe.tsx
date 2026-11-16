@@ -18,6 +18,7 @@ import worldTopo from 'world-atlas/countries-110m.json';
 import { Button } from '@astryxdesign/core/Button';
 import { Card } from '@astryxdesign/core/Card';
 import { HStack } from '@astryxdesign/core/HStack';
+import { Link } from '@astryxdesign/core/Link';
 import { Heading, Text } from '@astryxdesign/core/Text';
 import { Token } from '@astryxdesign/core/Token';
 import { VStack } from '@astryxdesign/core/VStack';
@@ -75,10 +76,15 @@ export default function ObservationGlobe({
   data,
   cards,
   labels,
+  countryHref,
+  openLabel,
 }: {
   data: GlobeData;
   cards: CardsData;
   labels: ObservationsDict['globe'];
+  /** 나라 페이지 경로 접두(예: /ko/observations) — 주면 카드에 '나라 페이지 열기' 링크 */
+  countryHref?: string;
+  openLabel?: string;
 }) {
   const t = labels.card;
   // 좁은 화면에서는 지구본이 작아 보이므로 처음 시점을 더 가깝게(시점은 브라우저 전용 지구본에만 쓰여 SSR 마크업과 무관)
@@ -218,6 +224,13 @@ export default function ObservationGlobe({
                     <Heading level={3}>{pickedCard.name}</Heading>
                     <Token size="sm" color={gradeColor(pickedCard.grade)} label={t.grade[pickedCard.grade]} />
                   </HStack>
+                  {countryHref && openLabel && (
+                    <Link href={`${countryHref}/${pickedCard.iso3}`}>
+                      <Text type="supporting" color="inherit">
+                        {openLabel}
+                      </Text>
+                    </Link>
+                  )}
                   <Text weight="semibold">
                     {t.intensity} {pickedCard.intensity}/100
                   </Text>

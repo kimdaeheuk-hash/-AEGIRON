@@ -3,6 +3,8 @@ import { useState } from 'react';
 import { useStore } from '@/lib/store';
 import { THREAT, CIVIC, currentRt } from '@/lib/algorithms';
 import LiveObserved from './LiveObserved';
+import { numLocale, useDashLang, useT, type Tr } from '@/lib/dashLang';
+import { nameOf } from '@/lib/dashNames';
 
 interface PriorityAction {
   priority: number;
@@ -43,18 +45,18 @@ interface InferResponse {
 }
 
 /** 분석 시점 표시 — 캐시 적중이면 몇 분 전 것인지 밝힌다. */
-function ageLabel(r: InferResponse): string {
+function ageLabel(r: InferResponse, tr: Tr): string {
   if (!r.cached_at) return '';
   const m = Math.max(0, Math.round((Date.now() - new Date(r.cached_at).getTime()) / 60000));
-  const when = m <= 0 ? '방금 분석' : `${m}분 전 분석`;
-  return ` · ${when}${r.cached ? '(캐시)' : ''}`;
+  const when = m <= 0 ? tr('방금 분석', 'analysed just now', 'analysé à l’instant') : tr(`${m}분 전 분석`, `analysed ${m} min ago`, `analysé il y a ${m} min`);
+  return ` · ${when}${r.cached ? tr('(캐시)', ' (cached)', ' (cache)') : ''}`;
 }
 
 /** 제공자 표시 — 폴백이면 그 사실도 숨기지 않는다. */
-function providerLabel(r: InferResponse): string {
+function providerLabel(r: InferResponse, tr: Tr): string {
   if (r.llm_provider === 'meta_model_api') return `Meta ${r.llm_model ?? ''}`.trim();
   if (r.llm_provider === 'anthropic') {
-    return r.meta_error ? 'Claude (Meta 실패 후 폴백)' : 'Claude';
+    return r.meta_error ? tr('Claude (Meta 실패 후 폴백)', 'Claude (fallback after Meta failed)', 'Claude (secours après échec de Meta)') : 'Claude';
   }
   return 'Claude';
 }
@@ -77,6 +79,9 @@ const URGENCY_COLOR: Record<string, string> = {
 
 export default function Stage7AI() {
   const { pz, glob, def, def0, lev, threat, origin, civicOn, savedLives } = useStore();
+  const tr = useT();
+  const lang = useDashLang();
+  const nf = (n: number) => n.toLocaleString(numLocale(lang));
   const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const [result, setResult] = useState<InferResponse | null>(null);
   // 2단계(LLM) 진행 중 — 1단계 결과는 이미 화면에 있다
@@ -91,12 +96,12 @@ export default function Stage7AI() {
   const rt = currentRt(lev, threat);
 
   const summaryItems = [
-    { label: '발원지 추적', val: `격자(${pz.top.r},${pz.top.c})`, sub: `${(pz.top.prob * 100).toFixed(1)}% 확률` },
-    { label: '민간 선행', val: `D−${civicLead}일`, sub: '정부 대비', color: 'var(--violet)' },
-    { label: '한국 유입', val: `D+${glob.arrival}`, sub: `${glob.city.nm}발` },
-    { label: '위협', val: sp.nm, sub: `R₀ ${sp.R0}` },
-    { label: '방어 효과', val: `${savedLives.toLocaleString()}명`, sub: '구한 생명', color: 'var(--ok)' },
-    { label: 'Rt', val: rt.toFixed(2), sub: rt < 1 ? '차단' : '억제', color: rt < 1 ? 'var(--ok)' : '#fb923c' },
+    { label: tr('발원지 추적', 'Origin tracing', 'Traçage de l’origine'), val: `${tr('격자', 'Cell', 'Cellule')}(${pz.top.r},${pz.top.c})`, sub: tr(`${(pz.top.prob * 100).toFixed(1)}% 확률`, `${(pz.top.prob * 100).toFixed(1)}% probability`, `probabilité ${(pz.top.prob * 100).toFixed(1)} %`) },
+    { label: tr('민간 선행', 'Civic lead', 'Avance citoyenne'), val: `D−${civicLead}${tr('일', 'd', ' j')}`, sub: tr('정부 대비', 'vs government', 'vs officiel'), color: 'var(--violet)' },
+    { label: tr('한국 유입', 'Arrival in Korea', 'Arrivée en Corée'), val: `D+${glob.arrival}`, sub: tr(`${glob.city.nm}발`, `from ${nameOf(glob.city.nm, lang)}`, `depuis ${nameOf(glob.city.nm, lang)}`) },
+    { label: tr('위협', 'Threat', 'Menace'), val: nameOf(sp.nm, lang), sub: `R₀ ${sp.R0}` },
+    { label: tr('방어 효과', 'Defence effect', 'Effet de la défense'), val: `${nf(savedLives)}${tr('명', '', '')}`, sub: tr('구한 생명', 'lives saved', 'vies sauvées'), color: 'var(--ok)' },
+    { label: 'Rt', val: rt.toFixed(2), sub: rt < 1 ? tr('차단', 'stopped', 'stoppé') : tr('억제', 'suppressing', 'freinage'), color: rt < 1 ? 'var(--ok)' : '#fb923c' },
   ];
 
   async function runAI() {
@@ -137,7 +142,7 @@ export default function Stage7AI() {
           try { detail = (JSON.parse(t) as { detail?: string }).detail || ''; }
           catch { detail = t.startsWith('<') ? '' : t; }
         } catch { /* 본문 없음 */ }
-        throw new Error(`서버 오류 (${res.status})${detail ? ' — ' + String(detail).slice(0, 140) : ''}`);
+        throw new Error(`${tr('서버 오류', 'Server error', 'Erreur serveur')} (${res.status})${detail ? ' — ' + String(detail).slice(0, 140) : ''}`);
       }
       return (await res.json()) as InferResponse;
     }
@@ -169,15 +174,15 @@ export default function Stage7AI() {
 
   return (
     <div style={{ animation: 'fade .25s' }}>
-      <div className="ptitle">AI 통합 역학 추론</div>
+      <div className="ptitle">{tr('AI 통합 역학 추론', 'AI integrated epidemiological reasoning', 'Raisonnement épidémiologique intégré par IA')}</div>
       <div className="psub">
-        7단계 전체 상황을 FastAPI 추론 엔진(의사결정 트리 + RAG + Meta Model API 우선)으로 종합 분석.
+        {tr('7단계 전체 상황을 FastAPI 추론 엔진(의사결정 트리 + RAG + Meta Model API 우선)으로 종합 분석.', 'Analyses the whole situation across the stages with the FastAPI reasoning engine (decision tree + RAG + Meta Model API first).', 'Analyse l’ensemble de la situation avec le moteur de raisonnement FastAPI (arbre de décision + RAG + Meta Model API en priorité).')}
       </div>
       <LiveObserved stage={7} />
 
       {/* 요약 카드 */}
       <div className="card">
-        <div className="card-h"><span className="lbl">통합 상황 요약</span></div>
+        <div className="card-h"><span className="lbl">{tr('통합 상황 요약', 'Integrated situation summary', 'Synthèse de la situation')}</span></div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 10 }}>
           {summaryItems.map((item, i) => (
             <div key={i} className="oc">
@@ -192,7 +197,7 @@ export default function Stage7AI() {
       {/* AI 추론 */}
       <div className="card" style={{ marginTop: 14 }}>
         <div className="card-h">
-          <span className="lbl">AI 정책 추론</span>
+          <span className="lbl">{tr('AI 정책 추론', 'AI policy reasoning', 'Raisonnement politique par IA')}</span>
           <button
             onClick={runAI}
             disabled={status === 'loading'}
@@ -202,20 +207,20 @@ export default function Stage7AI() {
               borderRadius: 9, padding: '9px 12px', cursor: 'pointer',
             }}
           >
-            {status === 'loading' ? '추론 중…' : 'AI 추론 실행'}
+            {status === 'loading' ? tr('추론 중…', 'Reasoning…', 'Raisonnement…') : tr('AI 추론 실행', 'Run AI reasoning', 'Lancer le raisonnement IA')}
           </button>
         </div>
 
         {status === 'idle' && (
           <div style={{ color: 'var(--muted2)', fontFamily: 'var(--mono)', fontSize: 11.5, textAlign: 'center', padding: '18px 0', lineHeight: 1.6 }}>
-            7단계 전체 신호·예측·대응 효과를 근거로<br />의사결정 트리 + RAG + LLM(Meta 우선·Claude 폴백)이 통합 정책 권고를 추론합니다.
+            {tr('7단계 전체 신호·예측·대응 효과를 근거로 의사결정 트리 + RAG + LLM(Meta 우선·Claude 폴백)이 통합 정책 권고를 추론합니다.', 'From the signals, forecasts and response effects of all stages, a decision tree + RAG + LLM (Meta first, Claude fallback) reasons out integrated policy recommendations.', 'À partir des signaux, prévisions et effets de réponse de toutes les étapes, un arbre de décision + RAG + LLM (Meta d’abord, Claude en secours) formule des recommandations intégrées.')}
           </div>
         )}
 
         {status === 'loading' && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--muted)', fontFamily: 'var(--mono)', fontSize: 11.5, padding: '10px 0' }}>
             <div style={{ width: 14, height: 14, border: '2px solid var(--line2)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'sp .8s linear infinite' }} />
-            추론 엔진 분석 중…
+            {tr('추론 엔진 분석 중…', 'Reasoning engine analysing…', 'Analyse du moteur en cours…')}
           </div>
         )}
 
@@ -232,21 +237,21 @@ export default function Stage7AI() {
                 {result.alert_level}
               </div>
               <div style={{ color: 'var(--muted)', fontFamily: 'var(--mono)', fontSize: 11 }}>
-                {result.mode === 'full_rag_llm' ? `✓ RAG + ${providerLabel(result)} 분석 완료` :
-                 result.mode === 'decision_tree_fast' ? '의사결정 트리 즉시 결과 · LLM 분석은 이어서 계산 중' :
-                 result.mode === 'decision_tree_only' ? '의사결정 트리 (API 키 없음)' :
-                 '의사결정 트리 (LLM 오류 시 대체)'}
+                {result.mode === 'full_rag_llm' ? `✓ RAG + ${providerLabel(result, tr)} ${tr('분석 완료', 'analysis done', 'analyse terminée')}` :
+                  result.mode === 'decision_tree_fast' ? tr('의사결정 트리 즉시 결과 · LLM 분석은 이어서 계산 중', 'Instant decision-tree result · LLM analysis still computing', 'Résultat immédiat de l’arbre · analyse LLM en cours') :
+                  result.mode === 'decision_tree_only' ? tr('의사결정 트리 (API 키 없음)', 'Decision tree (no API key)', 'Arbre de décision (pas de clé API)') :
+                  tr('의사결정 트리 (LLM 오류 시 대체)', 'Decision tree (fallback after LLM error)', 'Arbre de décision (secours après erreur LLM)')}
               </div>
               {result.cache_hit && (
                 <div style={{ color: 'var(--ok)', fontFamily: 'var(--mono)', fontSize: 10, marginLeft: 'auto' }}>
-                  ⚡ 캐시 히트
+                  ⚡ {tr('캐시 히트', 'cache hit', 'cache utilisé')}
                 </div>
               )}
             </div>
 
             {/* 의사결정 트리 — 우선순위 행동 */}
             <div>
-              <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'var(--mono)', marginBottom: 8 }}>우선순위 대응</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'var(--mono)', marginBottom: 8 }}>{tr('우선순위 대응', 'Priority actions', 'Actions prioritaires')}</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {result.decision_tree.priority_actions.map((a) => {
                   const uc = URGENCY_COLOR[a.urgency] ?? '#64748b';
@@ -289,24 +294,24 @@ export default function Stage7AI() {
             {llmLoading && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--muted)', fontFamily: 'var(--mono)', fontSize: 11.5 }}>
                 <div style={{ width: 14, height: 14, border: '2px solid var(--line2)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'sp .8s linear infinite' }} />
-                LLM 정책 분석 계산 중… (Meta 추론 모델 실측 60~120초 — 위 의사결정 트리는 지금 바로 쓸 수 있음)
+                {tr('LLM 정책 분석 계산 중… (Meta 추론 모델 실측 60~120초 — 위 의사결정 트리는 지금 바로 쓸 수 있음)', 'Computing LLM policy analysis… (Meta reasoning model measured at 60–120 s; the decision tree above is usable now)', 'Analyse LLM en cours… (modèle Meta mesuré à 60–120 s ; l’arbre de décision ci-dessus est déjà utilisable)')}
               </div>
             )}
             {llmError && (
               <div style={{ fontSize: 11.5, color: '#fb923c', fontFamily: 'var(--mono)' }}>
-                LLM 분석을 받지 못함 — {llmError} · 위 의사결정 트리 결과는 유효함
+                {tr('LLM 분석을 받지 못함', 'LLM analysis not received', 'Analyse LLM non reçue')} — {llmError} · {tr('위 의사결정 트리 결과는 유효함', 'the decision-tree result above is still valid', 'le résultat de l’arbre ci-dessus reste valable')}
               </div>
             )}
             {result.llm_analysis ? (
               <div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'var(--mono)', marginBottom: 8 }}>{providerLabel(result)} 통합 분석{ageLabel(result)}</div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'var(--mono)', marginBottom: 8 }}>{providerLabel(result, tr)} {tr('통합 분석', 'integrated analysis', 'analyse intégrée')}{ageLabel(result, tr)}</div>
                 <div style={{ fontSize: 13, lineHeight: 1.75, whiteSpace: 'pre-wrap', color: '#dfe6ef' }}>
                   {result.llm_analysis}
                 </div>
                 {result.usage && (
                   <div style={{ marginTop: 8, fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted2)' }}>
-                    입력 {result.usage.input_tokens.toLocaleString()}t · 출력 {result.usage.output_tokens.toLocaleString()}t
-                    {result.usage.cache_read_tokens > 0 && ` · 캐시 절감 ${result.usage.cache_read_tokens.toLocaleString()}t`}
+                    {tr('입력', 'in', 'entrée')} {nf(result.usage.input_tokens)}t · {tr('출력', 'out', 'sortie')} {nf(result.usage.output_tokens)}t
+                    {result.usage.cache_read_tokens > 0 && ` · ${tr('캐시 절감', 'cache saved', 'économie cache')} ${nf(result.usage.cache_read_tokens)}t`}
                   </div>
                 )}
               </div>
@@ -320,8 +325,8 @@ export default function Stage7AI() {
 
         {status === 'error' && (
           <div style={{ color: '#fca5a5', fontSize: 11.5, lineHeight: 1.6, background: 'rgba(239,68,68,.08)', border: '1px solid rgba(239,68,68,.4)', borderRadius: 10, padding: '11px 13px' }}>
-            <b>추론 엔진 호출 실패.</b><br />{errMsg}<br /><br />
-            FastAPI 서버(포트 8000)가 실행 중인지 확인하세요.
+                <b>{tr('추론 엔진 호출 실패.', 'Reasoning engine call failed.', 'Échec de l’appel au moteur de raisonnement.')}</b><br />{errMsg}<br /><br />
+                {tr('FastAPI 서버(포트 8000)가 실행 중인지 확인하세요.', 'Check that the FastAPI server (port 8000) is running.', 'Vérifiez que le serveur FastAPI (port 8000) fonctionne.')}
           </div>
         )}
       </div>

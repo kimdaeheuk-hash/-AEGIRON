@@ -18,7 +18,7 @@ export const extraPagesEn: ExtraDict['pages'] = {
       title: 'Open the same screen yourself',
       body: 'The production dashboard opens with no login, updating in real time just like the captures above.',
       label: 'Open the live dashboard',
-      href: '/dashboard',
+      href: '/dashboard?lang=en',
     },
   },
 
@@ -48,7 +48,7 @@ export const extraPagesEn: ExtraDict['pages'] = {
       alt: 'AEGIRON dashboard screen for global import detection — an air-network map from the origin to Korea',
       caption: 'The global import detection screen of the running dashboard (capture). It estimates arrival timing and the port of entry from an origin to Korea; the figures are a model scenario under the chosen assumptions.',
       credit: 'AEGIRON operational screen',
-      sourceUrl: '/dashboard',
+      sourceUrl: '/dashboard?lang=en',
     },
     blocks: [
       {
@@ -322,7 +322,7 @@ export const extraPagesEn: ExtraDict['pages'] = {
       title: 'See each disease’s signals now',
       body: 'The latest signals by disease are on the dashboard and in the daily briefings.',
       label: 'Open the live dashboard',
-      href: '/dashboard',
+      href: '/dashboard?lang=en',
     },
   },
 };

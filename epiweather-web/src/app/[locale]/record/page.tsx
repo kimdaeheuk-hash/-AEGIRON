@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { getDictionary, isLocale, type Locale } from '@/i18n';
+import { getDictionary, isLocale, localePath, type Locale } from '@/i18n';
 import { Section, SectionHeading } from '@/components/site/Section';
 import { CtaBand } from '@/components/site/ContentPageView';
 import {
@@ -74,6 +74,11 @@ export default async function RecordPage(props: { params: Promise<{ locale: stri
       <Section>
         <SectionHeading eyebrow="KOREA IMPORT REPORT" title={R.importReport.title} lead={R.importReport.lead} />
         <ImportReportView report={importReport} labels={R.importReport} weeklyLabels={R.weekly} />
+        <p style={{ marginTop: 10 }}>
+          <a href={localePath(locale, 'reports/weekly')} style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>
+            {x.observations.weekly.eyebrow} →
+          </a>
+        </p>
       </Section>
 
       {page.cta && <CtaBand cta={page.cta} locale={locale} />}

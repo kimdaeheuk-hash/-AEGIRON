@@ -61,7 +61,7 @@ body::before {
 
 
 /* ── 상단 메뉴 (SiteNav · MobileMenu) ─────────────────────────────
-   넓은 화면: 여섯 묶음 + 펼침 메뉴. 좁은 화면(1080px 미만): '메뉴' 버튼 하나.
+   넓은 화면: 여섯 묶음 + 펼침 메뉴. 좁은 화면(한국어 1160px · 영어 1280px · 프랑스어 1440px 미만): '메뉴' 버튼 하나.
    펼침은 :hover 와 :focus-within 둘 다로 연다 — 키보드로 Tab 해 들어가도 열린다. */
 .site-header {
   position: sticky; top: 0; z-index: 40;
@@ -125,10 +125,24 @@ body::before {
   display: block; text-align: center; margin-top: 18px; padding: 13px; border-radius: 10px;
   background: var(--deep, var(--accent)); color: var(--on-accent); text-decoration: none; font-family: var(--mono); font-size: 13px;
 }
-@media (max-width: 1079px) {
+@media (max-width: 1159px) {
   .nav-groups, .nav-cta { display: none; }
   .mobile-menu { display: block; }
   .nav-actions { margin-left: auto; }
+}
+/* 영어·프랑스어 메뉴는 낱말이 길어 한국어 기준으로는 오른쪽으로 넘쳤다(2026-11-16 측정:
+   1280px 에서 en 1367px · fr 1519px). 줄 간격을 줄이고, 그래도 안 들어가는 폭에서는 접힌 메뉴로 바꾼다. */
+html:not(:lang(ko)) .site-nav { max-width: 1480px; gap: 12px; }
+html:not(:lang(ko)) .nav-top { padding: 10px 9px; font-size: 13.5px; }
+@media (max-width: 1279px) {
+  html:lang(en) .nav-groups, html:lang(en) .nav-cta { display: none; }
+  html:lang(en) .mobile-menu { display: block; }
+  html:lang(en) .nav-actions { margin-left: auto; }
+}
+@media (max-width: 1439px) {
+  html:lang(fr) .nav-groups, html:lang(fr) .nav-cta { display: none; }
+  html:lang(fr) .mobile-menu { display: block; }
+  html:lang(fr) .nav-actions { margin-left: auto; }
 }
 
 /* 화면낭독기 전용 텍스트 — 언어 전환기가 "KO" 옆에 "한국어"를 숨겨 읽힌다. */

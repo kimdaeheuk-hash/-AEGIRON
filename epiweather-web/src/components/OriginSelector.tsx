@@ -1,6 +1,8 @@
 'use client';
 import { useMemo, useState, type CSSProperties } from 'react';
 import { OriginCity } from '@/lib/api';
+import { useDashLang, useT, type DashLang } from '@/lib/dashLang';
+import { nameOf } from '@/lib/dashNames';
 
 // 발원지 검색 드롭다운 — 큐레이션 8개 도시(실제 발병사례 기반) + World Bank
 // 실제 전세계 국가(tier=auto, 위험도 미보정·참고용)를 검색·지역별로 보여줌.
@@ -17,11 +19,11 @@ const REGION_KO: Record<string, string> = {
   'Sub-Saharan Africa': '사하라이남 아프리카',
 };
 
-function displayName(o: OriginCity): string {
-  if (o.tier === 'curated') return o.nm;
+function displayName(o: OriginCity, lang: DashLang = 'ko'): string {
+  if (o.tier === 'curated') return nameOf(o.nm, lang);
   if (o.iso2) {
     try {
-      const dn = new Intl.DisplayNames(['ko'], { type: 'region' }).of(o.iso2);
+      const dn = new Intl.DisplayNames([lang], { type: 'region' }).of(o.iso2);
       if (dn) return dn;
     } catch {
       // Intl.DisplayNames 미지원 브라우저 — 아래 영문명 폴백
@@ -33,27 +35,29 @@ function displayName(o: OriginCity): string {
 export default function OriginSelector({ value, origins, onChange }: {
   value: string; origins: OriginCity[]; onChange: (id: string) => void;
 }) {
+  const tr = useT();
+  const lang = useDashLang();
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
 
   const selected = origins.find(o => o.id === value);
-  const selectedLabel = selected ? displayName(selected) : value;
+  const selectedLabel = selected ? displayName(selected, lang) : value;
 
   const grouped = useMemo(() => {
     const q = query.trim().toLowerCase();
     const matches = (o: OriginCity) =>
-      !q || displayName(o).toLowerCase().includes(q) || o.nm.toLowerCase().includes(q) || o.id.toLowerCase().includes(q);
+      !q || displayName(o, lang).toLowerCase().includes(q) || displayName(o).toLowerCase().includes(q) || o.nm.toLowerCase().includes(q) || o.id.toLowerCase().includes(q);
     const filtered = origins.filter(matches);
     const curated = filtered.filter(o => o.tier === 'curated');
     const byRegion = new Map<string, OriginCity[]>();
     for (const o of filtered) {
       if (o.tier !== 'auto') continue;
-      const key = o.region ?? '기타';
+      const key = o.region ?? 'Other';
       if (!byRegion.has(key)) byRegion.set(key, []);
       byRegion.get(key)!.push(o);
     }
     return { curated, byRegion };
-  }, [origins, query]);
+  }, [origins, query, lang]);
 
   function pick(id: string) {
     onChange(id);
@@ -68,7 +72,7 @@ export default function OriginSelector({ value, origins, onChange }: {
         onChange={e => { setQuery(e.target.value); setOpen(true); }}
         onFocus={() => { setQuery(''); setOpen(true); }}
         onBlur={() => setOpen(false)}
-        placeholder="국가 검색…"
+        placeholder={tr('국가 검색…', 'Search country…', 'Rechercher un pays…')}
         style={{
           width: '100%', fontFamily: 'var(--kr)', fontSize: 12.5, color: 'var(--txt)',
           background: 'var(--bg2)', border: '1px solid var(--line)', borderRadius: 9,
@@ -83,23 +87,23 @@ export default function OriginSelector({ value, origins, onChange }: {
         }}>
           {grouped.curated.length > 0 && (
             <div style={{ marginBottom: 6 }}>
-              <div style={groupLabelStyle}>주요 사례(실측 기반)</div>
+              <div style={groupLabelStyle}>{tr('주요 사례(실측 기반)', 'Key cases (based on real outbreaks)', 'Cas clés (d’après des épidémies réelles)')}</div>
               {grouped.curated.map(o => (
-                <Option key={o.id} label={displayName(o)} sub={o.note} onPick={() => pick(o.id)} />
+                <Option key={o.id} label={displayName(o, lang)} sub={o.note ? nameOf(o.note, lang) : o.note} onPick={() => pick(o.id)} />
               ))}
             </div>
           )}
           {[...grouped.byRegion.entries()].map(([region, items]) => (
             <div key={region} style={{ marginBottom: 6 }}>
-              <div style={groupLabelStyle}>{REGION_KO[region] ?? region}</div>
+              <div style={groupLabelStyle}>{lang === 'ko' ? (REGION_KO[region] ?? (region === 'Other' ? '기타' : region)) : region === 'Other' ? tr('기타', 'Other', 'Autres') : region}</div>
               {items.map(o => (
-                <Option key={o.id} label={displayName(o)} auto onPick={() => pick(o.id)} />
+                <Option key={o.id} label={displayName(o, lang)} auto onPick={() => pick(o.id)} />
               ))}
             </div>
           ))}
           {grouped.curated.length === 0 && grouped.byRegion.size === 0 && (
             <div style={{ padding: '10px 8px', fontFamily: 'var(--kr)', fontSize: 11.5, color: 'var(--muted2)' }}>
-              검색 결과 없음
+              {tr('검색 결과 없음', 'No results', 'Aucun résultat')}
             </div>
           )}
         </div>
@@ -114,6 +118,7 @@ const groupLabelStyle: CSSProperties = {
 };
 
 function Option({ label, sub, auto, onPick }: { label: string; sub?: string; auto?: boolean; onPick: () => void }) {
+  const tr = useT();
   return (
     <div
       onMouseDown={(e) => { e.preventDefault(); onPick(); }}
@@ -129,7 +134,7 @@ function Option({ label, sub, auto, onPick }: { label: string; sub?: string; aut
         <span style={{
           fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted2)',
           border: '1px solid var(--line2)', borderRadius: 4, padding: '1px 5px', flexShrink: 0,
-        }}>참고용</span>
+        }}>{tr('참고용', 'reference', 'indicatif')}</span>
       )}
       {sub && <span style={{ fontFamily: 'var(--kr)', fontSize: 10, color: 'var(--muted2)', marginLeft: 'auto' }}>{sub}</span>}
     </div>

@@ -2,16 +2,18 @@ import type { Metadata } from 'next';
 import { Card } from '@astryxdesign/core/Card';
 import { HStack } from '@astryxdesign/core/HStack';
 import { Link } from '@astryxdesign/core/Link';
+import { List, ListItem } from '@astryxdesign/core/List';
 import { Table, proportional } from '@astryxdesign/core/Table';
 import type { TableColumn } from '@astryxdesign/core/Table';
 import { Heading, Text } from '@astryxdesign/core/Text';
 import { Token } from '@astryxdesign/core/Token';
 import { VStack } from '@astryxdesign/core/VStack';
 import { AstryxProvider } from '@/components/AstryxProvider';
-import { getDictionary, isLocale, type Locale } from '@/i18n';
+import { getDictionary, isLocale, localePath, type Locale } from '@/i18n';
 import { apiUrl, getObservations, type ObservationRow } from '@/lib/observations';
 import { getGlobeData } from '@/lib/globeData';
 import { getCountryCards } from '@/lib/countryCards';
+import { getPolarTrend, type PolarTrendRow } from '@/lib/polarTrend';
 import ObservationGlobe from '@/components/observations/ObservationGlobe';
 import { hasHangul } from '@/lib/observationNames';
 import { pageMetadata } from '@/lib/meta';
@@ -44,7 +46,15 @@ export default async function ObservationsPage(props: { params: Promise<{ locale
   const page = x.pages.observations;
   const t = x.observations;
   const [sections, globe] = await Promise.all([getObservations(locale), getGlobeData(locale)]);
-  const cards = await getCountryCards(locale, globe);
+  const [cards, polar] = await Promise.all([getCountryCards(locale, globe), getPolarTrend(locale)]);
+  const pt = t.polarTrend;
+  const polarColumns: TableColumn<PolarTrendRow>[] = [
+    { key: 'region', header: pt.cols.region, width: proportional(1.2, { minWidth: 130 }) },
+    { key: 'first', header: pt.cols.first, width: proportional(1.6, { minWidth: 170 }) },
+    { key: 'latest', header: pt.cols.latest, width: proportional(1.6, { minWidth: 170 }) },
+    { key: 'change', header: pt.cols.change, width: proportional(1, { minWidth: 110 }) },
+    { key: 'span', header: pt.cols.records, width: proportional(0.5, { minWidth: 70 }) },
+  ];
 
   // 측정값과 해석값은 다른 칸 — 같은 모양으로 섞어 그리지 않는다.
   const columns: TableColumn<ObservationRow>[] = [
@@ -92,7 +102,64 @@ export default async function ObservationsPage(props: { params: Promise<{ locale
           </VStack>
 
           {/* 지구본 — 표의 값을 위치로 먼저 보여 준다(2026-11-15 캡틴: 발병지도·극지방) */}
-          <ObservationGlobe data={globe} cards={cards} labels={t.globe} />
+          <ObservationGlobe
+            data={globe}
+            cards={cards}
+            labels={t.globe}
+            countryHref={localePath(locale, PATH)}
+            openLabel={t.country.open}
+          />
+
+          <Card padding={4}>
+            <VStack gap={3}>
+              <VStack gap={1}>
+                <Heading level={2}>{pt.title}</Heading>
+                <Text type="supporting">{pt.lead}</Text>
+                {polar && polar.rows.length > 0 && (
+                  <Text type="supporting">{pt.span.replace('{days}', String(polar.days))}</Text>
+                )}
+              </VStack>
+              {polar === null ? (
+                <Text color="secondary">{pt.unavailable}</Text>
+              ) : polar.rows.length === 0 ? (
+                <Text color="secondary">{pt.empty}</Text>
+              ) : (
+                <Table<PolarTrendRow>
+                  data={polar.rows}
+                  columns={polarColumns}
+                  idKey="id"
+                  density="compact"
+                  textOverflow="wrap"
+                  verticalAlign="top"
+                />
+              )}
+              {polar && polar.undetermined > 0 && (
+                <Text type="supporting">{pt.undetermined.replace('{n}', String(polar.undetermined))}</Text>
+              )}
+              {/* 남극 반도 — 같은 시기 남극·아남극 H5N1 야생동물 보도(계획 ⑩) */}
+              {polar && (
+                <VStack gap={1}>
+                  <Text weight="semibold">{pt.wildlifeTitle}</Text>
+                  <Text type="supporting">{pt.wildlifeNote}</Text>
+                  {polar.wildlife === null ? (
+                    <Text color="secondary">{pt.wildlifeUnavailable}</Text>
+                  ) : polar.wildlife.length === 0 ? (
+                    <Text color="secondary">{pt.wildlifeNone}</Text>
+                  ) : (
+                    <List density="compact" hasDividers edge="bleed">
+                      {polar.wildlife.map((w) => (
+                        <ListItem
+                          key={w.id}
+                          label={<Text weight="semibold">{w.title}</Text>}
+                          description={<Text type="supporting">{w.detail}</Text>}
+                        />
+                      ))}
+                    </List>
+                  )}
+                </VStack>
+              )}
+            </VStack>
+          </Card>
 
           {sections.map((s) => {
             const label = t.sections[s.key];

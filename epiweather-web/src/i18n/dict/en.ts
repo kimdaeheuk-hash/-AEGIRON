@@ -458,7 +458,7 @@ export const en: Dictionary = {
       {
         title: 'The live system',
         body: 'The dashboard shows operational collection and alert data as it runs. In the simulation console, assumed and modelled values are labelled as such on screen.',
-        href: '/dashboard',
+        href: '/dashboard?lang=en',
         linkLabel: 'Open the dashboard',
       },
       {

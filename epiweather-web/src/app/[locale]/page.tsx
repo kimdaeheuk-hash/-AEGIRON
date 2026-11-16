@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { getDictionary, localePath, isLocale, type Locale } from '@/i18n';
+import { dashboardHref, getDictionary, localePath, isLocale, type Locale } from '@/i18n';
 import type { EngineDict, EngineMode } from '@/i18n/types';
 import { Section, SectionHeading, Card, Grid } from '@/components/site/Section';
 import { HeroBackdrop } from '@/components/site/HeroBackdrop';
@@ -84,7 +84,7 @@ export default async function HomePage(props: { params: Promise<{ locale: string
 
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 32, alignItems: 'center' }}>
             <Link
-              href="/dashboard"
+              href={dashboardHref(locale)}
               style={{
                 fontFamily: 'var(--mono)', fontSize: 13, textDecoration: 'none', fontWeight: 500,
                 background: 'linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 78%, #000))', color: 'var(--on-accent)',
@@ -181,7 +181,7 @@ export default async function HomePage(props: { params: Promise<{ locale: string
             <div>
               <h3 style={{ fontFamily: 'var(--disp)', fontWeight: 800, fontSize: 19 }}>{live.riskTitle}</h3>
               <p style={{ color: 'var(--muted)', fontSize: 13.5, lineHeight: 1.7, margin: '8px 0 18px' }}>{live.riskLead}</p>
-              <RiskTop rows={risk} labels={live} />
+              <RiskTop rows={risk} labels={live} dashHref={dashboardHref(locale)} />
             </div>
             <div>
               <h3 style={{ fontFamily: 'var(--disp)', fontWeight: 800, fontSize: 19 }}>{t.briefTitle}</h3>
@@ -371,7 +371,7 @@ export default async function HomePage(props: { params: Promise<{ locale: string
                 {item.body}
               </p>
               <Link
-                href={item.href.startsWith('/dashboard') ? item.href : localePath(locale, item.href)}
+                href={item.href === '/dashboard' ? dashboardHref(locale) : item.href.startsWith('/dashboard') ? item.href : localePath(locale, item.href)}
                 style={{
                   fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--accent)', textDecoration: 'none',
                 }}

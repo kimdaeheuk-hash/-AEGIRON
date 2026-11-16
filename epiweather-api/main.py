@@ -801,13 +801,23 @@ async def _run_prediction_resolution() -> None:
             from algorithms.who_don_declarations import (
                 body_reads_line, ingest_don, samples_line, summary as don_summary,
             )
-            don_result = await asyncio.to_thread(ingest_don)
+            from algorithms.who_don_declarations import fetch_items as fetch_don_items
+            don_payload = await asyncio.to_thread(fetch_don_items)
+            don_result = await asyncio.to_thread(ingest_don, don_payload)
             collector.log(f"📌 {don_summary(don_result)}")
             if samples_line(don_result):
                 collector.log(f"   {samples_line(don_result)}")
             # 본문에서 어느 나라로 읽었는지 — 맞게 읽었는지를 로그로 판정하게 한다(2026-10-26).
             if body_reads_line(don_result):
                 collector.log(f"   {body_reads_line(don_result)}")
+            # 발병국 대응 조치(2026-11-16) — 같은 응답의 'Response' 단락. 실패해도 정답 적재는 그대로.
+            try:
+                from algorithms.don_response import ingest_responses, summary as resp_summary
+                resp = await asyncio.to_thread(ingest_responses, don_payload)
+                collector.log(f"   {resp_summary(resp)}")
+            except Exception as e:  # noqa: BLE001
+                collector.log(f"   ❌ WHO DON 대응 조치 읽기 실패 — {type(e).__name__}: {str(e)[:160]}")
+                _log_error(f"don_response: {type(e).__name__}: {e}")
         except Exception as e:
             collector.log(f"  ❌ WHO DON 정답 적재 실패 — {type(e).__name__}: {str(e)[:200]}")
             _log_error(f"who_don_declarations: {type(e).__name__}: {e}")
@@ -2727,6 +2737,28 @@ def observations_coverage():
             "토지(FIRMS)·삼림(GFW)은 키·조회 상태에 따라 판정 안 함 행만 쌓일 수 있음",
         ],
         "history_starts": "2026-11-15 배포부터 저장 — 그 전 이력 없음",
+    }
+
+
+@app.get("/api/response-measures", tags=["GAI"])
+def response_measures(country: str | None = None, days: int = 400, limit: int = 300):
+    """발병국 대응 조치(2026-11-16) — WHO 질병발생소식(DON)의 '대응' 단락을 정해진 낱말로 읽은 것.
+
+    WHO 가 그 발표에서 적은 조치(접촉자 추적·격리·백신 접종·감시 강화…)와 근거 문장(영어 원문)·발행일·DON 번호.
+    실행 정도·범위·효과는 판정하지 않는다. 한 발표가 여러 나라를 말하면 나라마다 같은 조치가 붙는다
+    (shared_countries). 21:00 UTC 슬롯에서 갱신.
+    """
+    from algorithms.don_response import MEASURES
+
+    iso3 = country.upper() if country else None
+    days = max(1, min(days, 800))
+    since = (dt.date.today() - dt.timedelta(days=days)).isoformat()
+    rows = db.list_don_responses(iso3, since, max(1, min(limit, 2000)))
+    labels = {k: {"ko": v[0], "en": v[1], "fr": v[2]} for k, v in MEASURES.items()}
+    return {
+        "country": iso3, "days": days, "rows": rows, "row_count": len(rows), "labels": labels,
+        "basis": "WHO DON 'Response' 단락의 낱말 일치 — WHO 가 적은 조치이며 실행 정도·효과는 판정하지 않음",
+        "source": "WHO Disease Outbreak News",
     }
 
 

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { getDictionary, isLocale, localePath, type Locale } from '@/i18n';
+import { dashboardHref, getDictionary, isLocale, localePath, type Locale } from '@/i18n';
 import { Section, SectionHeading } from '@/components/site/Section';
 import { CtaBand } from '@/components/site/ContentPageView';
 import { OpsCounters, RiskTop, ScreenGallery, SourceGrid, AlertList } from '@/components/live/LiveWidgets';
@@ -48,7 +48,7 @@ export default async function LivePage(props: { params: Promise<{ locale: string
           <div>
             <h2 style={h2}>{L.riskTitle}</h2>
             <p style={lead}>{L.riskLead}</p>
-            <RiskTop rows={risk} labels={L} />
+            <RiskTop rows={risk} labels={L} dashHref={dashboardHref(locale)} />
           </div>
           <div>
             <h2 style={h2}>{L.alertsTitle}</h2>

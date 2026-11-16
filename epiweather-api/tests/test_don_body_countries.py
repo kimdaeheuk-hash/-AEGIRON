@@ -129,7 +129,7 @@ def test_line_is_capped_and_says_how_many_more():
 def test_scheduler_logs_the_body_read_line():
     from pathlib import Path
     src = (Path(__file__).resolve().parent.parent / "main.py").read_text()
-    i = src.index("ingest_don)")
+    i = src.index("ingest_don, don_payload)")  # 2026-11-16: 대응 조치 읽기와 같은 응답을 쓰려고 payload 를 넘김
     assert "collector.log(f\"   {body_reads_line(don_result)}\")" in src[i:i + 900]
 
 

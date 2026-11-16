@@ -93,7 +93,7 @@ export const pagesEn: PagesDict = {
       title: 'See the five stages running for yourself',
       body: 'On the live dashboard you can watch the whole process — from collection to response — run in real time, with no login.',
       label: 'Open the live dashboard',
-      href: '/dashboard',
+      href: '/dashboard?lang=en',
     },
   },
 
@@ -310,7 +310,7 @@ export const pagesEn: PagesDict = {
       title: 'Two layers, one connected flow',
       body: 'Detect → judge → forecast → simulate → prescribe → self-verify → seal. The screen where that flow actually runs is the live dashboard.',
       label: 'Live dashboard',
-      href: '/dashboard',
+      href: '/dashboard?lang=en',
     },
   },
 
@@ -418,7 +418,7 @@ export const pagesEn: PagesDict = {
       title: 'See the values these engines actually produce',
       body: 'The dashboard shows the signals and indicators these modules are generating right now.',
       label: 'Open the live dashboard',
-      href: '/dashboard',
+      href: '/dashboard?lang=en',
     },
   },
 
@@ -614,7 +614,7 @@ export const pagesEn: PagesDict = {
       title: 'Check the current state of each source',
       body: 'The dashboard shows each source’s latest collection status and the indicators its signals produce.',
       label: 'Open the live dashboard',
-      href: '/dashboard',
+      href: '/dashboard?lang=en',
     },
   },
 
@@ -789,7 +789,7 @@ export const pagesEn: PagesDict = {
       title: 'What the system is watching today',
       body: 'The dashboard shows the signals behind each briefing as they are.',
       label: 'Open the live dashboard',
-      href: '/dashboard',
+      href: '/dashboard?lang=en',
     },
   },
 
