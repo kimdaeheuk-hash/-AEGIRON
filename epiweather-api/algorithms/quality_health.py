@@ -316,6 +316,129 @@ def _check_llm_provider_present(result: dict) -> bool | None:
     return bool(news.get("llm_provider"))
 
 
+# ── 고위험 병원체 제목 조회 (2026-11-16) ──────────────────────────────
+# ★ 왜 일곱 번째가 필요했나 ★
+# `pathogen_sentinel` 은 2026-10-31 ~ 11-15 **16일 동안 매 주기 `제목 0건`** 이었다.
+# 그런데 소스 건강 25개에도 이 여섯 불변식에도 이 층이 없어서, 경보가 하나도
+# 울리지 않았고 로그 줄 하나로만 보였다. 소킹 일지는 그 기간을 `medium 0` —
+# 즉 '오탐 수리가 들은 조용한 날' 로 읽었다. 일지가 센 것은 **후보 수**이고
+# **제목 수는 아무도 세지 않았다.**
+#
+#     후보 0건 = 들어온 제목을 걸러냈다        (층은 살아 있다)
+#     제목 0건 = 걸러낼 거리가 안 들어왔다     (층이 눈을 감았다)
+#
+# 이 둘이 같은 `medium 0` 으로 보이던 게 16일을 끌었다.
+#
+# ★ 왜 '0건이면 즉시 위반' 이 아닌가 ★
+# Google 이 응답은 했는데 항목이 0개인 주기는 '정말 그런 보도가 없었다' 일 수도
+# 있다. 그래서 단발 0건은 판정으로 인정한다 — `alerts` 가 그 주기에 이 계열 행을
+# 내리는 성질은 테스트로 고정돼 있다(test_pathogen_sentinel_…:대조군).
+# 대신 **0건이 끊기지 않고 이어진 시간**을 본다. 질의가 `when:1d` 라,
+# 24시간 내리 0건이면 "하루치 창이 하루 종일 비어 있었다"는 뜻이고 그건 더는
+# 믿을 만한 '사건 없음' 이 아니다. source_health 의 staleness·추출층의
+# EXTRACTION_STALE_HOURS 와 같은 사고방식이다.
+SENTINEL_STATE_KEY = "_headline_sentinel"
+
+# 0건이 이 시간 넘게 이어지면 위반. 질의의 `when:1d` 창과 같은 길이로 맞췄다.
+SENTINEL_ZERO_STALE_HOURS = 24.0
+
+
+def record_sentinel_cycle(titles_count: int, google: bool) -> dict:
+    """고위험 병원체 제목 조회의 한 주기 결과를 남긴다. `alerts` 가 매 주기 부른다.
+
+    ★ 세 갈래를 뭉개지 않는다 ★
+
+        Google 이 N건(N≥1) 답함  → 층이 보고 있다. 0건 연속 구간을 닫는다
+        Google 이 0건 답함       → 0건 구간을 열거나 이어간다
+        대체(Tavily·GDELT) 주기  → **상태를 건드리지 않는다**
+
+    마지막 갈래가 중요하다. 대체 경로는 관련도 순 상위 일부라 '빠짐없이'를
+    보장하지 않으니, 그 0건으로 Google 질의의 건강을 판정하면 안 된다. 또
+    Google 이 막힌 기간에 0건 구간이 이어지면 '질의가 망가졌다'와
+    '구글이 막혔다'가 한 숫자로 섞인다 — 조치가 전혀 다른 두 사건이다.
+    """
+    data = _load_raw()
+    state = data.get(SENTINEL_STATE_KEY)
+    if not isinstance(state, dict):
+        state = {}
+    now_iso = _now().isoformat()
+    state["last_checked_at"] = now_iso
+
+    if not google:
+        state["last_fallback_at"] = now_iso
+    elif titles_count > 0:
+        state["last_titles_at"] = now_iso
+        state["last_titles_count"] = int(titles_count)
+        state["zero_since"] = None
+    elif not state.get("zero_since"):
+        # 0건 구간의 **시작**만 적는다. 매 주기 now 로 덮으면 경과가 영영 0시간이다.
+        state["zero_since"] = now_iso
+
+    data[SENTINEL_STATE_KEY] = state
+    _save_raw(data)
+    return state
+
+
+def sentinel_zero_hours() -> float | None:
+    """지금 이어지고 있는 '제목 0건' 구간의 길이(시간). 0건 구간이 없으면 None.
+
+    `alerts` 가 이 값으로 **그 주기에 이 계열 행을 붙들지 말지**를 가른다.
+    """
+    state = _load_raw().get(SENTINEL_STATE_KEY)
+    if not isinstance(state, dict):
+        return None
+    since = _parse_iso(state.get("zero_since"))
+    if since is None:
+        return None
+    return max(0.0, (_now() - since).total_seconds() / 3600)
+
+
+def sentinel_zero_run_is_stale() -> bool:
+    """0건 구간이 문턱(24시간)을 넘었나. 넘으면 그 주기의 '없음'은 '모름'이다."""
+    hours = sentinel_zero_hours()
+    return hours is not None and hours >= SENTINEL_ZERO_STALE_HOURS
+
+
+def _check_headline_sentinel(result: dict) -> bool | None:
+    """고위험 병원체 제목 조회가 최근에 실제로 제목을 받아왔는가.
+
+    `result` 를 안 쓴다 — 이 층은 수집기가 아니라 경보 조립(`alerts`) 안에서
+    돌기 때문에 무료 주기의 result dict 에 없다. 추출층과 같은 이유로
+    상태의 신선도를 본다.
+    """
+    state = _load_raw().get(SENTINEL_STATE_KEY)
+    if not isinstance(state, dict):
+        return None                       # 한 번도 안 돌았다(첫 배포·빈 볼륨)
+    if not state.get("zero_since"):
+        # 0건 구간이 없다 = 가장 최근 Google 주기가 제목을 받아왔다.
+        # 단, 기록 자체가 대체 주기뿐이면 판정하지 않는다.
+        return True if state.get("last_titles_at") else None
+    hours = sentinel_zero_hours()
+    if hours is None:
+        return None
+    if hours < SENTINEL_ZERO_STALE_HOURS:
+        # ★ True 를 돌려주면 안 된다 ★ 아직 판정할 만큼 안 지켜본 것이지
+        # 온전한 게 아니다. 추출층의 같은 자리와 같은 판단이다.
+        return None
+    return False
+
+
+def _sentinel_detail_line() -> str | None:
+    """경보에 실리는 진짜 숫자 — '몇 시간째 0건인가'와 '마지막 제목은 언제인가'."""
+    state = _load_raw().get(SENTINEL_STATE_KEY)
+    if not isinstance(state, dict):
+        return None
+    hours = sentinel_zero_hours()
+    if hours is None:
+        return None
+    head = f"{hours:.0f}시간째 제목 0건"
+    last = _parse_iso(state.get("last_titles_at"))
+    if last is None:
+        return f"{head} · 제목을 받은 기록이 아예 없음"
+    age = (_now() - last).total_seconds() / 3600
+    return f"{head} · 마지막 제목 {age:.0f}시간 전({state.get('last_titles_count')}건)"
+
+
 INVARIANTS: list[Invariant] = [
     Invariant(
         "llm_reclassify", "LLM 재분류",
@@ -351,6 +474,15 @@ INVARIANTS: list[Invariant] = [
         "연속 주기 수는 무료 주기 기준이라 실제 경과가 아니다. 마지막 성공 시각과 "
         "실패 경로별 사유는 /api/status 의 quality_health.extraction 에 있다.",
         _check_extraction_layer, alarm_after=3, detail=_extraction_detail_line,
+    ),
+    Invariant(
+        "headline_sentinel", "고위험 병원체 제목 조회",
+        "페스트·탄저·두창 단건 보도 감시가 24시간 넘게 제목을 한 건도 받지 못했다 — "
+        "질의가 비어 돌아오는 것과 정말 보도가 없는 것을 구분할 수 없는 상태다. "
+        "이 층은 소스 건강 25개에 없어서 2026-10-31~11-15 에 16일 동안 조용했다. "
+        "같은 주기의 NewsWatch 가 google_news 로 제목을 받고 있으면 Google 차단이 "
+        "아니라 이 질의 쪽이다(pathogen_sentinel._url).",
+        _check_headline_sentinel, alarm_after=3, detail=_sentinel_detail_line,
     ),
 ]
 
@@ -545,7 +677,9 @@ def summary_line() -> str:
         # 위반이 있을 때야말로 다른 층이 조용히 사라졌는지가 중요하다.
         return (f"⚠️ 품질 저하: {' · '.join(parts)}"
                 f" · 나머지 {_healthy_tail(report)}")
-    return f"🔎 품질 불변식: 정상 {_healthy_tail(report)}"
+    # `_healthy_tail` 이 이미 "정상 n/m" 으로 시작한다 — 여기서 또 붙이면
+    # `정상 정상 6/6` 이 된다(2026-09-15 리팩터가 남긴 중복. 11-16 점검에서 발견).
+    return f"🔎 품질 불변식: {_healthy_tail(report)}"
 
 
 def _healthy_tail(report: dict) -> str:

@@ -633,6 +633,8 @@ def collect_candidate_alerts(today: str, negative_space: dict | None = None) -> 
         from algorithms.pathogen_sentinel import SOURCE_PREFIX as SENTINEL_PREFIX
         from algorithms.pathogen_sentinel import candidates as sentinel_candidates, fetch_titles
         from algorithms.pathogen_sentinel import GOOGLE as SENTINEL_GOOGLE, last_provider
+        from algorithms.quality_health import (record_sentinel_cycle,
+                                               sentinel_zero_run_is_stale)
         titles = fetch_titles()
         provider = last_provider()
         found = [c for c in sentinel_candidates(titles, provider=provider) if c["score"] >= CANDIDATE_FLOOR]
@@ -641,11 +643,29 @@ def collect_candidate_alerts(today: str, negative_space: dict | None = None) -> 
         # 대체 경로는 관련도 순 상위 일부라 최근 1일을 빠짐없이 주지 않는다. 거기서 후보가 안 나왔다고
         # 이미 올라 있던 행을 내리면, Google 이 막힌 시간마다 경보가 깜빡인다(올랐다 내렸다).
         # 후보가 나온 행은 그대로 올리고(additive), 안 나온 행만 내리지 않고 `판정 안 함`으로 둔다.
-        if provider != SENTINEL_GOOGLE:
+        # ★ '0건으로 성공한 주기' 가 16일 동안 '사건 없음' 으로 세어졌다 (2026-11-16) ★
+        # 이 층의 정직성 규칙은 *"조회 실패는 '없다'가 아니라 '모른다'"* 인데,
+        # 그 규칙이 **예외만** 덮고 있었다. `_fetch_google()` 은 `status == "error"`
+        # 일 때만 올리므로, HTTP 200 에 항목이 0개면 조용히 빈 목록이 돌아온다.
+        # 2026-10-31~11-15 에 매 주기 `제목 0건` 이었는데 경보가 하나도 없었다.
+        #
+        # 그렇다고 0건을 **무조건** 보류하면 안 된다 — 정말 그런 보도가 없는 조용한
+        # 주기에 행이 영영 안 내려간다(그 성질은 테스트로 고정돼 있다: 조회가
+        # 성공했는데 제목이 없으면 그때는 내려간다). 그래서 단발 0건은 판정으로
+        # 인정하고, **0건이 24시간 넘게 이어진 뒤**부터 보류한다. 질의가 `when:1d`
+        # 라 하루치 창이 하루 종일 비어 있었다는 뜻이고, 그건 더는 믿을 만한
+        # '사건 없음' 이 아니다. 문턱·상태는 quality_health 가 쥔다(일곱 번째 불변식).
+        record_sentinel_cycle(len(titles), google=provider == SENTINEL_GOOGLE)
+        if provider != SENTINEL_GOOGLE or sentinel_zero_run_is_stale():
             _mark_undetermined("headline:")
+            hold_note = (f"{provider} 대체 — Google 막힘"
+                         if provider != SENTINEL_GOOGLE
+                         else "제목 0건이 24시간 넘게 이어짐 — 질의가 빈 것과 "
+                              "보도가 없는 것을 구분 못 함")
+        else:
+            hold_note = None
         print(f"  📰 고위험 병원체 보도: 제목 {len(titles)}건 조회"
-              + ("" if provider == SENTINEL_GOOGLE
-                 else f"({provider} 대체 — Google 막힘·없는 행은 내리지 않음)")
+              + (f"({hold_note}·없는 행은 내리지 않음)" if hold_note else "")
               + f" → 후보 {len(found)}개"
               + (f" [{' · '.join(c['label'] for c in found)}]" if found else ""), flush=True)
     except Exception as e:
