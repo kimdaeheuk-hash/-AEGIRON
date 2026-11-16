@@ -461,6 +461,31 @@ def escalated(source: str, tier: str, seen_rank: dict[str, int]) -> bool:
     return TIER_RANK.get(tier, 0) > seen_rank.get(source, -1)
 
 
+def _sentinel_funnel_text(funnel: dict) -> str:
+    """`제목 N건 → 후보 0개` 사이에서 **무엇을 버렸는지** 한 토막 (2026-11-16).
+
+    ★ 왜 ★ `후보 0개` 는 두 가지를 같은 글자로 보인다 — 들어온 제목이 전부
+    무관했나, 걸러내는 쪽이 과하게 걷어냈나. #30 의 TED 가 같은 모양이었고
+    (`열림 0건` 이 "EU 가 안 산다" 가 아니라 "우리가 안 본다" 였다),
+    버린 건수를 찍기 시작하자 한 주기에 갈렸다.
+
+    ★ `매체부족` 이 이 토막의 알맹이다 ★ 병원체 보도가 **왔는데** 매체가 한 곳이라
+    못 올린 경우다. 이 층이 노리는 건 '사건 하나가 곧 뉴스' 인 병원체이니,
+    여기 숫자가 꾸준히 쌓이면 `MIN_PUBLISHERS=2` 자체가 정책 결정거리가 된다.
+    """
+    if not funnel:
+        return ""
+    hits = funnel.get("pathogen_hits") or 0
+    drops = funnel.get("drops") or {}
+    parts = [f"병원체 일치 {hits}"]
+    for key in ("매체부족", "비질병", "건강맥락없음", "중복"):
+        if drops.get(key):
+            parts.append(f"{key} {drops[key]}")
+    examples = drops.get("매체부족_예") or []
+    tail = f" ⟨{' | '.join(examples[:2])}⟩" if examples else ""
+    return " · " + " · ".join(parts) + tail
+
+
 def collect_candidate_alerts(today: str, negative_space: dict | None = None) -> list[dict]:
     """GAI 층별 신호원 + 부정적 공간 감시 + 설명불가 신호를 경보 후보로 변환.
 
@@ -633,6 +658,7 @@ def collect_candidate_alerts(today: str, negative_space: dict | None = None) -> 
         from algorithms.pathogen_sentinel import SOURCE_PREFIX as SENTINEL_PREFIX
         from algorithms.pathogen_sentinel import candidates as sentinel_candidates, fetch_titles
         from algorithms.pathogen_sentinel import GOOGLE as SENTINEL_GOOGLE, last_provider
+        from algorithms.pathogen_sentinel import last_funnel
         from algorithms.quality_health import (record_sentinel_cycle,
                                                sentinel_zero_run_is_stale)
         titles = fetch_titles()
@@ -666,6 +692,7 @@ def collect_candidate_alerts(today: str, negative_space: dict | None = None) -> 
             hold_note = None
         print(f"  📰 고위험 병원체 보도: 제목 {len(titles)}건 조회"
               + (f"({hold_note}·없는 행은 내리지 않음)" if hold_note else "")
+              + _sentinel_funnel_text(last_funnel())
               + f" → 후보 {len(found)}개"
               + (f" [{' · '.join(c['label'] for c in found)}]" if found else ""), flush=True)
     except Exception as e:

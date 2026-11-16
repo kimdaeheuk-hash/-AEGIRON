@@ -125,13 +125,32 @@ def _no_real_sleep_in_trade_scan(monkeypatch):
 # ★ 고위험 병원체 보도 감시(pathogen_sentinel)는 실제 네트워크를 부른다 ★ 경보 후보를 모으는 모든 시험이
 # 그 호출을 만나므로, 기본은 '빈 피드'로 막고 캐시를 비운다. 이 층을 시험하는 파일은 `fetch_local_feed` 를
 # 직접 패치해 제목을 준다.
+#
+# ⚠️ **2026-11-16: 이 스텁이 GDELT 속도 예산을 건드린다.** 이날 '0건 주기에는 무료
+# 2차(GDELT)에게 한 번 더 묻는다'를 넣었는데, 위 기본 스텁이 바로 그 0건이라 경보
+# 파이프라인을 타는 **모든** 시험이 GDELT 경로로 들어갔다. 네트워크는 막혀 있어
+# 호출 자체는 즉시 끝나는데, `_gdelt_throttle()` 의 전역 최소간격(5.5초)을 시험마다
+# 실제로 기다려서 스위트가 48초 → 292초가 됐다(실측).
+# 이 리포가 이미 아는 함정이다 — "CI 가 42분 걸리던 원인이 테스트의 실제 호출
+# 814번이었다"(dev-setup).
+#
+# 처방은 **동작을 덮는 게 아니라 전역 상태를 되돌리는 것**이다. 기다림이 생기는
+# 이유는 `_gdelt_last_call` 이 **직전 시험의 호출 시각**으로 남아 있어서다 —
+# 위에서 `_CACHE` 를 비우는 것과 같은 종류의 오염이다. 그 시각만 되돌리면
+# `wait <= 0` 이 되어 안 기다리고, **함수는 진짜로 남는다.**
+# 두 번 덮어썼다가 둘 다 거짓 초록을 만들었으니 적어둔다:
+#   - `gdelt_headlines` 를 스텁 → `requests.get` 을 모의해 그 함수를 검증하는
+#     시험 4건(test_news_fallback_gdelt_…)이 통째로 무력해졌다.
+#   - `_gdelt_throttle` 을 무력화 → 기다림 자체를 검증하는
+#     test_gdelt_signals::test_throttle_enforces_minimum_interval 이 깨졌다.
 @pytest.fixture(autouse=True)
 def _no_real_network_in_pathogen_sentinel(monkeypatch):
-    from algorithms import pathogen_sentinel
+    from algorithms import gdelt_signals, pathogen_sentinel
     pathogen_sentinel._CACHE.update(at=0.0, titles=None)
     pathogen_sentinel._FAIL.update(at=0.0, err=None)
     monkeypatch.setattr(pathogen_sentinel, "fetch_local_feed",
                         lambda *a, **k: {"status": "ok", "_all_titles": []})
+    monkeypatch.setattr(gdelt_signals, "_gdelt_last_call", 0.0)
     yield
     pathogen_sentinel._CACHE.update(at=0.0, titles=None)
     pathogen_sentinel._FAIL.update(at=0.0, err=None)

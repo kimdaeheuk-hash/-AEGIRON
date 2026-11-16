@@ -67,6 +67,9 @@ SENTINEL_MAX_SCORE = 79.0
 SOURCE_PREFIX = "headline:"
 
 QUERY_TERMS = ["plague", "anthrax", "smallpox"]
+# ★ 이 낱말들은 2026-11-16 부터 **질의에 안 들어간다** ★ 아래 `_url()` 주석에 이유가 있다.
+# 상수는 남긴다 — 평문 대체 질의(`FALLBACK_QUERY`)가 같은 뜻을 담고 있고, 왜 뺐는지를
+# 가리키는 자리가 필요하다. 지우면 다음 사람이 "맥락을 왜 안 거르나" 를 다시 묻는다.
 QUERY_CONTEXT = ["death", "died", "dies", "quarantine", "outbreak", "lab leak"]
 RECENCY = "when:1d"
 CACHE_TTL_SEC = 20 * 60
@@ -95,13 +98,58 @@ _CACHE: dict = {"at": 0.0, "titles": None, "provider": GOOGLE}
 FAIL_COOLDOWN_SEC = 5 * 60
 _FAIL: dict = {"at": 0.0, "err": None}
 
+# ── 깔때기 (2026-11-16) ───────────────────────────────────────────────
+# ★ 버린 것을 세어서 찍는다 ★ `제목 20건 → 후보 0개` 는 두 가지를 같은 줄로 보인다:
+# 들어온 제목이 전부 무관했나, 아니면 걸러내는 쪽이 과하게 걷어냈나.
+# #30 의 TED 가 똑같은 모양이었다 — `열림 0건` 이 "EU 가 안 산다" 가 아니라
+# "우리가 안 본다" 였고, **버린 건수를 찍기 시작하자 한 주기에 갈렸다.**
+_FUNNEL: dict = {}
+
+
+def last_funnel() -> dict:
+    """가장 최근 `candidates()` 의 깔때기. 호출부가 로그 한 줄에 싣는다."""
+    return dict(_FUNNEL)
+
 
 class SentinelError(RuntimeError):
     """이 층의 실패. 종류를 반드시 들고 다닌다."""
 
 
 def _url() -> str:
-    q = f"({' OR '.join(QUERY_TERMS)}) ({' OR '.join(QUERY_CONTEXT)}) {RECENCY}"
+    """병원체 낱말만으로 **넓게** 묻는다. 정밀도는 코드가 쥔다.
+
+    ★ 왜 맥락 낱말을 질의에서 뺐나 (2026-11-16) ★
+
+    예전 질의는 두 묶음을 AND 로 걸었다(`#112`, 10-31):
+
+        (plague OR anthrax OR smallpox) (death OR died OR dies OR quarantine OR outbreak OR lab leak) when:1d
+
+    그런데 **정밀도를 만드는 장치는 이미 코드 쪽에 있고, 그쪽이 더 세다**:
+
+        HEALTH_CONTEXT   건강 맥락 낱말 — 영어 20여 개 + 한국어 6개. 서버 묶음(6개)보다 넓다
+        NOT_A_DISEASE    비유·고유명사 제외 — 서버 질의로는 표현할 수 없는 장치
+        PATHOGENS        병원체 낱말이 **제목**에 있어야 한다(본문이 아니다)
+        MIN_PUBLISHERS   서로 다른 매체 2곳 이상
+
+    그래서 서버 쪽 AND 묶음은 **정밀도에 보탬이 없고 재현율만 깎는다.**
+    `confirmed`·`cases`·`infected`·`hospitalized`·`isolated`·`suspected`·
+    `laboratory`·`leak` 은 HEALTH_CONTEXT 에 있는데 QUERY_CONTEXT 에는 없다 —
+    *"Bubonic plague case confirmed in Mongolia"* 같은 제목이 **서버에서 먼저
+    버려지면 코드는 볼 기회조차 없다.** 이 층을 만든 계기(이르쿠츠크 항페스트
+    연구소 연구원 사망)가 정확히 그런 단건 보도였다.
+
+    ★ 곁따라 오는 것 — 0건이 진단이 된다 ★ 좁은 질의의 `0건` 은 '정말 없었다'와
+    '질의가 망가졌다'를 구분할 수 없었다(그래서 16일을 끌었다). 넓은 질의는
+    `plague` 한 낱말만으로도 영어 뉴스에 매일 걸린다(비유 표현까지 포함해서) —
+    그러니 **넓은 질의가 0건이면 그건 조용한 날이 아니라 고장**이다.
+
+    ⚠️ #112 의 오탐 수리를 되돌린 게 아니다. 그 수리의 알맹이는
+    `NOT_A_DISEASE` 의 `plague marine|death guard|warhammer` 들이고 **그대로 있다.**
+    (10-28 의 장난감 피규어 오탐은 좁은 질의로도 통과했다 — 'Death Guard' 의
+    `death` 가 서버 묶음에도 걸렸기 때문이다. 즉 좁은 질의는 그 오탐을 막지도
+    못하면서 진짜 보도를 깎고 있었다.)
+    """
+    q = f"({' OR '.join(QUERY_TERMS)}) {RECENCY}"
     return f"https://news.google.com/rss/search?q={urllib.parse.quote(q)}&hl=en-US&gl=US&ceid=US:en"
 
 
@@ -125,6 +173,27 @@ def _fetch_secondary(google_err: SentinelError, first_reason: str) -> tuple[list
     return titles, GDELT
 
 
+def _peer_on_empty() -> tuple[list[str], str]:
+    """Google 이 **응답했는데 0건**인 주기 — 무료 2차(GDELT)에 한 번 더 묻는다.
+
+    ★ 왜 ★ 2026-10-31~11-15 에 이 층은 16일 동안 한 질의 하나에 매달려 있었고,
+    그 하나가 0건을 돌려주는 동안 "사건 없음"으로 세어졌다. 공급자 하나의 침묵을
+    세상의 침묵으로 읽지 않는다 — 그게 이 층이 존재하는 이유와 정반대다.
+
+    ★ Tavily 는 부르지 않는다 ★ 0건 주기는 장애보다 훨씬 자주 올 수 있고 Tavily 는
+    키·쿼터가 걸려 있다(10-09 절의 `432`). GDELT 는 키가 없고 무료다. 장애(예외)
+    때의 체인(Tavily→GDELT)은 그대로 둔다 — 그쪽은 드물고 급하다.
+
+    GDELT 도 0건이거나 실패하면 **Google 의 0건을 그대로 돌려준다.** 거기서부터는
+    품질 불변식의 24시간 창이 받는다(`quality_health._check_headline_sentinel`).
+    """
+    try:
+        titles = [html.unescape(t) for t in gdelt_headlines(FALLBACK_QUERY)]
+    except NewsFallbackError:
+        return [], GOOGLE
+    return (titles, GDELT) if titles else ([], GOOGLE)
+
+
 def fetch_titles(now: float | None = None) -> list[str]:
     """최근 24시간 제목. 실패는 종류를 담아 올린다. 20분 캐시(매시간 + 수동 호출이 겹쳐도 한 번만 부른다).
 
@@ -142,6 +211,9 @@ def fetch_titles(now: float | None = None) -> list[str]:
     try:
         try:
             titles = _fetch_google()
+            if not titles:
+                # 응답은 왔는데 0건 — 공급자 하나의 침묵으로 끝내지 않는다(_peer_on_empty).
+                titles, provider = _peer_on_empty()
         except SentinelError as google_err:
             key = os.environ.get(FALLBACK_KEY_ENV)
             if key:
@@ -174,19 +246,36 @@ def split_publisher(title: str) -> tuple[str, str | None]:
     return title.strip(), None
 
 
-def match_headlines(titles: list[str]) -> dict[str, list[dict]]:
-    """병원체별로 **건강 사건 제목**을 모은다. 같은 제목은 한 번만 센다."""
+def match_headlines(titles: list[str],
+                    drops: dict | None = None) -> dict[str, list[dict]]:
+    """병원체별로 **건강 사건 제목**을 모은다. 같은 제목은 한 번만 센다.
+
+    `drops` 를 주면 버린 사유별 건수를 거기에 더한다(판정 결과는 바뀌지 않는다).
+    순서는 '병원체 낱말 먼저' 다 — 그래야 `비질병`·`건강맥락없음` 이 **병원체를
+    언급한 제목에 대한 수**가 된다. 넓은 질의에서 무관한 제목까지 섞어 세면
+    숫자가 커지기만 하고 아무 말도 못 한다.
+    """
     out: dict[str, list[dict]] = {}
     seen: set[tuple[str, str]] = set()
+    counts = drops if drops is not None else {}
     for raw in titles:
-        if NOT_A_DISEASE.search(raw) or not HEALTH_CONTEXT.search(raw):
-            continue
         headline, publisher = split_publisher(raw)
-        for key, (pattern, _) in PATHOGENS.items():
-            if not pattern.search(headline):
-                continue
+        hits = [k for k, (pattern, _) in PATHOGENS.items() if pattern.search(headline)]
+        if not hits:
+            counts["병원체낱말없음"] = counts.get("병원체낱말없음", 0) + 1
+            continue
+        # NOT_A_DISEASE·HEALTH_CONTEXT 는 예전처럼 **매체명이 붙은 원문**에 걸어야 한다
+        # (매체명이 맥락 낱말을 담는 경우가 있다). 판정을 바꾸지 않으려고 그대로 둔다.
+        if NOT_A_DISEASE.search(raw):
+            counts["비질병"] = counts.get("비질병", 0) + 1
+            continue
+        if not HEALTH_CONTEXT.search(raw):
+            counts["건강맥락없음"] = counts.get("건강맥락없음", 0) + 1
+            continue
+        for key in hits:
             ident = (key, headline.lower())
             if ident in seen:
+                counts["중복"] = counts.get("중복", 0) + 1
                 continue
             seen.add(ident)
             out.setdefault(key, []).append({"title": headline, "publisher": publisher})
@@ -201,11 +290,21 @@ def candidates(titles: list[str] | None = None, provider: str = GOOGLE) -> list[
     if titles is None:
         titles = fetch_titles()
         provider = last_provider()
-    matched = match_headlines(titles)
+    drops: dict[str, int] = {}
+    matched = match_headlines(titles, drops)
+    _FUNNEL.clear()
+    _FUNNEL.update(titles=len(titles), provider=provider,
+                   pathogen_hits=sum(len(v) for v in matched.values()), drops=drops)
     cands = []
     for key, items in matched.items():
         publishers = sorted({i["publisher"] for i in items if i["publisher"]})
         if len(publishers) < MIN_PUBLISHERS:
+            # ★ 여기가 가장 아까운 자리다 ★ 병원체 보도가 **왔는데** 매체가 한 곳이라
+            # 못 올린 것이다. 한 곳이 보도한 단건이 이 층이 노리는 바로 그 모양일 수
+            # 있어서, 버렸다는 사실과 무엇을 버렸는지를 남긴다.
+            drops["매체부족"] = drops.get("매체부족", 0) + 1
+            drops.setdefault("매체부족_예", []).append(
+                f"{PATHOGENS[key][1]}:{items[0]['title'][:60]}")
             continue
         name = PATHOGENS[key][1]
         shown = " / ".join(f"{i['title'][:110]}" for i in items[:2])
