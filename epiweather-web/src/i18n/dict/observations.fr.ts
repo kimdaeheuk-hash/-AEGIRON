@@ -120,6 +120,21 @@ export const observationsFr: ObservationsDict = {
       lead: "Signalements ne correspondant à aucun nom de maladie connu · d'autres conditions comme la hausse des consultations ne sont pas mesurées faute de données",
     },
   },
+  polarTrend: {
+    title: 'Évolution polaire (enregistrée chaque heure)',
+    lead: 'Première valeur enregistrée → valeur la plus récente par région · température (moyenne des maxima) et jours de dégel = observations météo ; Δ (par rapport à la moyenne décennale du même mois) = calcul · un enregistrement n’est ajouté que si la valeur change',
+    span: 'Environ {days} jour(s) enregistré(s) — 30 jours pas encore atteints (enregistré depuis le 15/11/2026)',
+    undetermined: '{n} enregistrement(s) illisible(s) à leur heure exclu(s) de l’évolution (non déterminé)',
+    cols: {
+      region: 'Région',
+      first: 'Première valeur',
+      latest: 'Plus récente',
+      change: 'Variation',
+      records: 'Enregistrements',
+    },
+    empty: 'Aucune valeur polaire enregistrée pour l’instant',
+    unavailable: 'Historique polaire illisible (non déterminé)',
+  },
   korea: {
     eyebrow: 'VUE CORÉE · OBSERVATIONS EN DIRECT',
     title: 'Observations liées à la Corée en ce moment',

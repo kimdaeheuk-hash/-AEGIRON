@@ -124,6 +124,15 @@ export const observationsKo: ObservationsDict = {
       lead: '알려진 질병 이름에 맞지 않는 보도 · 병원 방문 급증 같은 다른 조건은 데이터가 없어 측정하지 않음',
     },
   },
+  polarTrend: {
+    title: '극지 추이 (매시 저장분)',
+    lead: '지역별 처음 저장값 → 최근값 · 기온(일최고 평균)·해빙일수는 기상 관측값, Δ(같은 달 10년 평균 대비)는 계산값 · 값이 바뀔 때만 기록이 늘어남',
+    span: '저장 기간 약 {days}일 — 30일이 아직 차지 않았음(2026-11-15부터 저장)',
+    undetermined: '그 시각에 못 읽은 기록 {n}건은 추이에서 뺌(판정 안 함)',
+    cols: { region: '지역', first: '처음 저장값', latest: '최근값', change: '변화', records: '기록 수' },
+    empty: '아직 저장된 극지 값 없음',
+    unavailable: '극지 이력을 읽지 못함(판정 안 함)',
+  },
   korea: {
     eyebrow: '한국 관점 · 운영 서버 실측',
     title: '지금 한국과 연결된 관측',

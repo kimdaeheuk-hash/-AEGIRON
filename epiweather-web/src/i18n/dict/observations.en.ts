@@ -120,6 +120,15 @@ export const observationsEn: ObservationsDict = {
       lead: 'Reports that match no known disease name · other conditions such as hospital-visit spikes are not measured for lack of data',
     },
   },
+  polarTrend: {
+    title: 'Polar trend (stored hourly)',
+    lead: 'First stored value → latest value per region · temperature (mean daily max) and thaw days are weather observations; Δ (vs the same month’s 10-year mean) is computed · a record is added only when the value changes',
+    span: 'About {days} day(s) stored — 30 days not reached yet (stored since 2026-11-15)',
+    undetermined: '{n} record(s) unreadable at their time were left out of the trend (undetermined)',
+    cols: { region: 'Region', first: 'First stored', latest: 'Latest', change: 'Change', records: 'Records' },
+    empty: 'No polar values stored yet',
+    unavailable: 'Could not read the polar history (undetermined)',
+  },
   korea: {
     eyebrow: 'KOREA VIEW · LIVE OBSERVATIONS',
     title: 'Observations linked to Korea right now',

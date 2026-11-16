@@ -563,6 +563,16 @@ export type ObservationsDict = {
     };
   };
   sections: Record<ObservationSectionKey, { title: string; lead: string }>;
+  /** 극지 추이 카드 (2026-11-16) — {days} 는 저장된 일수 */
+  polarTrend: {
+    title: string;
+    lead: string;
+    span: string;
+    undetermined: string;
+    cols: { region: string; first: string; latest: string; change: string; records: string };
+    empty: string;
+    unavailable: string;
+  };
   /** /korea 아래 한국 관점(안보) 관측 묶음 (2026-11-16) */
   korea: {
     eyebrow: string;
