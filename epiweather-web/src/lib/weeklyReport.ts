@@ -11,6 +11,7 @@
  */
 import type { Locale } from '@/i18n';
 import { getCountryCards } from './countryCards';
+import { countryLabel } from './countryNames';
 import { getGlobeData } from './globeData';
 import { diseaseName, placeName } from './observationNames';
 
@@ -108,7 +109,8 @@ export async function getWeeklyReport(week: string | null, locale: Locale): Prom
     const d = str(r.dominant_disease);
     return {
       iso3,
-      name: (ko && (locale === 'ko' ? ko : placeName(ko, locale))) || iso3,
+      // 백엔드 name 은 일부만 한국어 — ISO3 로 화면 언어 이름을 먼저 (2026-11-16)
+      name: countryLabel(iso3, locale) ?? ((ko && (locale === 'ko' ? ko : placeName(ko, locale))) || iso3),
       score: num(r.raw_score),
       index: num(r.exposure_index),
       disease: d ? (locale === 'ko' ? d : (diseaseName(d, locale) ?? d)) : null,

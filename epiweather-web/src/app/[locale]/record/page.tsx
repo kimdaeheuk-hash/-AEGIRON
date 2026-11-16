@@ -31,7 +31,7 @@ export default async function RecordPage(props: { params: Promise<{ locale: stri
   const R = x.record;
   const na = x.live.unavailable;
   const [score, predictions, ledger, alerts, weekly, importReport] = await Promise.all([
-    getScorecard(), getPredictions(), getLedger(), getTopAlerts(), getWeeklyForecasts(), getKoreaImportReport(),
+    getScorecard(), getPredictions(), getLedger(), getTopAlerts(), getWeeklyForecasts(), getKoreaImportReport(locale),
   ]);
 
   return (

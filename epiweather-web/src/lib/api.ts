@@ -53,6 +53,12 @@ export interface Outbreak {
   source?: string;
   source_type?: string;
   created_at?: string;
+  /** 표시용(2026-11-16) — event_name 은 채점 대조 키라 언어가 섞여 있다. 화면은 이 셋으로 다시 쓴다. */
+  iso3?: string | null;
+  year?: number | null;
+  /** 정규 질병 키(백엔드 DISEASE_ALIASES 에 걸릴 때만). 없으면 null */
+  disease_key?: string | null;
+  latest_date?: string;
 }
 
 export interface ChainWarning {

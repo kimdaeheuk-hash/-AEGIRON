@@ -16,7 +16,8 @@
 import { API_BASE } from '@/lib/api';
 import type { DashLang } from '@/lib/dashLang';
 import { KO_ISO3 } from '@/lib/isoGeo';
-import { diseaseName, labelName, placeName } from '@/lib/observationNames';
+import { countryLabel, isoInEnglish } from '@/lib/countryNames';
+import { diseaseIn, diseaseName, labelName, placeName } from '@/lib/observationNames';
 
 /** ISO3 → 한국어 나라 이름(가장 짧은 표기), 없으면 코드 그대로 */
 const KO_NAME: Record<string, string> = Object.fromEntries(
@@ -371,15 +372,31 @@ const SOCIAL: Source = {
       ),
 };
 
+/**
+ * CDC 여행경보 제목 → 화면 언어 (2026-11-16, 캡틴 '번역들이 꼬인 거 같은데').
+ * CDC 는 영문 제목만 준다('Ebola Bundibugyo Virus Disease in Ituri and Nord-Kivu Provinces of the
+ * Democratic Republic of the Congo'). ko/fr 은 '질병 · 나라 (지역)'으로 짧게 쓴다. 지역 이름은 고유명사라
+ * 원문 표기를 둔다. 질병이나 나라를 못 읽으면 원문 그대로(지어내지 않음). en 은 원문.
+ */
+function cdcTarget(headline: string | null, lang: DashLang): string | null {
+  if (!headline || lang === 'en') return headline;
+  const disease = diseaseIn(headline, lang);
+  const country = countryLabel(isoInEnglish(headline), lang);
+  if (!disease || !country) return headline;
+  const m = /\bin (.+?) (?:provinces?|regions?|states?|districts?|departments?|counties) of\b/i.exec(headline);
+  const regions = m ? m[1].replace(/,? and /g, '·').replace(/, /g, '·') : null;
+  return regions ? `${disease} · ${country} (${regions})` : `${disease} · ${country}`;
+}
+
 const TRAVEL: Source = {
   name: { ko: 'CDC 여행경보', en: 'CDC travel notices', fr: 'Avis de voyage du CDC' },
   path: '/api/travel-notices',
-  rows: (b, { fmt }) =>
+  rows: (b, { fmt }, lang) =>
     arr(b.high_severity_notices)
       .slice(0, 3)
       .map((n) =>
         row({
-          target: str(n.headline) ?? DASH,
+          target: cdcTarget(str(n.headline), lang) ?? DASH,
           measured: `CDC Level ${fmt(num(n.level))}`,
           derived: DASH,
           time: str(n.pub_date)?.slice(5, 16) ?? DASH,
@@ -419,13 +436,14 @@ const TRADE: Source = {
 const RISK: Source = {
   name: { ko: '나라별 위험지수', en: 'Country risk index', fr: 'Indice de risque par pays' },
   path: '/api/risk-index',
-  rows: (b, { t, fmt, dz, pl }) =>
+  rows: (b, { t, fmt, dz, pl }, lang) =>
     arr(b.countries)
       .filter((c) => c.has_signal === true)
       .slice(0, 3)
       .map((c) =>
         row({
-          target: pl(str(c.name)) ?? str(c.country) ?? DASH,
+          // 백엔드 name 은 일부만 한국어('Sudan · 사우디아라비아' 혼용) — ISO3 로 화면 언어 이름을 먼저 (2026-11-16)
+          target: countryLabel(str(c.country), lang) ?? pl(str(c.name)) ?? str(c.country) ?? DASH,
           measured: t.mainDisease(dz(str(c.dominant_disease)) ?? DASH),
           derived: t.riskScore(fmt(num(c.risk_score), 1)),
           time: t.hourly,

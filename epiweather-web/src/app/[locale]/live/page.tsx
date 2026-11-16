@@ -25,7 +25,7 @@ export default async function LivePage(props: { params: Promise<{ locale: string
   const x = getDictionary(locale).extra;
   const page = x.pages.live;
   const L = x.live;
-  const [ops, risk, alerts] = await Promise.all([getOpsStatus(), getRiskTop(10), getTopAlerts()]);
+  const [ops, risk, alerts] = await Promise.all([getOpsStatus(), getRiskTop(10, locale), getTopAlerts()]);
 
   return (
     <div style={{ wordBreak: 'keep-all' }}>

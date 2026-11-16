@@ -36,7 +36,7 @@ export default async function HomePage(props: { params: Promise<{ locale: string
   const dict = getDictionary(locale);
   const t = dict.home;
   const [health, ops, risk, briefs, baikal] = await Promise.all([
-    getSourceHealth(), getOpsStatus(), getRiskTop(6), listBriefings(locale), getBaikal(),
+    getSourceHealth(), getOpsStatus(), getRiskTop(6, locale), listBriefings(locale), getBaikal(),
   ]);
   const video = introVideo();
   const live = dict.extra.live;

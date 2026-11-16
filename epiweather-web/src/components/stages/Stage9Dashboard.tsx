@@ -3,7 +3,9 @@ import dynamic from 'next/dynamic';
 import { useDashboard } from '@/lib/useDashboard';
 import type { Country, StreamEvent, Outbreak, ChainWarning, AlertItem, AlertDashboard, TierSummaryEntry, PredictionAccuracy, VerifiedPrediction } from '@/lib/api';
 import { API_BASE } from '@/lib/api';
-import { numLocale, useDashLang, useT, type Tr } from '@/lib/dashLang';
+import { countryLabel } from '@/lib/countryNames';
+import { numLocale, useDashLang, useT, type DashLang, type Tr } from '@/lib/dashLang';
+import { diseaseIn, diseaseName, koTitleTo } from '@/lib/observationNames';
 
 // 로딩 문구에 '실제로' 부르는 호스트를 쓴다(예전엔 localhost:8000 이 박혀 있어 운영에서도 그렇게 보였다).
 const API_HOST = API_BASE.replace(/^https?:\/\//, '');
@@ -143,8 +145,26 @@ function Screen2Events({ events, total }: { events: StreamEvent[]; total: number
 }
 
 // ── 화면 3: 발병 타임라인 ─────────────────────────────────────
+/**
+ * 타임라인 제목을 화면 언어로 (2026-11-16, 캡틴 '번역들이 꼬인 거 같은데').
+ * event_name 은 예측 채점 대조 키라 추출 원문이 이어 붙어 언어가 섞인다
+ * ('Ebola disease … 에볼라 Kenya and Nigeria 2026'). 질병(웹 사전 → 백엔드 정규 키)·ISO3·연도가
+ * 다 읽힐 때만 '질병 · 나라 · 연도'로 다시 쓰고, 원문은 아래 작은 줄에 남긴다. 하나라도 없으면 null(원문 그대로).
+ */
+function outbreakTitle(ob: Outbreak, lang: DashLang): string | null {
+  if (!ob.iso3 || !ob.year) return null;
+  const country = countryLabel(ob.iso3, lang);
+  const fromKey =
+    ob.disease_key &&
+    (lang === 'ko' ? (ob.disease_key === 'MERS' ? '메르스' : ob.disease_key) : diseaseName(ob.disease_key, lang));
+  const disease = diseaseIn(ob.event_name, lang) ?? fromKey;
+  if (!country || !disease) return null;
+  return `${disease.charAt(0).toUpperCase()}${disease.slice(1)} · ${country} · ${ob.year}`;
+}
+
 function Screen3Timeline({ outbreaks }: { outbreaks: Outbreak[] }) {
   const tr = useT();
+  const lang = useDashLang();
   return (
     <div className="card" style={{ maxHeight: 300, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <div className="card-h">
@@ -158,8 +178,13 @@ function Screen3Timeline({ outbreaks }: { outbreaks: Outbreak[] }) {
             <div style={{ width: 3, background: 'var(--accent)', borderRadius: 2, alignSelf: 'stretch', flexShrink: 0 }} />
             <div style={{ flex: 1 }}>
               <div style={{ fontFamily: 'var(--disp)', fontSize: 12, fontWeight: 700, color: 'var(--txt)' }}>
-                {ob.event_name ?? ob.event_id ?? '—'}
+                {outbreakTitle(ob, lang) ?? koTitleTo(ob.event_name ?? null, lang) ?? ob.event_id ?? '—'}
               </div>
+              {outbreakTitle(ob, lang) && ob.event_name && (
+                <div style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted2)', marginTop: 2 }}>
+                  {tr('원문', 'Source text', 'Texte source')}: {ob.event_name}
+                </div>
+              )}
               <div style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>
                 {ob.milestone ?? ''}{ob.event_date ? ` · ${String(ob.event_date).slice(0, 10)}` : ''}
               </div>
