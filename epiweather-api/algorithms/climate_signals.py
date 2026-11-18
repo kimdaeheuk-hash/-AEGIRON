@@ -19,12 +19,48 @@
 """
 from __future__ import annotations
 import statistics
+import threading
+from collections import Counter
 
 import requests
 
 USER_AGENT = {"User-Agent": "EpiWeather-Climate/1.0 (epiweather.kr)"}
 TIMEOUT = 20
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
+
+# ★ Open-Meteo 무료 하루 한도 (2026-11-18) ★
+# 11-15~17 사흘 내리 극지·기후가 낮에 비고 UTC 자정 직후 풀렸다 — 하루 한도 소진의 모양.
+# 원인은 같은 자료를 여러 번 받는 것: 수집기(극지) + 매시 관측값 저장(극지·기후, 30분 캐시라
+# 매번 만료) + API 방문. 기후 값은 일 단위(일최고기온·일강수)라 6시간 캐시로도 낡지 않는다.
+CLIMATE_CACHE_KEY = "climate-signals"
+CLIMATE_CACHE_TTL_S = 6 * 3600
+
+# 실패 사유 — fetch_climate 는 계약상 실패를 None 하나로 돌려준다(호출부 셋이 그렇게 쓴다).
+# 그래서 '왜'가 어디에도 안 남았다(한도 429 인지 장애인지 갈리지 않음). 계약은 그대로 두고
+# 사유만 따로 센다. 수집기가 주기마다 비워 가며 로그에 찍는다.
+_FAILURES: Counter[str] = Counter()
+_FAILURES_LOCK = threading.Lock()
+
+
+def _record_failure(reason: str) -> None:
+    with _FAILURES_LOCK:
+        _FAILURES[reason] += 1
+
+
+def pop_failure_reasons() -> dict[str, int]:
+    """직전 호출 이후 쌓인 실패 사유(예: {"HTTP 429": 8})를 돌려주고 비운다."""
+    with _FAILURES_LOCK:
+        out = dict(_FAILURES)
+        _FAILURES.clear()
+    return out
+
+
+def failure_reasons_line(reasons: dict[str, int]) -> str | None:
+    """로그 한 줄. 사유가 없으면 None."""
+    if not reasons:
+        return None
+    parts = " · ".join(f"{k}×{v}" for k, v in sorted(reasons.items(), key=lambda kv: -kv[1]))
+    return f"  ⚠ Open-Meteo 실패 사유(직전 기록 이후 · 극지·기후·오지 합산): {parts}"
 
 # country_risk.COUNTRIES(Tier-1, ISO3)와 1:1 대응하는 수도 대표 좌표.
 # 프론트 countryCoords.ts와 동일 값 — 백엔드가 world_countries 캐시(네트워크
@@ -78,16 +114,19 @@ def fetch_climate(lat: float, lng: float) -> dict | None:
             headers=USER_AGENT, timeout=TIMEOUT,
         )
         if resp.status_code != 200:
+            _record_failure(f"HTTP {resp.status_code}")
             return None
         daily = resp.json().get("daily") or {}
         temps = [t for t in (daily.get("temperature_2m_max") or []) if t is not None]
         precip = [p for p in (daily.get("precipitation_sum") or []) if p is not None]
         if len(temps) < 14:
+            _record_failure("표본 부족(일 14개 미만)")
             return None
         return {"temps": temps, "precip": precip}
-    except Exception:
+    except Exception as e:
         # 어떤 오류(네트워크·파싱·예상외)든 기후 층 전체를 멈추면 안 됨 — None으로
-        # 흡수하면 호출부가 data_available=False로 정직하게 표시한다.
+        # 흡수하면 호출부가 data_available=False로 정직하게 표시한다. 사유는 따로 센다.
+        _record_failure(type(e).__name__)
         return None
 
 

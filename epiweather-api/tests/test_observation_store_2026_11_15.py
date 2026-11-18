@@ -148,10 +148,17 @@ def test_wiring_hourly_and_same_cache_keys_as_endpoints():
     assert "_after_cycle_bg" in fns["_prewarm_after_cycle"]
     assert "_prewarm_heavy()" in fns["_after_cycle_bg"] and "_store_observations()" in fns["_after_cycle_bg"]
     fetchers = fns["_observation_fetchers"]
-    for endpoint, key in (("polar_watch", "polar-watch"), ("climate_signals", "climate-signals"),
-                          ("land_signals", "land-signals"), ("deforestation_signals", "deforestation-signals")):
+    for endpoint, key in (("land_signals", "land-signals"), ("deforestation_signals", "deforestation-signals")):
         assert f"'{key}'" in fetchers
         assert f"response_cache.swr('{key}'" in fns[endpoint]  # 같은 키 → 외부 API 재호출 없음
+    # 극지·기후는 2026-11-18 부터 키·ttl 을 모듈 상수로 둔다(Open-Meteo 한도 — 수집기가 같은 키로 넣는다).
+    # 같은 상수를 양쪽이 쓰는지, 상수 값이 예전 키 그대로인지 본다.
+    from algorithms.climate_signals import CLIMATE_CACHE_KEY
+    from algorithms.polar_signals import POLAR_CACHE_KEY
+    assert (POLAR_CACHE_KEY, CLIMATE_CACHE_KEY) == ("polar-watch", "climate-signals")
+    for endpoint, const in (("polar_watch", "POLAR_CACHE_KEY"), ("climate_signals", "CLIMATE_CACHE_KEY")):
+        assert f"response_cache.swr({const}," in fetchers
+        assert f"response_cache.swr({const}," in fns[endpoint]
     assert set(obs.EXTRACTORS) == set(obs.LAYERS) == set(obs.SOURCES)
 
 
