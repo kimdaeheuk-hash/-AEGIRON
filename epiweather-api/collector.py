@@ -1095,6 +1095,15 @@ def collect_free_sources() -> dict:
         log(f"  ❌ 극지 관찰 실패: {type(e).__name__}: {e}")
         log_error("PolarWatch", e)
     else:
+        # ⓪ 계산한 값을 응답 캐시에 넣는다(2026-11-18) — 관측값 저장·API 가 같은 자료를
+        #    Open-Meteo 에서 또 받지 않게. 기상 자료가 빈 결과도 넣는다: 방문자가 다시
+        #    두드려 남은 한도를 쓰게 하지 않고, 화면은 '판정 안 함'을 그대로 보여 준다.
+        try:
+            from algorithms import response_cache
+            from algorithms.polar_signals import POLAR_CACHE_KEY
+            response_cache.put(POLAR_CACHE_KEY, pw)
+        except Exception as e:
+            log(f"  ⚠ 극지 관찰 응답 캐시 저장 실패(수집은 유지): {type(e).__name__}: {e}")
         # ① 먼저 **자료로** 정한다. 8곳 모두 기상 자료가 없으면 이 주기엔 측정이
         #    없는 것이라 소스 헬스가 보게 None 으로 둔다(#124). 일부만 없으면 살린다.
         weather_ok = polar_weather_ok(pw)
@@ -1110,6 +1119,14 @@ def collect_free_sources() -> dict:
             log(f"  ⚠ 극지 관찰 요약 줄 생성 실패(자료는 보존): {type(e).__name__}: {e}")
         if not weather_ok:
             log("  ❌ 극지 관찰: 모든 관측지 기상 자료 없음 — 이 주기 측정 없음(소스 헬스 실패로 셈)")
+    # Open-Meteo 실패 사유(2026-11-18) — 한도(429)인지 장애인지 로그로 갈리게.
+    try:
+        from algorithms.climate_signals import failure_reasons_line, pop_failure_reasons
+        reasons_line = failure_reasons_line(pop_failure_reasons())
+        if reasons_line:
+            log(reasons_line)
+    except Exception as e:
+        log(f"  ⚠ Open-Meteo 실패 사유 집계 실패: {type(e).__name__}: {e}")
 
     # ── 현지어 위키 신호 (2026-11-02 수집 편입) ─────────────────────────
     # ★ 부를 때만 계산하면 추세가 안 쌓인다 ★ 극지(09-01)·발할라(09-03)와

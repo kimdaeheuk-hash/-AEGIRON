@@ -110,6 +110,17 @@ def prewarm(key: str, builder: Callable[[], Any]) -> bool:
         lk.release()
 
 
+def put(key: str, value: Any) -> None:
+    """이미 계산된 값을 저장본으로 넣는다 (2026-11-18).
+
+    매시간 수집기가 같은 자료(극지 관찰)를 이미 받아 왔는데, 관측값 저장·API 가 같은 키로
+    또 계산하면 외부 API(Open-Meteo)를 두 번 부른다. 무료 하루 한도가 낮에 바닥나
+    11-15~17 사흘 동안 극지·기후가 반나절씩 '판정 안 함'이 됐다. 계산한 쪽이 넣어 두면
+    나머지는 ttl 안에서 그 값을 그대로 쓴다. 계산 시각은 넣은 시각이다(_stamp 가 나이를 붙인다).
+    """
+    _STORE[key] = (time.time(), value)
+
+
 def invalidate(prefix: str) -> None:
     """쓰기 직후 그 키 묶음의 저장본을 버린다(예: 예측을 새로 기록하면 'pred:' 묶음)."""
     for k in [k for k in _STORE if k.startswith(prefix)]:

@@ -350,16 +350,17 @@ def _log_inventory_daily(force: bool = False) -> None:
 def _observation_fetchers() -> dict:
     """층별 응답 — 무거운 층은 API 와 같은 응답 캐시 키를 써서 외부 API 를 다시 부르지 않는다."""
     from algorithms.cdc_travel_notices import travel_notices_summary
-    from algorithms.climate_signals import climate_signals_all
+    from algorithms.climate_signals import CLIMATE_CACHE_KEY, CLIMATE_CACHE_TTL_S, climate_signals_all
     from algorithms.comtrade_signals import trade_signals_all
     from algorithms.deforestation_signals import deforestation_signals_all
     from algorithms.disaster_watch import disaster_watch_report
     from algorithms.forest_signals import land_signals_all
-    from algorithms.polar_signals import polar_watch_all
+    from algorithms.polar_signals import POLAR_CACHE_KEY, POLAR_CACHE_TTL_S, polar_watch_all
 
     return {
-        "polar": lambda: response_cache.swr("polar-watch", 1800, polar_watch_all),
-        "climate": lambda: response_cache.swr("climate-signals", 1800, climate_signals_all),
+        # 극지는 수집기가 매시간 넣어 둔 값을 쓴다(POLAR_CACHE_TTL_S) · 기후는 일 단위 값이라 6시간(2026-11-18)
+        "polar": lambda: response_cache.swr(POLAR_CACHE_KEY, POLAR_CACHE_TTL_S, polar_watch_all),
+        "climate": lambda: response_cache.swr(CLIMATE_CACHE_KEY, CLIMATE_CACHE_TTL_S, climate_signals_all),
         "land": lambda: response_cache.swr("land-signals", 1800, land_signals_all),
         "deforestation": lambda: response_cache.swr("deforestation-signals", 1800, deforestation_signals_all),
         "trade": trade_signals_all,
@@ -1262,9 +1263,13 @@ def remote_watch(territory: Optional[str] = None):
     표본이 모자라면 undetermined(판정 불가) — 조용함을 안전으로 읽지 않는다.
     수집기 미편입(온디맨드) — 호출 시에만 계산한다.
     """
+    from algorithms.climate_signals import CLIMATE_CACHE_TTL_S
     from algorithms.remote_area import assess_all, assess_territory
     try:
-        entries = [assess_territory(territory)] if territory else assess_all()
+        # 전체 목록은 Open-Meteo 를 오지마다 부르므로 기후와 같은 6시간 캐시(2026-11-18).
+        # 한 오지만 묻는 호출은 그대로 계산한다(드물다).
+        entries = ([assess_territory(territory)] if territory
+                   else response_cache.swr("remote-watch:all", CLIMATE_CACHE_TTL_S, assess_all))
         return {"entries": entries, "count": len(entries), "grade": "watch",
                 "note": "프록시 융합 관찰 — 발병 측정이 아님."}
     except Exception as e:
@@ -1995,8 +2000,8 @@ def climate_signals():
     추정(is_leading_indicator=True, measured=False). 데이터: Open-Meteo(무료).
     삼림파괴(스필오버 1순위 동인)는 아직 미구현임을 disclaimer에 정직하게 명시.
     """
-    from algorithms.climate_signals import climate_signals_all
-    return response_cache.swr("climate-signals", 1800, climate_signals_all)
+    from algorithms.climate_signals import CLIMATE_CACHE_KEY, CLIMATE_CACHE_TTL_S, climate_signals_all
+    return response_cache.swr(CLIMATE_CACHE_KEY, CLIMATE_CACHE_TTL_S, climate_signals_all)
 
 
 @app.get("/api/climate-signals/{country}", tags=["GAI"])
@@ -2469,8 +2474,8 @@ def polar_watch():
     기후 층(Open-Meteo)과 현지어 뉴스(극지 키워드)를 재사용. 값은 발병 위험
     측정이 아니라 관찰용 선행 신호 추정.
     """
-    from algorithms.polar_signals import polar_watch_all
-    return response_cache.swr("polar-watch", 1800, polar_watch_all)
+    from algorithms.polar_signals import POLAR_CACHE_KEY, POLAR_CACHE_TTL_S, polar_watch_all
+    return response_cache.swr(POLAR_CACHE_KEY, POLAR_CACHE_TTL_S, polar_watch_all)
 
 
 @app.get("/api/threats", tags=["GAI"])

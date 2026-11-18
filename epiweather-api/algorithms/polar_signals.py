@@ -36,6 +36,12 @@ from .local_news import fetch_local_feed, _gnews, _scoped, MIN_ITEMS_FOR_ALERT
 # ★ 영토 단위 8곳 (2026-11-02, 6→8) ★ 한 점이 아니라 영토를 본다 — 이름에
 # 관할을 붙인다. 아이슬란드는 영어 피드(en/IS)로 둔다: 아이슬란드어 검색어는
 # 검증된 번역이 없어 영어 질의+영토 스코프가 정직한 차선이다.
+# 응답 캐시 키·ttl (2026-11-18). 수집기가 매시간 계산해 이 키로 넣는다(response_cache.put) —
+# 관측값 저장·API 는 그 값을 쓴다. ttl 은 수집 간격(1시간)에 여유 5분: 수집이 한 번 늦어도
+# 방문자가 Open-Meteo 를 다시 두드리지 않게. 수집이 멈추면 만료 저장본 + 뒤 갱신(swr)으로 떨어진다.
+POLAR_CACHE_KEY = "polar-watch"
+POLAR_CACHE_TTL_S = 65 * 60
+
 POLAR_REGIONS = [
     ("siberia_yamal", "시베리아 야말(러시아)", 66.5, 68.0, "ru", "RU"),
     ("alaska_north", "알래스카 노스슬로프(미국)", 70.2, -148.5, "en", "US"),
