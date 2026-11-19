@@ -9,6 +9,7 @@
 """
 from __future__ import annotations
 
+import ast
 import inspect
 from pathlib import Path
 from unittest.mock import patch
@@ -87,9 +88,36 @@ def test_collector_shares_its_polar_result_and_logs_reasons():
 
 
 def test_main_uses_the_shared_keys_and_ttls():
-    src = MAIN.read_text(encoding="utf-8")
-    assert 'swr("polar-watch", 1800' not in src
-    assert 'swr("climate-signals", 1800' not in src
-    assert src.count("swr(POLAR_CACHE_KEY, POLAR_CACHE_TTL_S, polar_watch_all)") == 2      # 관측값 저장 + API
-    assert src.count("swr(CLIMATE_CACHE_KEY, CLIMATE_CACHE_TTL_S, climate_signals_all)") == 2
-    assert 'swr("remote-watch:all", CLIMATE_CACHE_TTL_S, assess_all)' in src
+    """호출부가 공유 키·공유 ttl 을 쓰는가 — 옛 하드코딩 1800 으로 돌아가지 않았는가.
+
+    ★ 2026-11-19: 문자열 비교에서 **AST 비교로 바꿨다.** 원래는 호출문 전체를 글자로
+    맞췄는데, 11-19 수리가 같은 호출에 `usable=`·`unusable_ttl=` 을 붙이며 줄을 접자
+    계약은 그대로인데 시험이 깨졌다. 단언을 약하게 만드는 대신 **더 강하게** 고쳤다 —
+    이제 서식(줄바꿈·따옴표·키워드 인자)에 안 묶이고 `(키, ttl, 빌더)` 세 자리를 구조로 본다.
+    (이 저장소 규칙: 문자열 grep 이 아니라 AST 상수/호출을 본다.)
+    """
+    tree = ast.parse(MAIN.read_text(encoding="utf-8"))
+    calls = [n for n in ast.walk(tree)
+             if isinstance(n, ast.Call)
+             and isinstance(n.func, ast.Attribute) and n.func.attr == "swr"
+             and len(n.args) >= 3]
+
+    def shape(call: ast.Call) -> tuple[str, str, str]:
+        def one(node: ast.expr) -> str:
+            if isinstance(node, ast.Name):
+                return node.id
+            if isinstance(node, ast.Constant):
+                return repr(node.value)
+            return ast.unparse(node)
+        return one(call.args[0]), one(call.args[1]), one(call.args[2])
+
+    shapes = [shape(c) for c in calls]
+
+    # 옛 하드코딩(1800초)으로 돌아가지 않았다
+    assert ("'polar-watch'", "1800", "polar_watch_all") not in shapes
+    assert ("'climate-signals'", "1800", "climate_signals_all") not in shapes
+
+    # 공유 키 + 공유 ttl + 같은 빌더
+    assert shapes.count(("POLAR_CACHE_KEY", "POLAR_CACHE_TTL_S", "polar_watch_all")) == 2   # 관측값 저장 + API
+    assert shapes.count(("CLIMATE_CACHE_KEY", "CLIMATE_CACHE_TTL_S", "climate_signals_all")) == 2
+    assert ("'remote-watch:all'", "CLIMATE_CACHE_TTL_S", "assess_all") in shapes
