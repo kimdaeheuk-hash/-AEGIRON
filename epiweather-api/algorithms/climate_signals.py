@@ -55,6 +55,41 @@ def _record_failure(reason: str) -> None:
         _FAILURES[reason] += 1
 
 
+# ★ 429 는 한 종류가 아니다 — 본문에 어느 한도인지 적혀 온다 (2026-11-19) ★
+#
+# #132 는 `HTTP 429` 까지만 세고 **응답 본문을 버렸다.** 그래서 나흘째 "한도"라는 것만
+# 알고 **분·시간·일 중 무엇인지는 갈리지 않았다.** 2026-08-25 의 교훈
+# ("실패 이유를 버리면 고칠 수 없다")과 같은 자리, 한 겹 더 깊은 곳이다.
+#
+# 이게 중요한 이유: 우리 호출량은 하루 276회(극지 8×24 + 기후 15×4 + 오지 6×4)인데
+# 무료 티어는 그보다 한참 크다. 그러면 둘 중 하나다 —
+#   `Daily …`    → 우리 양으로 일 한도에 닿을 수 없다 ⇒ 송신 IP를 남과 나눠 쓴다(처방: 전용 키)
+#   `Minutely …` → 한 주기에 몰아 쏘는 모양이 문제다      ⇒ 간격만 벌리면 공짜로 해결된다
+# 처방이 정반대라서 **추측으로 결정하지 않는다.** 이 한 줄이 그걸 가른다.
+_REASON_MAX = 60
+
+
+def _http_failure_reason(resp: object) -> str:
+    """비200 응답의 실패 사유. 본문에 `reason` 이 있으면 붙인다.
+
+    Open-Meteo 는 비200 에 `{"error": true, "reason": "Daily API request limit exceeded…"}`
+    를 실어 보낸다. **사유가 없으면 `HTTP {코드}` 만** 돌려준다 — 집계 키가 쪼개지지 않게,
+    그리고 사유를 못 읽었을 때 못 읽었다고 말하게(없는 사유를 지어내지 않는다).
+
+    본문이 JSON 이 아닌 경우(프록시 HTML 등)도 코드만 남긴다. 아무 글자나 키로 쓰면
+    같은 고장이 여러 줄로 쪼개져 집계가 거짓말을 한다.
+    """
+    label = f"HTTP {getattr(resp, 'status_code', '?')}"
+    try:
+        body = resp.json()                      # type: ignore[attr-defined]
+    except Exception:                           # noqa: BLE001 — JSON 이 아니면 코드만
+        return label
+    if not isinstance(body, dict):
+        return label
+    detail = " ".join(str(body.get("reason") or "").split()).strip(" .")
+    return f"{label} · {detail[:_REASON_MAX]}" if detail else label
+
+
 def pop_failure_reasons() -> dict[str, int]:
     """직전 호출 이후 쌓인 실패 사유(예: {"HTTP 429": 8})를 돌려주고 비운다."""
     with _FAILURES_LOCK:
@@ -122,7 +157,8 @@ def fetch_climate(lat: float, lng: float) -> dict | None:
             headers=USER_AGENT, timeout=TIMEOUT,
         )
         if resp.status_code != 200:
-            _record_failure(f"HTTP {resp.status_code}")
+            # 본문의 `reason` 까지 센다(2026-11-19) — 어느 한도인지가 처방을 가른다.
+            _record_failure(_http_failure_reason(resp))
             return None
         daily = resp.json().get("daily") or {}
         temps = [t for t in (daily.get("temperature_2m_max") or []) if t is not None]
