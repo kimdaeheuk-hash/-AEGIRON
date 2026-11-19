@@ -95,6 +95,19 @@ def assess_territory(key: str) -> dict:
             "note": "프록시 융합 관찰 — 발병 측정이 아님", "watch_grade": True}
 
 
+def remote_result_usable(result: object) -> bool:
+    """오지 전체 평가를 6시간 동안 답으로 써도 되는가 (2026-11-19).
+
+    오지는 프록시 2개(기후·뉴스)가 다 있어야 `assessed` 가 되므로, Open-Meteo 하루 한도가
+    바닥나면 **전 영토가 `assessed: False`** 가 된다. 그 결과가 6시간 캐시에 앉으면 한도가
+    풀려도 회복하지 않는다 — 기후 층과 같은 결함이다(`response_cache` 의 ★ 주석).
+    한 곳이라도 판정됐으면 쓸 수 있다.
+    """
+    if not isinstance(result, list) or not result:
+        return False
+    return any(isinstance(r, dict) and r.get("assessed") for r in result)
+
+
 def assess_all() -> list[dict]:
     """전 영토 병렬 평가(3워커). 하나가 느려도 나머지는 돈다."""
     keys = [r[0] for r in REMOTE_TERRITORIES]
