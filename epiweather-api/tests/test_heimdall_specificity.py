@@ -77,3 +77,52 @@ def test_empty_fasta_is_an_error(tmp_path):
     fasta = tmp_path / "empty.fasta"
     fasta.write_text("\n\n", encoding="utf-8")
     assert hs.main([str(fasta)]) == 2
+
+
+def test_chunk_sequence_drops_short_tail():
+    assert hs.chunk_sequence("A" * 25, 10) == ["A" * 10, "A" * 10]
+    assert hs.chunk_sequence("A" * 9, 10) == []
+
+
+def test_evaluate_chunks_counts_per_chunk(monkeypatch):
+    """긴 서열 하나가 '한 건'이 아니라 조각 수만큼 세어지는지 — 길이 보정의 핵심 배선."""
+    clean, dirty = "C" * 40, "G" * 40
+    monkeypatch.setattr(hs, "screen_sequence", _fake_screen({dirty: 1}))
+    long_seq = clean * 3 + dirty  # 조각 4개 중 1개만 플래그
+    report = hs.evaluate_chunks([("long", long_seq), ("tiny", "C" * 10)], 40)
+    assert report["chunks_screened"] == 4 and report["chunks_flagged"] == 1
+    assert report["chunk_flag_rate"] == 0.25
+    assert report["flags_by_metric"] == {"m0": 1}
+    assert report["records_shorter_than_chunk"] == ["tiny"]
+    assert report["per_source"][0]["chunks_flagged"] == 1
+
+
+def test_length_breakdown_buckets_screened_records(monkeypatch):
+    short, long_ = "C" * 60, "G" * 20_000
+    monkeypatch.setattr(hs, "screen_sequence", _fake_screen({long_: 1}))
+    records = [("s", short), ("l", long_)]
+    out = hs.length_breakdown(records, hs.evaluate(records))
+    assert out["<10k"] == {"screened": 1, "flagged": 0, "flag_rate": 0.0}
+    assert out["10k-100k"] == {"screened": 1, "flagged": 1, "flag_rate": 1.0}
+    assert out[">=100k"]["screened"] == 0 and out[">=100k"]["flag_rate"] is None
+
+
+def test_main_gates_on_first_chunk_size_when_given(tmp_path, monkeypatch):
+    """서열 단위로는 100% 플래그여도, 조각 비율이 상한 아래면 통과(판정 기준이 조각으로 바뀜)."""
+    clean, dirty = "C" * 40, "G" * 40
+    monkeypatch.setattr(hs, "screen_sequence", _fake_screen({clean * 3 + dirty: 1, dirty: 1}))
+    fasta = tmp_path / "x.fasta"
+    fasta.write_text(f">a\n{clean * 3 + dirty}\n", encoding="utf-8")
+    report_path = tmp_path / "r.json"
+    args = [str(fasta), "--report", str(report_path), "--max-false-positive-rate", "0.5"]
+    assert hs.main(args) == 1                               # 서열 단위: 1/1 → 빨간불
+    assert hs.main(args + ["--chunk-sizes", "40,80"]) == 0  # 조각 40: 1/4 → 통과
+    saved = json.loads(report_path.read_text(encoding="utf-8"))
+    assert [c["chunk_size"] for c in saved["chunked"]] == [40, 80]
+    assert "length_breakdown" in saved
+
+
+def test_bad_chunk_sizes_is_an_error(tmp_path):
+    fasta = tmp_path / "x.fasta"
+    fasta.write_text(">a\n" + "C" * 60 + "\n", encoding="utf-8")
+    assert hs.main([str(fasta), "--chunk-sizes", "0"]) == 2
