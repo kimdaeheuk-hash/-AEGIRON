@@ -2,8 +2,6 @@
 mock으로 대체(이 개발 환경은 외부 RSS 접근이 막혀 있고, 라이브 피드 상태에
 테스트 결과가 좌우되면 안 됨)."""
 from __future__ import annotations
-import ast
-import pathlib
 from unittest.mock import patch, MagicMock
 
 import requests
@@ -209,14 +207,3 @@ def test_fetch_all_local_news_goes_through_the_probe_and_reports_it():
     assert ln.SKIPPED_REASON in out["failure_summary"]
 
 
-def test_wiring_collector_logs_probe_and_scan_calls_it():
-    """만들어만 두고 아무도 안 부르는 층을 막는다 — AST 로 호출 자체를 고정."""
-    root = pathlib.Path(ln.__file__).parent
-    tree = ast.parse(pathlib.Path(ln.__file__).read_text(encoding="utf-8"))
-    fn = next(n for n in ast.walk(tree)
-              if isinstance(n, ast.FunctionDef) and n.name == "fetch_all_local_news")
-    called = {c.func.id for c in ast.walk(fn)
-              if isinstance(c, ast.Call) and isinstance(c.func, ast.Name)}
-    assert "fetch_feeds_with_probe" in called
-    collector = (root.parent / "collector.py").read_text(encoding="utf-8")
-    assert 'n.get("fetch_probe")' in collector

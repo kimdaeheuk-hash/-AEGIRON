@@ -27,11 +27,12 @@ from __future__ import annotations
 
 import datetime as dt
 import os
-import re
+
 from collections.abc import Callable
 from typing import Any
 
-LAYERS = ("polar", "climate", "land", "deforestation", "trade", "disaster", "travel")
+# 개편(2026-11-22): 극지만 남겼다. 다른 층(기후·토지·삼림·무역·재난·여행경보)의 추출기는 커밋 83406e4 에 있다.
+LAYERS = ("polar",)
 
 Row = dict[str, Any]
 
@@ -87,112 +88,9 @@ def rows_polar(d: dict) -> list[Row]:
     return out
 
 
-def _country_rows(d: dict, measured_keys: tuple[str, ...], derived_keys: tuple[str, ...]) -> list[Row]:
-    out = []
-    for c in d.get("countries") or []:
-        iso = c.get("country")
-        if not iso:
-            continue
-        if c.get("data_available") is False:
-            out.append(_undetermined(iso, c.get("reason")))
-            continue
-        out.append(_row(iso, measured=_pick(c, *measured_keys), derived=_pick(c, *derived_keys)))
-    return out
+EXTRACTORS: dict[str, Callable[[dict], list[Row]]] = {"polar": rows_polar}
 
-
-def rows_climate(d: dict) -> list[Row]:
-    return _country_rows(d, ("mean_recent_temp_c", "precip_recent_14d_mm"),
-                         ("heat_trend_c", "vector_suitability", "spillover_pressure", "method"))
-
-
-def rows_land(d: dict) -> list[Row]:
-    return _country_rows(d, ("fire_count_recent", "day_range"), ("land_clearing_pressure", "method"))
-
-
-def rows_deforestation(d: dict) -> list[Row]:
-    return _country_rows(d, ("deforestation_alerts_recent", "day_range"), ("deforestation_pressure", "method"))
-
-
-def rows_trade(d: dict) -> list[Row]:
-    if d.get("data_available") is False:
-        return [_undetermined("*", d.get("reason"))]
-    out = []
-    for product, p in (d.get("products") or {}).items():
-        if not isinstance(p, dict):
-            continue
-        fetch = p.get("fetch") or {}
-        if p.get("data_available") is False:
-            out.append(_undetermined("*", p.get("reason") or "품목 조회 실패 — 값 없음", metric=product))
-            continue
-        for s in p.get("top_surges") or []:
-            iso = s.get("country_iso3")
-            if not iso:
-                continue
-            measured = _pick(s, "monthly_import_usd")
-            if fetch.get("latest_period"):
-                measured["latest_period"] = fetch["latest_period"]
-            out.append(_row(iso, metric=product, measured=measured, derived=_pick(s, "surge_ratio")))
-    return out
-
-
-def rows_disaster(d: dict) -> list[Row]:
-    out = []
-    for c in d.get("countries") or []:
-        iso = c.get("country_iso3")
-        if not iso:
-            continue
-        events, seen = [], set()
-        for w in c.get("open_windows") or []:
-            key = (w.get("disaster_type"), w.get("disaster_date"), w.get("title"))
-            if key in seen:
-                continue
-            seen.add(key)
-            events.append(_pick(w, "disaster_type", "alert_level", "disaster_date", "title"))
-        diseases = sorted({w.get("disease") for w in c.get("open_windows") or [] if w.get("disease")})
-        out.append(_row(iso, measured={"events": events},
-                        derived={"open_windows": c.get("window_count", len(c.get("open_windows") or [])),
-                                 "window_diseases": diseases}))
-    return out
-
-
-def _notice_id(link: str | None, headline: str) -> str:
-    if link:
-        m = re.search(r"/notices/(?:level\d/)?([^/?#]+)", link)
-        if m:
-            return m.group(1)
-    return re.sub(r"[^a-z0-9]+", "-", headline.lower()).strip("-")[:80]
-
-
-def rows_travel(d: dict) -> list[Row]:
-    if d.get("data_available") is False:
-        return [_undetermined("*", d.get("reason"))]
-    from .country_cards import _travel_isos
-
-    out = []
-    for n in d.get("all_notices") or []:
-        head = n.get("headline")
-        if not head:
-            continue
-        out.append(_row(_notice_id(n.get("link"), head),
-                        measured=_pick(n, "level", "headline", "pub_date", "link"),
-                        derived={"countries_read": _travel_isos(head)}))
-    return out
-
-
-EXTRACTORS: dict[str, Callable[[dict], list[Row]]] = {
-    "polar": rows_polar, "climate": rows_climate, "land": rows_land, "deforestation": rows_deforestation,
-    "trade": rows_trade, "disaster": rows_disaster, "travel": rows_travel,
-}
-
-SOURCES = {
-    "polar": "Open-Meteo 기상 + Google News(극지)",
-    "climate": "Open-Meteo",
-    "land": "NASA FIRMS VIIRS",
-    "deforestation": "Global Forest Watch",
-    "trade": "UN Comtrade(공개 전세계 스캔 상위 급증)",
-    "disaster": "GDACS",
-    "travel": "CDC Travelers' Health",
-}
+SOURCES = {"polar": "Open-Meteo 기상 + Google News(극지)"}
 
 
 def _computed_at(d: dict) -> str:
@@ -228,8 +126,7 @@ def store(fetchers: dict[str, Callable[[], dict]]) -> dict[str, dict[str, int]]:
 
 
 def summary_line(summary: dict[str, dict[str, int]]) -> str:
-    names = {"polar": "극지", "climate": "기후", "land": "토지", "deforestation": "삼림",
-             "trade": "무역", "disaster": "재난", "travel": "여행경보"}
+    names = {"polar": "극지"}
     parts = []
     for layer, c in summary.items():
         total = c["new"] + c["same"]

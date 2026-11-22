@@ -184,11 +184,6 @@ def test_refresh_clears_consumer_cache(snapdir, monkeypatch):
 
 
 # ── 묵은 것만 받는다 ─────────────────────────────────────────────
-def _kor_routes_payload() -> dict:
-    return {"snapshot_date": dt.date.today().isoformat(),
-            "by_country": {f"C{i:02d}": {"passengers": 1} for i in range(40)}}
-
-
 def test_refresh_due_skips_fresh_and_refreshes_stale(snapdir):
     """안 바뀐 걸 매주 긁을 이유가 없다. 신선한 것은 원본을 부르지도 않는다."""
     _write(snapdir, "vaccine_supply", _vaccine_payload(count=284))       # 오늘자
@@ -199,7 +194,6 @@ def test_refresh_due_skips_fresh_and_refreshes_stale(snapdir):
     _write(snapdir, "approved_products",
            {"snapshot_date": dt.date.today().isoformat(),
             "by_threat": {"Anthrax": {}, "Ebola": {}, "Plague": {}}})
-    _write(snapdir, "kor_route_stats", _kor_routes_payload())          # 2026-10-19 등록부에 추가
     # 국내 허가(발할라 P1)도 등록부에 있다. 오늘자로 채워 신선하게 둔다.
     _write(snapdir, "approved_products_domestic",
            {"snapshot_date": dt.date.today().isoformat(),
@@ -216,8 +210,7 @@ def test_refresh_due_skips_fresh_and_refreshes_stale(snapdir):
     fda.assert_not_called()                      # 이것도 신선하다
     gho.assert_called_once()                     # 묵어서 부름
     assert sorted(s["name"] for s in out["skipped_fresh"]) == [
-        "approved_products", "approved_products_domestic", "kor_route_stats",
-        "vaccine_supply"]
+        "approved_products", "approved_products_domestic", "vaccine_supply"]
     assert [r["name"] for r in out["refreshed"]] == ["ihr_capacity"]
     assert out["refreshed"][0]["refreshed"] is True
 
@@ -229,7 +222,6 @@ def test_missing_approved_snapshot_is_stale_and_gets_fetched(snapdir):
     _write(snapdir, "ihr_capacity",
            {"snapshot_date": dt.date.today().isoformat(),
             "scores": {f"C{i}": {} for i in range(194)}})
-    _write(snapdir, "kor_route_stats", _kor_routes_payload())
     # 국내 허가는 오늘자로 채운다 — 이 검사는 openFDA 쪽만 갱신 대상이어야 한다.
     _write(snapdir, "approved_products_domestic",
            {"snapshot_date": dt.date.today().isoformat(),

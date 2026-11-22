@@ -32,7 +32,6 @@ import json
 import requests
 from unittest.mock import patch
 
-import pytest
 
 from algorithms import cerebras_classify as cc
 from algorithms import local_news as ln
@@ -186,13 +185,3 @@ def test_collector_logs_the_failure_line(capsys):
     assert "402" in out
 
 
-def test_collector_guard_exists_in_source():
-    """가드가 지워지면 다시 조용해진다 — 그 회귀를 잡는다."""
-    import inspect
-    import collector
-
-    src = inspect.getsource(collector.collect_free_sources)
-    assert "LLM 재분류 실패" in src, (
-        "현지어 뉴스 LLM 재분류 실패를 찍는 줄이 사라졌다"
-    )
-    assert "llm_failure_reason" in src

@@ -45,7 +45,7 @@ import datetime as dt
 
 import requests
 
-from .common import brief_reason, reason_with_detail, tally
+from .common import reason_with_detail, tally
 
 # TED Search API v3. 키가 필요 없는 공개 검색 엔드포인트다(문서 기준).
 TED_SEARCH_URL = "https://api.ted.europa.eu/v3/notices/search"

@@ -59,10 +59,6 @@ def _approved_count(payload: dict) -> int:
     return len(payload.get("by_threat") or {})
 
 
-def _kor_route_count(payload: dict) -> int:
-    return len(payload.get("by_country") or {})
-
-
 # 스냅샷 등록부. max_age_days는 '원본이 얼마나 자주 바뀌는가'에 맞춘다.
 SNAPSHOTS: dict[str, dict] = {
     "vaccine_supply": {
@@ -110,19 +106,6 @@ SNAPSHOTS: dict[str, dict] = {
         "count": _approved_count,
         "fetch": "fetch_approved_products_domestic",
         "owner": "VALHALLA",
-    },
-    "kor_route_stats": {
-        "label": "한국 국제선 국가별 운송 실적(공공데이터포털 파일)",
-        "filename": "kor_route_stats.json",
-        # 원본이 반기(1월 20일 무렵·7월 초) 갱신이다. 첫 스냅샷(10-19, 캡틴이 받아 준 7월 등록본)에서
-        # 100일 뒤면 1월 등록 직후라, 그 주의 주간작업이 처음으로 자동 내려받기를 시도한다.
-        "max_age_days": 100,
-        # 인천 취항국은 수십 개국이다. 이보다 적으면 열·국가 매핑이 깨진 것으로 본다.
-        "min_records": 30,
-        "count": _kor_route_count,
-        "fetch": "fetch_kor_route_stats",
-        # 유입 보고서·확산 모델(SKULD)이 쓴다 — 발할라 대응제 축이 아니다. 발할라 로그에 섞이지 않게.
-        "owner": "SKULD",
     },
 }
 

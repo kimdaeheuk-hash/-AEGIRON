@@ -6,7 +6,6 @@ bioRxiv API도 브라우저에서 직접 호출 시 CORS로 차단되므로 같�
 """
 from __future__ import annotations
 import os
-import re
 import time
 import requests
 import xml.etree.ElementTree as ET

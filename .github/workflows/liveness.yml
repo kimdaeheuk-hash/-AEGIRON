@@ -2,8 +2,8 @@ name: Liveness
 
 # 서버 밖에서 하는 생존 감시 (2026-10-19, 캡틴 승인 ①).
 #
-# 왜: BAIKAL 운영 알림은 Railway 서버 안에서 보낸다. 서버가 죽거나 매시 주기가 멈추면 알림도
-# 같이 멈춘다. 여기서 매시간 바깥에서 본다 — /health · BAIKAL 스냅숏 나이 · 웹사이트 첫 화면.
+# 왜: 서버 안의 알림은 Railway 서버 안에서 나간다. 서버가 죽거나 매시 주기가 멈추면 알림도
+# 같이 멈춘다. 여기서 매시간 바깥에서 본다 — /health · /api/status 의 수집 침묵 시간 · 웹사이트 첫 화면.
 # 판단 규칙은 epiweather-api/scripts/liveness_check.py(시험: tests/test_liveness_check.py).
 #
 # 바뀐 순간만 보낸다: 직전 실행들의 결론(성공/실패)을 세어 스크립트에 넘긴다 — 처음 실패하면
@@ -20,7 +20,7 @@ name: Liveness
 
 on:
   schedule:
-    - cron: "25 * * * *"   # 매시 25분 — 정각 수집·경보·BAIKAL 주기(보통 :03 전후 끝) 뒤
+    - cron: "25 * * * *"   # 매시 25분 — 정각 수집 주기(보통 :03 전후 끝) 뒤
     - cron: "55 * * * *"   # 매시 55분 — 25분 실행이 빠졌을 때의 두 번째 기회
   workflow_dispatch:
 

@@ -1,8 +1,8 @@
 """서버 밖 생존 감시 (2026-10-19, 캡틴 승인 ①).
 
-BAIKAL 운영 알림은 서버 안에서 나간다 — 서버가 죽으면 같이 조용해진다. 이 스크립트는
+서버 안의 알림은 서버 안에서 나간다 — 서버가 죽으면 같이 조용해진다. 이 스크립트는
 GitHub Actions 에서 바깥으로 본다. 고정하는 것: ① 서버 무응답·주기 멈춤·사이트 무응답을 구분해
-말한다 ② 첫 관측 전(available=False)은 고장으로 세지 않는다 ③ 바뀐 순간만 보내고, 계속되면
+말한다 ② 첫 주기 전(collector_silent_hours=None)은 고장으로 세지 않는다 ③ 바뀐 순간만 보내고, 계속되면
 RENOTIFY_EVERY 회마다, 복구도 한 번 ④ 값 이스케이프 ⑤ 워크플로가 이 스크립트를 실제로 부른다.
 """
 from __future__ import annotations
@@ -17,7 +17,7 @@ lc = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(lc)
 
 OK_HEALTH = (200, json.dumps({"status": "ok"}))
-FRESH = (200, json.dumps({"available": True, "stale": False, "snapshot_age_minutes": 22}))
+FRESH = (200, json.dumps({"source_health": {"collector_silent_hours": 0.4}}))
 SITE_OK = (200, "<html>")
 
 
@@ -25,18 +25,27 @@ def test_all_good_is_no_problem():
     assert lc.evaluate(OK_HEALTH, FRESH, SITE_OK) == []
 
 
-def test_server_down_is_reported_and_baikal_not_double_counted():
+def test_server_down_is_reported_and_status_not_double_counted():
     probs = lc.evaluate((None, "URLError"), (None, "URLError"), SITE_OK)
     assert probs == ["운영 서버 응답 없음 (/health URLError)"]
 
 
 def test_stale_snapshot_means_scheduler_stalled():
-    stale = (200, json.dumps({"available": True, "stale": True, "snapshot_age_minutes": 190}))
-    assert lc.evaluate(OK_HEALTH, stale, None) == ["매시 주기 멈춤 의심 — BAIKAL 마지막 관측 190분 전"]
+    stale = (200, json.dumps({"source_health": {"collector_silent_hours": 3.2}}))
+    assert lc.evaluate(OK_HEALTH, stale, None) == ["매시 주기 멈춤 의심 — 수집 마지막 기록 3.2시간 전"]
+
+
+def test_one_late_cycle_is_not_a_stall():
+    late = (200, json.dumps({"source_health": {"collector_silent_hours": lc.STALL_HOURS}}))
+    assert lc.evaluate(OK_HEALTH, late, None) == []
+
+
+def test_unreadable_status_is_reported():
+    assert lc.evaluate(OK_HEALTH, (502, ""), None) == ["운영 상태를 못 읽음 (/api/status HTTP 502)"]
 
 
 def test_before_first_cycle_is_not_a_failure():
-    assert lc.evaluate(OK_HEALTH, (200, json.dumps({"available": False})), None) == []
+    assert lc.evaluate(OK_HEALTH, (200, json.dumps({"source_health": {"collector_silent_hours": None}})), None) == []
 
 
 def test_site_down_is_separate():

@@ -24,7 +24,6 @@
 from __future__ import annotations
 import math
 import statistics
-from collections import Counter
 
 # 표준 유전암호(코돈→아미노산). '*'=종결.
 _CODON_AA = {
