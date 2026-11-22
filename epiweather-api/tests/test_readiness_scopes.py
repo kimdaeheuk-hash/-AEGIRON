@@ -129,8 +129,13 @@ def test_summary_returns_none_when_nothing():
     assert rsc.scope_summary({"error": "boom"}) is None
 
 
-def test_valhalla_snapshot_carries_scopes(monkeypatch, tmp_path):
-    """배선 회귀 — 계산해놓고 스냅샷에 안 실으면 아무도 못 본다."""
+def test_valhalla_snapshot_carries_scopes(monkeypatch, tmp_path, isolated_db):
+    """배선 회귀 — 계산해놓고 스냅샷에 안 실으면 아무도 못 본다.
+
+    isolated_db(2026-11-22): 이 시험은 준비태세 계산이 비축 표를 읽는다. 예전엔 임시 DB 없이
+    **운영 data/epiweather.db** 를 읽었고, 앞선 시험이 우연히 그 파일에 표를 만들어 줄 때만
+    통과했다(단독 실행·깨끗한 체크아웃에서는 OperationalError → 'scopes' KeyError). BAIKAL
+    시험이 main 을 임시 DB 아래서 먼저 import 하면서 순서 의존이 드러났다."""
     from algorithms import valhalla_watch as vw
     monkeypatch.setattr(vw, "STATE_FILE", tmp_path / "valhalla_state.json")
     monkeypatch.setattr(vw, "_fetch_pipeline", lambda: PIPE)
