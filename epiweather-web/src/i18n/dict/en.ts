@@ -7,7 +7,7 @@ export const en: Dictionary = {
     "heimdall": "Heimdall",
     "valhalla": "Valhalla",
     "methodology": "Methodology",
-    "government": "Government biosecurity",
+    "government": "Companies & agencies",
     "developers": "Developers · API",
     "security": "Security",
     "about": "About",
@@ -33,27 +33,14 @@ export const en: Dictionary = {
   "home": {
     "metaTitle": "AEGIRON — Polar detection · Heimdall identification · Valhalla response",
     "metaDescription": "Hourly detection of anomalies in polar permafrost regions (Polar), identification of lineage shifts in public genomes (Heimdall), and a verdict on whether national countermeasures cover the threat (Valhalla). For national biosecurity agencies.",
-    "eyebrow": "AEGIRON · National biosecurity",
-    "title": "Detect → identify → judge the response\nOne chain, nothing else",
-    "lead": "We no longer try to watch every disease on Earth. We run a single chain: detect anomalies in polar permafrost every hour, identify pathogen lineage shifts, and judge whether our countermeasures cover the threat.",
+    "eyebrow": "AEGIRON · Bio-health",
+    "title": "Read the pathogen genome,\nthen see if a response exists",
+    "lead": "We track public pathogen lineages every hour, compute defensive anomaly indicators for a submitted sequence (Heimdall), and judge whether a vaccine or therapeutic exists for that threat (Valhalla). Our first customers are bio and diagnostics companies and national biosecurity agencies.",
     "primaryCta": "Open the operations view",
-    "secondaryCta": "For government agencies",
+    "secondaryCta": "For companies and agencies",
     "chainTitle": "Three links",
-    "chainLead": "Each link takes the output of the one before. Only what actually runs today is listed.",
+    "chainLead": "Heimdall (identify) is at the centre; Valhalla (judge the response) backs it, and Polar (detect) stays as future research. Only what actually runs today is listed.",
     "stages": [
-      {
-        "code": "POLAR",
-        "name": "Polar watch",
-        "role": "Detect",
-        "body": "Thawing permafrost is where long-buried pathogens such as anthrax can resurface. We observe weather and local-language news in 8 polar regions every hour.",
-        "facts": [
-          "8 regions (Yamal, Alaska, Canadian Arctic, Greenland, Svalbard, Antarctic Peninsula and more) observed hourly",
-          "Temperature and thaw days are Open-Meteo observations · the anomaly vs normal is computed from a 16-year reanalysis",
-          "A watch grade, not an alert — hours that could not be read are kept as undetermined"
-        ],
-        "href": "polar",
-        "linkLabel": "See the polar trend"
-      },
       {
         "code": "HEIMDALL",
         "name": "Heimdall",
@@ -79,6 +66,19 @@ export const en: Dictionary = {
         ],
         "href": "valhalla",
         "linkLabel": "Open the Valhalla section"
+      },
+      {
+        "code": "POLAR",
+        "name": "Polar watch",
+        "role": "Detect",
+        "body": "Thawing permafrost is where long-buried pathogens such as anthrax can resurface. We observe weather and local-language news in 8 polar regions every hour.",
+        "facts": [
+          "8 regions (Yamal, Alaska, Canadian Arctic, Greenland, Svalbard, Antarctic Peninsula and more) observed hourly",
+          "Temperature and thaw days are Open-Meteo observations · the anomaly vs normal is computed from a 16-year reanalysis",
+          "A watch grade, not an alert — hours that could not be read are kept as undetermined"
+        ],
+        "href": "polar",
+        "linkLabel": "See the polar trend"
       }
     ],
     "healthTitle": "Collection status",
@@ -87,8 +87,8 @@ export const en: Dictionary = {
     "notTitle": "What we do not do",
     "notPoints": [
       "Global outbreak alerts or country risk rankings — removed in the November 2026 overhaul",
-      "Claims of outbreak-prediction accuracy — no validated track record",
-      "Design, synthesis or optimisation of pathogen sequences — never"
+      "Claims of outbreak or screening accuracy — no validated track record yet",
+      "Design, synthesis or optimisation of pathogen sequences — defensive only, never"
     ]
   },
   "polar": {
@@ -118,14 +118,14 @@ export const en: Dictionary = {
     },
     "about": {
       "metaTitle": "About",
-      "metaDescription": "AEGIRON — national biosecurity technology focused on polar detection, genomic identification and countermeasure verdicts.",
+      "metaDescription": "AEGIRON — bio-health technology centred on pathogen genome identification (Heimdall), backed by response judgement and polar detection.",
       "eyebrow": "ABOUT",
       "title": "AEGIRON",
-      "lead": "A one-person technology start-up in Busan · national biosecurity agencies are the first customer",
+      "lead": "A one-person technology start-up in Busan · pathogen genome analysis is the core product; bio and diagnostics companies and national biosecurity agencies are the first customers",
       "blocks": [
         {
           "title": "Why we narrowed",
-          "body": "Until November 2026 AEGIRON collected disease signals from everywhere. The wider the scope, the thinner the expertise, and external reviews were poor. We kept one chain — detect (Polar) → identify (Heimdall) → judge the response (Valhalla) — and deleted the rest."
+          "body": "Until November 2026 AEGIRON collected disease signals from everywhere. The wider the scope, the thinner the expertise, and external reviews were poor. We made pathogen genome identification (Heimdall) the core product, with response judgement (Valhalla) behind it and polar detection kept as future research — focusing on one bio-health field."
         },
         {
           "title": "Principles",
@@ -138,7 +138,7 @@ export const en: Dictionary = {
       ],
       "cta": {
         "title": "Adoption and partnership",
-        "body": "Reviews by national and regional biosecurity agencies are welcome",
+        "body": "Reviews by bio and diagnostics companies, labs, and national and regional biosecurity agencies are welcome",
         "label": "Contact",
         "href": "contact"
       }
@@ -190,8 +190,8 @@ export const en: Dictionary = {
       "metaTitle": "Government biosecurity",
       "metaDescription": "Polar detection, genomic identification and countermeasure verdicts for national biosecurity agencies.",
       "eyebrow": "GOVERNMENT",
-      "title": "For national biosecurity agencies",
-      "lead": "National biosecurity agencies are our first customer · detect → identify → judge the response in one view",
+      "title": "For bio/diagnostics companies and national biosecurity agencies",
+      "lead": "Read the pathogen genome (Heimdall) and see whether a countermeasure exists for that threat (Valhalla) in one view · bio and diagnostics companies and national biosecurity agencies are the first customers",
       "blocks": [
         {
           "title": "What an agency gets",

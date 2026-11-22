@@ -7,7 +7,7 @@ export const fr: Dictionary = {
     "heimdall": "Heimdall",
     "valhalla": "Valhalla",
     "methodology": "Méthodologie",
-    "government": "Biosécurité nationale",
+    "government": "Entreprises et agences",
     "developers": "Développeurs · API",
     "security": "Sécurité",
     "about": "À propos",
@@ -33,27 +33,14 @@ export const fr: Dictionary = {
   "home": {
     "metaTitle": "AEGIRON — Détection polaire · identification Heimdall · réponse Valhalla",
     "metaDescription": "Détection horaire d’anomalies dans les régions de pergélisol polaire (Polar), identification des changements de lignée dans les génomes publics (Heimdall) et verdict sur la couverture des contre-mesures nationales (Valhalla). Pour les agences de biosécurité nationale.",
-    "eyebrow": "AEGIRON · Biosécurité nationale",
-    "title": "Détecter → identifier → juger la réponse\nUne seule chaîne",
-    "lead": "Nous ne cherchons plus à surveiller toutes les maladies du monde. Nous exploitons une seule chaîne : détecter chaque heure les anomalies du pergélisol polaire, identifier les changements de lignée des pathogènes et juger si nos contre-mesures couvrent la menace.",
+    "eyebrow": "AEGIRON · Bio-santé",
+    "title": "Lire le génome du pathogène,\npuis voir si une réponse existe",
+    "lead": "Nous suivons chaque heure les lignées publiques de pathogènes, calculons des indicateurs d’anomalie défensifs pour une séquence soumise (Heimdall) et jugeons s’il existe un vaccin ou un traitement pour cette menace (Valhalla). Nos premiers clients sont les entreprises de biotechnologie et de diagnostic et les agences de biosécurité nationale.",
     "primaryCta": "Ouvrir la vue opérationnelle",
-    "secondaryCta": "Pour les agences publiques",
+    "secondaryCta": "Pour entreprises et agences",
     "chainTitle": "Trois maillons",
-    "chainLead": "Chaque maillon reçoit la sortie du précédent. Seul ce qui fonctionne réellement aujourd’hui est indiqué.",
+    "chainLead": "Heimdall (identifier) est au centre ; Valhalla (juger la réponse) le soutient, et Polar (détecter) reste une recherche d’avenir. Seul ce qui fonctionne réellement aujourd’hui est indiqué.",
     "stages": [
-      {
-        "code": "POLAR",
-        "name": "Veille polaire",
-        "role": "Détecter",
-        "body": "Le pergélisol qui dégèle peut faire réapparaître des pathogènes longtemps enfouis, comme l’anthrax. Nous observons chaque heure la météo et la presse locale de 8 régions polaires.",
-        "facts": [
-          "8 régions (Yamal, Alaska, Arctique canadien, Groenland, Svalbard, péninsule Antarctique, etc.) observées chaque heure",
-          "Température et jours de dégel = observations Open-Meteo · écart à la normale calculé sur une réanalyse de 16 ans",
-          "Un niveau de veille, pas une alerte — les heures illisibles restent « non déterminé »"
-        ],
-        "href": "polar",
-        "linkLabel": "Voir l’évolution polaire"
-      },
       {
         "code": "HEIMDALL",
         "name": "Heimdall",
@@ -79,6 +66,19 @@ export const fr: Dictionary = {
         ],
         "href": "valhalla",
         "linkLabel": "Ouvrir la section Valhalla"
+      },
+      {
+        "code": "POLAR",
+        "name": "Veille polaire",
+        "role": "Détecter",
+        "body": "Le pergélisol qui dégèle peut faire réapparaître des pathogènes longtemps enfouis, comme l’anthrax. Nous observons chaque heure la météo et la presse locale de 8 régions polaires.",
+        "facts": [
+          "8 régions (Yamal, Alaska, Arctique canadien, Groenland, Svalbard, péninsule Antarctique, etc.) observées chaque heure",
+          "Température et jours de dégel = observations Open-Meteo · écart à la normale calculé sur une réanalyse de 16 ans",
+          "Un niveau de veille, pas une alerte — les heures illisibles restent « non déterminé »"
+        ],
+        "href": "polar",
+        "linkLabel": "Voir l’évolution polaire"
       }
     ],
     "healthTitle": "État de la collecte",
@@ -87,8 +87,8 @@ export const fr: Dictionary = {
     "notTitle": "Ce que nous ne faisons pas",
     "notPoints": [
       "Alertes mondiales ou classements de risque par pays — retirés lors de la refonte de novembre 2026",
-      "Prétendre à une précision de prévision — aucun historique validé",
-      "Concevoir, synthétiser ou optimiser des séquences de pathogènes — jamais"
+      "Prétendre à une précision de prévision ou de criblage — aucun historique validé pour l’instant",
+      "Concevoir, synthétiser ou optimiser des séquences de pathogènes — défensif uniquement, jamais"
     ]
   },
   "polar": {
@@ -118,14 +118,14 @@ export const fr: Dictionary = {
     },
     "about": {
       "metaTitle": "À propos",
-      "metaDescription": "AEGIRON — technologie de biosécurité nationale centrée sur la détection polaire, l’identification génomique et le verdict sur les contre-mesures.",
+      "metaDescription": "AEGIRON — technologie de bio-santé centrée sur l’identification génomique des pathogènes (Heimdall), soutenue par le jugement de réponse et la détection polaire.",
       "eyebrow": "ABOUT",
       "title": "AEGIRON",
-      "lead": "Une start-up technologique d’une personne à Busan · les agences de biosécurité nationale sont le premier client",
+      "lead": "Une start-up technologique d’une personne à Busan · l’analyse génomique des pathogènes est le produit central ; les entreprises de biotechnologie et de diagnostic et les agences de biosécurité nationale sont les premiers clients",
       "blocks": [
         {
           "title": "Pourquoi nous avons resserré",
-          "body": "Jusqu’en novembre 2026, AEGIRON collectait des signaux de maladies partout. Plus le périmètre était large, plus l’expertise s’amincissait, et les évaluations externes étaient faibles. Nous avons gardé une seule chaîne — détecter (Polar) → identifier (Heimdall) → juger la réponse (Valhalla) — et supprimé le reste."
+          "body": "Jusqu’en novembre 2026, AEGIRON collectait des signaux de maladies partout. Plus le périmètre était large, plus l’expertise s’amincissait, et les évaluations externes étaient faibles. Nous avons fait de l’identification génomique des pathogènes (Heimdall) le produit central, avec le jugement de réponse (Valhalla) derrière lui et la détection polaire comme recherche d’avenir — en nous concentrant sur un seul domaine de bio-santé."
         },
         {
           "title": "Principes",
@@ -138,7 +138,7 @@ export const fr: Dictionary = {
       ],
       "cta": {
         "title": "Adoption et partenariat",
-        "body": "Les agences de biosécurité nationales et régionales sont les bienvenues",
+        "body": "Les entreprises de biotechnologie et de diagnostic, les laboratoires et les agences de biosécurité nationales et régionales sont les bienvenus",
         "label": "Nous contacter",
         "href": "contact"
       }
@@ -190,8 +190,8 @@ export const fr: Dictionary = {
       "metaTitle": "Biosécurité nationale",
       "metaDescription": "Détection polaire, identification génomique et verdict sur les contre-mesures pour les agences de biosécurité nationale.",
       "eyebrow": "GOVERNMENT",
-      "title": "Pour les agences de biosécurité nationale",
-      "lead": "Les agences de biosécurité nationale sont notre premier client · détecter → identifier → juger la réponse dans une seule vue",
+      "title": "Pour les entreprises de biotech/diagnostic et les agences de biosécurité nationale",
+      "lead": "Lire le génome du pathogène (Heimdall) et voir s’il existe une contre-mesure pour cette menace (Valhalla) dans une seule vue · les entreprises de biotechnologie et de diagnostic et les agences de biosécurité nationale sont les premiers clients",
       "blocks": [
         {
           "title": "Ce qu’obtient une agence",

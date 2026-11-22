@@ -19,9 +19,9 @@ export function navGroups(locale: Locale, nav: Dictionary['nav']): NavGroup[] {
   const p = (path: string) => localePath(locale, path);
   const dash = dashboardHref(locale);
   return [
-    { label: nav.polar, href: p('polar'), emphasis: true },
     { label: nav.heimdall, href: `${dash}#heimdall`, emphasis: true },
     { label: nav.valhalla, href: `${dash}#valhalla`, emphasis: true },
+    { label: nav.polar, href: p('polar'), emphasis: true },
     { label: nav.government, href: p('solutions/government') },
     { label: nav.company, items: [
       { label: nav.about, href: p('about') },

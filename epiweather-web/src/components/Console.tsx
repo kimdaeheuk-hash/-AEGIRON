@@ -28,7 +28,11 @@ const KO_ONLY: Record<Locale, string | null> = {
 
 export default function Console({ locale, polar }: { locale: Locale; polar: Polar }) {
   const dict = getDictionary(locale);
-  const [polarStage, heimdall, valhalla] = dict.home.stages;
+  // 순서가 아니라 코드로 찾는다 — 홈 사전에서 고리 순서를 바꿔도 이 화면이 안 깨진다.
+  const byCode = Object.fromEntries(dict.home.stages.map((s) => [s.code, s]));
+  const heimdall = byCode.HEIMDALL;
+  const valhalla = byCode.VALHALLA;
+  const polarStage = byCode.POLAR;
   const pt = dict.polar;
   const columns: TableColumn<PolarTrendRow>[] = [
     { key: 'region', header: pt.cols.region, width: proportional(1.2, { minWidth: 130 }) },
@@ -61,9 +65,19 @@ export default function Console({ locale, polar }: { locale: Locale; polar: Pola
           </HStack>
           {KO_ONLY[locale] && <Text type="supporting">{KO_ONLY[locale]}</Text>}
 
+          <VStack gap={2} id="heimdall">
+            {head(1, heimdall)}
+            <HeimdallPanel />
+          </VStack>
+
+          <VStack gap={2} id="valhalla">
+            {head(2, valhalla)}
+            <ValhallaPanel />
+          </VStack>
+
           <Card padding={4}>
             <VStack gap={3}>
-              {head(1, polarStage)}
+              {head(3, polarStage)}
               {polar === null ? (
                 <Text color="secondary">{pt.unavailable}</Text>
               ) : polar.rows.length === 0 ? (
@@ -88,16 +102,6 @@ export default function Console({ locale, polar }: { locale: Locale; polar: Pola
               </Link>
             </VStack>
           </Card>
-
-          <VStack gap={2} id="heimdall">
-            {head(2, heimdall)}
-            <HeimdallPanel />
-          </VStack>
-
-          <VStack gap={2} id="valhalla">
-            {head(3, valhalla)}
-            <ValhallaPanel />
-          </VStack>
 
           <Text type="supporting">{dict.footer.disclaimer}</Text>
         </VStack>
