@@ -133,7 +133,6 @@ def test_valhalla_snapshot_carries_scopes(monkeypatch, tmp_path):
     """배선 회귀 — 계산해놓고 스냅샷에 안 실으면 아무도 못 본다."""
     from algorithms import valhalla_watch as vw
     monkeypatch.setattr(vw, "STATE_FILE", tmp_path / "valhalla_state.json")
-    monkeypatch.setattr(vw, "_fetch_procurement", lambda: {"bid_count": 0})
     monkeypatch.setattr(vw, "_fetch_pipeline", lambda: PIPE)
 
     snap = vw.valhalla_snapshot()

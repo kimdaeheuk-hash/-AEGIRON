@@ -7,17 +7,12 @@ from __future__ import annotations
 import datetime as dt
 import os
 
-import pytest
 
 os.environ.setdefault("EPIWEATHER_SCHEDULER", "off")
 
-import main
 from algorithms import approved_products as ap
 from algorithms import countermeasure_pipeline as cp
-from algorithms import procurement_watch as pw
 from algorithms import readiness_scopes as scopes
-from algorithms import reference_fetch as rf
-from algorithms import reference_snapshots as rs
 from algorithms import valhalla_watch as vw
 
 
@@ -51,80 +46,7 @@ def _pipe_state(hours_ago=2.0, with_details=True):
 
 
 # ── 조달 캐시 전환 ────────────────────────────────────────────────
-def test_procurement_reads_cache(monkeypatch):
-    state = {"procurement": {"fetched_at": _iso(1.0),
-                             "value": PROC_STATE["procurement"]["value"]}}
-    monkeypatch.setattr(vw, "_load_state", lambda: state)
-    out = main.biodefense_procurement()
-    assert out["mode"] == "cached" and out["bid_count"] == 5
-    assert out["ted"]["bid_count"] == 3
-    assert out["stale"] is False and out["age_hours"] is not None
-
-
-def test_procurement_marks_stale(monkeypatch):
-    state = {"procurement": {"fetched_at": _iso(20.0),
-                             "value": PROC_STATE["procurement"]["value"]}}
-    monkeypatch.setattr(vw, "_load_state", lambda: state)
-    out = main.biodefense_procurement()
-    assert out["stale"] is True  # 20h > 6h×2
-
-
-def test_procurement_empty_cache_is_honest(monkeypatch):
-    monkeypatch.setattr(vw, "_load_state", lambda: {})
-    out = main.biodefense_procurement()
-    assert out["available"] is False and "한 번도" in out["reason"]
-
-
-def test_procurement_live_opt_in(monkeypatch):
-    seen: dict = {}
-
-    def fake_watch(days=7):
-        seen["days"] = days
-        return {"available": True, "bid_count": 1}
-
-    monkeypatch.setattr(pw, "watch_bids", fake_watch)
-    out = main.biodefense_procurement(days=3, live=True)
-    assert out["mode"] == "live" and seen["days"] == 3
-
-
 # ── posture 캐시 전환 ─────────────────────────────────────────────
-def test_posture_rebuilds_rows_from_cache(monkeypatch):
-    monkeypatch.setattr(vw, "_load_state", lambda: _pipe_state())
-    out = main.biodefense_posture()
-    assert out["mode"] == "cached" and out["pathogen_count"] == 1
-    row = out["pathogens"][0]
-    assert row["pathogen"] == "X병" and row["stage"] == "late_trial"
-    assert row["furthest_phase_ko"] == "3상" and row["study_count"] == 12
-    assert out["stale"] is False
-
-
-def test_posture_reads_old_shape_without_details(monkeypatch):
-    """details 없는 옛 적재값도 단계 키는 읽는다."""
-    monkeypatch.setattr(vw, "_load_state",
-                        lambda: _pipe_state(with_details=False))
-    out = main.biodefense_posture()
-    row = out["pathogens"][0]
-    assert row["stage"] == "late_trial"
-    assert row["furthest_phase_ko"] is None
-
-
-def test_posture_empty_cache_is_honest(monkeypatch):
-    monkeypatch.setattr(vw, "_load_state", lambda: {})
-    out = main.biodefense_posture()
-    assert out["available"] is False
-
-
-def test_posture_live_opt_in(monkeypatch):
-    monkeypatch.setattr(cp, "fetch_pipeline",
-                        lambda q, timeout=60: {"available": True, "query": q,
-                                              "study_count": 0,
-                                              "furthest_phase": None,
-                                              "furthest_phase_ko": None})
-    out = main.biodefense_posture(live=True)
-    assert out["mode"] == "live"
-    assert out["pathogen_count"] == len(cp.PATHOGEN_QUERIES)
-
-
 def test_fetch_pipeline_persists_details(monkeypatch):
     """적재값에 판정 재료(details)가 같이 쌓인다."""
     import algorithms.countermeasure_stockpile as csp
@@ -161,57 +83,6 @@ def _envelope(total, names=(), code="00"):
     return {"response": {"header": {"resultCode": code, "resultMsg": "OK"},
                          "body": {"totalCount": total,
                                   "items": {"item": items}}}}  # noqa: E501
-
-
-def test_mfds_needs_url_and_key(monkeypatch):
-    monkeypatch.delenv("EPIWEATHER_MFDS_API_URL", raising=False)
-    monkeypatch.delenv("DATA_GO_KR_KEY", raising=False)
-    with pytest.raises(RuntimeError, match="URL"):
-        rf.fetch_approved_products_domestic()
-    monkeypatch.setenv("EPIWEATHER_MFDS_API_URL", "https://x.test/api")
-    with pytest.raises(RuntimeError, match="DATA_GO_KR_KEY"):
-        rf.fetch_approved_products_domestic()
-
-
-def test_mfds_parses_portal_envelope(monkeypatch):
-    monkeypatch.setenv("EPIWEATHER_MFDS_API_URL", "https://x.test/api")
-    monkeypatch.setenv("DATA_GO_KR_KEY", "k")
-    monkeypatch.setattr(rf.time, "sleep", lambda s: None)
-    seen: dict = {}
-
-    def fake_get(url, params=None, timeout=None, headers=None):
-        seen["url"] = url
-        assert params["serviceKey"] == "k"
-        term = params["itemName"]
-        if term == "탄저":
-            return _Resp(_envelope(2, ["탄저백신주", "탄저치료제"]))
-        return _Resp(_envelope(0))
-
-    monkeypatch.setattr(rf.requests, "get", fake_get)
-    out = rf.fetch_approved_products_domestic()
-    assert seen["url"] == "https://x.test/api"
-    assert out["by_threat"]["Anthrax"]["product_count"] == 2
-    assert "탄저백신주" in out["by_threat"]["Anthrax"]["examples"]
-    assert out["by_threat"]["Ebola"]["product_count"] == 0
-    assert out["lookup_failed"] == []
-
-
-def test_mfds_error_code_is_not_zero(monkeypatch):
-    """resultCode 오류는 실패지 '0건'이 아니다."""
-    monkeypatch.setenv("EPIWEATHER_MFDS_API_URL", "https://x.test/api")
-    monkeypatch.setenv("DATA_GO_KR_KEY", "bad")
-    monkeypatch.setattr(rf.time, "sleep", lambda s: None)
-    monkeypatch.setattr(rf.requests, "get",
-                        lambda *a, **k: _Resp(_envelope(0, code="99")))
-    with pytest.raises(RuntimeError, match="모든 위협 조회 실패"):
-        rf.fetch_approved_products_domestic()
-
-
-def test_domestic_snapshot_registered():
-    cfg = rs.SNAPSHOTS["approved_products_domestic"]
-    assert cfg["owner"] == "VALHALLA"
-    assert callable(getattr(rf, cfg["fetch"]))
-    assert cfg["count"]({"by_threat": {"a": {}, "b": {}}}) == 2
 
 
 def test_domestic_terms_cover_openfda_keys():

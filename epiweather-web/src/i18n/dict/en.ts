@@ -60,7 +60,7 @@ export const en: Dictionary = {
         "role": "Identify",
         "body": "Records changes of the dominant lineage in public genomic builds (Nextstrain) and computes anomaly indicators for a submitted sequence. Defensive detection only.",
         "facts": [
-          "SARS-CoV-2, mpox and RSV-A public builds checked hourly · only dominant-lineage transitions are recorded",
+          "SARS-CoV-2 public build checked hourly · only dominant-lineage transitions are recorded",
           "Sequence screening (codon usage, CpG, entropy …) on request · API key required",
           "A priority signal, not a verdict — no sequence design or synthesis"
         ],
@@ -74,7 +74,7 @@ export const en: Dictionary = {
         "body": "For each listed threat, records one row a day on whether registered countermeasures (stockpile, approved products) cover it and whether lineage changes shake that verdict.",
         "facts": [
           "Threat × stockpile × variant verdict written to the ledger daily",
-          "Based on public data (WHO-prequalified vaccines, approved products, tenders) · national stockpile levels are not observed",
+          "Based on public data (WHO-prequalified vaccines, approved products, trial registry) · national stockpile levels are not observed",
           "Register stockpile items to compute with them · otherwise the result is marked as illustrative"
         ],
         "href": "valhalla",
@@ -251,11 +251,11 @@ export const en: Dictionary = {
           "specs": [
             {
               "label": "Total API",
-              "value": "25 endpoints"
+              "value": "13 endpoints"
             },
             {
               "label": "Authentication required",
-              "value": "7 — state-changing, costly and high-risk functions"
+              "value": "5 — state-changing, costly and high-risk functions"
             },
             {
               "label": "Method",
@@ -296,7 +296,7 @@ export const en: Dictionary = {
             },
             {
               "title": "Deployment gate",
-              "body": "Only code that passes all 614 automated tests reaches production"
+              "body": "Only code that passes all 365 automated tests reaches production"
             },
             {
               "title": "Silent-failure watch",
@@ -314,7 +314,7 @@ export const en: Dictionary = {
     },
     "developers": {
       "metaTitle": "Developers · API",
-      "metaDescription": "AEGIRON REST API — 25 endpoints, JSON responses, X-API-Key authentication, OpenAPI documentation.",
+      "metaDescription": "AEGIRON REST API — 13 endpoints, JSON responses, X-API-Key authentication, OpenAPI documentation.",
       "eyebrow": "DEVELOPERS",
       "title": "Developers · API",
       "lead": "The single source of every figure in the operations view is the REST API",
@@ -478,7 +478,6 @@ export const en: Dictionary = {
     "authNo": "Public",
     "tags": {
       "GAI": "Polar watch",
-      "Phase2": "Heimdall · genomic lineages",
       "후향 검증": "Heimdall · variant ledger",
       "Stage 0: 합성위협 탐지": "Heimdall · synthetic-threat detection and sequence screening",
       "Stage 8: 바이오방어": "Valhalla · countermeasure verdicts",

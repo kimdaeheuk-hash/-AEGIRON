@@ -70,7 +70,6 @@ def test_kill_switch(monkeypatch, isolated_db):
 
     monkeypatch.setenv("EPIWEATHER_OBSERVATION_STORE", "off")
     assert main._store_observations() is None
-    assert isolated_db.observation_coverage() == []
 
 
 @pytest.mark.parametrize("layer", obs.LAYERS)

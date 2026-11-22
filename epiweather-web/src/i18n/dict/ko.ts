@@ -60,7 +60,7 @@ export const ko: Dictionary = {
         "role": "식별",
         "body": "공개 유전체 계통(Nextstrain)의 우세 계통 교체를 원장에 적고, 요청한 서열의 이상 지표를 계산함. 방어적 탐지 전용.",
         "facts": [
-          "SARS-CoV-2 · 엠폭스 · RSV-A 공개 빌드를 매시 확인 · 우세 계통 전이만 원장에 기록",
+          "SARS-CoV-2 공개 빌드를 매시 확인 · 우세 계통 전이만 원장에 기록",
           "서열 스크리닝(코돈 사용·CpG·엔트로피 등)은 요청 시 · API 키 필요",
           "판정이 아니라 우선순위 — 서열 설계·합성 기능 없음"
         ],
@@ -74,7 +74,7 @@ export const ko: Dictionary = {
         "body": "위협 목록마다 등록된 대응제(비축·승인 제품)가 덮는지, 변이 변화가 그 판정을 흔드는지를 하루 한 행씩 원장에 남김.",
         "facts": [
           "위협×비축×변이 대조 판정을 매일 원장에 기록",
-          "공개 자료(WHO 사전적격 백신·승인 제품·조달 공고) 기준 · 국가 비축 재고는 보지 않음",
+          "공개 자료(WHO 사전적격 백신·승인 제품·임상 등록) 기준 · 국가 비축 재고는 보지 않음",
           "비축 항목을 등록하면 그 값으로 계산 · 미등록이면 예시 데이터임을 표시"
         ],
         "href": "valhalla",
@@ -251,11 +251,11 @@ export const ko: Dictionary = {
           "specs": [
             {
               "label": "전체 API",
-              "value": "엔드포인트 25개"
+              "value": "엔드포인트 13개"
             },
             {
               "label": "인증 필요",
-              "value": "7개 — 상태 변경 · 고비용 · 고위험 기능"
+              "value": "5개 — 상태 변경 · 고비용 · 고위험 기능"
             },
             {
               "label": "인증 방식",
@@ -296,7 +296,7 @@ export const ko: Dictionary = {
             },
             {
               "title": "배포 관문",
-              "body": "자동 시험 614건 전부 통과 코드만 운영 반영"
+              "body": "자동 시험 365건 전부 통과 코드만 운영 반영"
             },
             {
               "title": "조용한 실패 감시",
@@ -314,7 +314,7 @@ export const ko: Dictionary = {
     },
     "developers": {
       "metaTitle": "개발자 · API",
-      "metaDescription": "아이기론 REST API — 엔드포인트 25개, JSON 응답, X-API-Key 인증, OpenAPI 문서.",
+      "metaDescription": "아이기론 REST API — 엔드포인트 13개, JSON 응답, X-API-Key 인증, OpenAPI 문서.",
       "eyebrow": "DEVELOPERS",
       "title": "개발자 · API",
       "lead": "운영 화면 전 수치의 단일 출처 = REST API",
@@ -477,7 +477,6 @@ export const ko: Dictionary = {
     "authNo": "공개",
     "tags": {
       "GAI": "극지 감시",
-      "Phase2": "헤임달 · 유전체 계통",
       "후향 검증": "헤임달 · 변이 원장",
       "Stage 0: 합성위협 탐지": "헤임달 · 합성위협 탐지·서열 스크리닝",
       "Stage 8: 바이오방어": "발할라 · 대응제 판정",

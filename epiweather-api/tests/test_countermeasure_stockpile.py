@@ -25,7 +25,7 @@ from __future__ import annotations
 import pytest
 
 from algorithms.countermeasure_stockpile import (
-    ICG_STOCKPILES, gap_report, stockpile_status,
+    stockpile_status,
 )
 
 
@@ -68,47 +68,3 @@ def test_unknown_name_is_not_counted_as_a_gap():
         assert "has_global_stockpile" not in status, f"{odd} 를 판정해버렸다"
 
 
-def test_gap_report_separates_three_buckets():
-    """있음 / 없음 / 모름 — 셋을 섞지 않는다."""
-    report = gap_report(["에볼라", "콜레라", "H5N1", "뎅기열", "볼로아", None])
-
-    assert set(report["covered"]) == {"에볼라", "콜레라"}
-    assert set(report["gaps"]) == {"인플루엔자(조류·계절)", "뎅기열"}
-    assert report["unclassified"] == ["볼로아"]
-    assert report["unclassified_count"] == 2      # 볼로아 + None
-
-
-def test_report_never_claims_sufficiency():
-    """★핵심★ '비축이 있다' 를 '충분하다' 로 팔지 않는다.
-
-    ICG 비축도 대형 발병에서 모자란 적이 여러 번 있었다.
-    """
-    limits = " ".join(gap_report(["에볼라"])["limits"])
-
-    assert "충분하다" in limits and "아니다" in limits
-    assert "한국 국가 비축은 비공개" in limits
-    assert "예측하지 않는다" in limits
-
-
-def test_report_does_not_rank_risk():
-    """격차 목록은 위험 순위가 아니다 — 그렇게 밝힌다."""
-    limits = " ".join(gap_report(["MERS"])["limits"])
-
-    assert "위험 순위가 아니" in limits
-    assert "여기 없는 병이 안전한 것도 아니" in limits
-
-
-def test_stockpile_list_matches_the_registry():
-    """공개 목록과 내부 표가 어긋나지 않는다."""
-    report = gap_report([])
-
-    assert len(report["stockpile_list"]) == len(ICG_STOCKPILES) == 5
-    assert "엠폭스" in report["stockpile_list"], "2025-11 신설분이 빠졌다"
-
-
-def test_empty_input_is_not_a_perfect_score():
-    """신호가 없을 때 '격차 없음' 으로 읽히면 안 된다 — 전부 빈 목록이다."""
-    report = gap_report([])
-
-    assert report["covered"] == [] and report["gaps"] == []
-    assert report["unclassified_count"] == 0

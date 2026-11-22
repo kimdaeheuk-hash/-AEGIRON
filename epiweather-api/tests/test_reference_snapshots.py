@@ -194,10 +194,6 @@ def test_refresh_due_skips_fresh_and_refreshes_stale(snapdir):
     _write(snapdir, "approved_products",
            {"snapshot_date": dt.date.today().isoformat(),
             "by_threat": {"Anthrax": {}, "Ebola": {}, "Plague": {}}})
-    # 국내 허가(발할라 P1)도 등록부에 있다. 오늘자로 채워 신선하게 둔다.
-    _write(snapdir, "approved_products_domestic",
-           {"snapshot_date": dt.date.today().isoformat(),
-            "by_threat": {"Anthrax": {}, "Ebola": {}, "Plague": {}}})
 
     with patch("algorithms.reference_fetch.fetch_vaccine_supply") as pq, \
             patch("algorithms.reference_fetch.fetch_approved_products") as fda, \
@@ -210,7 +206,7 @@ def test_refresh_due_skips_fresh_and_refreshes_stale(snapdir):
     fda.assert_not_called()                      # 이것도 신선하다
     gho.assert_called_once()                     # 묵어서 부름
     assert sorted(s["name"] for s in out["skipped_fresh"]) == [
-        "approved_products", "approved_products_domestic", "vaccine_supply"]
+        "approved_products", "vaccine_supply"]
     assert [r["name"] for r in out["refreshed"]] == ["ihr_capacity"]
     assert out["refreshed"][0]["refreshed"] is True
 
@@ -222,10 +218,6 @@ def test_missing_approved_snapshot_is_stale_and_gets_fetched(snapdir):
     _write(snapdir, "ihr_capacity",
            {"snapshot_date": dt.date.today().isoformat(),
             "scores": {f"C{i}": {} for i in range(194)}})
-    # 국내 허가는 오늘자로 채운다 — 이 검사는 openFDA 쪽만 갱신 대상이어야 한다.
-    _write(snapdir, "approved_products_domestic",
-           {"snapshot_date": dt.date.today().isoformat(),
-            "by_threat": {"Anthrax": {}, "Ebola": {}, "Plague": {}}})
 
     fresh = {"snapshot_date": dt.date.today().isoformat(),
              "by_threat": {"Anthrax": {"product_count": 7},

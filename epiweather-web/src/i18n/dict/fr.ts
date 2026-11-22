@@ -60,7 +60,7 @@ export const fr: Dictionary = {
         "role": "Identifier",
         "body": "Consigne les changements de lignée dominante dans les génomes publics (Nextstrain) et calcule des indicateurs d’anomalie pour une séquence soumise. Détection défensive uniquement.",
         "facts": [
-          "Builds publics SARS-CoV-2, mpox et RSV-A vérifiés chaque heure · seules les transitions de lignée dominante sont consignées",
+          "Build public SARS-CoV-2 vérifié chaque heure · seules les transitions de lignée dominante sont consignées",
           "Criblage de séquences (usage des codons, CpG, entropie …) sur demande · clé API requise",
           "Un signal de priorité, pas un verdict — aucune conception ni synthèse de séquences"
         ],
@@ -74,7 +74,7 @@ export const fr: Dictionary = {
         "body": "Pour chaque menace listée, consigne chaque jour une ligne indiquant si les contre-mesures enregistrées (stocks, produits autorisés) la couvrent et si les changements de lignée ébranlent ce verdict.",
         "facts": [
           "Verdict menace × stock × variant consigné chaque jour",
-          "Fondé sur des données publiques (vaccins préqualifiés OMS, produits autorisés, appels d’offres) · les niveaux de stock nationaux ne sont pas observés",
+          "Fondé sur des données publiques (vaccins préqualifiés OMS, produits autorisés, registre des essais) · les niveaux de stock nationaux ne sont pas observés",
           "Enregistrez vos stocks pour calculer avec eux · sinon le résultat est signalé comme illustratif"
         ],
         "href": "valhalla",
@@ -251,11 +251,11 @@ export const fr: Dictionary = {
           "specs": [
             {
               "label": "API au total",
-              "value": "25 points d’accès"
+              "value": "13 points d’accès"
             },
             {
               "label": "Authentification requise",
-              "value": "7 — fonctions modifiant l’état, coûteuses ou à haut risque"
+              "value": "5 — fonctions modifiant l’état, coûteuses ou à haut risque"
             },
             {
               "label": "Méthode",
@@ -296,7 +296,7 @@ export const fr: Dictionary = {
             },
             {
               "title": "Barrière de déploiement",
-              "body": "Seul le code qui passe les 614 tests automatisés atteint la production"
+              "body": "Seul le code qui passe les 365 tests automatisés atteint la production"
             },
             {
               "title": "Veille des défaillances silencieuses",
@@ -314,7 +314,7 @@ export const fr: Dictionary = {
     },
     "developers": {
       "metaTitle": "Développeurs · API",
-      "metaDescription": "API REST AEGIRON — 25 points d’accès, réponses JSON, authentification X-API-Key, documentation OpenAPI.",
+      "metaDescription": "API REST AEGIRON — 13 points d’accès, réponses JSON, authentification X-API-Key, documentation OpenAPI.",
       "eyebrow": "DEVELOPERS",
       "title": "Développeurs · API",
       "lead": "La source unique de chaque chiffre de la vue opérationnelle est l’API REST",
@@ -478,7 +478,6 @@ export const fr: Dictionary = {
     "authNo": "Public",
     "tags": {
       "GAI": "Veille polaire",
-      "Phase2": "Heimdall · lignées génomiques",
       "후향 검증": "Heimdall · registre des variants",
       "Stage 0: 합성위협 탐지": "Heimdall · détection de menaces synthétiques et criblage",
       "Stage 8: 바이오방어": "Valhalla · verdicts de contre-mesures",

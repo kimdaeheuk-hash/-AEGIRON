@@ -175,8 +175,9 @@ def _tree(prefix):
 
 
 def test_parallel_collects_all_builds(monkeypatch):
-    """3빌드 전부 수집, 키 집합은 직렬 때와 동일."""
-    monkeypatch.delenv("AEGIRON_VARIANT_BUILDS", raising=False)
+    """빌드 여러 개를 병렬로 전부 수집, 키 집합은 직렬 때와 동일.
+    (기본 목록은 2026-11-22 개편 2차에서 SARS-CoV-2 하나로 줄었다 — 병렬 경로는 환경변수로 시험한다.)"""
+    monkeypatch.setenv("AEGIRON_VARIANT_BUILDS", "/ncov/open/global/6m|S,/mpox|M,/rsv/a/genome|R")
     monkeypatch.setattr(gv, "_fetch_dataset", _tree)
     out = gv.get_genomic_variant_signals()
     assert set(out) == {"ncov_open_global_6m", "mpox", "rsv_a_genome"}
@@ -184,9 +185,15 @@ def test_parallel_collects_all_builds(monkeypatch):
     assert out["mpox"]["dominant_clade"] == "A"
 
 
+def test_default_watchlist_is_sars_cov_2_only(monkeypatch):
+    """엠폭스·RSV-A 는 11-21~22 매시 '최근 구간 시퀀스 없음'이라 기본 목록에서 뺐다."""
+    monkeypatch.delenv("AEGIRON_VARIANT_BUILDS", raising=False)
+    assert [p for p, _ in gv._watchlist()] == ["/ncov/open/global/6m"]
+
+
 def test_one_build_failure_does_not_stop_others(monkeypatch):
     """빌드 하나 실패해도 나머지 수집."""
-    monkeypatch.delenv("AEGIRON_VARIANT_BUILDS", raising=False)
+    monkeypatch.setenv("AEGIRON_VARIANT_BUILDS", "/ncov/open/global/6m|S,/mpox|M,/rsv/a/genome|R")
 
     def flaky(prefix):
         if prefix == "/mpox":

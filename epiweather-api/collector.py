@@ -45,46 +45,6 @@ def log_error(context: str, e: Exception) -> None:
         f.write(line + "\n")
 
 
-def mark_no_data(result: dict, key: str) -> None:
-    """'수집은 정상인데 이번 주기엔 쓸 값이 없다'고 표시한다(source_health가 읽음).
-
-    실패와 구분하려는 것이다. 위키미디어 페이지뷰의 404는 집계 지연이라 정상이고,
-    OpenSky는 껍데기만 올 때가 있다 — 둘 다 '고장'이 아니라 '값 없음'이다.
-    이걸 실패로 세면 상시 degraded에 앉아 매일 경보가 울리고, 사람은 경보를 무시하게
-    된다. 반대로 성공으로 세면 죽은 소스가 살아있다고 보고된다. 둘 다 거짓이다.
-
-    ⚠️ '값 없음'은 원인을 안 밝혀도 된다는 뜻이 **아니다.** OpenSky가 왜 껍데기만
-    오는지를 "클라우드 IP 차단"이라고 여기 단정해뒀다가, 2026-08-17~28 열흘 동안
-    실제 원인을 확인할 방법이 없었다. 값 없음으로 표시하는 쪽은 사유를 함께
-    로그에 남길 책임이 있다.
-    """
-    result.setdefault("_no_data_keys", [])
-    if key not in result["_no_data_keys"]:
-        result["_no_data_keys"].append(key)
-
-
-def _fmt_failure_reasons(reasons: dict[str, int] | None) -> str:
-    """{"http_403": 11} → "http_403×11". 사유가 없으면 그 사실을 명시한다.
-
-    ★ skipped_* 는 언제나 맨 뒤로 보낸다 ★
-    조기 중단이 걸리면 첫 공항 하나가 진짜 사유를 갖고 나머지 열 개가
-    skipped_* 가 된다. 개수 순으로만 정렬하면 **파생 결과(×10)가 진짜 원인(×1)을
-    가리고 맨 앞에 선다.** 원인이 먼저 읽혀야 한다.
-
-    '사유 없음'도 정보다 — 실패 사유가 하나도 안 잡혔다는 건 실패 경로가 아직
-    어딘가에서 조용히 삼켜지고 있다는 뜻이라, 그때는 그것부터 찾아야 한다.
-    """
-    if not reasons:
-        return "사유 없음(실패 경로가 아직 조용하다)"
-    return ", ".join(
-        f"{k}×{v}"
-        for k, v in sorted(
-            reasons.items(),
-            key=lambda kv: (kv[0].startswith("skipped_"), -kv[1], kv[0]),
-        )
-    )
-
-
 def append_signal(record: dict) -> None:
     DATA_DIR.mkdir(exist_ok=True)
     record["_logged_at"] = dt.datetime.now().isoformat()
@@ -93,7 +53,7 @@ def append_signal(record: dict) -> None:
 
 
 # 소스 헬스가 매 주기 보는 키 — 값이 None 이면 그 주기 수집 실패로 센다.
-# algorithms.source_health.ACTIVE_SOURCES 와 같은 셋이어야 한다(시험이 고정).
+# 맵에 없는 옛 항목은 source_health.record_cycle 이 상태 파일에서 지운다.
 FREE_SOURCE_HEALTH_KEYS = {
     "PolarWatch": "polar_watch",
     "GenomicVariants": "genomic_variants",
@@ -255,7 +215,7 @@ def collect_free_sources() -> dict:
     # 어제 백신 공급이 어땠는지 오늘 비교할 수가 없었다.
     #
     # ★ 조각마다 주기가 다르다 ★ 준비태세·백신 공급은 로컬이라 매 주기 채우고,
-    # 조달(나라장터 66회·47초)은 6시간, 임상 파이프라인은 24시간마다 새로 받는다.
+    # 임상 파이프라인은 24시간마다 새로 받는다(조달은 개편 2차에서 뺐다 — 무결과 병목).
     # 그래도 `valhalla` 키는 매 주기 채워지므로 소스 헬스가 정상으로 돈다 —
     # 무거운 걸 하루 한 번만 돌리면 나머지 23주기가 값없음으로 쌓여 거짓 경보가
     # 된다(극지층 주석의 그 함정).
@@ -263,23 +223,12 @@ def collect_free_sources() -> dict:
         from algorithms.valhalla_watch import valhalla_snapshot
         result["valhalla"] = valhalla_snapshot()
         v = result["valhalla"]
-        proc = v.get("procurement") or {}
         ready = v.get("readiness") or {}
-        log("  발할라: 조달 %s건(%s) · 백신 단일공급원 %s종 · 대응제 %s건%s"
-            % ((proc.get("value") or {}).get("bid_count", "?"),
-               "갱신" if proc.get("refreshed") else "%s시간 전 값" % proc.get("age_hours"),
-               (v.get("vaccine_chokepoints") or {}).get("single_source_count", "?"),
+        log("  발할라: 백신 단일공급원 %s종 · 대응제 %s건%s"
+            % ((v.get("vaccine_chokepoints") or {}).get("single_source_count", "?"),
                ready.get("countermeasure_count", "?"),
                " · 판정불가 %s" % ready["unrated"] if ready.get("unrated") else ""))
 
-        # ★ 조달을 마감 기준으로 다시 찍는다 (2026-09-04) ★ 위 '31건'에는 이미
-        # 닫힌 공고가 섞여 있다(7일 창 안에 마감된 것들). 닫힌 걸 열린 것과 같이
-        # 세면 그 숫자는 기회의 크기를 말하지 못한다. 그리고 공고번호만 남기던
-        # 탓에 "정부가 무엇을 사려는지"가 로그에 한 줄도 안 나왔다.
-        from algorithms.procurement_watch import procurement_summary
-        proc_line = procurement_summary(proc.get("value"))
-        if proc_line:
-            log("  발할라 조달: %s" % proc_line)
         # 무거운 조각이 오래 굳어 있으면 조용히 지나가지 않는다.
         # ★ 판정은 valhalla_watch.stale_parts 가 한다 ★ 여기서 직접 짜다가
         # `part.get("reason", "")` 로 터졌다(2026-09-03) — 키가 있는데 값이 None
@@ -316,7 +265,7 @@ def collect_free_sources() -> dict:
                     % (len(failed), "·".join(failed)))
 
         from algorithms.valhalla_watch import stale_parts
-        _KO = {"procurement": "조달", "pipeline": "파이프라인"}
+        _KO = {"pipeline": "파이프라인"}
         for key, part in stale_parts(v):
             log("  ⚠ 발할라 %s %s (%s시간 전 값 사용)"
                 % (_KO.get(key, key), part["reason"], part.get("age_hours")))

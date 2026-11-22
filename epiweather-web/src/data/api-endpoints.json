@@ -25,51 +25,9 @@
  },
  {
   "method": "GET",
-  "path": "/api/valhalla/refutation",
-  "tag": "Stage 8: 바이오방어",
-  "auth": false
- },
- {
-  "method": "GET",
-  "path": "/api/admin/api-key-usage",
-  "tag": "시스템",
-  "auth": true
- },
- {
-  "method": "GET",
   "path": "/api/admin/db-backup",
   "tag": "시스템",
   "auth": true
- },
- {
-  "method": "GET",
-  "path": "/api/biodefense/valhalla",
-  "tag": "Stage 8: 바이오방어",
-  "auth": false
- },
- {
-  "method": "GET",
-  "path": "/api/biodefense/vaccine-supply",
-  "tag": "Stage 8: 바이오방어",
-  "auth": false
- },
- {
-  "method": "GET",
-  "path": "/api/biodefense/capacity/{iso3}",
-  "tag": "Stage 8: 바이오방어",
-  "auth": false
- },
- {
-  "method": "GET",
-  "path": "/api/biodefense/procurement",
-  "tag": "Stage 8: 바이오방어",
-  "auth": false
- },
- {
-  "method": "GET",
-  "path": "/api/biodefense/posture",
-  "tag": "Stage 8: 바이오방어",
-  "auth": false
  },
  {
   "method": "GET",
@@ -81,24 +39,6 @@
   "method": "GET",
   "path": "/api/observations/history",
   "tag": "GAI",
-  "auth": false
- },
- {
-  "method": "GET",
-  "path": "/api/observations/coverage",
-  "tag": "GAI",
-  "auth": false
- },
- {
-  "method": "GET",
-  "path": "/api/synthetic-threat/biorxiv",
-  "tag": "Stage 0: 합성위협 탐지",
-  "auth": false
- },
- {
-  "method": "GET",
-  "path": "/api/synthetic-threat/who",
-  "tag": "Stage 0: 합성위협 탐지",
   "auth": false
  },
  {
@@ -130,18 +70,6 @@
   "path": "/api/biodefense/stockpile/{item_id}",
   "tag": "Stage 8: 바이오방어",
   "auth": true
- },
- {
-  "method": "POST",
-  "path": "/api/synthetic-threat/analyze",
-  "tag": "Stage 0: 합성위협 탐지",
-  "auth": true
- },
- {
-  "method": "GET",
-  "path": "/api/genomic-variants",
-  "tag": "Phase2",
-  "auth": false
  },
  {
   "method": "GET",

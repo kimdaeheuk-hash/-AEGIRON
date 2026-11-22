@@ -12,7 +12,7 @@ from __future__ import annotations
 import sqlite3
 import json
 from pathlib import Path
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 DB_PATH = Path(__file__).parent / "data" / "epiweather.db"
 
@@ -148,13 +148,6 @@ def init_db() -> None:
         conn.commit()
 
 
-def _row_to_dict(row: sqlite3.Row) -> dict:
-    d = dict(row)
-    d["basis"] = json.loads(d["basis"])
-    d["correct"] = bool(d["correct"]) if d["correct"] is not None else None
-    return d
-
-
 # ── 관측값 시계열 (2026-11-15) ─────────────────────────────────────────
 def record_observation(
     *, layer: str, target: str, metric: str = "", status: str, measured: dict | None,
@@ -220,18 +213,6 @@ def observation_history(
             d[k] = json.loads(d[k]) if d[k] else None
         out.append(d)
     return out
-
-
-def observation_coverage() -> list[dict]:
-    """층별 저장 현황 — 행 수·대상 수·판정 안 함 행 수·처음/마지막 시각."""
-    with get_connection() as conn:
-        rows = conn.execute(
-            "SELECT layer, COUNT(*) AS rows, COUNT(DISTINCT target || '|' || metric) AS series, "
-            "SUM(CASE WHEN status = 'undetermined' THEN 1 ELSE 0 END) AS undetermined_rows, "
-            "SUM(checks) AS checks, MIN(observed_at) AS first_observed_at, MAX(confirmed_at) AS last_confirmed_at "
-            "FROM observations GROUP BY layer ORDER BY layer"
-        ).fetchall()
-    return [dict(r) for r in rows]
 
 
 # ── 모니터링 (/api/status) ───────────────────────────────────
@@ -312,17 +293,5 @@ def _countermeasure_row_to_dict(row: sqlite3.Row) -> dict:
     d["targets"] = json.loads(d["targets"])
     d["domestic_producible"] = bool(d["domestic_producible"])
     return d
-
-
-def api_key_usage_summary(days: int = 30) -> list[dict]:
-    """라벨별 최근 N일 호출 수·최근 호출 시각 — 요율제한 정책 설계용 근거 데이터."""
-    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-    with get_connection() as conn:
-        rows = conn.execute(
-            "SELECT key_label, COUNT(*) AS call_count, MAX(called_at) AS last_called_at "
-            "FROM api_key_usage WHERE called_at >= ? GROUP BY key_label ORDER BY call_count DESC",
-            (cutoff,),
-        ).fetchall()
-        return [dict(r) for r in rows]
 
 

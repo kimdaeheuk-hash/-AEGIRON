@@ -22,7 +22,7 @@
 ```bash
 cd epiweather-api
 pip install -r requirements.txt
-python3 -m pytest -q                                   # 602건, 외부 HTTP 차단
+python3 -m pytest -q                                   # 365건, 외부 HTTP 차단
 EPIWEATHER_SCHEDULER=off uvicorn main:app --port 8000  # /docs 에 OpenAPI
 
 cd ../epiweather-web

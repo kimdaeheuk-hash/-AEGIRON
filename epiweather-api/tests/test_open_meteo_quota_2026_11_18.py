@@ -42,9 +42,8 @@ def test_put_makes_swr_serve_without_recomputing():
     response_cache.clear()
 
 
-def test_ttls_cover_the_hourly_cycle_and_daily_climate():
+def test_polar_ttl_covers_the_hourly_cycle():
     assert polar_signals.POLAR_CACHE_TTL_S > 3600       # 수집 간격(1시간)보다 길어야 방문자가 안 두드린다
-    assert climate_signals.CLIMATE_CACHE_TTL_S >= 6 * 3600
 
 
 def test_fetch_failure_reasons_are_counted_without_changing_the_contract():

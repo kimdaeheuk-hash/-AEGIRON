@@ -10,7 +10,7 @@ description: epiweather-api 코드 규약 — 파일 구조, 스케줄러, 라�
 
 ## 구조
 
-- `main.py` — FastAPI 라우트(25개 · 인증 7개) + **스케줄러**(`asyncio` 루프). 라우트는 얇게, 계산은 `algorithms/` 로.
+- `main.py` — FastAPI 라우트(13개 · 인증 5개) + **스케줄러**(`asyncio` 루프). 라우트는 얇게, 계산은 `algorithms/` 로.
 - `collector.py` — `collect_free_sources()` 가 극지 → 헤임달(변이·대조 원장) → 발할라 → 소스 건강 순으로 돈다. `log()`/`log_error()`.
 - `algorithms/` — 입력을 받아 dict 를 돌려준다. DB 는 `db` 모듈로만.
 - `db.py` — SQLite(`data/epiweather.db`). 남은 표: `variant_ledger` · `match_ledger` · `countermeasure_stockpile` · `observations` · `api_key_usage`.

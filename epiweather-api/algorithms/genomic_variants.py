@@ -44,10 +44,10 @@ def _env_int(name: str, default: int) -> int:
 TIMEOUT = _env_float("AEGIRON_VARIANT_TIMEOUT_S", 45.0)
 MAX_WORKERS = _env_int("AEGIRON_VARIANT_WORKERS", 3)
 
+# 엠폭스(/mpox)·RSV-A(/rsv/a/genome)는 2026-11-22 개편 2차에서 뺐다 — 11-21~22 운영 로그에서
+# 매시 '최근 구간 시퀀스 없음'으로 한 번도 값이 안 나왔다. 다시 보려면 AEGIRON_VARIANT_BUILDS 로 넣는다.
 WATCHLIST = [
     ("/ncov/open/global/6m", "SARS-CoV-2(공개시퀀스)"),
-    ("/mpox", "엠폭스"),
-    ("/rsv/a/genome", "RSV-A"),
 ]
 
 
