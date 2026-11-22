@@ -13,7 +13,13 @@ name: Heimdall validation
 # 측정하는 것: 자연 서열 묶음의 거짓 양성 비율(특이도) + 지표 분포.
 # 측정하지 않는 것: 민감도, '안전/위험' 판정. (스크립트 docstring 참고)
 #
+# 길이 보정(2026-11-22): 첫 실행은 길이와 상관없이 서열 한 건을 한 건으로 셌다(6/6 플래그) —
+# 전체 유전체와 짧은 서열을 같은 한 건으로 세면 측정 단위가 불공정하다. 그래서 같은 길이 조각
+# (CHUNK_SIZES)으로도 재고, 판정은 첫 번째 조각 크기의 비율로 한다. 서열 단위 비율과 길이
+# 구간별 분해는 리포트에 그대로 남는다(숨기지 않는다).
+#
 # ACCESSIONS: 표준 분자생물학 참조 서열의 ENA 접근번호. 바꾸려면 이 목록만 고친다.
+# (NC_001422 는 RefSeq 번호라 ENA 가 주지 않아 같은 서열의 ENA 번호 J02482 로 바꿨다.)
 
 on:
   workflow_dispatch:
@@ -30,7 +36,7 @@ concurrency:
 jobs:
   specificity:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: epiweather-api
@@ -45,7 +51,7 @@ jobs:
         run: |
           set -euo pipefail
           # 표준 참조 서열의 접근번호만 나열한다 — 서열 내용은 러너가 받아 온다.
-          ACCESSIONS="J01415 V00662 X14848 M10098 U00096 J02459 NC_001422"
+          ACCESSIONS="J01415 V00662 X14848 M10098 U00096 J02459 J02482"
           : > natural_references.fasta
           for acc in $ACCESSIONS; do
             echo "fetching $acc"
@@ -59,7 +65,8 @@ jobs:
         run: |
           python3 scripts/heimdall_specificity.py natural_references.fasta \
             --report heimdall_specificity_report.json \
-            --max-false-positive-rate 0.5
+            --max-false-positive-rate 0.5 \
+            --chunk-sizes 1000,5000,20000
 
       - name: Upload report
         if: always()
