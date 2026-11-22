@@ -52,7 +52,7 @@ npm run test:e2e   # playwright
 ## 환경변수 (이름만 — 값은 절대 커밋하지 않는다)
 
 `EPIWEATHER_API_KEY(S)` `ALLOWED_ORIGINS` `ANTHROPIC_API_KEY` `NVIDIA_API_KEY` `AEGIRON_VARIANT_BUILDS`
-`EPIWEATHER_SCHEDULER` `EPIWEATHER_OBSERVATION_STORE` · GitHub 시크릿 `TELEGRAM_BOT_TOKEN/OPS_CHAT_ID`(liveness 전용).
+`EPIWEATHER_SCHEDULER` `EPIWEATHER_OBSERVATION_STORE`. (텔레그램은 2026-11-22 개편에서 전부 제거 — 알림은 GitHub Actions 작업 상태뿐.)
 키가 없는 소스는 **'값 없음'으로 표시하고 사유를 로그에 남긴다** — 조용히 0 으로 읽지 않는다(`collector-source` 참고).
 
 ## 샌드박스 제약

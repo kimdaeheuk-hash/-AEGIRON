@@ -34,12 +34,12 @@ description: 프로덕션(Railway) 로그로 수정을 검증하거나 매일 �
 | `🗄 관측 저장: 극지 N(새 a·같음 b·판정 안 함 c)` | 극지 관측값 시계열 저장 결과 |
 | `주간 작업: 기준 스냅샷 …` | 7일마다 기준 스냅샷 갱신 |
 
-**서버 안에서 나가는 텔레그램은 없다**(개편 때 통보기를 지웠다). 폰 알림은 아래 외부 감시뿐이다.
+**알림 채널은 없다** — 텔레그램은 2026-11-22 개편에서 전부 제거했다. 운영 이상은 아래 외부 감시(GitHub Actions)가 작업 빨간불로만 알린다.
 
 ## 서버 밖 감시 (GitHub Actions)
 
 - **Liveness**(`.github/workflows/liveness.yml`, 매시 :25·:55 — 예약은 자주 빠진다) — `/health` · `/api/status` 의
-  `source_health.collector_silent_hours`(2시간 초과면 '매시 주기 멈춤 의심') · 웹 첫 화면. 바뀐 순간만 텔레그램.
+  `source_health.collector_silent_hours`(2시간 초과면 '매시 주기 멈춤 의심') · 웹 첫 화면. 문제가 있으면 작업이 빨간불(GitHub 자체 알림).
 - **Ledger backup**(`ledger-backup.yml`, 매일 03:17) — 변이·대조 원장 + DB 전체(시크릿 `EPIWEATHER_API_KEY`).
 
 ## 검증 절차 (머지 뒤)

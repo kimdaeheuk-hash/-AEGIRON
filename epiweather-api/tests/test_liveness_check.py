@@ -1,9 +1,7 @@
-"""서버 밖 생존 감시 (2026-10-19, 캡틴 승인 ①).
-
-서버 안의 알림은 서버 안에서 나간다 — 서버가 죽으면 같이 조용해진다. 이 스크립트는
-GitHub Actions 에서 바깥으로 본다. 고정하는 것: ① 서버 무응답·주기 멈춤·사이트 무응답을 구분해
-말한다 ② 첫 주기 전(collector_silent_hours=None)은 고장으로 세지 않는다 ③ 바뀐 순간만 보내고, 계속되면
-RENOTIFY_EVERY 회마다, 복구도 한 번 ④ 값 이스케이프 ⑤ 워크플로가 이 스크립트를 실제로 부른다.
+"""서버 밖 생존 감시. 서버가 죽으면 서버 안의 로그·알림도 같이 조용해지므로 GitHub Actions 에서
+바깥으로 본다. 고정하는 것: ① 서버 무응답·주기 멈춤·사이트 무응답을 구분해 말한다 ② 첫 주기 전
+(collector_silent_hours=None)은 고장으로 세지 않는다 ③ 문제가 있으면 종료 코드 1(텔레그램 없음, 2026-11-22)
+④ 워크플로가 이 스크립트를 실제로 부른다.
 """
 from __future__ import annotations
 
@@ -52,25 +50,25 @@ def test_site_down_is_separate():
     assert lc.evaluate(OK_HEALTH, FRESH, (503, "")) == ["웹사이트 응답 없음 (HTTP 503)"]
 
 
-def test_send_only_on_change_then_every_n_and_recovery_once():
-    probs = ["운영 서버 응답 없음 (/health HTTP 502)"]
-    first = lc.decide(probs, prior_failures=0)
-    assert first.startswith("🔴 <b>외부 생존 감시: 이상</b>") and "감염병 경보가 아님" in first
-    assert lc.decide(probs, prior_failures=1) is None
-    assert lc.decide(probs, prior_failures=lc.RENOTIFY_EVERY - 2) is None
-    assert f"{lc.RENOTIFY_EVERY}회 연속 이상" in lc.decide(probs, prior_failures=lc.RENOTIFY_EVERY - 1)
-    assert lc.decide([], prior_failures=3).startswith("🟢 <b>외부 생존 감시: 복구</b>")
-    assert lc.decide([], prior_failures=0) is None
 
 
-def test_problem_text_is_escaped():
-    text = lc.decide(["웹사이트 응답 없음 (<b>&)"], 0)
-    assert "<b>&)" not in text and "&lt;b&gt;&amp;)" in text
+def test_main_returns_nonzero_when_a_problem_is_seen(monkeypatch):
+    """텔레그램을 뺀 뒤(2026-11-22) 알림은 종료 코드뿐 — 문제가 있으면 1, 없으면 0."""
+    monkeypatch.setattr(lc, "_get", lambda url, **k: (502, ""))
+    assert lc.main(["--api", "https://x"]) == 1
+
+    def ok(url, **k):
+        if url.endswith("/health"):
+            return OK_HEALTH
+        return FRESH
+    monkeypatch.setattr(lc, "_get", ok)
+    assert lc.main(["--api", "https://x"]) == 0
 
 
-def test_workflow_calls_the_script_hourly_with_prior_failures():
+def test_workflow_calls_the_script_without_telegram():
     wf = (ROOT.parent / ".github" / "workflows" / "liveness.yml").read_text(encoding="utf-8")
-    assert "scripts/liveness_check.py" in wf and "--prior-failures" in wf
-    assert "cron:" in wf and "TELEGRAM_BOT_TOKEN" in wf
+    assert "scripts/liveness_check.py" in wf and "cron:" in wf
     # 예약 실행이 빠지므로(10-20 관측) 시간당 두 번 건다.
     assert wf.count("- cron:") == 2
+    # 텔레그램 흔적이 없어야 한다.
+    assert "TELEGRAM" not in wf and "--prior-failures" not in wf
