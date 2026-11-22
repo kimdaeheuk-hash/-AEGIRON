@@ -83,6 +83,31 @@ export type PolarDict = {
   apiLabel: string;
 };
 
+/** 헤임달 변이 원장 구획(운영 화면 맨 위). */
+export type VariantDict = {
+  title: string;
+  lead: string;
+  stateTitle: string;
+  transitionsTitle: string;
+  cols: {
+    build: string;
+    dominant: string;
+    share: string;
+    sequences: string;
+    observed: string;
+    kind: string;
+    change: string;
+  };
+  /** 원장 transition 값 → 표시명 (first_seen · dominant_changed · new_clade · none) */
+  transitions: Record<string, string>;
+  empty: string;
+  noTransitions: string;
+  unavailable: string;
+  /** 서열 스크리너 — 검증이 끝날 때까지 '개발 중'으로 표시한다. */
+  screenerTitle: string;
+  screenerNote: string;
+};
+
 /** 묶음 색 — globals.css 의 [data-tone] 과 짝. */
 export type BlockTone = 'teal' | 'indigo' | 'amber' | 'crimson' | 'forest' | 'violet' | 'sky';
 
@@ -146,6 +171,7 @@ export type Dictionary = {
   footer: FooterDict;
   home: HomeDict;
   polar: PolarDict;
+  variant: VariantDict;
   pages: PagesDict;
   api: { tableTitle: string; tableLead: string; authYes: string; authNo: string; tags: Record<string, string> };
   common: { siteName: string };

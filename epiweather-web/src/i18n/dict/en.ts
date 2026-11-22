@@ -1,6 +1,6 @@
 import type { Dictionary } from '../types';
 
-// 2026-11-22 개편 사전 — 극지 → 헤임달 → 발할라. 지운 페이지 사전은 커밋 83406e4 에 있음.
+// 2026-11-22 개편 사전 — 헤임달(변이 추적) → 발할라 → 극지. 지운 페이지 사전은 커밋 83406e4 에 있음.
 export const en: Dictionary = {
   "nav": {
     "polar": "Polar watch",
@@ -20,7 +20,7 @@ export const en: Dictionary = {
     "language": "Language"
   },
   "footer": {
-    "tagline": "Detect → identify → judge the response.",
+    "tagline": "Track the variant → judge the response.",
     "product": "Product",
     "company": "Company",
     "legal": "Legal",
@@ -31,28 +31,28 @@ export const en: Dictionary = {
     "disclaimer": "AEGIRON does not yet hold a validated track record for early-detection accuracy. Every figure on this site measures the scale of the system, not its predictive performance."
   },
   "home": {
-    "metaTitle": "AEGIRON — Polar detection · Heimdall identification · Valhalla response",
-    "metaDescription": "Hourly detection of anomalies in polar permafrost regions (Polar), identification of lineage shifts in public genomes (Heimdall), and a verdict on whether national countermeasures cover the threat (Valhalla). For national biosecurity agencies.",
+    "metaTitle": "AEGIRON — Variant tracking · Countermeasure coverage",
+    "metaDescription": "Records, every hour, the moment a dominant lineage shifts in public pathogen genomes (Heimdall), and assesses daily whether vaccines and therapeutics exist for that threat (Valhalla). For bio and diagnostics companies and national biosecurity agencies.",
     "eyebrow": "AEGIRON · Bio-health",
-    "title": "Read the pathogen genome,\nthen see if a response exists",
-    "lead": "We track public pathogen lineages every hour, compute defensive anomaly indicators for a submitted sequence (Heimdall), and judge whether a vaccine or therapeutic exists for that threat (Valhalla). Our first customers are bio and diagnostics companies and national biosecurity agencies.",
+    "title": "Track the variant,\nthen see whether we can respond",
+    "lead": "We log, every hour, the moment a dominant lineage shifts in public pathogen genomes (Heimdall variant tracking), and assess daily whether vaccines and therapeutics exist for that threat (Valhalla). Sequence screening is in development (validation under way). Our first customers are bio and diagnostics companies and national biosecurity agencies.",
     "primaryCta": "Open the operations view",
     "secondaryCta": "For companies and agencies",
     "chainTitle": "Three links",
-    "chainLead": "Heimdall (identify) is at the centre; Valhalla (judge the response) backs it, and Polar (detect) stays as future research. Only what actually runs today is listed.",
+    "chainLead": "Variant tracking (Heimdall) and countermeasure coverage (Valhalla) lead; polar sensing remains a research line. Sequence screening is labelled in development until validation is complete. Only what actually runs today is listed.",
     "stages": [
       {
         "code": "HEIMDALL",
         "name": "Heimdall",
-        "role": "Identify",
-        "body": "Records changes of the dominant lineage in public genomic builds (Nextstrain) and computes anomaly indicators for a submitted sequence. Defensive detection only.",
+        "role": "Variant tracking",
+        "body": "When the dominant lineage in a public genomic build (Nextstrain) changes, or a new lineage appears, the moment is written to a ledger. A record, not a verdict.",
         "facts": [
-          "SARS-CoV-2 public build checked hourly · only dominant-lineage transitions are recorded",
-          "Sequence screening (codon usage, CpG, entropy …) on request · API key required",
-          "A priority signal, not a verdict — no sequence design or synthesis"
+          "SARS-CoV-2 public build checked hourly · only dominant-lineage shifts and new lineages are logged",
+          "Lineages and shares are quoted from Nextstrain · whether a transition occurred is our ledger's comparison with the previous cycle",
+          "Sequence screening is in development (validation under way) — false positives measured weekly on public natural sequences · sensitivity not yet measured"
         ],
         "href": "heimdall",
-        "linkLabel": "Open the Heimdall section"
+        "linkLabel": "Open the variant ledger"
       },
       {
         "code": "VALHALLA",
@@ -107,6 +107,32 @@ export const en: Dictionary = {
     "unavailable": "Could not read the polar history (undetermined)",
     "apiLabel": "Raw API"
   },
+  "variant": {
+    "title": "Variant ledger (logged hourly)",
+    "lead": "Latest dominant lineage per build and recent lineage transitions · lineages, shares and sequence counts quoted from Nextstrain; transitions are our ledger's comparison with the previous cycle",
+    "stateTitle": "Current state",
+    "transitionsTitle": "Recent transitions (up to 10)",
+    "cols": {
+      "build": "Build",
+      "dominant": "Dominant lineage",
+      "share": "Share",
+      "sequences": "Recent sequences",
+      "observed": "Checked at",
+      "kind": "Transition",
+      "change": "Change"
+    },
+    "transitions": {
+      "first_seen": "First record",
+      "dominant_changed": "Dominant shift",
+      "new_clade": "New lineage",
+      "none": "No change"
+    },
+    "empty": "No ledger records yet",
+    "noTransitions": "No transitions recorded",
+    "unavailable": "Could not read the variant ledger (undetermined)",
+    "screenerTitle": "Sequence screening — in development (validation under way)",
+    "screenerNote": "Measured 2026-11-22: on 7 public natural sequences, false positives were 6.4% per 1,000-base fragment and 1 of 7 per whole sequence. Sensitivity (whether hazardous sequences are caught) has not been measured — results are a prioritisation aid, not a verdict."
+  },
   "pages": {
     "polar": {
       "metaTitle": "Polar watch",
@@ -118,14 +144,14 @@ export const en: Dictionary = {
     },
     "about": {
       "metaTitle": "About",
-      "metaDescription": "AEGIRON — a bio-health company that reads a pathogen’s genome to identify a threat first, and judges whether the means to meet it already exist.",
+      "metaDescription": "AEGIRON — a bio-health company that tracks, hour by hour, how a pathogen’s genome changes, and judges whether the means to meet that change already exist.",
       "eyebrow": "ABOUT",
       "title": "AEGIRON",
-      "lead": "A one-person technology company, founded in Busan. We read the genome of a pathogen to identify a threat before it is named, and judge whether the means to meet that threat already exist in the world. To this single purpose we commit our effort. Bio and diagnostics companies and national biosecurity agencies are our first partners.",
+      "lead": "A one-person technology company, founded in Busan. We follow, hour by hour, how a pathogen’s genome changes, and judge whether the means to stand against that change already exist in the world. To this single purpose we commit our effort. Bio and diagnostics companies and national biosecurity agencies are our first partners.",
       "blocks": [
         {
           "title": "Why we commit to one thing",
-          "body": "Until November 2026, AEGIRON gathered disease signals from across the world. Yet the wider our reach, the thinner our expertise grew — and outside reviews said as much, plainly. So we chose to set scattered ambition aside. We placed pathogen genome identification (Heimdall) at the centre, let the judgement of whether a response exists (Valhalla) stand behind it, and kept polar surveillance as research for the future. We believe one thing pursued deeply travels farther than a hundred spread thin."
+          "body": "Until November 2026, AEGIRON gathered disease signals from across the world. Yet the wider our reach, the thinner our expertise grew — and outside reviews said as much, plainly. So we chose to set scattered ambition aside. We placed pathogen variant tracking (Heimdall) at the front, let the judgement of whether a response exists (Valhalla) stand behind it, and kept polar surveillance as research for the future. We believe one thing pursued deeply travels farther than a hundred spread thin."
         },
         {
           "title": "The principles we hold",
@@ -170,7 +196,7 @@ export const en: Dictionary = {
             "Reads the dominant lineage and its share over the last 60 days from public Nextstrain builds",
             "Only cycles where the dominant lineage changed are recorded as transitions · nothing is written when data is missing",
             "Screening indicators (CAI, CpG, entropy, local anomalies) are **priority signals**, not verdicts",
-            "Screener specificity (false-positive rate on natural sequences) is measured weekly against public reference sequences — GitHub Actions `heimdall-validation`. Sensitivity and verdicts are not measured."
+            "The screener is **in development (validation under way)** — specificity (false-positive rate on natural sequences) is measured weekly against public reference sequences (GitHub Actions `heimdall-validation`). 2026-11-22: 6.4% per 1,000-base fragment, 1 of 7 per whole sequence. Sensitivity and verdicts are not measured."
           ],
           "note": "Limits: inherits the delays and biases of public sequence submission"
         },
@@ -189,7 +215,7 @@ export const en: Dictionary = {
     },
     "government": {
       "metaTitle": "Government biosecurity",
-      "metaDescription": "Polar detection, genomic identification and countermeasure verdicts for national biosecurity agencies.",
+      "metaDescription": "Variant tracking, countermeasure verdicts and polar detection for national biosecurity agencies.",
       "eyebrow": "GOVERNMENT",
       "title": "For bio/diagnostics companies and national biosecurity agencies",
       "lead": "Read the pathogen genome (Heimdall) and see whether a countermeasure exists for that threat (Valhalla) in one view · bio and diagnostics companies and national biosecurity agencies are the first customers",
