@@ -241,10 +241,41 @@ def cai_best_effort(seq: str) -> dict | None:
 _TYPE2S = {"BsaI": "GGTCTC", "BsmBI": "CGTCTC"}
 
 
+# 구간 비교의 '서열 전체 우연 허용치'(가족 오류율). 윈도가 많을수록 우연히 튀는 구간이 생길
+# 확률이 커지므로(다중 비교), 문턱을 윈도 수에 맞춰 올린다 — 판단 상수, 바꾸려면 여기만.
+WINDOW_FAMILY_ALPHA = 0.01
+_MAD_TO_SD = 1.4826  # 정규분포에서 중앙절대편차 → 표준편차 환산
+
+
+def _window_threshold(gcs: list[float], median_gc: float, window: int,
+                      gc_delta: float, family_alpha: float) -> dict:
+    """윈도 수·서열 자체의 퍼짐에 맞춘 GC 편차 문턱.
+
+    퍼짐(σ)은 서열 자신의 윈도 GC 에서 잰다(중앙절대편차 — 튀는 구간에 끌려가지 않음).
+    표본 크기만으로 생기는 최소 퍼짐(이항 표준편차)보다 작게 잡지 않는다.
+    문턱 = max(gc_delta, z·σ), z 는 윈도 N 개 전체에서 우연히 하나라도 넘을 확률이
+    family_alpha 가 되게 하는 값(본페로니, 양측). 윈도가 겹쳐 서로 상관이 있으므로 보수적이다."""
+    from statistics import NormalDist
+    n = len(gcs)
+    mad = sorted(abs(g - median_gc) for g in gcs)[n // 2] if n else 0.0
+    binom_sd = (median_gc * (1 - median_gc) / window) ** 0.5
+    sigma = max(_MAD_TO_SD * mad, binom_sd)
+    z = NormalDist().inv_cdf(1 - family_alpha / (2 * max(n, 1)))
+    return {"threshold": round(max(gc_delta, z * sigma), 4), "z": round(z, 3),
+            "robust_sd": round(sigma, 4), "family_alpha": family_alpha}
+
+
 def window_composition_anomaly(seq: str, window: int = 120, step: int = 60,
-                               gc_delta: float = 0.15) -> dict:
+                               gc_delta: float = 0.15,
+                               family_alpha: float = WINDOW_FAMILY_ALPHA) -> dict:
     """슬라이딩 윈도로 GC·CpG O/E를 재서, 전체 중앙값에서 크게 벗어난 구간을 찾는다.
-    국소 조성 이상 = 외래 삽입·재조합 후보(전체 점통계로는 안 보이는 신호). 방어 탐지."""
+    국소 조성 이상 = 외래 삽입·재조합 후보(전체 점통계로는 안 보이는 신호). 방어 탐지.
+
+    문턱(2026-11-22 길이 보정): 예전엔 고정 편차 gc_delta(0.15)를 한 구간이라도 넘으면 이상이었다.
+    공개 자연 서열 검증에서 길이가 길수록(윈도가 많을수록) 거의 반드시 걸렸다 — 조각 1,000염기
+    16% → 20,000염기 99%. 그래서 문턱을 윈도 수와 서열 자체의 퍼짐에 맞춘다(_window_threshold).
+    gc_delta 는 바닥으로 남는다. 대가: 거짓 양성이 줄어드는 만큼 약한 진짜 신호도 덜 잡힐 수 있고,
+    민감도는 재지 않았다(양성 대조군 없음)."""
     if len(seq) < window * 2:
         return {"assessed": False, "reason": "윈도 2개 미만 — 구간분석 불가"}
     wins = []
@@ -253,17 +284,21 @@ def window_composition_anomaly(seq: str, window: int = 120, step: int = 60,
         wins.append({"start": start, "gc": gc_content(w), "cpg_oe": cpg_observed_expected(w)})
     gcs = sorted(x["gc"] for x in wins if x["gc"] is not None)
     median_gc = gcs[len(gcs) // 2] if gcs else 0.0
+    thr = _window_threshold(gcs, median_gc, window, gc_delta, family_alpha)
     anomalies = [
         {**w, "gc_deviation": round(abs(w["gc"] - median_gc), 4)}
-        for w in wins if w["gc"] is not None and abs(w["gc"] - median_gc) > gc_delta
+        for w in wins if w["gc"] is not None and abs(w["gc"] - median_gc) > thr["threshold"]
     ]
     return {
         "assessed": True,
         "windows": len(wins),
         "median_gc": round(median_gc, 4),
+        "deviation_threshold": thr["threshold"],
+        "threshold_basis": thr,
         "anomalous_windows": anomalies,
         "anomaly_count": len(anomalies),
-        "note": "국소 조성 이상은 외래 삽입·재조합 후보(방어 우선순위). 정렬·계통발생 확인 필요.",
+        "note": "국소 조성 이상은 외래 삽입·재조합 후보(방어 우선순위). 정렬·계통발생 확인 필요. "
+                "문턱은 윈도 수·서열 자체 퍼짐에 맞춰 조정됨(다중 비교 보정).",
     }
 
 

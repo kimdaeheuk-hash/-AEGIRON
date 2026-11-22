@@ -167,3 +167,26 @@ def test_screen_sequence_attaches_reference_comparison_when_provided():
     r = gs.screen_sequence(seq, reference_sequences=refs)
     assert "reference_comparison" in r
     assert r["reference_comparison"]["n_reference_sequences"] == 3
+
+
+def test_window_threshold_grows_with_window_count():
+    """다중 비교 보정: 윈도가 많을수록 문턱이 올라간다(우연히 튀는 구간 허용)."""
+    import random
+    rng = random.Random(0)
+    short = "".join(rng.choice("ACGT") for _ in range(2_000))
+    long_ = "".join(rng.choice("ACGT") for _ in range(200_000))
+    t_short = gs.window_composition_anomaly(short)["deviation_threshold"]
+    t_long = gs.window_composition_anomaly(long_)["deviation_threshold"]
+    assert t_long > t_short >= 0.15
+
+
+def test_long_random_sequence_not_flagged_but_strong_insert_is():
+    """길이 보정의 양면: 무작위 긴 서열의 우연한 튐은 안 잡고, 뚜렷한 삽입은 여전히 잡는다."""
+    import random
+    rng = random.Random(1)
+    base = "".join(rng.choice("ACGT") for _ in range(300_000))
+    plain = gs.window_composition_anomaly(base)
+    assert plain["anomaly_count"] == 0
+    inserted = base[:150_000] + "GC" * 600 + base[150_000:]
+    r = gs.window_composition_anomaly(inserted)
+    assert r["anomaly_count"] > 0
