@@ -4,7 +4,8 @@
 (match_ledger) · 대응제 비축(countermeasure_stockpile) · 극지 관측값 시계열
 (observations) · API 키 사용량(api_key_usage).
 
-옛 표(예측·경보·BAIKAL·주간 예보 등)는 코드에서 지웠다. 운영 DB 파일에는 그 표가
+2026-11-22 오후: BAIKAL MOB 을 상태변화 엔진으로 다시 세웠다(baikal_mob_* 표).
+옛 표(예측·경보·옛 BAIKAL·주간 예보 등)는 코드에서 지웠다. 운영 DB 파일에는 그 표가
 그대로 남아 있지만 읽지도 쓰지도 않는다(복원 기준 커밋 83406e4).
 FK 는 선언하지 않는다 — 남은 표끼리 참조가 없다. PRAGMA foreign_keys=ON 은 유지.
 """
@@ -93,6 +94,26 @@ CREATE TABLE IF NOT EXISTS observations (
 );
 CREATE INDEX IF NOT EXISTS idx_observations_key ON observations(layer, target, metric, id);
 CREATE INDEX IF NOT EXISTS idx_observations_layer_time ON observations(layer, confirmed_at);
+-- ── BAIKAL MOB 상태변화 엔진 (2026-11-22 재구현) ─────────────────────
+-- 옛 baikal_snapshots/baikal_transitions 는 운영 DB 에 남아 있지만 옛 7개 시스템
+-- (HUGINN…) 기록이라 섞지 않으려고 새 이름을 쓴다. 매 수집 주기 스냅숏 1행,
+-- 전이는 상태가 **바뀐 순간만**(from_status NULL = 관측 시작). 지우지 않는다(감사 기록).
+CREATE TABLE IF NOT EXISTS baikal_mob_snapshots (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    observed_at  TEXT NOT NULL,          -- UTC ISO
+    payload      TEXT NOT NULL           -- JSON — baikal.observe() 결과 전체
+);
+CREATE INDEX IF NOT EXISTS idx_baikal_mob_snapshots_observed ON baikal_mob_snapshots(observed_at);
+CREATE TABLE IF NOT EXISTS baikal_mob_transitions (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    observed_at  TEXT NOT NULL,
+    node         TEXT NOT NULL,          -- 온톨로지 노드 키(COLLECTOR · HEIMDALL_VARIANTS …)
+    from_status  TEXT,                   -- NULL = 관측 시작
+    to_status    TEXT NOT NULL,
+    reason       TEXT,
+    evidence     TEXT                    -- measured / estimated / proxy
+);
+CREATE INDEX IF NOT EXISTS idx_baikal_mob_transitions_observed ON baikal_mob_transitions(observed_at);
 -- 스키마 버전(2026-11-02). init_db()가 매 호출마다 DDL 전문을 돌리지 않게
 -- 1행짜리 버전표로 판정한다. 스키마를 바꾸면 SCHEMA_VERSION을 올릴 것.
 CREATE TABLE IF NOT EXISTS _schema_version (
@@ -119,8 +140,8 @@ def get_connection() -> sqlite3.Connection:
 
 # 스키마 버전 — SCHEMA 를 바꾸면 1 올린다. 안 올리면 운영 DB 에 새 표가 안 생긴다
 # (init_db 가 버전이 맞으면 DDL 을 건너뛰므로 — 2026-11-03 /api/variant-ledger 500 실측).
-# v6 이 개편 전 마지막 버전이다. 남은 표의 DDL 은 그때와 같아 올리지 않았다.
-SCHEMA_VERSION = 6
+# v6 이 개편 전 마지막 버전이다. v7(2026-11-22): BAIKAL MOB 표 두 개 추가.
+SCHEMA_VERSION = 7
 
 
 def _db_version(conn: sqlite3.Connection) -> int:
@@ -218,6 +239,7 @@ def observation_history(
 # ── 모니터링 (/api/status) ───────────────────────────────────
 _STATUS_TABLES = (
     "variant_ledger", "match_ledger", "countermeasure_stockpile", "observations",
+    "baikal_mob_snapshots", "baikal_mob_transitions",
 )
 
 
@@ -295,3 +317,49 @@ def _countermeasure_row_to_dict(row: sqlite3.Row) -> dict:
     return d
 
 
+
+
+# ── BAIKAL MOB (상태변화 엔진) ────────────────────────────────
+def insert_baikal_snapshot(snapshot: dict) -> None:
+    init_db()
+    with get_connection() as conn:
+        conn.execute("INSERT INTO baikal_mob_snapshots (observed_at, payload) VALUES (?, ?)",
+                     (snapshot["observed_at"], json.dumps(snapshot, ensure_ascii=False)))
+
+
+def latest_baikal_snapshot() -> dict | None:
+    init_db()
+    with get_connection() as conn:
+        row = conn.execute("SELECT payload FROM baikal_mob_snapshots "
+                           "ORDER BY observed_at DESC, id DESC LIMIT 1").fetchone()
+    if not row:
+        return None
+    try:
+        return json.loads(row["payload"])
+    except (TypeError, ValueError):
+        return None
+
+
+def insert_baikal_transition(observed_at: str, t: dict) -> None:
+    init_db()
+    with get_connection() as conn:
+        conn.execute(
+            "INSERT INTO baikal_mob_transitions "
+            "(observed_at, node, from_status, to_status, reason, evidence) VALUES (?, ?, ?, ?, ?, ?)",
+            (observed_at, t["node"], t.get("from_status"), t["to_status"], t.get("reason"),
+             t.get("evidence")))
+
+
+def list_baikal_transitions(limit: int = 50, node: str | None = None) -> list[dict]:
+    init_db()
+    limit = max(1, min(int(limit), 500))
+    query = ("SELECT observed_at, node, from_status, to_status, reason, evidence "
+             "FROM baikal_mob_transitions")
+    params: list = []
+    if node:
+        query += " WHERE node = ?"
+        params.append(node)
+    query += " ORDER BY observed_at DESC, id DESC LIMIT ?"
+    params.append(limit)
+    with get_connection() as conn:
+        return [dict(r) for r in conn.execute(query, params).fetchall()]

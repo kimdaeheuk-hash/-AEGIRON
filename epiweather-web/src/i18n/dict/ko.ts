@@ -39,7 +39,7 @@ export const ko: Dictionary = {
     "primaryCta": "운영 화면 보기",
     "secondaryCta": "기업·기관 도입 검토",
     "chainTitle": "세 고리",
-    "chainLead": "변이 추적(헤임달)과 대응 판정(발할라)을 앞에 세우고, 극지(감지)는 미래 연구로 둠. 서열 스크리닝은 검증이 끝날 때까지 개발 중으로 표시함. 지금 실제로 도는 것만 적음.",
+    "chainLead": "변이 추적(헤임달)과 대응 판정(발할라)을 앞에 세우고, 극지(감지)는 미래 연구로 둠. 서열 스크리닝은 검증이 끝날 때까지 개발 중으로 표시함. 지금 실제로 도는 것만 적음. 세 고리의 상태 변화는 BAIKAL MOB(상태변화 엔진)이 매시 판정·기록함.",
     "stages": [
       {
         "code": "HEIMDALL",
@@ -132,6 +132,35 @@ export const ko: Dictionary = {
     "unavailable": "변이 원장을 읽지 못함(판정 안 함)",
     "screenerTitle": "서열 스크리닝 — 개발 중(검증 진행)",
     "screenerNote": "2026-11-22 측정: 공개 자연 서열 7종에서 거짓 양성 1,000염기 조각 기준 6.4%, 서열 단위 1/7. 민감도(위험 서열을 잡는가)는 아직 재지 않았음 — 결과는 판정이 아니라 우선순위 참고값임."
+  },
+  "baikal": {
+    "title": "BAIKAL MOB",
+    "layer": "상태변화 엔진 · 온톨로지 위층",
+    "lead": "온톨로지(엔진과 그 연결) 위에서 매시 각 엔진의 상태를 판정하고, 상태가 바뀐 순간만 기록함. 상태는 정상·저하·중단·판정 안 함 네 가지이며, 못 본 것은 정상으로 세지 않음. 상류 엔진이 멈추면 연결을 따라 어느 입력이 낡는지 함께 적음(하류 상태는 바꾸지 않음).",
+    "observedAt": "마지막 판정 {t}",
+    "stale": "마지막 판정이 {m}분 전 — 수집이 멎었을 수 있음. 아래를 지금 상태로 읽지 말 것",
+    "empty": "아직 판정 기록 없음 — 다음 수집 주기(매시 정각) 뒤에 생김",
+    "unavailable": "BAIKAL 상태를 읽지 못함(판정 안 함)",
+    "cols": {
+      "engine": "엔진",
+      "status": "상태",
+      "since": "언제부터",
+      "reason": "근거",
+      "observed": "시각",
+      "change": "변화"
+    },
+    "statuses": {
+      "ok": "🟢 정상",
+      "degraded": "🟡 저하",
+      "down": "🔴 중단",
+      "undetermined": "⚪ 판정 안 함"
+    },
+    "observationStart": "관측 시작",
+    "impactsTitle": "영향 — 상류 이상이 번지는 곳",
+    "noImpacts": "번지는 이상 없음",
+    "transitionsTitle": "최근 상태 전이",
+    "noTransitions": "기록된 전이 없음",
+    "apiLabel": "원자료 API"
   },
   "pages": {
     "polar": {
@@ -507,7 +536,8 @@ export const ko: Dictionary = {
       "후향 검증": "헤임달 · 변이 원장",
       "Stage 0: 합성위협 탐지": "헤임달 · 합성위협 탐지·서열 스크리닝",
       "Stage 8: 바이오방어": "발할라 · 대응제 판정",
-      "시스템": "시스템 · 운영 상태"
+      "시스템": "시스템 · 운영 상태",
+      "BAIKAL MOB": "BAIKAL MOB · 상태변화 엔진"
     }
   },
   "common": {

@@ -39,7 +39,7 @@ export const fr: Dictionary = {
     "primaryCta": "Ouvrir la vue opérationnelle",
     "secondaryCta": "Pour entreprises et agences",
     "chainTitle": "Trois maillons",
-    "chainLead": "Le suivi des variants (Heimdall) et la couverture des contre-mesures (Valhalla) passent devant ; la veille polaire reste un axe de recherche. Le criblage de séquences est signalé en développement jusqu'à la fin de sa validation. Seul ce qui fonctionne aujourd'hui est mentionné.",
+    "chainLead": "Le suivi des variants (Heimdall) et la couverture des contre-mesures (Valhalla) passent devant ; la veille polaire reste un axe de recherche. Le criblage de séquences est signalé en développement jusqu'à la fin de sa validation. Seul ce qui fonctionne aujourd'hui est mentionné. Les changements d'état des trois maillons sont évalués et consignés chaque heure par BAIKAL MOB, le moteur de changements d'état.",
     "stages": [
       {
         "code": "HEIMDALL",
@@ -132,6 +132,35 @@ export const fr: Dictionary = {
     "unavailable": "Registre des variants illisible (non déterminé)",
     "screenerTitle": "Criblage de séquences — en développement (validation en cours)",
     "screenerNote": "Mesure du 2026-11-22 : sur 7 séquences naturelles publiques, 6,4 % de faux positifs par fragment de 1 000 bases et 1 sur 7 par séquence entière. La sensibilité (détection des séquences dangereuses) n'est pas encore mesurée — les résultats aident à prioriser, ce ne sont pas des verdicts."
+  },
+  "baikal": {
+    "title": "BAIKAL MOB",
+    "layer": "Moteur de changements d'état · au-dessus de l'ontologie",
+    "lead": "Au-dessus de l'ontologie (les moteurs et leurs liens), BAIKAL évalue chaque heure l'état de chaque moteur et n'enregistre que les instants où un état change. Quatre états — normal, dégradé, arrêté, non déterminé — et ce qui n'a pas été observé n'est jamais compté comme normal. Lorsqu'un moteur amont s'arrête, il signale, en suivant les liens, quelles entrées en aval peuvent être périmées (sans modifier les états en aval).",
+    "observedAt": "Dernière évaluation {t}",
+    "stale": "Dernière évaluation il y a {m} min — la collecte s'est peut-être arrêtée. Ne lisez pas le tableau ci-dessous comme l'état actuel",
+    "empty": "Aucune évaluation pour l'instant — la première apparaîtra après le prochain cycle de collecte (à l'heure pile)",
+    "unavailable": "État BAIKAL illisible (non déterminé)",
+    "cols": {
+      "engine": "Moteur",
+      "status": "État",
+      "since": "Depuis",
+      "reason": "Éléments",
+      "observed": "Heure",
+      "change": "Changement"
+    },
+    "statuses": {
+      "ok": "🟢 Normal",
+      "degraded": "🟡 Dégradé",
+      "down": "🔴 Arrêté",
+      "undetermined": "⚪ Non déterminé"
+    },
+    "observationStart": "Début d'observation",
+    "impactsTitle": "Impact — là où une panne amont se propage",
+    "noImpacts": "Aucune panne en propagation",
+    "transitionsTitle": "Transitions d'état récentes",
+    "noTransitions": "Aucune transition consignée",
+    "apiLabel": "API brute"
   },
   "pages": {
     "polar": {
@@ -508,7 +537,8 @@ export const fr: Dictionary = {
       "후향 검증": "Heimdall · registre des variants",
       "Stage 0: 합성위협 탐지": "Heimdall · détection de menaces synthétiques et criblage",
       "Stage 8: 바이오방어": "Valhalla · verdicts de contre-mesures",
-      "시스템": "Système · état opérationnel"
+      "시스템": "Système · état opérationnel",
+      "BAIKAL MOB": "BAIKAL MOB · moteur de changements d'état"
     }
   },
   "common": {

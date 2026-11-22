@@ -9,12 +9,14 @@ import { AstryxProvider } from '@/components/AstryxProvider';
 import HeimdallPanel from '@/components/stages/HeimdallPanel';
 import ValhallaPanel from '@/components/stages/ValhallaPanel';
 import { getDictionary, localePath, type Locale } from '@/i18n';
+import type { Baikal, BaikalNodeRow, BaikalTransitionRow } from '@/lib/baikal';
 import type { PolarTrendRow } from '@/lib/polarTrend';
 import type { VariantLedger, VariantStateRow, VariantTransitionRow } from '@/lib/variantLedger';
 
 /**
  * 운영 화면(/dashboard) — 2026-11-22 개편. 예전 10단계 시뮬레이션(Command)을 지우고
  * 세 고리만 위에서 아래로 둔다: 헤임달(변이 추적) → 발할라(대응 판정) → 극지(감지).
+ * 그 위에 BAIKAL MOB(상태변화 엔진 · 온톨로지 위층)이 세 고리와 수집 주기의 상태를 한 장으로 보여 준다.
  *
  * 캡틴 "변이추적으로 발할라를 앞세워"(2026-11-22): 헤임달 구획은 변이 원장(실제로 매시 도는 기록)을
  * 앞에 두고, 서열 스크리너는 그 아래에 '개발 중(검증 진행)'으로 표시한다 — 민감도를 아직 재지 않았다.
@@ -26,18 +28,20 @@ type Polar = { rows: PolarTrendRow[]; days: number; undetermined: number } | nul
 
 const KO_ONLY: Record<Locale, string | null> = {
   ko: null,
-  en: 'The Heimdall and Valhalla panels below are still in Korean.',
-  fr: 'Les panneaux Heimdall et Valhalla ci-dessous sont encore en coréen.',
+  en: 'The Heimdall and Valhalla panels and the BAIKAL evidence lines below are still in Korean.',
+  fr: 'Les panneaux Heimdall et Valhalla et les éléments BAIKAL ci-dessous sont encore en coréen.',
 };
 
 export default function Console({
   locale,
   polar,
   variants,
+  baikal,
 }: {
   locale: Locale;
   polar: Polar;
   variants: VariantLedger;
+  baikal: Baikal;
 }) {
   const dict = getDictionary(locale);
   // 순서가 아니라 코드로 찾는다 — 홈 사전에서 고리 순서를 바꿔도 이 화면이 안 깨진다.
@@ -47,6 +51,30 @@ export default function Console({
   const polarStage = byCode.POLAR;
   const pt = dict.polar;
   const vt = dict.variant;
+  const bk = dict.baikal;
+  type NodeView = Omit<BaikalNodeRow, 'status'> & { status: string };
+  type TransitionView = { id: string; observed: string; engine: string; change: string; reason: string };
+  const nodeColumns: TableColumn<NodeView>[] = [
+    { key: 'engine', header: bk.cols.engine, width: proportional(1.2, { minWidth: 150 }) },
+    { key: 'status', header: bk.cols.status, width: proportional(0.8, { minWidth: 120 }) },
+    { key: 'since', header: bk.cols.since, width: proportional(0.9, { minWidth: 130 }) },
+    { key: 'reason', header: bk.cols.reason, width: proportional(2.4, { minWidth: 220 }) },
+  ];
+  const baikalTransitionColumns: TableColumn<TransitionView>[] = [
+    { key: 'observed', header: bk.cols.observed, width: proportional(0.9, { minWidth: 130 }) },
+    { key: 'engine', header: bk.cols.engine, width: proportional(1.1, { minWidth: 140 }) },
+    { key: 'change', header: bk.cols.change, width: proportional(1.1, { minWidth: 160 }) },
+    { key: 'reason', header: bk.cols.reason, width: proportional(2, { minWidth: 200 }) },
+  ];
+  const statusLabel = (s: string | null) => (s ? (bk.statuses[s] ?? s) : bk.observationStart);
+  const nodeRows: NodeView[] = (baikal?.nodes ?? []).map((n) => ({ ...n, status: statusLabel(n.status) }));
+  const baikalTransitionRows: TransitionView[] = (baikal?.transitions ?? []).map((t: BaikalTransitionRow) => ({
+    id: t.id,
+    observed: t.observed,
+    engine: t.engine,
+    change: `${statusLabel(t.from)} → ${statusLabel(t.to)}`,
+    reason: t.reason,
+  }));
   const stateColumns: TableColumn<VariantStateRow>[] = [
     { key: 'build', header: vt.cols.build, width: proportional(1.4, { minWidth: 150 }) },
     { key: 'dominant', header: vt.cols.dominant, width: proportional(1.2, { minWidth: 120 }) },
@@ -90,6 +118,64 @@ export default function Console({
             <Text type="supporting">{dict.home.title.replace('\n', ' · ')}</Text>
           </HStack>
           {KO_ONLY[locale] && <Text type="supporting">{KO_ONLY[locale]}</Text>}
+
+          <Card padding={4}>
+            <VStack gap={3} id="baikal">
+              <VStack gap={1}>
+                <Text type="label" color="accent">
+                  0 · {bk.title} · {bk.layer}
+                </Text>
+                <Heading level={2}>{bk.title}</Heading>
+                <Text type="supporting">{bk.lead}</Text>
+              </VStack>
+              {baikal === null ? (
+                <Text color="secondary">{bk.unavailable}</Text>
+              ) : baikal.nodes.length === 0 ? (
+                <Text color="secondary">{bk.empty}</Text>
+              ) : (
+                <VStack gap={3}>
+                  {baikal.fresh ? (
+                    <Text type="supporting">{bk.observedAt.replace('{t}', baikal.observedLabel)}</Text>
+                  ) : (
+                    <Text weight="semibold">{bk.stale.replace('{m}', String(baikal.ageMinutes ?? '?'))}</Text>
+                  )}
+                  <Table<NodeView>
+                    data={nodeRows}
+                    columns={nodeColumns}
+                    idKey="id"
+                    density="compact"
+                    textOverflow="wrap"
+                    verticalAlign="top"
+                  />
+                  <Text type="label">{bk.impactsTitle}</Text>
+                  {baikal.impacts.length === 0 ? (
+                    <Text type="supporting">{bk.noImpacts}</Text>
+                  ) : (
+                    <VStack gap={1}>
+                      {baikal.impacts.map((line) => (
+                        <Text key={line} type="supporting">
+                          {line}
+                        </Text>
+                      ))}
+                    </VStack>
+                  )}
+                  <Text type="label">{bk.transitionsTitle}</Text>
+                  {baikalTransitionRows.length === 0 ? (
+                    <Text type="supporting">{bk.noTransitions}</Text>
+                  ) : (
+                    <Table<TransitionView>
+                      data={baikalTransitionRows}
+                      columns={baikalTransitionColumns}
+                      idKey="id"
+                      density="compact"
+                      textOverflow="wrap"
+                      verticalAlign="top"
+                    />
+                  )}
+                </VStack>
+              )}
+            </VStack>
+          </Card>
 
           <VStack gap={2} id="heimdall">
             {head(1, heimdall)}

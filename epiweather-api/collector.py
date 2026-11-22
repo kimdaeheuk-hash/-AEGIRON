@@ -124,9 +124,15 @@ def collect_free_sources() -> dict:
         pw = polar_watch_all()
     except Exception as e:
         result["polar_watch"] = None
+        result["polar_error"] = f"{type(e).__name__}: {str(e)[:120]}"  # BAIKAL 판정용
         log(f"  ❌ 극지 관찰 실패: {type(e).__name__}: {e}")
         log_error("PolarWatch", e)
     else:
+        # BAIKAL 판정용 — 자료를 버리기 전에 몇 곳이 받았는지 남긴다.
+        _regions = (pw or {}).get("regions") or []
+        result["polar_regions_total"] = len(_regions)
+        result["polar_regions_with_weather"] = sum(
+            1 for r in _regions if (r.get("thaw") or {}).get("data_available"))
         # ⓪ 계산한 값을 응답 캐시에 넣는다(2026-11-18) — 관측값 저장·API 가 같은 자료를
         #    Open-Meteo 에서 또 받지 않게. 기상 자료가 빈 결과도 넣는다: 방문자가 다시
         #    두드려 남은 한도를 쓰게 하지 않고, 화면은 '판정 안 함'을 그대로 보여 준다.
@@ -154,7 +160,9 @@ def collect_free_sources() -> dict:
     # Open-Meteo 실패 사유(2026-11-18) — 한도(429)인지 장애인지 로그로 갈리게.
     try:
         from algorithms.climate_signals import failure_reasons_line, pop_failure_reasons
-        reasons_line = failure_reasons_line(pop_failure_reasons())
+        _reasons = pop_failure_reasons()
+        result["polar_failure_reasons"] = dict(_reasons or {})  # BAIKAL 판정용
+        reasons_line = failure_reasons_line(_reasons)
         if reasons_line:
             log(reasons_line)
     except Exception as e:
@@ -176,6 +184,7 @@ def collect_free_sources() -> dict:
                 f"({v['dominant_share']*100:.0f}%, n={v['n_recent_sequences']}){new_tag}")
     except Exception as e:
         result["genomic_variants"] = None
+        result["genomic_variants_error"] = f"{type(e).__name__}: {str(e)[:120]}"  # BAIKAL 판정용
         log_error("GenomicVariants", e)
 
     # ★ 변이원장 (2026-11-03) ★ 이번 주기 변이 스냅샷을 원장에 적고 전이만
@@ -183,7 +192,9 @@ def collect_free_sources() -> dict:
     if result.get("genomic_variants"):
         try:
             from algorithms.variant_ledger import record_cycle
-            for _entry in record_cycle(result["genomic_variants"]):
+            _entries = record_cycle(result["genomic_variants"])
+            result["variant_ledger_ok"] = True  # BAIKAL 판정용
+            for _entry in _entries:
                 if _entry["transition"] == "dominant_changed":
                     log(f"  🧬 변이원장 {_entry['label']}: 우세 "
                         f"{_entry['prev_dominant']}→{_entry['dominant_clade']}")
@@ -191,6 +202,7 @@ def collect_free_sources() -> dict:
                     log(f"  🧬 변이원장 {_entry['label']}: "
                         f"신규계통 {','.join(_entry['new_clades'])}")
         except Exception as e:
+            result["variant_ledger_ok"] = False
             log_error("VariantLedger", e)
 
     # ★ 매칭원장 (2026-11-03) ★ 오늘의 위협×비축×변이 판정 1행/위협.
@@ -276,6 +288,7 @@ def collect_free_sources() -> dict:
             log("  ⚠ 발할라 %s. 주간작업이 갱신 시도" % line)
     except Exception as e:
         result["valhalla"] = None
+        result["valhalla_error"] = f"{type(e).__name__}: {str(e)[:120]}"  # BAIKAL 판정용
         log(f"  ❌ 발할라 관찰 실패: {type(e).__name__}: {e}")
         log_error("Valhalla", e)
 
@@ -289,6 +302,18 @@ def collect_free_sources() -> dict:
             + (f" · {', '.join(bad)}" if bad else ""))
     except Exception as e:
         log_error("SourceHealth", e)
+
+    # ── BAIKAL MOB: 상태변화 엔진 (2026-11-22) ─────────────────────────
+    # 온톨로지 위층. 이번 주기 결과로 엔진별 상태를 판정하고, 바뀐 순간만 전이로 남긴다.
+    # 읽기 전용 — 여기서 무엇이 터져도 수집 결과는 그대로 저장된다.
+    try:
+        from algorithms import baikal
+        _snap = baikal.run_cycle(result)
+        for _line in baikal.transition_lines(_snap):
+            log(f"  {_line}")
+        log(f"  {baikal.summary_line(_snap)}")
+    except Exception as e:
+        log_error("BaikalMob", e)
 
     append_signal(result)
     log("=== 수집 끝 ===")
