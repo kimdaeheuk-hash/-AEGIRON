@@ -60,8 +60,23 @@ ARCHIVE_LAG_DAYS = 5
 # 전에는 다시 받아도 같은 답이다. 월 단위 키는 안 쓴다 — 이번 달 `current` 가
 # 날짜가 지남에 따라 자라므로 월키로 묶으면 월중 값이 얼어붙는다.
 # 캐시가 깨지거나 없어도 실시간 조회로 떨어진다 — 캐시는 절약용이지 의존이 아니다.
+#
+# ★ 과거분은 달마다 한 번, 이번 달분만 날마다 (2026-11-22) ★
+# 위 하루 캐시로도 Open-Meteo 하루 한도가 매일 11~12시 UTC 에 바닥났다(11-19~21 실측 —
+# 극지 8곳이 하루 13시간 '기상 자료 없음'). 원인: 요청 구간의 끝이 `오늘 - 지연일` 이라
+# 캐시 키가 **매일** 바뀌어, 8곳 × (10년치 + 16년치) = 하루 16번의 수천 일치 요청이 매일
+# 새로 나갔다. 긴 기간 요청은 여러 회로 셈된다(무료 API 규칙 — 공식 문서는 샌드박스에서
+# 못 봤다).
+# 그래서 구간을 둘로 자른다:
+#   · 과거분 [ARCHIVE_PAST_YEARS 년 전 그 달 1일, 이번 달 1일 전날] — 이번 달 동안 키가
+#     같고, 기준선(10년)과 추세(16년)가 **한 번 받은 것을 나눠 쓴다.** → 한 곳당 한 달 1번
+#   · 이번 달분 [이번 달 1일, 끝 날짜] — 길어야 한 달치, 날마다 받는다(위 '월중 값이
+#     얼어붙는' 문제를 그대로 피한다).
+# 돌려주는 행은 예전과 같다: 요청한 [start, end] 안의 날짜만, 겹침 없이.
 _CACHE_FILE = Path(__file__).resolve().parent.parent / "data" / "polar_archive_cache.json"
 _CACHE_KEEP_DAYS = 2
+ARCHIVE_PAST_YEARS = 16          # 추세(TREND_YEARS)가 쓰는 가장 긴 구간과 같아야 한다
+_PAST_KEEP_DAYS = 40             # 과거분은 한 달 넘게 산다 — 다음 달이면 키가 바뀐다
 
 
 def _cache_key(lat: float, lng: float, start: dt.date, end: dt.date) -> str:
@@ -83,8 +98,9 @@ def _cache_load(key: str) -> list[tuple[str, float]] | None:
         return None
 
 
-def _cache_store(key: str, rows: list[tuple[str, float]]) -> None:
-    """저장 + 이틀 지난 항목 정리. 실패해도 호출은 살린다."""
+def _cache_store(key: str, rows: list[tuple[str, float]],
+                 keep_days: int = _CACHE_KEEP_DAYS) -> None:
+    """저장 + 제 수명이 지난 항목 정리. 실패해도 호출은 살린다."""
     try:
         payload = (json.loads(_CACHE_FILE.read_text(encoding="utf-8"))
                    if _CACHE_FILE.exists() else {})
@@ -92,21 +108,45 @@ def _cache_store(key: str, rows: list[tuple[str, float]]) -> None:
             payload = {}
         today = dt.date.today().isoformat()
         payload = {k: v for k, v in payload.items()
-                   if isinstance(v, dict) and v.get("at", "") >= _cutoff(today)}
-        payload[key] = {"at": today, "rows": [[d, t] for d, t in rows]}
+                   if isinstance(v, dict)
+                   and v.get("at", "") >= _cutoff(today, v.get("keep_days", _CACHE_KEEP_DAYS))}
+        payload[key] = {"at": today, "keep_days": keep_days,
+                        "rows": [[d, t] for d, t in rows]}
         _CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
         _CACHE_FILE.write_text(json.dumps(payload), encoding="utf-8")
     except Exception:                                        # noqa: BLE001
         pass
 
 
-def _cutoff(today_iso: str) -> str:
-    day = dt.date.fromisoformat(today_iso) - dt.timedelta(days=_CACHE_KEEP_DAYS)
+def _cutoff(today_iso: str, keep_days: int = _CACHE_KEEP_DAYS) -> str:
+    try:
+        keep = int(keep_days)
+    except (TypeError, ValueError):
+        keep = _CACHE_KEEP_DAYS
+    day = dt.date.fromisoformat(today_iso) - dt.timedelta(days=keep)
     return day.isoformat()
 
 
 def _fetch_daily_max(lat: float, lng: float, start: dt.date, end: dt.date) -> list[tuple[str, float]]:
-    """(날짜, 일최고기온) 목록. 값이 빈 날은 버린다 — 0 으로 채우지 않는다."""
+    """(날짜, 일최고기온) 목록 — [start, end] 안의 날만, 날짜순. 값이 빈 날은 버린다.
+
+    과거분(이번 달 이전)은 달마다 한 번, 이번 달분만 날마다 받는다(위 ★ 주석).
+    """
+    month_start = end.replace(day=1)
+    lo, hi = start.isoformat(), end.isoformat()
+    rows: list[tuple[str, float]] = []
+    if start < month_start:
+        past_from = min(start.replace(day=1),
+                        dt.date(end.year - ARCHIVE_PAST_YEARS, end.month, 1))
+        past_to = month_start - dt.timedelta(days=1)
+        rows += _fetch_segment(lat, lng, past_from, past_to, keep_days=_PAST_KEEP_DAYS)
+    rows += _fetch_segment(lat, lng, max(start, month_start), end, keep_days=_CACHE_KEEP_DAYS)
+    return [(d, t) for d, t in rows if lo <= d <= hi]
+
+
+def _fetch_segment(lat: float, lng: float, start: dt.date, end: dt.date,
+                   keep_days: int) -> list[tuple[str, float]]:
+    """한 구간을 받는다(캐시 우선). 구간 밖 날짜는 버려 두 구간이 겹치지 않게 한다."""
     key = _cache_key(lat, lng, start, end)
     cached = _cache_load(key)
     if cached is not None:
@@ -123,8 +163,9 @@ def _fetch_daily_max(lat: float, lng: float, start: dt.date, end: dt.date) -> li
     resp.raise_for_status()
     daily = (resp.json() or {}).get("daily") or {}
     times, temps = daily.get("time") or [], daily.get("temperature_2m_max") or []
-    rows = [(d, t) for d, t in zip(times, temps) if t is not None]
-    _cache_store(key, rows)
+    lo, hi = start.isoformat(), end.isoformat()
+    rows = [(d, t) for d, t in zip(times, temps) if t is not None and lo <= d <= hi]
+    _cache_store(key, rows, keep_days=keep_days)
     return rows
 
 

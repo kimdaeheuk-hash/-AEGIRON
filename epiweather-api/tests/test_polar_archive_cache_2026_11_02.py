@@ -36,7 +36,8 @@ def test_second_call_with_same_window_does_not_hit_the_network(tmp_path, monkeyp
     first = pb._fetch_daily_max(*args)
     second = pb._fetch_daily_max(*args)
     assert first == second == [("2020-01-01", 1.0), ("2020-01-02", 2.0)]
-    assert len(calls) == 1
+    # 2026-11-22 부터 한 창 = 과거분 + 이번 달분 두 요청. 두 번째 호출은 둘 다 캐시다.
+    assert len(calls) == 2
 
 
 def test_different_window_fetches_again(tmp_path, monkeypatch):
@@ -46,7 +47,7 @@ def test_different_window_fetches_again(tmp_path, monkeypatch):
                         lambda *a, **k: (calls.append(1), _rows())[1])
     pb._fetch_daily_max(66.5, 68.0, dt.date(2016, 1, 1), dt.date(2026, 1, 1))
     pb._fetch_daily_max(70.2, -148.5, dt.date(2016, 1, 1), dt.date(2026, 1, 1))
-    assert len(calls) == 2
+    assert len(calls) == 4          # 지점이 다르면 두 구간 모두 새로 받는다(지점당 2)
 
 
 def test_corrupt_cache_falls_back_to_live_fetch(tmp_path, monkeypatch):
@@ -67,7 +68,7 @@ def test_entries_older_than_two_days_are_pruned(tmp_path, monkeypatch):
     monkeypatch.setattr(pb.requests, "get", lambda *a, **k: _rows())
     pb._fetch_daily_max(66.5, 68.0, dt.date(2016, 1, 1), dt.date(2026, 1, 1))
     payload = json.loads(cache.read_text(encoding="utf-8"))
-    assert "stale-key" not in payload and len(payload) == 1
+    assert "stale-key" not in payload and len(payload) == 2   # 과거분 + 이번 달분
 
 
 def test_cache_store_failure_does_not_kill_the_call(tmp_path, monkeypatch):
