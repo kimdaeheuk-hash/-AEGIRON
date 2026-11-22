@@ -87,10 +87,6 @@ DOMESTIC_THREAT_TERMS: dict[str, list[str]] = {
 }
 
 
-def searchable(pathogen: str | None) -> bool:
-    return bool(THREAT_SEARCH_TERMS.get(pathogen or ""))
-
-
 def _norm(text: str) -> str:
     return (text or "").strip().lower()
 

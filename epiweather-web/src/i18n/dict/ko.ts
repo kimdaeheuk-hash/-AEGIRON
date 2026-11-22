@@ -1,557 +1,489 @@
 import type { Dictionary } from '../types';
-import { pagesKo } from './pages.ko';
-import { extraKo } from './extra.ko';
 
-/**
- * 한국어 사전 — 기준 언어. 문구를 추가할 때는 여기부터 쓰고 en·fr에 옮긴다.
- *
- * ★ 절대 규칙 ★ 정확도·선행일수 주장을 쓰지 않는다.
- * "며칠 먼저 감지", "정확도 N%", "N건 적중"은 **검증된 트랙레코드가 없으므로**
- * 쓸 수 없다(재보험사 실사에서 즉시 드러난다). 대신 실측 가능한 것만 쓴다:
- * 인프라 규모, 공개 범위, 그리고 우리가 모르는 것.
- */
+// 2026-11-22 개편 사전 — 극지 → 헤임달 → 발할라. 지운 페이지 사전은 커밋 83406e4 에 있음.
 export const ko: Dictionary = {
-  pages: pagesKo,
-  extra: extraKo,
-
-  briefings: {
-    archiveTitle: '지난 브리핑',
-    count: '{n}건',
-    quietDay: '조용한 날',
-    openBrief: '읽기',
-    empty: '보관된 브리핑 없음',
-    error: '브리핑 불러오기 실패 · 시스템은 계속 가동 중',
-    backToList: '브리핑 목록',
-    summary: '요약',
-    segments: '구성',
-    ticker: '한 줄 속보',
-    disclosure: '고지',
-    notFound: '해당 날짜 브리핑 없음',
-    langNoticeTitle: '언어 안내',
-    langNoticeMismatch:
-      '요청 언어와 다른 언어로 생성된 브리핑 · 비은폐 위해 원본 그대로 표시',
+  "nav": {
+    "polar": "극지 감시",
+    "heimdall": "헤임달",
+    "valhalla": "발할라",
+    "methodology": "방법론",
+    "government": "기업·기관",
+    "developers": "개발자 · API",
+    "security": "보안",
+    "about": "회사 소개",
+    "contact": "문의",
+    "product": "제품",
+    "company": "회사",
+    "dashboard": "운영 화면",
+    "openMenu": "메뉴 열기",
+    "closeMenu": "메뉴 닫기",
+    "language": "언어"
   },
-
-  common: {
-    siteName: 'AEGIRON',
-    siteTagline: '감염병 조기경보 인텔리전스',
-    readMore: '자세히 보기',
-    backToHome: '홈으로',
-    lastUpdated: '마지막 갱신',
-    liveNow: '실시간 가동 중',
+  "footer": {
+    "tagline": "감지 → 식별 → 대응 판정.",
+    "product": "제품",
+    "company": "회사",
+    "legal": "법적 고지",
+    "privacy": "개인정보처리방침",
+    "terms": "이용약관",
+    "rights": "All rights reserved.",
+    "location": "대한민국 부산",
+    "disclaimer": "아이기론 = 조기감지 정확도 검증 트랙레코드 미보유 · 본 사이트 수치 = 운영 시스템 실측값, 예측 성능 주장 아님"
   },
-
-  nav: {
-    live: '실가동',
-    baikal: 'BAIKAL MOB',
-    record: '공개 예측 원장',
-    korea: '대한민국 관점',
-    security: '보안 · 데이터 거버넌스',
-    press: '미디어 키트',
-    pilot: '도입 방식',
-    developers: '개발자 · API',
-    diseases: '질병별 감시',
-    solNgo: '국제기구 · 인도지원',
-    solReinsurance: '재보험 · 보험',
-    solGovernment: '정부 · 공공보건',
-    engines: '엔진 카탈로그',
-    techSpec2: '기술 스펙 Ⅱ · 분석과 대응',
-    techSpec1: '기술 스펙 Ⅰ · 감시와 수집',
-    trust: '검증·데이터',
-    company: '회사',
-    platform: '플랫폼',
-    technology: '기술',
-    programs: '스페셜 프로그램',
-    methodology: '방법론',
-    transparency: '검증 체계',
-    dataSources: '데이터 소스',
-    solutions: '활용 분야',
-    briefings: '일일 브리핑',
-    dataShop: '데이터 상품',
-    about: '회사 소개',
-    contact: '문의',
-    dashboard: '라이브 대시보드',
-    openMenu: '메뉴 열기',
-    closeMenu: '메뉴 닫기',
-    language: '언어',
-  },
-
-  footer: {
-    tagline: '감염병이 국제 뉴스가 되기 전에.',
-    product: '제품',
-    company: '회사',
-    legal: '법적 고지',
-    privacy: '개인정보처리방침',
-    terms: '이용약관',
-    rights: 'All rights reserved.',
-    location: '대한민국 부산',
-    disclaimer:
-      '아이기론 = 조기감지 정확도 검증 트랙레코드 미보유 · 본 사이트 전 수치 = 시스템 규모 실측값, 예측 성능 주장 아님',
-  },
-
-  home: {
-    metaTitle: 'AEGIRON — 감염병 조기경보 · 예측 · 확산 시뮬레이션',
-    metaDescription:
-      '178개국 현지어 보도와 각국 공식 감시 자료에서 감염병 이상 신호를 판정하고, 경보마다 개입 시나리오를 산출하며, 모든 예측을 이후의 공식 선언과 대조해 스스로 채점하는 감염병 인텔리전스 시스템.',
-
-    heroLiveOk: '데이터 소스 {ok}/{total} 정상 수집 중',
-    heroLiveUnknown: '수집 상태 현재 확인 불가',
-    heroTitle: '경보를 넘어,\n[[예측]]과 [[시뮬레이션]]까지',
-    heroLead:
-      '178개국 현지어 보도·각국 공식 감시 자료 이상 신호 판정 · 경보 시점 개입 강도별 확산 시나리오 동시 산출 · 전 예측 이후 공식 선언 자동 대조 자가 채점·생성 시점 봉인',
-    heroPrimaryCta: '라이브 대시보드',
-    heroSecondaryCta: '기술 구조',
-    heroNoLogin: '가입·로그인 없이 즉시 접속',
-
-    stats: [
-      { value: '118', label: '알고리즘 모듈', note: '엔진 116 · 온톨로지(YGGDRASIL)·상태변화(BAIKAL MOB) 2' },
-      { value: '128', label: 'API 엔드포인트', note: '수집 · 분석 · 시뮬레이션 · 채점' },
-      { value: '2,263', label: '자동 시험', note: '전부 통과해야 운영에 반영' },
-      { value: '178', label: '감시 대상 국가', note: '52개 언어 현지 보도 · 매시 수집' },
+  "home": {
+    "metaTitle": "AEGIRON — 극지 감지 · 헤임달 식별 · 발할라 대응",
+    "metaDescription": "극지 영구동토 지역의 이상을 매시 감지하고(극지), 공개 유전체 계통 변화를 식별하고(헤임달), 국가 대응제가 그 위협을 덮는지 판정함(발할라). 국가 바이오안보 기관용.",
+    "eyebrow": "AEGIRON · 바이오 헬스",
+    "title": "병원체 유전체를 읽고\n대응 가능 여부까지 본다",
+    "lead": "공개 병원체 유전체 계통을 매시 추적하고, 제출된 서열의 방어적 이상 지표를 계산하며(헤임달), 그 위협에 쓸 백신·치료제가 있는지 판정함(발할라). 바이오·진단 기업과 국가 바이오안보 기관이 첫 고객임.",
+    "primaryCta": "운영 화면 보기",
+    "secondaryCta": "기업·기관 도입 검토",
+    "chainTitle": "세 고리",
+    "chainLead": "헤임달(식별)을 중심으로, 발할라(대응 판정)가 뒤를 받고, 극지(감지)는 미래 연구로 둠. 지금 실제로 도는 것만 적음.",
+    "stages": [
+      {
+        "code": "HEIMDALL",
+        "name": "헤임달",
+        "role": "식별",
+        "body": "공개 유전체 계통(Nextstrain)의 우세 계통 교체를 원장에 적고, 요청한 서열의 이상 지표를 계산함. 방어적 탐지 전용.",
+        "facts": [
+          "SARS-CoV-2 공개 빌드를 매시 확인 · 우세 계통 전이만 원장에 기록",
+          "서열 스크리닝(코돈 사용·CpG·엔트로피 등)은 요청 시 · API 키 필요",
+          "판정이 아니라 우선순위 — 서열 설계·합성 기능 없음"
+        ],
+        "href": "heimdall",
+        "linkLabel": "헤임달 구획 열기"
+      },
+      {
+        "code": "VALHALLA",
+        "name": "발할라",
+        "role": "대응 판정",
+        "body": "위협 목록마다 등록된 대응제(비축·승인 제품)가 덮는지, 변이 변화가 그 판정을 흔드는지를 하루 한 행씩 원장에 남김.",
+        "facts": [
+          "위협×비축×변이 대조 판정을 매일 원장에 기록",
+          "공개 자료(WHO 사전적격 백신·승인 제품·임상 등록) 기준 · 국가 비축 재고는 보지 않음",
+          "비축 항목을 등록하면 그 값으로 계산 · 미등록이면 예시 데이터임을 표시"
+        ],
+        "href": "valhalla",
+        "linkLabel": "발할라 구획 열기"
+      },
+      {
+        "code": "POLAR",
+        "name": "극지 감시",
+        "role": "감지",
+        "body": "영구동토가 녹는 지역은 오래 묻혀 있던 병원체(탄저 등)가 다시 드러날 수 있는 자리임. 8개 극지 지역의 기상과 현지어 보도를 매시 관찰함.",
+        "facts": [
+          "8개 지역(시베리아 야말·알래스카·캐나다 북극권·그린란드·스발바르·남극 반도 등) 매시 관찰",
+          "기온·해빙일수 = Open-Meteo 기상 관측값 · 평년 대비 편차 = 16년 재분석 기준 계산값",
+          "관찰 등급이지 경보 아님 — 못 읽은 시각은 판정 안 함으로 남김"
+        ],
+        "href": "polar",
+        "linkLabel": "극지 추이 보기"
+      }
     ],
-    statsAsOf: '2026-10-19 저장소·운영 로그 기준 실측',
-    introVideoLabel: '아이기론 소개 영상',
-    photo: {
-      src: '/media/photos/earth-eastern-hemisphere.jpg',
-      alt: '지구 동반구 — 아프리카·유럽·아시아(위성 합성 영상)',
-      caption: '지구 동반구(Blue Marble) · 위성 관측 합성 영상',
-      credit: 'NASA · 퍼블릭 도메인',
-      sourceUrl: 'https://commons.wikimedia.org/wiki/File:Blue_Marble_Eastern_Hemisphere.jpg',
-      position: 'center 45%',
+    "healthTitle": "수집 상태",
+    "healthOk": "세 층 소스 중 {ok}/{total} 정상(운영 서버 실측)",
+    "healthUnknown": "운영 서버 상태를 읽지 못함(판정 안 함)",
+    "notTitle": "하지 않는 것",
+    "notPoints": [
+      "전 세계 감염병 경보 · 국가 위험 순위 — 개편(2026-11)에서 뺌",
+      "발병·판정 정확도 주장 — 아직 검증된 트랙레코드 없음",
+      "병원체 서열 설계·합성·최적화 — 방어 전용, 하지 않음"
+    ]
+  },
+  "polar": {
+    "title": "극지 추이 (매시 저장분)",
+    "lead": "지역별 처음 저장값 → 최근값 · 기온(일최고 평균)·해빙일수는 기상 관측값, Δ(같은 달 10년 평균 대비)는 계산값 · 값이 바뀔 때만 기록이 늘어남",
+    "span": "저장 기간 약 {days}일 — 30일이 아직 차지 않았음(2026-11-15부터 저장)",
+    "undetermined": "그 시각에 못 읽은 기록 {n}건은 추이에서 뺌(판정 안 함)",
+    "cols": {
+      "region": "지역",
+      "first": "처음 저장값",
+      "latest": "최근값",
+      "change": "변화",
+      "records": "기록 수"
     },
-
-    galleryTitle: '신호가 생기는 곳',
-    galleryLead:
-      '아이기론 감시 대상 = 연구실 밖 세계 · 실험실·현장 대응·국제 항공망·하수·병상 — 감염병 신호 발생 현장 · 하단 전부 공개 자료(퍼블릭 도메인·자유 라이선스) · 아이기론 시설 아닌 감시 대상 사진',
-    gallery: [
-      {
-        src: '/media/photos/emergency-operations-center.jpg',
-        alt: '여러 화면이 걸린 긴급운영센터(EOC) 내부',
-        caption: '긴급운영센터(EOC) · 경보 → 사람 → 대응 연결 지점',
-        credit: '中華民國總統府 · CC BY 2.0',
-        sourceUrl: 'https://commons.wikimedia.org/wiki/File:Central_Emergency_Operation_Center_2024-10-31.jpg',
-      },
-      {
-        src: '/media/photos/ebola-field-response.jpg',
-        alt: '에볼라 대응 현장의 방호복을 입은 의료진',
-        caption: '에볼라 대응 현장(2014 서아프리카) · 현지어 보도 번역 이전 — 신호 최초 발생 현장',
-        credit: 'Sgt. 1st Class Nathan Hoskins, U.S. Army · 퍼블릭 도메인',
-        sourceUrl: 'https://commons.wikimedia.org/wiki/File:United_Assistance_141105-A-CH600-043.jpg',
-      },
-      {
-        src: '/media/photos/world-air-routes.jpg',
-        alt: '전 세계 항공 노선을 그린 세계 지도',
-        caption: '국제 항공망 · 확산 디지털 트윈 159개국 연결 1,671개 나라쌍 실제 모습',
-        credit: 'aomd88 · CC BY 1.0',
-        sourceUrl: 'https://commons.wikimedia.org/wiki/File:EK_emirates_2011_routes_world_map.jpg',
-      },
-      {
-        src: '/media/photos/dna-sequencer.jpg',
-        alt: '유전체 시퀀싱 장비',
-        caption: '유전체 시퀀서 · 변이 신호 = 확진자 수보다 서열에서 선행 노출',
-        credit: 'Scotted400 · CC BY 4.0',
-        sourceUrl: 'https://commons.wikimedia.org/wiki/File:Revolocity_DNA_sequencer.jpg',
-      },
-      {
-        src: '/media/photos/wastewater-plant.jpg',
-        alt: '하수 처리장 항공 사진',
-        caption: '하수 처리장 · 하수 감시 = 증상 발현 전 단계 병원체 신호 관측',
-        credit: 'Sdkb · CC BY-SA 4.0',
-        sourceUrl: 'https://commons.wikimedia.org/wiki/File:Blue_Plains_Advanced_Wastewater_Treatment_Plant_aerial_view,_2025.jpg',
-      },
-      {
-        src: '/media/photos/sars-cov-2-niaid.jpg',
-        alt: 'SARS-CoV-2 바이러스 입자 전자현미경 사진(채색)',
-        caption: 'SARS-CoV-2 바이러스 입자(채색) · 미국 NIAID 공개 자료',
-        credit: 'NIAID · CC BY 2.0',
-        sourceUrl: 'https://commons.wikimedia.org/wiki/File:Novel_Coronavirus_SARS-CoV-2_(49597020648).jpg',
-      },
-      {
-        src: '/media/photos/hospital-icu.jpg',
-        alt: '중환자실 병상',
-        caption: '중환자실 병상 · 개입 시나리오 추정 "병상 초과 일수" 발생 현장',
-        credit: 'Ismael Olea · CC BY 4.0',
-        sourceUrl: 'https://commons.wikimedia.org/wiki/File:20250808_Intensive_care_unit_bed.jpg',
-      },
-      {
-        src: '/media/photos/data-center.jpg',
-        alt: '데이터센터 서버실',
-        caption: '데이터센터 · 118개 모듈 매시간 연산 수행 현장',
-        credit: 'BalticServers.com · CC BY-SA 3.0',
-        sourceUrl: 'https://commons.wikimedia.org/wiki/File:BalticServers_data_center.jpg',
-      },
-      {
-        src: '/media/photos/arctic-permafrost.jpg',
-        alt: '영구동토가 녹아 생긴 북극의 융해 연못',
-        caption: '영구동토 해빙(북극) · 극지 영토 감시 대상 — 새 발병 여건 발생 지점',
-        credit: 'NPS Climate Change Response · 퍼블릭 도메인',
-        sourceUrl: 'https://commons.wikimedia.org/wiki/File:Permafrost_Thaw_(14413865677).jpg',
-      },
-    ],
-
-    engineTitle: '7개 엔진 시스템 — 엔진 구성',
-    engineLead:
-      '116개 모듈 중 핵심 {n}개를 7개 시스템(HUGINN · MIMIR · FORSETI · SKULD · HEIMDALL · VALHALLA · VAR)으로 편성해 표시함 · 엔진마다 실제 가동 방식(매시·매일·경보 시·요청 시)을 병기해 상시 가동과 호출 가동을 구분함 · 전체 116개 모듈은 엔진 카탈로그에 정리함',
-    engineModes: {
-      hourly: '매시 자동',
-      daily: '매일 자동',
-      onAlert: '경보 시 자동',
-      onRequest: '요청 시 실행',
-    },
-    engineCaveatLabel: '한계',
-    engineGroups: [
-      {
-        system: 'HUGINN',
-        engines: [
-          {
-            id: 'local_news',
-            name: '현지어 보도 감시',
-            body: '국가·언어별 뉴스 집계 감염병 어휘 밀도 측정 · 판정 애매 피드 언어모델 재분류 · 대상 = 영어 보도 이전 현지 첫 보도',
-            mode: 'hourly',
-          },
-          {
-            id: 'gai',
-            name: '6계층 이상도 지수',
-            body: '공식·비공식·행동·환경·동물·설명불가 6개 층 신호 — 각 기준선 대비 이상도 환산 × 출처 신뢰도 → 단일 지수 · 기준 = 절대량 아닌 해당 지표 평소 수준',
-            mode: 'hourly',
-          },
-          {
-            id: 'negative_space',
-            name: '보고 침묵 감시',
-            body: '활발하던 보고 채널의 기준선 절반 이하 급감 별도 관측 · 표적 = 보고 체계 붕괴의 확산 선행 사례(2014년 기니 에볼라) · 판정 기준 선언 지표만 대상',
-            mode: 'hourly',
-          },
-          {
-            id: 'unexplained',
-            name: '설명 불가 집단 발병',
-            body: '보도 추출 집단 발병 중 기존 질병 패턴 불일치 건 별도 집계 · 2019년 12월 우한 원인불명 폐렴 유형',
-            mode: 'hourly',
-          },
-          {
-            id: 'polar_signals',
-            name: '극지 영토 감시',
-            body: '북극·남극·27개 빙하 산맥 지역 기준선·추세 관찰 · 영구동토 해빙 노출 병원체·극지 조류인플루엔자 등 기후 변화 발 새 발병 여건 영토 단위 관측',
-            mode: 'hourly',
-            caveat: '경보 아닌 관찰 대상 · 극지 신호 ≠ 발병',
-          },
-          {
-            id: 'disaster_watch',
-            name: '재난 감시창',
-            body: '홍수·지진·태풍 후 수인성·매개체 감염병 고위험 기간 — 해당 국가 감시 문턱 하향 · 표적 = 재난~발병 간 시간',
-            mode: 'hourly',
-          },
-          {
-            id: 'comtrade_signals',
-            name: '의료물자 무역 감시',
-            body: 'UN Comtrade 기반 마스크·방호장비·진단키트 국가별 수입 급증 감지 · 공식 발표 선행 대비 행동 신호',
-            mode: 'daily',
-            caveat: '무역 신고 약 2개월 지연 — 실시간 지표 아님',
-          },
-        ],
-      },
-      {
-        system: 'MIMIR',
-        engines: [
-          {
-            id: 'nlp_extract',
-            name: '구조화 신호 추출',
-            body: '보도 본문을 질병·국가·확진·사망·신호 유형의 구조화 신호로 변환함 · 출처 신뢰도를 부여하고 확인되지 않은 값은 미검증으로 분리 저장함',
-            mode: 'daily',
-            caveat: '하루 1회(21:00 UTC) AI 슬롯에서 가동함 · 현재 외부 언어모델 경로를 사용함',
-          },
-          {
-            id: 'pdf_table_extract',
-            name: 'WHO 보고서 표 추출',
-            body: 'WHO 지역사무소 주간 상황보고서의 PDF 표를 행·열 구조로 복원하고 \'7일 신규\'·\'누적\'·\'의심\'·\'확진\'을 분리 집계함',
-            mode: 'daily',
-            caveat: '새 회차가 있을 때만 파싱함 — 보고서는 주 1회 발행됨',
-          },
-        ],
-      },
-      {
-        system: 'FORSETI',
-        engines: [
-          {
-            id: 'country_risk',
-            name: '국가 위험지수',
-            body: '원시 위험도(신호)에 국가 취약성(의료 인프라·인구밀도·공항 연결성)을 곱해 국가별 최종 위험도를 산출함 · 문턱을 넘으면 예측으로 기록함',
-            mode: 'hourly',
-            caveat: '발생 확률이 아닌 국가 간 상대 지표임',
-          },
-          {
-            id: 'alerts',
-            name: '경보 판정·피로 방지',
-            body: '등급(Critical·High·Medium·Low)과 등급별 일일 상한을 적용해 사람에게 보낼 경보만 선별함 · Critical·High는 텔레그램으로 즉시 전달함 · 판정하지 못한 계열은 내리지 않고 낡음 표시로 유지함',
-            mode: 'hourly',
-          },
-        ],
-      },
-      {
-        system: 'SKULD',
-        engines: [
-          {
-            id: 'forecast_engine',
-            name: '7·14일 추세 예보',
-            body: '지표별 시계열 선형회귀·지수평활 앙상블 7일·14일 외삽 → 일일 브리핑 반영',
-            mode: 'daily',
-            caveat: '측정 발병 수 아닌 신호 시계열 외삽',
-          },
-          {
-            id: 'digital_twin',
-            name: '국가 간 확산 시뮬레이션',
-            body: '메타개체군 SEIR 모델 — 노드 159개국 · 간선 = 항공 연결 1,671개 나라쌍 + 육로 국경 314개 · 기간 내 미도달 국가와 경로 미상 국가 구분 보고',
-            mode: 'onRequest',
-            caveat: '항공망 = 2014년 노선 데이터 · 육로 통행량 = 인구 기반 추정',
-          },
-          {
-            id: 'global_inflow',
-            name: '국내 유입 시점 추정',
-            body: '발원 도시 국제선 여객량·비행시간·초기 지수성장률 기반 국내 첫 유입 일수·입국 관문별 위험 추정',
-            mode: 'onRequest',
-            caveat: '모델 추정값 · 관측 유입일 아님',
-          },
-          {
-            id: 'alert_intervention',
-            name: '경보별 개입 시나리오',
-            body: '신규 critical·high 경보별 질병 파라미터 SEIR 방어 시뮬레이션 — 무대응 vs 개입 시나리오 차이 경보 동봉 · "무엇이 오는가" → "어떤 조치가 무엇을 바꾸는가"',
-            mode: 'onAlert',
-            caveat: '예보 아닌 문헌 파라미터 기반 모델 시나리오 · 질병 미특정 경보 숫자 미생성',
-          },
-          {
-            id: 'defense',
-            name: '시간가변 개입 비교',
-            body: '격리·거리두기·백신 접종 시작 시점·강도 조정 — 실효 재생산수·병상 초과 일수 변화 비교',
-            mode: 'onRequest',
-          },
-        ],
-      },
-      {
-        system: 'HEIMDALL',
-        engines: [
-          {
-            id: 'genomic_variants',
-            name: '계통 구성비 추적',
-            body: 'Nextstrain 공개 시퀀스 재분석 — 우세 계통 구성비 변화·신규 계통 출현 판독 · 확진자 수 선행 전파력·면역회피 변화 단서 · 갱신 정지 빌드 신호 미사용',
-            mode: 'hourly',
-          },
-          {
-            id: 'evo2_naturalness',
-            name: '서열 순서의 자연성 실측',
-            body: '유전체 파운데이션 모델 Evo2 — 서열 앞부분 입력 → 다음 염기 예측 → 실제 서열 일치율 측정 · 표적 = 조성 통계 미노출 이어붙임·재조합 구간',
-            mode: 'onRequest',
-            caveat: 'Evo2 진핵 숙주 바이러스 학습 제외 — 코로나·독감·에볼라 서열 미적용',
-          },
-          {
-            id: 'msa_homology',
-            name: '상동성 기반 키메라 탐지',
-            body: '단백질 서열 공개 상동성 데이터베이스 검색 — 질의 전체 커버 자연 단백질 존재 여부 확인 · 학습 모델 아닌 검색 — Evo2 미적용 병원체에도 사용 가능',
-            mode: 'onRequest',
-          },
-        ],
-      },
-      {
-        system: 'VALHALLA',
-        engines: [
-          {
-            id: 'valhalla_watch',
-            name: '대응제 준비태세 감시',
-            body: '국제 비축·규제 승인 제품·WHO 사전적격성·임상 파이프라인·국내 조달 공고를 집계해 위협별 커버리지와 생산 주권 격차를 산출함',
-            mode: 'hourly',
-            caveat: '조달·임상 조각은 각자 주기로 갱신됨 · 국가 비축량 등 비공개 정보는 다루지 않음',
-          },
-        ],
-      },
-      {
-        system: 'VAR',
-        engines: [
-          {
-            id: 'prediction_resolver',
-            name: '예측 자동 채점',
-            body: '기록 예측 × 이후 공식 선언 매일 대조 → 적중·실패·판정 보류 구분 · 조회수 급증·확진자 갱신 정답 미사용 — 자기 신호 자기 채점 순환 차단',
-            mode: 'daily',
-          },
-          {
-            id: 'lead_time_ledger',
-            name: '선행성 원장',
-            body: '신호 최초 관측 시각 공식 선언 이전 기록 · 선언 후 역산 선행일수 실측 불인정',
-            mode: 'hourly',
-          },
-          {
-            id: 'prediction_timestamp',
-            name: '예측 봉인',
-            body: '예측 기록 SHA-256 해시 OpenTimestamps 경유 비트코인 블록체인 고정 · 사후 수정 예측 아님 제3자 직접 검증 가능',
-            mode: 'hourly',
-          },
-          {
-            id: 'source_health',
-            name: '조용한 실패 감시',
-            body: '소스별 실제 값 유입 여부·값 생성 방식 무결성 매 주기 개별 집계 · 수집 실행·값 결측 소스 정상 집계 제외',
-            mode: 'hourly',
-          },
-        ],
-      },
-    ],
-
-    engineCatalogueCta: '엔진 카탈로그에서 116개 모듈의 역할을 전부 보기',
-
-    diffEyebrow: 'WHAT MAKES US DIFFERENT',
-    diffTitle: '다른 조기경보와 무엇이 다른가',
-    diffLead:
-      '감염병 조기경보 = 신규 영역 아님 · 선행 서비스 존재(블루닷·EIOS·메타바이오타) · 아이기론 차별점 = 탐지를 넘어 검증·대응·주권까지 단일 시스템 통합 · 과장 없이 구조만 기재',
-    diffItems: [
-      {
-        title: '탐지에서 끝나지 않는다',
-        body: '대부분 조기경보 = "어디서 무슨 일"에서 종료 · 아이기론 = 확산 시뮬레이션·개입 시나리오·대응제 준비태세 결합 → "그래서 무엇을 어느 강도로"까지 응답',
-      },
-      {
-        title: '우리 숫자를 우리가 채점한다',
-        body: '전 예측 생성 시점 봉인 · 공식 선언 매일 자동 대조 → 적중·실패 자가 기록 · 트랙레코드 = 주장 아닌 검증 가능 기록 축적 구조 — 희소',
-      },
-      {
-        title: '감시 공백 지역을 처음부터 포함',
-        body: '상업성 저하로 타 서비스 사각인 178개국·52개 언어 동일 기준 감시 · 아프리카·중앙아시아·태평양 도서국·극지 영토까지 감시 범위 포함',
-      },
-      {
-        title: '국가 바이오안보 축',
-        body: '방어적 유전체 스크리닝(HEIMDALL)·대응제 커버리지·생산 주권 분석(VALHALLA) = 상업 조기경보 서비스 부재의 국가 단위 축',
-      },
-      {
-        title: '전부 공개',
-        body: '시스템·방법론·데이터·한계 초기 전면 공개 · 고객 계약 때문에 전면 공개가 어려운 대형 서비스는 따라 하기 어려운 방식 · 실사 직접 검증 가능 신뢰 근거',
-      },
-    ],
-    futureTitle: '어디로 가는가',
-    futureLead: '현 시점 = 시작점 · 운영 축적 비례 강화 설계',
-    futureItems: [
-      {
-        title: '독자 추출 모델',
-        body: '현재 외부 API 신호 추출 · 추출 경로 단일 지점 전환 — 자체 모델(NVIDIA NIM 기반) 교체 배선 완료 · 민감 데이터 해외 API 미반출 구조 지향',
-      },
-      {
-        title: '데이터 해자',
-        body: '"실제 발병으로 이어진 신호" 매일 학습셋 조립 · 운영 지속 비례 학습셋 확대 — 휴리스틱 → 실측 학습 모델 교체 가능',
-      },
-      {
-        title: '봉인된 트랙레코드',
-        body: '봉인 예측 축적 → "선행 인지" 제3자 블록체인 검증 가능 실적 · 시간이 지날수록 검증 가능한 기록이 늘어남',
-      },
-      {
-        title: '현장 연결',
-        body: '다음 단계 = 실제 감시망·현장 조직 연결 — 신호 원천 근접 · 글로벌 조기경보 인프라 확장 경로',
-      },
-    ],
-
-    specialEyebrow: 'SPECIAL PROGRAMS',
-    specialTitle: '경쟁사에 없는 두 축 — HEIMDALL · VALHALLA',
-    specialLead: '감시 계층 대부분 공개 운영 · 성격 상이 2개 내부 R&D 프로그램 = 국가 바이오안보 축 · 능력 과장 없이 수행·비수행 범위만 기재',
-    specialCards: [
-      { code: 'HEIMDALL', name: '방어적 유전체 스크리닝', body: '서열의 자연 진화 통계 이탈 탐지·플래그 · 설계·합성 기능 없음 · 판정 아닌 검토 우선순위만 산출' },
-      { code: 'VALHALLA', name: '대응제 준비태세', body: '분자 예측 모사 없음 · 공개 자료 기반 비축 커버리지 격차·생산 주권 격차 집계 · 국가 비축량 등 비공개 정보 미취급' },
-    ],
-    specialCta: '스페셜 프로그램 보기',
-
-    openTitle: '검증 가능성을 위한 공개',
-    openLead:
-      '감염병 감시 최빈 실패 = 틀린 예측 아닌 검증 불가 예측 · 판단 근거 시스템·방법론·데이터·한계 초기 전면 개방',
-    openItems: [
-      {
-        title: '실시간 시스템',
-        body: '운영 중 수집·경보 데이터 대시보드 원본 표시 · 시뮬레이션 콘솔 가정값·모델 값 화면 명시',
-        href: '/dashboard',
-        linkLabel: '대시보드 열기',
-      },
-      {
-        title: '방법론',
-        body: '신호 수집 → 이상 판정 → 예측 생성 과정 4개 층 분해 설명 · 층별 준거 표준 병기',
-        href: '/methodology',
-        linkLabel: '방법론 보기',
-      },
-      {
-        title: '데이터 소스',
-        body: '운영 수집 소스 전수 나열 · 소스별 관측 사각·현재 정상 여부 병기',
-        href: '/data-sources',
-        linkLabel: '소스 목록 보기',
-      },
-      {
-        title: '검증과 한계',
-        body: '미검증 항목·알려진 한계·데이터 공백 기재 · 시스템 자가 수치 점검 방식 설명',
-        href: '/transparency',
-        linkLabel: '검증 현황 보기',
-      },
-    ],
-
-    honestTitle: '자체 수치 자가 선검증',
-    honestLead:
-      '조기경보 신뢰 = 주장 크기 아닌 검증 경로 · 미확보 항목·공백 보완 가동 장치 동시 공개',
-    honestPoints: [
-      '조기감지 성능 = **검증 가능 기록 전용 증명** · "며칠 선행 감지"류 서술 대신 봉인 예측 기록 대체',
-      '전 예측 **생성 시점 봉인** · 이후 공식 선언 매일 자동 대조 채점 · 트랙레코드 = 주장 아닌 본 기록 축적',
-      '시나리오 수치 = **모델 가정 하 추정** 표기 · 역사상 최대 발병 자동 대조 — 설명 범위 초과 시 경고 병기',
-      '데이터 공백 비은폐 · 결측 국가·기간·정지 소스 시스템 자가 보고',
-    ],
-    honestClose:
-      '발병 누락 시 "모델 누락"과 "데이터 부재 미관측" 구분 보고 · 혼재 시 원인 진단 역전',
-    honestCta: '검증 현황 전체 보기',
-
-    pipelineTitle: '신호가 경보가 되기까지',
-    pipelineLead: '5단계 처리 · 단계마다 무엇을 버리는지도 무엇을 쓰는지만큼 중요함',
-    pipelineSteps: [
-      {
-        step: '01',
-        title: '수집',
-        body: 'WHO 지역사무소·각국 보건당국 공식 자료·178개국 현지어 보도·학술 매체·하수 감시·유전체 계통 자료 매시간 수집',
-      },
-      {
-        step: '02',
-        title: '추출',
-        body: 'PDF 표·기사 본문 → 질병·국가·확진·사망 구조화 · 미판독 항목 추측 미채움·공란 유지',
-      },
-      {
-        step: '03',
-        title: '판정',
-        body: '이상도 = 절대량 아닌 지표별 평소 수준 대비 계산 · 동일 5건도 국가별 의미 상이',
-      },
-      {
-        step: '04',
-        title: '예측',
-        body: '전파 모델 기반 확산 경로·유입 위험 추정 · 전 값에 가정·한계 병기',
-      },
-      {
-        step: '05',
-        title: '대응',
-        body: '무대응 vs 개입 시나리오 비교 — 조치별·강도별 전파 차단 지점 제시',
-      },
-    ],
-
-    briefTitle: '오늘의 브리핑',
-    briefLead: '매일 자동 생성 · 조용한 날 = 조용함 기재',
-    briefCta: '지난 브리핑 보기',
-    briefEmpty: '금일 브리핑 미생성',
-    briefError: '브리핑 불러오기 실패 · 시스템은 계속 가동 중',
-
-    audienceTitle: '누구를 위한 것인가',
-    audienceLead: '동일 신호도 수용자별 필요 형태 상이',
-    audiences: [
-      {
-        title: '재보험 · 보험',
-        body: '국가별 노출 지수·포트폴리오 비교 · 절대 확률 아닌 상대 지표 — 응답 상시 명시',
-        href: '/solutions/reinsurance',
-      },
-      {
-        title: '정부 · 공공보건',
-        body: '유입 경로 추적·개입 시나리오 비교 · 방어 조치별 효과 모델 대조',
-        href: '/solutions/government',
-      },
-      {
-        title: '국제기구 · 인도지원',
-        body: '감시 취약 지역 조기 신호 · 상업성 저하 타 서비스 사각 국가 포함',
-        href: '/solutions/ngo',
-      },
-    ],
-
-    ctaTitle: '도입 검토 자료 전면 개방',
-    ctaBody:
-      '데모 예약 없이 시스템 전체 사전 검토 가능 · 파일럿·협력 논의 = 문의 페이지 접수',
-    ctaButton: '문의하기',
+    "empty": "아직 저장된 극지 값 없음",
+    "unavailable": "극지 이력을 읽지 못함(판정 안 함)",
+    "apiLabel": "원자료 API"
   },
+  "pages": {
+    "polar": {
+      "metaTitle": "극지 감시",
+      "metaDescription": "8개 극지 지역의 기온·해빙일수·평년 대비 편차를 매시 저장한 추이.",
+      "eyebrow": "POLAR · 감지",
+      "title": "극지 감시",
+      "lead": "영구동토 지역의 기상 이상을 매시 관찰·저장함 · 관찰 등급(경보 아님)",
+      "blocks": []
+    },
+    "about": {
+      "metaTitle": "회사 소개",
+      "metaDescription": "아이기론 — 병원체의 유전체를 읽어 위협을 먼저 식별하고, 맞설 수단이 이미 존재하는지까지 가려내는 바이오 헬스 기업.",
+      "eyebrow": "ABOUT",
+      "title": "아이기론",
+      "lead": "부산에서 시작한 1인 기술 기업입니다. 병원체의 유전체를 읽어 위협의 실체를 먼저 식별하고, 그 위협을 막아설 수단이 이미 세상에 존재하는지까지 가려내는 일 — 저희는 그 한 가지에 역량을 모읍니다. 바이오·진단 기업과 국가 바이오안보 기관을 첫 동반자로 맞이합니다.",
+      "blocks": [
+        {
+          "title": "왜 하나에 집중하는가",
+          "body": "2026년 11월까지 아이기론은 전 세계의 질병 신호를 폭넓게 수집했습니다. 그러나 다루는 범위가 넓어질수록 전문성은 옅어졌고, 외부의 평가도 이를 냉정하게 지적했습니다. 저희는 욕심을 덜어내기로 했습니다. 병원체 유전체 식별(헤임달)을 중심에 두고, 대응 수단의 유무를 가리는 판정(발할라)이 그 뒤를 받치며, 극지 감시는 미래를 위한 연구로 남겼습니다. 넓게 흩어진 백 가지보다, 깊게 파고든 한 가지가 더 멀리 간다고 믿습니다."
+        },
+        {
+          "title": "지키는 원칙",
+          "points": [
+            "**측정과 추정, 대리 지표를 결코 뒤섞지 않습니다.** 어떤 숫자가 관측에서 나왔고 어떤 숫자가 해석에서 나왔는지, 화면마다 분명히 밝힙니다.",
+            "**성공·실패·판정 안 함, 세 가지 상태를 지킵니다.** 보지 못한 것을 0이나 ‘정상’으로 꾸미지 않습니다.",
+            "**방어가 목적입니다.** 병원체를 설계하거나 합성하거나 더 위험하게 만드는 기능은 두지 않습니다."
+          ]
+        }
+      ],
+      "cta": {
+        "title": "도입과 협력을 환영합니다",
+        "body": "바이오·진단 기업, 연구 기관, 그리고 국가와 지자체의 바이오안보 기관 — 함께 검증하고자 하는 모든 분을 기다립니다.",
+        "label": "문의하기",
+        "href": "contact"
+      }
+    },
+    "methodology": {
+      "metaTitle": "방법론",
+      "metaDescription": "극지 관찰 점수, 헤임달 변이 원장, 발할라 대조 판정의 계산 방식과 한계.",
+      "eyebrow": "METHODOLOGY",
+      "title": "방법론",
+      "lead": "세 고리가 각각 무엇을 재고 무엇을 재지 않는지",
+      "blocks": [
+        {
+          "title": "극지 감시",
+          "kicker": "POLAR",
+          "tone": "sky",
+          "points": [
+            "기온(일최고 평균)·해빙일수 = Open-Meteo 관측값",
+            "평년 대비 편차 = 같은 달 16년 재분석 평균 대비 **계산값**",
+            "현지어(러·영·노) 보도 키워드 비율 = **대리값** · 확진 아님",
+            "관찰 점수는 등급이지 경보가 아님 · 기상 자료를 못 받은 시각은 판정 안 함"
+          ],
+          "note": "한계: 지역 8곳은 대표 지점 하나씩임 · 영구동토 해빙과 병원체 노출의 인과는 가설 수준"
+        },
+        {
+          "title": "헤임달",
+          "kicker": "HEIMDALL",
+          "tone": "violet",
+          "points": [
+            "Nextstrain 공개 빌드에서 최근 60일 우세 계통·구성비를 읽음",
+            "우세 계통이 바뀐 주기만 원장에 전이로 기록 · 자료가 없으면 기록하지 않음",
+            "서열 스크리닝 지표(CAI·CpG·엔트로피·국소 이상)는 **우선순위 신호**이지 판정이 아님"
+          ],
+          "note": "한계: 공개 시퀀스 제출 지연·편향을 그대로 받음"
+        },
+        {
+          "title": "발할라",
+          "kicker": "VALHALLA",
+          "tone": "forest",
+          "points": [
+            "위협마다 등록 대응제의 대상 병원체·선언 효능으로 덮음 여부를 판정",
+            "변이 원장의 플래그가 있으면 판정에 함께 적음",
+            "국가 비축 재고·변이별 효능은 공개 자료가 아니라 보지 않음"
+          ],
+          "note": "한계: 비축 항목이 등록되지 않으면 예시 데이터로 계산하며 그 사실을 응답에 표시"
+        }
+      ]
+    },
+    "government": {
+      "metaTitle": "정부·국가 바이오안보",
+      "metaDescription": "국가 바이오안보 기관을 위한 극지 감지·유전체 식별·대응제 판정.",
+      "eyebrow": "GOVERNMENT",
+      "title": "바이오·진단 기업과 국가 바이오안보 기관용",
+      "lead": "병원체 유전체를 읽고(헤임달), 그 위협에 쓸 대응제가 있는지(발할라)까지 한 화면에서 · 첫 고객으로 바이오·진단 기업과 국가 바이오안보 기관을 둠",
+      "blocks": [
+        {
+          "title": "기관이 얻는 것",
+          "items": [
+            {
+              "title": "극지 조기 관찰",
+              "body": "영구동토 지역 8곳의 기상 이상을 매시 관찰한 기록",
+              "meta": "극지"
+            },
+            {
+              "title": "계통 전이 원장",
+              "body": "공개 유전체에서 우세 계통이 바뀐 시점의 원장",
+              "meta": "헤임달"
+            },
+            {
+              "title": "대응제 공백 판정",
+              "body": "위협별로 등록 대응제가 덮는지 매일 한 행",
+              "meta": "발할라"
+            }
+          ]
+        },
+        {
+          "title": "도입 형태",
+          "points": [
+            "공개 API로 바로 검토 가능",
+            "기관 비축 목록을 등록하면 그 값으로 판정(키 필요)",
+            "민감 데이터는 외부 API로 보내지 않는 구성 가능"
+          ]
+        },
+        {
+          "title": "정직 고지",
+          "accent": true,
+          "points": [
+            "예측 정확도 트랙레코드 없음",
+            "관찰 등급은 경보가 아님 · 대응 결정은 기관의 판단"
+          ]
+        }
+      ],
+      "cta": {
+        "title": "파일럿 검토",
+        "body": "기관 검토용 자료와 시연을 제공함",
+        "label": "문의하기",
+        "href": "contact"
+      }
+    },
+    "security": {
+      "metaTitle": "보안과 데이터 거버넌스",
+      "metaDescription": "접근 통제, 고위험 프로그램 통제, 개인정보 원칙, 데이터 주권, 비밀 관리.",
+      "eyebrow": "SECURITY & GOVERNANCE",
+      "title": "보안과 데이터 거버넌스",
+      "lead": "변경 권한 · 민감 기능 통제 · 데이터 이동 경로 — 코드 구현 그대로 공개",
+      "blocks": [
+        {
+          "title": "접근 통제",
+          "kicker": "ACCESS CONTROL",
+          "tone": "indigo",
+          "specs": [
+            {
+              "label": "전체 API",
+              "value": "엔드포인트 13개"
+            },
+            {
+              "label": "인증 필요",
+              "value": "5개 — 상태 변경 · 고비용 · 고위험 기능"
+            },
+            {
+              "label": "인증 방식",
+              "value": "X-API-Key 헤더 · 다중 키(라벨별) · 상수 시간 비교"
+            },
+            {
+              "label": "키 미설정 시",
+              "value": "쓰기 API 전체 비활성(열린 상태 방치 없음)"
+            }
+          ]
+        },
+        {
+          "title": "고위험 프로그램 통제",
+          "kicker": "HEIMDALL · VALHALLA",
+          "tone": "violet",
+          "points": [
+            "서열 스크리닝·비축 등록은 인증 필수 · 전 호출 키 라벨별 사용 기록",
+            "HEIMDALL — **방어적 탐지 전용** · 서열 설계·합성·최적화·회피 기능 없음"
+          ]
+        },
+        {
+          "title": "개인정보 원칙",
+          "kicker": "PRIVACY",
+          "tone": "teal",
+          "points": [
+            "수집 대상 — 공개 기상·유전체·조달 자료 · 개인 환자 정보 미취급",
+            "웹사이트·운영 화면 — 로그인·광고·방문 추적 도구 없음"
+          ]
+        },
+        {
+          "title": "비밀 관리와 운영 무결성",
+          "kicker": "INTEGRITY",
+          "tone": "sky",
+          "items": [
+            {
+              "title": "비밀 관리",
+              "body": "API 키·자격증명 운영 환경 변수 전용 · 저장소·문서 기록 금지"
+            },
+            {
+              "title": "배포 관문",
+              "body": "자동 시험 365건 전부 통과 코드만 운영 반영"
+            },
+            {
+              "title": "조용한 실패 감시",
+              "body": "소스 건강 매 주기 기록 · 외부(GitHub Actions)에서 매시 생존 확인"
+            }
+          ]
+        }
+      ],
+      "cta": {
+        "title": "보안 심사 자료 요청",
+        "body": "기관 보안 검토용 구성·통제 설명 자료 제공",
+        "label": "문의하기",
+        "href": "contact"
+      }
+    },
+    "developers": {
+      "metaTitle": "개발자 · API",
+      "metaDescription": "아이기론 REST API — 엔드포인트 13개, JSON 응답, X-API-Key 인증, OpenAPI 문서.",
+      "eyebrow": "DEVELOPERS",
+      "title": "개발자 · API",
+      "lead": "운영 화면 전 수치의 단일 출처 = REST API",
+      "blocks": [
+        {
+          "title": "기본 정보",
+          "kicker": "BASICS",
+          "tone": "sky",
+          "specs": [
+            {
+              "label": "기본 주소",
+              "value": "https://epiweather-api-production.up.railway.app"
+            },
+            {
+              "label": "형식",
+              "value": "REST · JSON"
+            },
+            {
+              "label": "인증",
+              "value": "읽기 공개 · 쓰기/고위험 X-API-Key"
+            },
+            {
+              "label": "대화형 문서",
+              "value": "/docs (OpenAPI)"
+            }
+          ]
+        },
+        {
+          "title": "주요 엔드포인트",
+          "kicker": "QUICK START",
+          "tone": "teal",
+          "items": [
+            {
+              "title": "극지 감시",
+              "body": "8개 지역 관찰 점수·기준선·추세",
+              "meta": "GET /api/polar-watch"
+            },
+            {
+              "title": "극지 이력",
+              "body": "매시 저장한 관측값 시계열",
+              "meta": "GET /api/observations/history?layer=polar"
+            },
+            {
+              "title": "변이 원장",
+              "body": "공개 유전체 우세 계통 전이",
+              "meta": "GET /api/variant-ledger"
+            },
+            {
+              "title": "대조 원장",
+              "body": "위협×비축×변이 일일 판정",
+              "meta": "GET /api/valhalla/match-ledger"
+            },
+            {
+              "title": "운영 상태",
+              "body": "소스 건강·스케줄러·기준 스냅샷",
+              "meta": "GET /api/status"
+            }
+          ]
+        }
+      ],
+      "cta": {
+        "title": "연동 키 발급",
+        "body": "쓰기·고위험 기능 연동용 기관별 API 키 발급",
+        "label": "문의하기",
+        "href": "contact"
+      }
+    },
+    "contact": {
+      "metaTitle": "문의",
+      "metaDescription": "아이기론 연락 방법",
+      "eyebrow": "CONTACT",
+      "title": "문의",
+      "lead": "데모 예약 없이 시스템 전체 검토 가능 · 검토 후 질문·협력 제안 아래 연락처 접수",
+      "blocks": [
+        {
+          "title": "연락처",
+          "items": [
+            {
+              "title": "이메일",
+              "body": "kimdaeheuk@gmail.com",
+              "meta": "최속 경로"
+            },
+            {
+              "title": "위치",
+              "body": "대한민국 부산",
+              "meta": "KST (UTC+9)"
+            }
+          ]
+        },
+        {
+          "title": "특히 환영하는 연락",
+          "points": [
+            "**오류 지적** — 방법론·수치 오류 제보 · 확인 후 반영",
+            "**현장 조직 연결** — 실제 감시망 연결 경로 = 현 최우선 다음 단계",
+            "**파일럿 검토** — 재보험·정부·국제기구·현장 조직 전부 환영"
+          ]
+        }
+      ]
+    },
+    "privacy": {
+      "metaTitle": "개인정보처리방침",
+      "metaDescription": "아이기론 웹사이트 개인정보 처리 방침",
+      "eyebrow": "LEGAL",
+      "title": "개인정보처리방침",
+      "lead": "방문자 로그인 미요구 · 개인정보 미수집",
+      "blocks": [
+        {
+          "title": "미수집 항목",
+          "points": [
+            "회원가입·로그인 부재 — 계정 정보 미수집",
+            "광고·방문 분석 추적 도구 미사용",
+            "대시보드 열람 — 개인 식별 정보 불필요"
+          ]
+        },
+        {
+          "title": "외부 서비스",
+          "body": "홈 소개 영상 = YouTube 개인정보 보호 강화 모드 삽입 · 재생 시 YouTube 정책 적용 · 글꼴 = Google Fonts·jsDelivr 로드 — 해당 서비스 접속 기록(IP 주소 등) 잔류 가능"
+        },
+        {
+          "title": "문의 시",
+          "body": "이메일 연락 내용·주소 = 답변 목적 전용 사용 · 제3자 미제공"
+        },
+        {
+          "title": "변경",
+          "body": "방침 변경 시 본 페이지 갱신"
+        }
+      ]
+    },
+    "terms": {
+      "metaTitle": "이용약관",
+      "metaDescription": "아이기론 웹사이트·공개 데이터 이용 조건",
+      "eyebrow": "LEGAL",
+      "title": "이용약관",
+      "lead": "본 사이트·공개 대시보드 이용 적용 조건",
+      "blocks": [
+        {
+          "title": "제공 정보의 성격",
+          "accent": true,
+          "points": [
+            "본 사이트 정보 = **참고용** · 의료·보건·투자 판단 근거 미제공",
+            "예측·시나리오 수치 = **모델 가정 하 추정** · 실측값·보장 아님",
+            "본 정보 기반 판단 결과 책임 부담 없음"
+          ]
+        },
+        {
+          "title": "데이터 출처",
+          "body": "본 시스템 = WHO·CDC 등 공개 자료 수집·가공 · 원 자료 저작권·이용 조건 = 각 기관 귀속 · 가공 수치 원문 상이 가능 — 공식 인용 시 원 기관 자료 확인 필수"
+        },
+        {
+          "title": "가용성",
+          "body": "공개 대시보드 예고 없는 중단·변경 가능"
+        }
+      ]
+    }
+  },
+  "api": {
+    "tableTitle": "전체 엔드포인트",
+    "tableLead": "운영 API 전 엔드포인트 기능별 분류 · 자물쇠 = X-API-Key 필요",
+    "authYes": "키 필요",
+    "authNo": "공개",
+    "tags": {
+      "GAI": "극지 감시",
+      "후향 검증": "헤임달 · 변이 원장",
+      "Stage 0: 합성위협 탐지": "헤임달 · 합성위협 탐지·서열 스크리닝",
+      "Stage 8: 바이오방어": "발할라 · 대응제 판정",
+      "시스템": "시스템 · 운영 상태"
+    }
+  },
+  "common": {
+    "siteName": "AEGIRON"
+  }
 };

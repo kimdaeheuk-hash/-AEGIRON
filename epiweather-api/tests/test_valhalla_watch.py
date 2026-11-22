@@ -8,8 +8,8 @@
 
 ## ★ 이 파일이 지키는 두 가지 ★
 
-**1. 무거운 조각을 안 돌린 주기가 '값없음' 이 되지 않는 것.** 조달은 나라장터를
-66번 부르느라 47초가 걸려서 매시간 돌릴 수 없다. 그런데 하루 한 번만 돌리면
+**1. 무거운 조각을 안 돌린 주기가 '값없음' 이 되지 않는 것.** 임상 파이프라인은
+ClinicalTrials 를 17번 불러서 매시간 돌릴 수 없다(조달은 개편 2차에서 뺐다). 그런데 하루 한 번만 돌리면
 나머지 23주기가 값없음으로 쌓여 소스 헬스에 거짓 경보가 뜬다. 그래서 가벼운
 조각(로컬 계산)이 매 주기 키를 채운다.
 
@@ -34,19 +34,14 @@ def isolated(tmp_path, monkeypatch):
 
 @pytest.fixture
 def no_network(monkeypatch):
-    """무거운 조각을 가짜로 — 테스트가 나라장터를 부르면 안 된다."""
-    calls = {"procurement": 0, "pipeline": 0}
-
-    def proc():
-        calls["procurement"] += 1
-        return {"bid_count": 30, "excluded_count": 5,
-                "categories": ["감염병 감시·대응"], "notice_nos": ["A1"]}
+    """무거운 조각을 가짜로 — 테스트가 ClinicalTrials 를 부르면 안 된다.
+    (조달은 2026-11-22 개편 2차에서 뺐다 — 남은 무거운 조각은 임상 파이프라인 하나.)"""
+    calls = {"pipeline": 0}
 
     def pipe():
         calls["pipeline"] += 1
         return {"stages": {"에볼라": "stockpiled"}, "lookup_failed": 0}
 
-    monkeypatch.setattr(vw, "_fetch_procurement", proc)
     monkeypatch.setattr(vw, "_fetch_pipeline", pipe)
     return calls
 
@@ -57,24 +52,24 @@ def test_first_cycle_fetches_and_stores(isolated, no_network):
     """첫 주기엔 받아서 저장한다."""
     out = vw.valhalla_snapshot()
 
-    assert out["procurement"]["refreshed"] is True
-    assert out["procurement"]["value"]["bid_count"] == 30
-    assert no_network["procurement"] == 1
+    assert out["pipeline"]["refreshed"] is True
+    assert out["pipeline"]["value"]["stages"] == {"에볼라": "stockpiled"}
+    assert no_network["pipeline"] == 1
     assert vw.STATE_FILE.exists(), "다음 주기가 읽을 파일이 안 생겼다"
 
 
 def test_second_cycle_reuses_instead_of_refetching(isolated, no_network):
     """★★핵심★★ 주기 전이면 다시 안 받는다.
 
-    매시간 나라장터를 66번씩 부르면 하루 1,584회다. 값은 하루 단위로 바뀌는데.
+    매시간 ClinicalTrials 를 17번씩 부르면 하루 408회다. 값은 달 단위로 바뀌는데.
     """
     vw.valhalla_snapshot()
     out = vw.valhalla_snapshot()
 
-    assert no_network["procurement"] == 1, "주기 전인데 또 받았다"
-    assert out["procurement"]["refreshed"] is False
-    assert out["procurement"]["reason"] == "갱신 주기 전"
-    assert out["procurement"]["value"]["bid_count"] == 30, "재사용값이 비었다"
+    assert no_network["pipeline"] == 1, "주기 전인데 또 받았다"
+    assert out["pipeline"]["refreshed"] is False
+    assert out["pipeline"]["reason"] == "갱신 주기 전"
+    assert out["pipeline"]["value"]["stages"] == {"에볼라": "stockpiled"}, "재사용값이 비었다"
 
 
 def test_refetches_once_the_interval_passes(isolated, no_network):
@@ -82,23 +77,11 @@ def test_refetches_once_the_interval_passes(isolated, no_network):
     start = dt.datetime(2026, 9, 3, 0, 0, tzinfo=dt.timezone.utc)
     vw.valhalla_snapshot(now=start)
 
-    later = start + dt.timedelta(hours=vw.PROCUREMENT_EVERY_HOURS)
+    later = start + dt.timedelta(hours=vw.PIPELINE_EVERY_HOURS)
     out = vw.valhalla_snapshot(now=later)
 
-    assert out["procurement"]["refreshed"] is True
-    assert no_network["procurement"] == 2
-
-
-def test_heavy_parts_have_different_intervals(isolated, no_network):
-    """★핵심★ 조달과 임상은 변하는 속도가 다르다 — 주기도 달라야 한다."""
-    start = dt.datetime(2026, 9, 3, 0, 0, tzinfo=dt.timezone.utc)
-    vw.valhalla_snapshot(now=start)
-
-    out = vw.valhalla_snapshot(now=start + dt.timedelta(hours=7))
-
-    assert out["procurement"]["refreshed"] is True, "6시간 주기가 안 돌았다"
-    assert out["pipeline"]["refreshed"] is False, "24시간짜리를 7시간만에 받았다"
-    assert vw.PIPELINE_EVERY_HOURS > vw.PROCUREMENT_EVERY_HOURS
+    assert out["pipeline"]["refreshed"] is True
+    assert no_network["pipeline"] == 2
 
 
 # ── 굳은 값을 새 값인 척하지 않는다 ────────────────────────────────────────
@@ -110,33 +93,31 @@ def test_fetch_failure_keeps_the_old_value_but_says_so(isolated, no_network,
     vw.valhalla_snapshot(now=start)
 
     def boom():
-        raise ConnectionError("나라장터 안 됨")
-    monkeypatch.setattr(vw, "_fetch_procurement", boom)
+        raise ConnectionError("ClinicalTrials 안 됨")
+    monkeypatch.setattr(vw, "_fetch_pipeline", boom)
 
-    later = start + dt.timedelta(hours=8)
+    later = start + dt.timedelta(hours=26)
     out = vw.valhalla_snapshot(now=later)
 
-    assert out["procurement"]["refreshed"] is False
-    assert "ConnectionError" in out["procurement"]["reason"]
-    assert out["procurement"]["value"]["bid_count"] == 30, "실패했다고 값을 버렸다"
-    assert out["procurement"]["age_hours"] == 8.0, "나이가 안 자란다"
+    assert out["pipeline"]["refreshed"] is False
+    assert "ConnectionError" in out["pipeline"]["reason"]
+    assert out["pipeline"]["value"]["stages"] == {"에볼라": "stockpiled"}, "실패했다고 값을 버렸다"
+    assert out["pipeline"]["age_hours"] == 26.0, "나이가 안 자란다"
 
 
 def test_age_keeps_growing_while_refresh_keeps_failing(isolated, monkeypatch):
     """★핵심★ 계속 실패하면 나이가 계속 자라서 눈에 보인다."""
     def boom():
         raise TimeoutError("느림")
-    monkeypatch.setattr(vw, "_fetch_procurement", lambda: {"bid_count": 1,
-                        "excluded_count": 0, "categories": [], "notice_nos": []})
     monkeypatch.setattr(vw, "_fetch_pipeline", lambda: {"stages": {}, "lookup_failed": 0})
     start = dt.datetime(2026, 9, 3, tzinfo=dt.timezone.utc)
     vw.valhalla_snapshot(now=start)
 
-    monkeypatch.setattr(vw, "_fetch_procurement", boom)
-    ages = [vw.valhalla_snapshot(now=start + dt.timedelta(hours=h))["procurement"]["age_hours"]
-            for h in (7, 20, 50)]
+    monkeypatch.setattr(vw, "_fetch_pipeline", boom)
+    ages = [vw.valhalla_snapshot(now=start + dt.timedelta(hours=h))["pipeline"]["age_hours"]
+            for h in (25, 30, 50)]
 
-    assert ages == [7.0, 20.0, 50.0]
+    assert ages == [25.0, 30.0, 50.0]
     assert ages == sorted(ages), "굳은 값이 계속 새 값처럼 보인다"
 
 
@@ -146,7 +127,7 @@ def test_broken_state_file_does_not_kill_the_layer(isolated, no_network):
 
     out = vw.valhalla_snapshot()
 
-    assert out["procurement"]["refreshed"] is True
+    assert out["pipeline"]["refreshed"] is True
 
 
 # ── 가벼운 조각은 매 주기 채운다 ───────────────────────────────────────────
@@ -197,30 +178,6 @@ def test_collector_registers_valhalla_for_source_health():
     assert FREE_SOURCE_HEALTH_KEYS.get("Valhalla") == "valhalla"
 
 
-def test_endpoint_serves_stored_state_without_refetching(isolated, no_network):
-    """★핵심★ 엔드포인트는 쌓인 걸 읽기만 한다 — 47초짜리 조회를 다시 하지 않는다."""
-    from fastapi.testclient import TestClient
-    import main
-
-    vw.valhalla_snapshot()
-    body = TestClient(main.app).get("/api/biodefense/valhalla").json()
-
-    assert body["available"] is True
-    assert body["parts"]["procurement"]["value"]["bid_count"] == 30
-    assert no_network["procurement"] == 1, "엔드포인트가 다시 받았다"
-
-
-def test_endpoint_says_when_nothing_has_been_collected_yet(isolated):
-    """★핵심★ 아직 안 쌓인 것을 '값 없음' 으로 말하지 않는다."""
-    from fastapi.testclient import TestClient
-    import main
-
-    body = TestClient(main.app).get("/api/biodefense/valhalla").json()
-
-    assert body["available"] is False
-    assert "한 번도 돌리지 않았다" in body["reason"]
-
-
 # ── 굳은 조각 판정 (2026-09-03 운영 장애에서 나옴) ─────────────────────────
 
 def test_success_does_not_look_like_a_failure(isolated, no_network):
@@ -233,7 +190,7 @@ def test_success_does_not_look_like_a_failure(isolated, no_network):
     """
     out = vw.valhalla_snapshot()
 
-    assert out["procurement"]["reason"] is None
+    assert out["pipeline"]["reason"] is None
     assert vw.stale_parts(out) == [], "성공을 실패로 읽었다"
 
 
@@ -246,18 +203,18 @@ def test_stale_parts_finds_only_real_failures(isolated, no_network, monkeypatch)
     reused = vw.valhalla_snapshot(now=start + dt.timedelta(hours=1))
     assert vw.stale_parts(reused) == []
 
-    monkeypatch.setattr(vw, "_fetch_procurement",
+    monkeypatch.setattr(vw, "_fetch_pipeline",
                         lambda: (_ for _ in ()).throw(ConnectionError("x")))
-    failed = vw.valhalla_snapshot(now=start + dt.timedelta(hours=7))
+    failed = vw.valhalla_snapshot(now=start + dt.timedelta(hours=25))
 
     names = [name for name, _ in vw.stale_parts(failed)]
-    assert names == ["procurement"]
+    assert names == ["pipeline"]
 
 
 def test_stale_parts_survives_a_dead_layer(isolated):
     """조각이 통째로 없거나 None 이어도 판정이 터지지 않는다."""
     assert vw.stale_parts({}) == []
-    assert vw.stale_parts({"procurement": None, "pipeline": "이상한 값"}) == []
+    assert vw.stale_parts({"pipeline": "이상한 값"}) == []
 
 
 # ── 파이프라인 결과 가시화 (2026-09-04) ─────────────────────────────

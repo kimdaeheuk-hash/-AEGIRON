@@ -94,10 +94,6 @@ def test_search_failure_does_not_raise(monkeypatch):
 
 
 # ── 염기서열 → 단백질 변환 ────────────────────────────────────────
-def test_translate_stops_at_stop_codon():
-    assert mh._translate("ATGGCTTAAATGGCT") == "MA"      # TAA에서 중단
-
-
 def test_protein_from_nucleotide_translates_complete_orf():
     """반복서열은 역상보 가닥에도 무정지 구간이 생기므로 길이를 정확히 못 박지
     않는다 — 6프레임 중 '가장 긴' 것을 고른다는 계약만 검증한다."""

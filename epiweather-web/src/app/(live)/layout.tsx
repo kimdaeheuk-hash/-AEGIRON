@@ -16,15 +16,15 @@ import { SITE_URL } from '@/i18n/config';
  */
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: 'AEGIRON · 라이브 대시보드',
+  title: 'AEGIRON · 운영 화면',
   description:
-    '아이기론이 지금 이 순간 받고 있는 감염병 신호를 그대로 보여주는 실시간 화면입니다. 로그인 없이 열립니다.',
+    '극지 감시 · 헤임달 · 발할라 — 세 고리의 실측 값을 한 화면에서 봄. 로그인 없이 열림.',
   alternates: { canonical: `${SITE_URL}/dashboard` },
   openGraph: {
     type: 'website',
     siteName: 'AEGIRON',
-    title: 'AEGIRON · 라이브 대시보드',
-    description: '로그인 없이 열리는 실시간 감염병 신호 화면.',
+    title: 'AEGIRON · 운영 화면',
+    description: '극지 감시 · 헤임달 · 발할라 실측 화면. 로그인 없음.',
     url: `${SITE_URL}/dashboard`,
   },
   robots: { index: true, follow: true },

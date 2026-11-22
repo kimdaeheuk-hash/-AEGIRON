@@ -1,39 +1,33 @@
 ---
 name: backend-conventions
-description: epiweather-api 코드 규약 — 파일 구조, 스케줄러 시각, 라우트/DB 추가법, 로그 규칙, 신호 카테고리와 신뢰도. 백엔드 코드를 쓰거나 고칠 때 읽는다.
+description: epiweather-api 코드 규약 — 파일 구조, 스케줄러, 라우트/DB 추가법, 로그 규칙. 백엔드 코드를 쓰거나 고칠 때 읽는다.
 ---
 
 # backend-conventions
 
+2026-11-22 개편 뒤 남은 층은 셋이다 — **극지(감지) → 헤임달(식별) → 발할라(대응 판정).** 나머지는 지웠다
+(복원 기준 커밋 `83406e4`: `git checkout 83406e4 -- <경로>`). 범위를 넓히는 변경은 캡틴 지시가 있을 때만.
+
 ## 구조
 
-- `main.py` — FastAPI 라우트(약 120개) + **스케줄러**(`asyncio` 루프). 라우트는 얇게, 계산은 `algorithms/` 로.
-- `collector.py` — 소스 수집(`collect_free_sources`, `collect_ai_sources`)과 `log()`/`log_error()`.
-- `algorithms/` — 순수에 가깝게 쓴다: 입력을 받아 dict 를 돌려준다. DB 는 `db` 모듈로만.
-- `db.py` — SQLite(`data/epiweather.db`). 테스트는 `isolated_db` 픽스처로 임시 DB 를 쓴다.
-- `data/` — 운영 상태 파일. **테스트가 여기에 쓰면 안 된다**(능력 장부가 가짜 성공을 적은 적이 있다 — `conftest.py` 참고).
+- `main.py` — FastAPI 라우트(13개 · 인증 5개) + **스케줄러**(`asyncio` 루프). 라우트는 얇게, 계산은 `algorithms/` 로.
+- `collector.py` — `collect_free_sources()` 가 극지 → 헤임달(변이·대조 원장) → 발할라 → 소스 건강 순으로 돈다. `log()`/`log_error()`.
+- `algorithms/` — 입력을 받아 dict 를 돌려준다. DB 는 `db` 모듈로만.
+- `db.py` — SQLite(`data/epiweather.db`). 남은 표: `variant_ledger` · `match_ledger` · `countermeasure_stockpile` · `observations` · `api_key_usage`.
+  운영 DB 에는 옛 표가 남아 있지만 읽지도 쓰지도 않는다. 표를 바꾸면 `SCHEMA_VERSION` 을 올린다(안 올리면 운영 DB 에 안 생긴다).
+- `data/` — 운영 상태 파일. **테스트가 여기에 쓰면 안 된다**(`conftest.py`).
 
 ## 스케줄 (UTC)
 
-- 무료 소스: 매시간. 경보 주기(`_run_alert_cycle`): 매시간.
-- AI 갭필링(유료): `_AI_HOUR_UTC = 21`. 이 슬롯에 `📌 정답 적재`(와 `예측 자동 채점`)가 찍힌다.
-  **`📋 예측 기록` 은 이 슬롯이 아니라 매 시간 수집 주기에서 돈다** — 새로 기록할 국가가 있는 주기에만 `📋` 줄이 나오고,
-  없으면 `예측 기록: 새로 기록할 주의 이상 국가 없음` 이다(2026-10-03 에 21~22시만 보다가 20:01 의 기록을 놓쳤다).
-- 일일 브리핑: `_DAILY_BRIEF_HOUR_UTC = 22`.
-- **배포는 컨테이너를 죽인다** — 틱 직전에 배포되면 그 슬롯이 통째로 빠진다(2026-08-22). 빠진 것과 못 본 것을 구분해 적는다.
-
-## 신호와 신뢰도
-
-`trusted_score = raw_score × trust` (`algorithms/trust.py` 의 `SOURCE_TRUST`).
-who 1.00 · cdc 0.95 · government/behavioral_api/document_extracted 0.90 · academic 0.85 ·
-document_extracted_unverified 0.70 · ai_extracted 0.65 · prediction_market 0.35 · unknown 0.10.
-**새 카테고리를 만들기 전에 이 표에서 고른다.** 낮춘 이유·높인 이유가 코드 주석에 있다 — 지우지 않는다.
+- 수집: 매시간(`_run_collection`) — 끝나면 극지 관측값을 `observations` 에 저장(`_store_observations`).
+- 주간 작업: 기준 스냅샷 갱신(`reference_snapshots.refresh_due`), 7일마다.
+- **배포는 컨테이너를 죽인다** — 틱 직전에 배포되면 그 슬롯이 빠진다. 빠진 것과 못 본 것을 구분해 적는다.
 
 ## 규칙
 
-- **`log()` 만 쓴다.** `print` 를 직접 쓰지 않는다. 예외는 `log_error(context, e)` — 파일에만 남기지 않는다(2026-08-13).
-- 문자열로 숫자를 읽을 때 쉼표를 처리한다(`int("1,296")` 가 나흘간 국내 데이터를 비웠다).
-- 여러 조각을 더하는 지표는 `signal_metrics.sum_if_complete()` — 조각이 하나라도 빠지면 `None`(판정 안 함).
-- 새 라우트: `main.py` 에 추가하고 시험은 `TestClient` 로. 인증이 필요한 라우트는 기존 `Depends` 를 따른다.
-- 새 값을 화면·알림으로 내보낼 때는 **`honesty-review`** 를 먼저 거친다.
+- **`log()` 만 쓴다.** 예외는 `log_error(context, e)`.
+- 실패는 `None`(판정 안 함)이지 `0` 이 아니다. 여러 조각을 더하면 하나라도 빠졌을 때 `None`.
+- 새 라우트: `main.py` 에 추가하고 시험은 `TestClient` 로. 인증이 필요한 라우트는 `dependencies=_auth`.
+  라우트를 바꾸면 웹의 `epiweather-web/src/data/api-endpoints.json` 도 다시 뽑는다.
+- 새 값을 화면으로 내보낼 때는 **`honesty-review`** 를 먼저 거친다.
 - 함수를 만들었으면 **누가 부르는지** 확인한다. 만들어만 두고 아무도 안 부르는 층이 이 저장소의 반복 결함이다.

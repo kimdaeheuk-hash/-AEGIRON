@@ -143,7 +143,7 @@ def test_the_production_block_decides_before_it_prints():
     """
     import inspect
     src = inspect.getsource(collector.collect_free_sources)
-    block = src[src.index("극지 관찰층"):src.index("현지어 위키 신호")]
+    block = src[src.index("극지 관찰층"):src.index("헤임달: 공개 시퀀스")]
     code = "\n".join(l for l in block.splitlines() if not l.lstrip().startswith("#"))
 
     # 판정이 서식보다 **먼저** 온다

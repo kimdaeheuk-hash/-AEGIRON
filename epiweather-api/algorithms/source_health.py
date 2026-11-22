@@ -30,10 +30,6 @@ FAILING_STREAK = 3
 # 마지막 성공이 이 시간(h)을 넘으면 "stale"(신선하지 않음). 무료 소스가
 # 1시간 주기 수집이므로 넉넉히 6시간(6회 연속 놓침) 기준.
 STALE_HOURS = 6.0
-# 아직 죽어있는 소스를 다시 알리는 주기(h). 한 번 울리고 마는 알림은 스크롤에
-# 묻혀 사라진다 — 2026-08-13 KDCA 장애 때 실제로 3회째에 딱 한 번 울리고
-# 그 뒤 90회 실패는 완전히 침묵해서, 나흘간 국내 데이터 공백을 아무도 몰랐다.
-RENOTIFY_HOURS = 24.0
 
 # 값없음(no_data)이 이만큼 이어지면 "아는 조건"이 아니라 **그냥 죽은 것**으로 본다.
 # no_data 는 원래 경보에서 뺐다 — 위키 404 지연·OpenSky 차단처럼 정상이거나
@@ -63,55 +59,17 @@ NO_DATA_ALARM_HOURS = 72.0
 FLAKY_WINDOW = 24          # 시간당 1주기 → 하루치
 FLAKY_SUCCESS_RATE = 0.5   # 하루의 절반도 성공 못 하면 그건 살아있는 게 아니다
 # ★ 회복 중 (2026-10-19) ★ 24주기 창은 회복도 하루 늦게 본다. Wikipedia_Ebola 가 12시부터
-# 매시간 성공했는데 13:01 로그·텔레그램이 `소스 중단 … 1시간째 데이터 없음 (연속 실패 0회)` 이라고
+# 매시간 성공했는데 13:01 로그가 `소스 중단 … 1시간째 데이터 없음 (연속 실패 0회)` 이라고
 # 했다 — 관측보다 많이 주장했다. 창 성공률은 아직 낮아도 최근 RECOVERY_STREAK 주기가 연속
 # 성공이면 '회복 중'으로 따로 둔다: 이상 목록·재통보에서 빼고, 정상으로도 세지 않는다.
 RECOVERY_STREAK = 3
 # 창이 다 차기 전에는 판정하지 않는다 — 배포 직후 몇 주기로 울리면 거짓 경보가 된다.
 
-# ── 추적에서 정식으로 제외한 소스 ──────────────────────────────────
-# {소스이름: 뺀 이유}. 여기 있는 소스는 record_cycle 이 기록하지 않고, 리포트의
-# 집계(healthy_count·total_tracked)와 경보에서 빠진다.
-#
-# ★ 숨기는 게 아니다 ★ `retired_sources` 로 이유와 함께 /api/status 에 그대로
-# 실린다. 이 시스템에서 가장 위험한 건 "조용히 사라진 것" 이므로, 뺀 것은 뺐다고
-# 보이게 둔다. 되살리려면 아래에서 한 줄을 지우면 된다 — 코드는 그대로 있다.
-#
-# ⚠️ 왜 이 장치가 필요한가(안 만들고 그냥 지웠을 때의 함정):
-# total_tracked 는 FREE_SOURCE_HEALTH_KEYS 가 아니라 **source_health.json 파일의
-# 항목 수**다(`len(sources)`). 그 파일은 Railway 볼륨에 있어 배포해도 남는다.
-# 그래서 수집 맵에서 이름만 지우면 record_cycle 이 갱신을 멈추고 **last_success_at
-# 이 영원히 멈춘 채 staleness_hours 만 계속 증가한다** → long_no_data 경보가
-# 영영 울리는데 회복될 수조차 없다. 지금보다 나빠진다.
-RETIRED_SOURCES: dict[str, str] = {
-    "GroqWatch": (
-        "2026-09-01 — NewsWatch 로 교대. 최근 24주기 성공률 0.0%, 마지막 성공은 "
-        "2026-08-30 03:00 이었다. 원인은 2026-08-28 에 규명됐고 우리 손 밖이다: "
-        "프롬프트 3,831~4,993 토큰 중 우리 지시문은 150 남짓이고 나머지 96% 는 "
-        "compound-mini 가 서버 쪽에서 붙이는 검색결과라, 질의 축소·재시도·주기 "
-        "조정이 전부 실패했다(주입량이 통제 밖). "
-        "★ 게다가 죽은 채로 살아있는 소스의 예산을 먹고 있었다 ★ NewsWatch 가 "
-        "같은 GROQ_API_KEY 로 도는데(Cerebras 쿼터 소진), GroqWatch 가 매시간 "
-        "4,000 토큰씩 분당 한도 8,000 에서 태우고 실패했다. 그래서 추적에서 빼는 "
-        "데 그치지 않고 호출 자체를 막는다(collector 가 is_retired 를 본다). "
-        "대체한 NewsWatch 는 같은 기간 16주기 연속 성공, 토큰 1,031~1,766 이고 "
-        "무엇보다 검색과 요약을 분리해 **주입량을 우리가 통제한다**. "
-        "되살리려면 이 줄을 지워라 — 코드는 그대로 있고 /api/groq-watch 도 산다."
-    ),
-    "Mobility": (
-        "2026-08-28 — Railway(SFO)에서 OpenSky 로 TCP 연결이 성립하지 않는다. "
-        "연결 타임아웃을 3초→10초로 올려도 동일하게 ConnectTimeout 이 났다"
-        "(auth.opensky-network.org:443). 403 이 아니라 무응답이므로 정책적 "
-        "IP 차단이 아니라 경로/방화벽 문제이고, 우리 쪽에서 고칠 수 없다. "
-        "2026-08-17부터 257시간(10.7일) 무응답. 되살리려면 서비스 리전을 "
-        "옮기거나 Railway 아웃바운드가 뚫린 뒤 이 줄을 지워라. "
-        "확인 방법은 /api/mobility 를 직접 부르는 것 — 엔드포인트는 살려뒀다."
-    ),
-}
-
-
-def is_retired(source: str) -> bool:
-    return source in RETIRED_SOURCES
+# ── 추적 대상 = 이번 주기에 collector 가 넘긴 소스뿐 (2026-11-22 개편) ──
+# source_health.json 은 Railway 볼륨에 남아 배포해도 옛 항목이 살아 있다. 수집 맵에서
+# 이름만 지우면 갱신이 멈춘 옛 항목의 staleness 만 늘어 long_no_data 가 영영 울린다.
+# 그래서 record_cycle 이 맵에 없는 항목을 파일에서 지운다 — 뺀 소스 목록을 따로
+# 들고 다닐 필요가 없다(옛 RETIRED_SOURCES 는 복원 기준 커밋 83406e4 에 있다).
 
 
 def _now() -> dt.datetime:
@@ -227,12 +185,9 @@ def record_cycle(result: dict, source_key_map: dict[str, str]) -> list[str]:
     가장 위험한 종류의 거짓말이다.
     """
     no_data_keys = set(result.get("_no_data_keys") or ())
+    _prune_untracked(set(source_key_map))
     newly_failing = []
     for source, key in source_key_map.items():
-        if is_retired(source):
-            # 추적에서 뺀 소스는 기록하지 않는다 — 기록하면 값이 안 오는 게
-            # 당연한데도 실패/값없음으로 계속 쌓여 경보가 울린다.
-            continue
         value = result.get(key)
         if key in no_data_keys:
             # collector가 '정상인데 값 없음'이라고 명시한 것(위키 404 지연 등)
@@ -248,6 +203,16 @@ def record_cycle(result: dict, source_key_map: dict[str, str]) -> list[str]:
         else:
             record_source_result(source, ok=True)
     return newly_failing
+
+
+def _prune_untracked(tracked: set[str]) -> None:
+    """맵에 없는 옛 소스 항목을 상태 파일에서 지운다(위 '추적 대상' 주석)."""
+    data = _load_raw()
+    stale = [s for s in data if s not in tracked]
+    if stale:
+        for s in stale:
+            data.pop(s, None)
+        _save_raw(data)
 
 
 def _is_empty(value) -> bool:
@@ -306,10 +271,6 @@ def source_health_report() -> dict:
     flaky = []
     recovering = []
     for source, entry in sorted(data.items()):
-        if is_retired(source):
-            # 집계·경보에서 뺀다. 파일에 남은 옛 항목이 여기로 새어 들어오면
-            # staleness 만 계속 늘어 영영 울린다(위 RETIRED_SOURCES 주석 참고).
-            continue
         status, staleness = _status_for(entry)
         rate, samples = _recent_success_rate(entry)
         row = {
@@ -363,12 +324,6 @@ def source_health_report() -> dict:
         "flaky_sources": flaky,
         # ★ 회복 중 ★ 창 성공률은 아직 낮지만 최근 RECOVERY_STREAK 주기 연속 성공.
         "recovering_sources": recovering,
-        # ★ 추적에서 뺀 소스 — 숨기지 않고 이유와 함께 드러낸다 ★
-        # 집계에는 안 들어가지만 목록에는 남는다. 조용히 사라진 소스가 이
-        # 시스템에서 가장 위험한 실패 방식이라, 뺀 것도 보이게 둔다.
-        "retired_sources": [
-            {"source": s, "reason": r} for s, r in sorted(RETIRED_SOURCES.items())
-        ],
         "collector_silent_hours": collector_silent_hours(),
         "healthy_count": sum(1 for s in sources if s["status"] == "ok"),
         "total_tracked": len(sources),
@@ -381,13 +336,6 @@ def source_health_report() -> dict:
     }
 
 
-# ── 지속 통보 (㉔-b) ────────────────────────────────────────────────
-# record_cycle의 newly_failing은 '경계를 넘는 순간' 딱 1회만 잡는다. 그건 중복
-# 알림을 막으려던 의도였지만, 실제로는 반대 방향으로 실패했다 — 소스가 나흘을
-# 죽어 있어도 알림은 나흘 전 1건뿐이라 대화창에 묻혀 사라졌다(KDCA, 2026-08-13).
-# 그래서 "아직 죽어있음"을 RENOTIFY_HOURS마다 다시 알리고, 살아나면 복구도 알린다.
-# 복구 통보가 있어야 캡틴이 '조치가 먹혔는지'를 알림만 보고 판단할 수 있다.
-
 def _parse_iso(value: str | None) -> dt.datetime | None:
     if not value:
         return None
@@ -395,80 +343,6 @@ def _parse_iso(value: str | None) -> dt.datetime | None:
         return dt.datetime.fromisoformat(value)
     except ValueError:
         return None
-
-
-def pending_notifications() -> dict:
-    """지금 사람에게 알려야 할 것 — {"degraded": [...], "recovered": [...]}.
-
-    degraded 항목: {"source", "status", "staleness_hours", "consecutive_failures"}
-    - 처음 degraded가 됐거나, 마지막 통보 후 RENOTIFY_HOURS가 지났으면 포함.
-    recovered 항목: 직전에 degraded로 통보했는데 지금 ok로 돌아온 소스 이름.
-    """
-    data = _load_raw()
-    now = _now()
-    degraded, recovered, recovering = [], [], []
-    for source, entry in sorted(data.items()):
-        if is_retired(source):
-            continue      # 뺀 소스는 울리지도, 복구 통보를 내지도 않는다
-        status, staleness = _status_for(entry)
-        notified = entry.get("notified_status")
-        # no_data는 텔레그램으로 울리지 않는다. 위키 404 지연·OpenSky 차단처럼
-        # '정상이거나 이미 아는 조건'이 대부분이라 매일 울리면 경보 피로만 쌓인다.
-        # 대신 /api/status의 no_data_sources에 그대로 노출되고, 매일 아침 점검
-        # 루틴이 읽는다 — 안 보이게 숨기는 게 아니라, 밀도를 낮춰 보이게 한다.
-        # flaky 도 degraded 다 — 이걸 빼면 '보이기는 하는데 안 울리는' 상태가 되고,
-        # 그건 지금까지와 똑같이 아무도 모르는 것이다.
-        is_degraded = status in ("failing", "stale", "flaky")
-        # 값없음이 사흘을 넘기면 그것도 울린다. 짧은 no_data 는 여전히 조용하다 —
-        # 경보 피로를 피하면서, 조용히 죽은 소스는 놓치지 않기 위한 선이다.
-        long_no_data = (
-            status == "no_data"
-            and staleness is not None
-            and staleness >= NO_DATA_ALARM_HOURS
-        )
-        if is_degraded or long_no_data:
-            last_notified = _parse_iso(entry.get("last_notified_at"))
-            state_changed = (
-                notified not in ("failing", "stale", "flaky") if is_degraded
-                else notified != "no_data"
-            )
-            due = (
-                state_changed                                # 새로 죽음
-                or last_notified is None
-                or (now - last_notified).total_seconds() / 3600 >= RENOTIFY_HOURS
-            )
-            if due:
-                rate, samples = _recent_success_rate(entry)
-                degraded.append({
-                    "source": source,
-                    "status": status,
-                    "staleness_hours": staleness,
-                    "consecutive_failures": entry.get("consecutive_failures", 0),
-                    # 간헐 성공은 '데이터 없음 N시간'이 아니라 성공률로 말해야 한다.
-                    "recent_success_rate": round(rate, 3) if rate is not None else None,
-                    "window": samples,
-                })
-        elif (status in ("ok", "recovering")
-              and notified in ("failing", "stale", "no_data", "flaky")):
-            recovered.append(source)
-            if status == "recovering":
-                recovering.append(source)
-    return {"degraded": degraded, "recovered": recovered, "recovering": recovering}
-
-
-def mark_notified(sources: list[str]) -> None:
-    """통보한 소스에 현재 상태·시각을 도장 찍는다. 통보 '성공' 후에만 호출할 것 —
-    전송이 실패했는데 도장을 찍으면 다음 주기에 조용해져서 알림을 잃는다."""
-    if not sources:
-        return
-    data = _load_raw()
-    now = _now().isoformat()
-    for source in sources:
-        entry = data.get(source)
-        if entry is None:
-            continue
-        entry["notified_status"], entry["last_notified_at"] = _status_for(entry)[0], now
-    _save_raw(data)
 
 
 def collector_silent_hours() -> float | None:
@@ -481,7 +355,7 @@ def collector_silent_hours() -> float | None:
     data = _load_raw()
     stamps = []
     for entry in data.values():
-        for key in ("last_success_at", "last_failure_at"):
+        for key in ("last_success_at", "last_failure_at", "last_no_data_at"):
             parsed = _parse_iso(entry.get(key))
             if parsed:
                 stamps.append(parsed)

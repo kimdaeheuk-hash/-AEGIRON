@@ -44,9 +44,7 @@ from pathlib import Path
 STATE_FILE = Path(__file__).resolve().parent.parent / "data" / "valhalla_state.json"
 
 # 무거운 조각의 갱신 주기. 값이 바뀌는 속도에 맞춘다.
-PROCUREMENT_EVERY_HOURS = 6      # 입찰공고는 하루 단위로 바뀐다
 PIPELINE_EVERY_HOURS = 24        # 임상 단계는 달 단위로 바뀐다
-PROCUREMENT_WINDOW_DAYS = 7
 
 
 def _now() -> dt.datetime:
@@ -165,70 +163,6 @@ def _light_layers() -> dict:
         out["readiness"] = {"error": type(exc).__name__}
 
     return out
-
-
-def _fetch_procurement() -> dict:
-    """조달 공고 현황. **제목과 마감일을 버리지 않는다.**
-
-    예전엔 건수·공고번호·분류만 들고 왔다. 그래서 "정부가 지금 무엇을 사려는지
-    본다" 는 이 층의 목적이 로그·스냅샷 어디에도 안 남았고, 공고번호만 봐서는
-    사람이 아무것도 판단할 수 없었다(파이프라인 층과 같은 '결과를 버린다' 문제).
-
-    마감도 같이 본다 — 이미 닫힌 공고를 열린 것과 같은 숫자로 세면 그 숫자는
-    기회의 크기를 말하지 못한다."""
-    from .procurement_watch import summarize_bids, watch_bids
-    bids = watch_bids(days=PROCUREMENT_WINDOW_DAYS)
-    if not bids.get("available"):
-        raise RuntimeError(bids.get("reason") or "조달 조회 불가")
-
-    value = {"bid_count": bids["bid_count"],
-             "excluded_count": bids["excluded_count"],
-             "categories": sorted({b["category"] for b in bids["bids"]}),
-             "notice_nos": [b["notice_no"] for b in bids["bids"]],
-             "deadline": summarize_bids(bids["bids"]),
-             "source": bids.get("source"),
-             # 범위를 값에 담는다 — "국가 조달 감시" 라는 이름이 실제 범위를
-             # 넘어 읽히지 않게. 소스가 붙으면 여기가 늘어난다.
-             "coverage": ["KOR/나라장터"]}
-
-    # ── EU(TED) 추가 (2026-09-04, C-2) ────────────────────────────
-    # ★ 소스별로 따로 담는다 ★ 합쳐서 한 숫자로 내면 '31건' 이 어느 나라 것인지
-    # 알 수 없고, 한쪽이 죽어도 총계가 줄기만 해서 안 보인다. 그리고 TED 는
-    # 아직 실측되지 않은 층이라, 국내 숫자와 섞이면 검증 안 된 값이 검증된
-    # 값처럼 읽힌다.
-    try:
-        from .procurement_ted import watch_ted
-        ted = watch_ted(days=PROCUREMENT_WINDOW_DAYS)
-        if ted.get("available"):
-            value["ted"] = {
-                "bid_count": ted["bid_count"],
-                "deadline": summarize_bids(ted["bids"]),
-                "dropped_unconfirmed": ted["dropped_unconfirmed"],
-                "lookup_failures": len(ted["lookup_failures"]),
-                "is_verified": ted["is_verified"],
-                "unverified_note": ted["unverified_note"],
-                # 이 배선은 키를 손으로 골라 옮긴다 — 여기 안 적으면 watch_ted 가
-                # 아무리 잘 담아도 요약 줄까지 **영영 안 온다**(2026-09-15 에
-                # 실제로 그럴 뻔했다). 버림 수와 확인 범위는 같이 다녀야 한다.
-                "description_checked": ted.get("description_checked", True),
-            }
-            value["coverage"].append("EU/TED(미검증)")
-        else:
-            # 실패를 '0건'으로 접지 않는다. 사유를 그대로 남긴다.
-            value["ted"] = {"available": False, "reason": ted.get("reason"),
-                            "is_verified": ted.get("is_verified", False)}
-    except Exception as exc:                              # noqa: BLE001
-        value["ted"] = {"available": False,
-                        "reason": f"{type(exc).__name__}: {exc}",
-                        "is_verified": False}
-    try:
-        from .procurement_velocity import record as _record_velocity
-        from .procurement_velocity import velocity as _bid_velocity
-        _record_velocity(value["bid_count"], (value.get("ted") or {}).get("bid_count"))
-        value["velocity"] = _bid_velocity()
-    except Exception:                                # noqa: BLE001
-        value["velocity"] = {"assessed": False, "reason": "기록 실패"}
-    return value
 
 
 def _fetch_pipeline() -> dict:
@@ -352,7 +286,7 @@ def stale_parts(snapshot: dict) -> list[tuple[str, dict]]:
     가 났고, 발할라 층 전체가 실패로 기록됐다. 판정을 한 곳에 모으고 시험한다.
     """
     out = []
-    for name in ("procurement", "pipeline"):
+    for name in ("pipeline",):
         part = snapshot.get(name)
         if not isinstance(part, dict):
             continue
@@ -372,17 +306,14 @@ def _readiness_scopes(pipeline_part: dict | None) -> dict:
         # 승인 제품은 기준 스냅샷(주간 갱신)에서 읽는다 — 매 주기 openFDA 를
         # 때리지 않는다. 파일이 없으면 approved_scope 가 available=False 로
         # 정직하게 답한다(0%로 내지 않는다).
+        # 국내 허가(식약처)는 API 승인이 없어 매시 실패만 하던 축이라 개편 2차에서 뺐다 — domestic=unknown.
         approved = None
         domestic = None
         try:
             from .reference_snapshots import _load
             approved = _load("approved_products")
-            # 국내 허가(식약처) — 활용신청 승인 전까지 파일이 없어 None이다.
-            # 그럼 domestic=unknown으로 돈다(모른다고 말한다).
-            domestic = _load("approved_products_domestic")
         except Exception:                                 # noqa: BLE001
             approved = None
-            domestic = None
 
         return readiness_by_scope(
             _db.list_countermeasures(), DEFAULT_THREATS,
@@ -397,8 +328,8 @@ def valhalla_snapshot(now=None) -> dict:
     state = _load_state()
     out = _light_layers()
 
-    out["procurement"] = _refresh_heavy(
-        "procurement", PROCUREMENT_EVERY_HOURS, _fetch_procurement, state, now)
+    # 조달(나라장터·EU TED)은 2026-11-22 개편 2차에서 뺐다 — 11-21~22 운영 로그에서 매번 열린 공고 0건,
+    # 6시간마다 약 1분을 썼다(병목·무결과).
     out["pipeline"] = _refresh_heavy(
         "pipeline", PIPELINE_EVERY_HOURS, _fetch_pipeline, state, now)
 

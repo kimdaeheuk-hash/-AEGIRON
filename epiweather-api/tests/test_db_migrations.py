@@ -1,6 +1,5 @@
 """DB 스키마 버전·인덱스·FK 기본값. isolated_db 격리."""
 from __future__ import annotations
-import sqlite3
 
 
 def _indexes(db):
@@ -33,11 +32,11 @@ def test_second_init_skips_ddl(isolated_db, monkeypatch):
 def test_legacy_db_is_repaired(isolated_db):
     db = isolated_db
     with db.get_connection() as conn:
-        conn.execute("DROP INDEX idx_alerts_date_score")
+        conn.execute("DROP INDEX idx_match_ledger_date")
         conn.execute("DELETE FROM _schema_version WHERE id = 1")
         conn.commit()
     db.init_db()  # 구 DB 취급 → 전문 + 버전 재기록
-    assert "idx_alerts_date_score" in _indexes(db)
+    assert "idx_match_ledger_date" in _indexes(db)
     with db.get_connection() as conn:
         row = conn.execute("SELECT version FROM _schema_version WHERE id = 1").fetchone()
     assert row[0] == db.SCHEMA_VERSION
@@ -47,15 +46,10 @@ def test_expected_indexes_exist(isolated_db):
     db = isolated_db
     have = _indexes(db)
     for name in [
-        "idx_extracted_signals_disease",
-        "idx_extracted_signals_source_extracted",
-        "idx_predictions_unsealed",
-        "idx_predictions_country",
-        "idx_alerts_date_score",
-        "idx_sentinel_status",
-        "idx_outbreak_event",
-        "idx_gt_unread_source",
-        "idx_gt_coverage_source",
+        "idx_variant_ledger_build_observed",
+        "idx_match_ledger_date",
+        "idx_observations_key",
+        "idx_observations_layer_time",
         "idx_api_usage_label_called",
     ]:
         assert name in have, name

@@ -42,9 +42,8 @@ def test_put_makes_swr_serve_without_recomputing():
     response_cache.clear()
 
 
-def test_ttls_cover_the_hourly_cycle_and_daily_climate():
+def test_polar_ttl_covers_the_hourly_cycle():
     assert polar_signals.POLAR_CACHE_TTL_S > 3600       # 수집 간격(1시간)보다 길어야 방문자가 안 두드린다
-    assert climate_signals.CLIMATE_CACHE_TTL_S >= 6 * 3600
 
 
 def test_fetch_failure_reasons_are_counted_without_changing_the_contract():
@@ -78,7 +77,7 @@ def test_success_records_no_failure():
 def test_collector_shares_its_polar_result_and_logs_reasons():
     """배선 고정 — 만들어만 두고 안 부르는 일이 이 리포에서 반복됐다."""
     src = inspect.getsource(collector.collect_free_sources)
-    block = src[src.index("극지 관찰층"):src.index("현지어 위키 신호")]
+    block = src[src.index("극지 관찰층"):src.index("헤임달: 공개 시퀀스")]
     code = "\n".join(line for line in block.splitlines() if not line.lstrip().startswith("#"))
     # 수집이 성공한 갈래(else)에서, 판정·서식보다 먼저 캐시에 넣는다
     assert code.index("response_cache.put(POLAR_CACHE_KEY, pw)") < code.index("polar_weather_ok")
@@ -115,9 +114,7 @@ def test_main_uses_the_shared_keys_and_ttls():
 
     # 옛 하드코딩(1800초)으로 돌아가지 않았다
     assert ("'polar-watch'", "1800", "polar_watch_all") not in shapes
-    assert ("'climate-signals'", "1800", "climate_signals_all") not in shapes
 
     # 공유 키 + 공유 ttl + 같은 빌더
     assert shapes.count(("POLAR_CACHE_KEY", "POLAR_CACHE_TTL_S", "polar_watch_all")) == 2   # 관측값 저장 + API
-    assert shapes.count(("CLIMATE_CACHE_KEY", "CLIMATE_CACHE_TTL_S", "climate_signals_all")) == 2
-    assert ("'remote-watch:all'", "CLIMATE_CACHE_TTL_S", "assess_all") in shapes
+    # (기후·원격감시 엔드포인트는 2026-11-22 개편에서 지웠다)

@@ -30,7 +30,7 @@ import statistics
 from .climate_signals import fetch_climate
 from .polar_baseline import month_baseline
 from .polar_trend import month_trend
-from .local_news import fetch_local_feed, _gnews, _scoped, MIN_ITEMS_FOR_ALERT
+from .polar_news import fetch_local_feed, _gnews, _scoped, MIN_ITEMS_FOR_ALERT
 
 # (region_key, 이름, lat, lng, 뉴스 hl, 뉴스 gl)
 # ★ 영토 단위 8곳 (2026-11-02, 6→8) ★ 한 점이 아니라 영토를 본다 — 이름에

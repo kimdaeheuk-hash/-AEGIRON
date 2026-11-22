@@ -142,31 +142,3 @@ def country_capacity(iso3: str, year: int | None = None) -> dict:
     }
 
 
-def weakest_countries(code: str, limit: int = 10, year: int | None = None) -> dict:
-    """한 역량에서 낮게 신고한 나라들. **위험 순위가 아니다.**"""
-    snap = _snapshot()
-    if not snap:
-        return _unavailable(f"기준 파일이 없다: {REFERENCE.name}")
-    code = (code or "").strip().upper()
-    if code not in snap["capacities"]:
-        return _unavailable(f"없는 역량 코드: {code}")
-
-    year = year or snap["latest_year"]
-    rows = [{"iso3": iso3, "reported_score": s[str(year)][code]}
-            for iso3, s in snap["scores"].items()
-            if str(year) in s and code in s[str(year)]]
-    rows.sort(key=lambda r: (r["reported_score"], r["iso3"]))
-    return {
-        "available": True,
-        "code": code, "name_ko": snap["capacities"][code], "year": year,
-        "countries": rows[:limit],
-        "reporting_country_count": len(rows),
-        "world_median": (world_medians(year) or {}).get(code),
-        "is_self_assessed": True,
-        "is_risk_ranking": False,
-        "limits": [
-            "스스로 낮게 적은 나라 목록이다. 정직하게 신고한 나라가 불리하게 보인다.",
-            "위험 순위가 아니다 — 여기 없는 나라가 안전하다는 뜻이 아니고, "
-            "신고를 아예 안 한 나라는 애초에 목록에 오르지 않는다.",
-        ],
-    }

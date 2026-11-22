@@ -59,10 +59,6 @@ def _approved_count(payload: dict) -> int:
     return len(payload.get("by_threat") or {})
 
 
-def _kor_route_count(payload: dict) -> int:
-    return len(payload.get("by_country") or {})
-
-
 # 스냅샷 등록부. max_age_days는 '원본이 얼마나 자주 바뀌는가'에 맞춘다.
 SNAPSHOTS: dict[str, dict] = {
     "vaccine_supply": {
@@ -98,31 +94,6 @@ SNAPSHOTS: dict[str, dict] = {
         "count": _approved_count,
         "fetch": "fetch_approved_products",
         "owner": "VALHALLA",
-    },
-    "approved_products_domestic": {
-        "label": "국내 허가 제품(식약처)",
-        "filename": "approved_products_domestic.json",
-        # 활용신청 승인 전까지 fetcher가 매번 실패한다 — refresh()가 실패를
-        # 장부에 남기고 기존 파일을 유지하므로, 승인 전엔 스냅샷 없이
-        # domestic=unknown으로 돈다(신청되면 그 주부터 쌓인다).
-        "max_age_days": 60,
-        "min_records": 3,
-        "count": _approved_count,
-        "fetch": "fetch_approved_products_domestic",
-        "owner": "VALHALLA",
-    },
-    "kor_route_stats": {
-        "label": "한국 국제선 국가별 운송 실적(공공데이터포털 파일)",
-        "filename": "kor_route_stats.json",
-        # 원본이 반기(1월 20일 무렵·7월 초) 갱신이다. 첫 스냅샷(10-19, 캡틴이 받아 준 7월 등록본)에서
-        # 100일 뒤면 1월 등록 직후라, 그 주의 주간작업이 처음으로 자동 내려받기를 시도한다.
-        "max_age_days": 100,
-        # 인천 취항국은 수십 개국이다. 이보다 적으면 열·국가 매핑이 깨진 것으로 본다.
-        "min_records": 30,
-        "count": _kor_route_count,
-        "fetch": "fetch_kor_route_stats",
-        # 유입 보고서·확산 모델(SKULD)이 쓴다 — 발할라 대응제 축이 아니다. 발할라 로그에 섞이지 않게.
-        "owner": "SKULD",
     },
 }
 
@@ -374,25 +345,4 @@ def refresh_due(now=None) -> dict:
         results.append(refresh(name, now))
     return {"refreshed": results, "skipped_fresh": skipped}
 
-
-def refresh_missing(now=None) -> dict:
-    """**파일이 아예 없는** 스냅샷만 새로 받는다. 주간 타이머와 무관하게 부른다.
-
-    ★ 왜 필요한가 ★ (2026-10-04 관측)
-
-    `approved_products.json` 은 저장소에 없고 주간작업이 런타임에 만든다. 로그는
-    `기준 파일이 없다. 주간작업이 갱신 시도` 를 최소 10-01 16시부터 **매시간** 찍었는데,
-    같은 기간 로그에서 갱신 성공·실패 줄은 한 줄도 못 찾았다. 주간작업은 마지막 실행 시각이
-    남아 있으면 7일을 기다리고, 파일은 재배포로 사라질 수 있다(저장소 밖에 쓰는 파일) — 이
-    둘이 겹치면 '없다'는 경고만 일주일 내내 반복된다(추정 — 확인된 원인이 아니다).
-
-    묵은 것(`refresh_due`)과 없는 것을 가른다: 없는 것은 기다릴 이유가 없다. 안 바뀐 걸
-    긁지 않는다는 `refresh_due` 의 원칙은 그대로고, 여기서는 **없는 것만** 부른다.
-    """
-    results = []
-    for name in sorted(SNAPSHOTS):
-        if snapshot_status(name, now)["present"]:
-            continue
-        results.append(refresh(name, now))
-    return {"refreshed": results}
 

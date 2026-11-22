@@ -1,41 +1,36 @@
 # -*- coding: utf-8 -*-
-"""서버 밖에서 하는 생존 감시 (2026-10-19, 캡틴 승인 ①).
+# -*- coding: utf-8 -*-
+"""서버 밖에서 하는 생존 감시.
 
 ## 왜
 
-BAIKAL 운영 알림(⑤)은 Railway 서버 **안에서** 보낸다. 서버가 죽거나 매시 주기가 멈추면
-알림도 같이 멈춘다 — 가장 큰 고장이 가장 조용하다. 이 스크립트는 GitHub Actions 에서
-매시간 돌아 서버를 바깥에서 본다(.github/workflows/liveness.yml).
+서버가 죽거나 매시 주기가 멈추면 서버 안에서 보내는 로그·알림도 같이 멈춘다 —
+가장 큰 고장이 가장 조용하다. 이 스크립트는 GitHub Actions 에서 매시간 돌아
+서버를 바깥에서 본다(.github/workflows/liveness.yml).
 
 ## 무엇을 보는가
 
 - `/health` 가 200 · status ok 인가                   → 아니면 '서버 응답 없음'
-- `/api/baikal` 의 마지막 관측이 오래되지 않았는가(stale) → 오래됐으면 '매시 주기 멈춤 의심'
+- `/api/status` 의 collector_silent_hours 가 STALL_HOURS 를 넘었는가 → 넘으면 '매시 주기 멈춤 의심'
 - 웹사이트 첫 화면이 200 인가                          → 아니면 '웹사이트 응답 없음'
 
-## 언제 보내는가 — 바뀐 순간만
+## 어떻게 알리는가 (2026-11-22: 텔레그램 제거)
 
-GitHub 워크플로는 상태를 기억하지 못해서, 직전 실행들의 결과(성공/실패)를 인자로 받는다.
-- 이번에 실패 · 직전 성공(또는 기록 없음) → 🔴 한 통
-- 계속 실패 → RENOTIFY_EVERY 회마다 한 통(몇 시간째인지 적어서)
-- 이번에 성공 · 직전 실패 → 🟢 복구 한 통
-값은 HTML 이스케이프한다. 이 알림은 시스템 운영 상태이지 감염병 경보가 아니다.
+문제가 있으면 문장으로 찍고 **종료 코드 1**로 끝낸다 — GitHub Actions 작업이 빨간불이
+되고, GitHub 자체 알림이 저장소 소유자에게 간다. 별도 전송 채널을 두지 않는다.
 """
 from __future__ import annotations
 
 import argparse
-import html
 import json
-import os
 import sys
 import time
 import urllib.error
 import urllib.request
 
-# 연속 실패 몇 회마다 '아직 멈춤'을 다시 보내나. 시간당 두 번 예약(liveness.yml)이 다 오면 약 6시간마다다 —
-# 예약이 빠지면 더 길어진다. 그래서 알림에는 시간이 아니라 횟수를 적는다.
-RENOTIFY_EVERY = 12
 TIMEOUT = 30
+# 수집은 매시 정각. 두 주기를 연달아 못 돌았을 때만 멈춤으로 본다(한 번 늦는 것은 배포·재시작에도 난다).
+STALL_HOURS = 2.0
 
 
 def _get(url: str, attempts: int = 3, wait: float = 20.0) -> tuple[int | None, str]:
@@ -55,7 +50,7 @@ def _get(url: str, attempts: int = 3, wait: float = 20.0) -> tuple[int | None, s
     return last
 
 
-def evaluate(health: tuple[int | None, str], baikal: tuple[int | None, str],
+def evaluate(health: tuple[int | None, str], status: tuple[int | None, str],
              site: tuple[int | None, str] | None) -> list[str]:
     """문제 목록(사람이 읽는 문장). 비어 있으면 정상."""
     problems: list[str] = []
@@ -69,18 +64,18 @@ def evaluate(health: tuple[int | None, str], baikal: tuple[int | None, str],
     if not ok:
         problems.append(f"운영 서버 응답 없음 (/health {'HTTP ' + str(code) if code else body or '연결 실패'})")
     else:
-        code, body = baikal
+        code, body = status
         try:
             data = json.loads(body) if code == 200 else None
         except ValueError:
             data = None
-        if data is None:
-            problems.append(f"BAIKAL 상태를 못 읽음 (/api/baikal {'HTTP ' + str(code) if code else body or '연결 실패'})")
-        elif data.get("available") and data.get("stale"):
-            age = data.get("snapshot_age_minutes")
-            problems.append("매시 주기 멈춤 의심 — BAIKAL 마지막 관측 "
-                            + (f"{age}분 전" if age is not None else "시각 모름"))
-        # available=False(첫 관측 전)는 배포 직후 정상 상태라 문제로 세지 않는다.
+        if not isinstance(data, dict):
+            problems.append(f"운영 상태를 못 읽음 (/api/status {'HTTP ' + str(code) if code else body or '연결 실패'})")
+        else:
+            silent = (data.get("source_health") or {}).get("collector_silent_hours")
+            if isinstance(silent, (int, float)) and silent > STALL_HOURS:
+                problems.append(f"매시 주기 멈춤 의심 — 수집 마지막 기록 {silent}시간 전")
+            # None(첫 주기 전·기록 없음)은 배포 직후 정상 상태라 문제로 세지 않는다.
     if site is not None:
         code, body = site
         if code != 200:
@@ -88,54 +83,19 @@ def evaluate(health: tuple[int | None, str], baikal: tuple[int | None, str],
     return problems
 
 
-def decide(problems: list[str], prior_failures: int) -> str | None:
-    """보낼 텔레그램 본문, 보낼 게 없으면 None. prior_failures = 직전까지 연속 실패 횟수."""
-    foot = "\n\n<i>서버 밖(GitHub Actions)에서 본 운영 상태 — 감염병 경보가 아님 · 상세: /baikal</i>"
-    if problems:
-        if prior_failures == 0:
-            head = "🔴 <b>외부 생존 감시: 이상</b>"
-        elif (prior_failures + 1) % RENOTIFY_EVERY == 0:
-            head = f"🔴 <b>외부 생존 감시: {prior_failures + 1}회 연속 이상</b>"
-        else:
-            return None
-        return head + "\n" + "\n".join(f"· {html.escape(p, quote=False)}" for p in problems) + foot
-    if prior_failures > 0:
-        return f"🟢 <b>외부 생존 감시: 복구</b>\n· {prior_failures}회 연속 이상 뒤 정상 응답" + foot
-    return None
-
-
-def send(text: str) -> bool:
-    token = os.environ.get("TELEGRAM_BOT_TOKEN")
-    chat = os.environ.get("TELEGRAM_OPS_CHAT_ID") or os.environ.get("TELEGRAM_CHAT_ID")
-    if not token or not chat:
-        print("::warning::텔레그램 시크릿 없음 — 알림 없이 작업 상태(빨간불)로만 남김")
-        return False
-    data = json.dumps({"chat_id": chat, "text": text, "parse_mode": "HTML",
-                       "disable_web_page_preview": True}).encode()
-    req = urllib.request.Request(f"https://api.telegram.org/bot{token}/sendMessage", data=data,
-                                 headers={"Content-Type": "application/json"})
-    try:
-        with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
-            return r.status == 200
-    except Exception as e:
-        print(f"::warning::텔레그램 전송 실패: {type(e).__name__}")
-        return False
-
-
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--api", required=True)
     ap.add_argument("--site")
-    ap.add_argument("--prior-failures", type=int, default=0)
     args = ap.parse_args(argv)
     api = args.api.rstrip("/")
-    problems = evaluate(_get(f"{api}/health"), _get(f"{api}/api/baikal?transitions=1"),
+    problems = evaluate(_get(f"{api}/health"), _get(f"{api}/api/status"),
                         _get(args.site) if args.site else None)
-    print("문제 없음" if not problems else "\n".join(problems))
-    text = decide(problems, args.prior_failures)
-    if text:
-        print("텔레그램:", "전송됨" if send(text) else "전송 안 됨")
-    return 1 if problems else 0
+    if problems:
+        print("\n".join(problems))
+        return 1
+    print("문제 없음")
+    return 0
 
 
 if __name__ == "__main__":

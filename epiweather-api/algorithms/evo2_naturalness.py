@@ -65,9 +65,6 @@ import requests
 
 from . import nvidia as _nvidia
 
-# 기본 엔드포인트(NVIDIA 클라우드). 실제 호출 URL은 요청 시점에 nvidia.evo2_url()로
-# 해석 — AEGIRON_NVIDIA_ONPREM_BASE가 설정되면 온프렘으로 라우팅(완전 주권).
-NIM_URL = "https://health.api.nvidia.com/v1/biology/arc/evo2-40b/generate"
 MODEL = "evo2-40b"
 TIMEOUT = 120
 

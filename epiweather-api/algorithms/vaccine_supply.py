@@ -101,48 +101,6 @@ def _unavailable(reason: str) -> dict:
     return {"available": False, "reason": reason}
 
 
-def supply_for_disease(disease: str) -> dict:
-    """그 병의 백신을 사전적격성 받은 곳이 몇 곳인가. **모르면 모른다고 한다.**"""
-    snap = _snapshot()
-    if not snap:
-        return _unavailable(f"기준 파일이 없다: {REFERENCE.name} "
-                            "(scripts/collect_vaccine_supply.py 로 만든다)")
-
-    terms = DISEASE_VACCINE_TERMS.get(disease)
-    if not terms:
-        # ★ 표에 없는 병을 '백신 없음' 으로 접지 않는다 ★
-        return _unavailable(f"백신 검색어 표에 없는 병: {disease}")
-
-    hits = [r for r in snap["records"]
-            if any(t.lower() in (r["vaccine_type"] or "").lower() for t in terms)]
-    if not hits:
-        return {
-            "available": True, "disease": disease, "prequalified_count": 0,
-            "manufacturers": [], "authority_countries": [],
-            "is_single_source": None,
-            "note": "WHO 사전적격성 목록에 없다. 백신이 없다는 뜻이 아니라 "
-                    "UN 조달용 심사를 받은 제품이 없다는 뜻이다.",
-        }
-
-    makers = sorted({r["manufacturer"] for r in hits})
-    countries = sorted({r["authority_country"] for r in hits if r["authority_country"]})
-    return {
-        "available": True,
-        "disease": disease,
-        "prequalified_count": len(hits),
-        "vaccine_types": sorted({r["vaccine_type"] for r in hits}),
-        "manufacturers": makers,
-        "manufacturer_count": len(makers),
-        # ★ 병목 판정 ★ 사전적격성 제조사가 하나뿐이면 UN 조달 경로가 한 줄이다.
-        "is_single_source": len(makers) == 1,
-        "authority_countries": countries,
-        "korea_supervises": "KOR" in countries,
-        "source": snap["source"],
-        "snapshot_date": snap["snapshot_date"],
-        "limits": snap["limits"],
-    }
-
-
 def chokepoints() -> dict:
     """제조사가 한 곳뿐인 백신들. **UN 조달 경로의 병목이다.**"""
     snap = _snapshot()
@@ -171,30 +129,3 @@ def chokepoints() -> dict:
     }
 
 
-def country_portfolio(iso3: str) -> dict:
-    """그 나라 규제기관이 감독하는 사전적격성 백신. **'만들 수 있는 전부' 가 아니다.**"""
-    snap = _snapshot()
-    if not snap:
-        return _unavailable(f"기준 파일이 없다: {REFERENCE.name}")
-
-    iso3 = (iso3 or "").strip().upper()
-    hits = [r for r in snap["records"] if r.get("authority_country") == iso3]
-    if not hits:
-        return {
-            "available": True, "iso3": iso3, "prequalified_count": 0,
-            "vaccine_types": [], "manufacturers": [],
-            "note": "이 나라 규제기관이 감독하는 사전적격성 백신이 없다. "
-                    "백신을 못 만든다는 뜻이 아니다 — UN 조달용 심사를 받은 "
-                    "제품이 없다는 뜻이다.",
-        }
-
-    return {
-        "available": True,
-        "iso3": iso3,
-        "prequalified_count": len(hits),
-        "vaccine_types": sorted({r["vaccine_type"] for r in hits}),
-        "manufacturers": sorted({r["manufacturer"] for r in hits}),
-        "world_share": round(len(hits) / snap["record_count"], 3),
-        "snapshot_date": snap["snapshot_date"],
-        "limits": snap["limits"],
-    }

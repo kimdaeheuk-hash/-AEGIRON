@@ -152,20 +152,6 @@ def seed(key: str, value: Any) -> None:
     _STORE[key] = (time.time(), value, None)
 
 
-def prewarm(key: str, builder: Callable[[], Any]) -> bool:
-    """저장본을 지금 다시 계산해 넣는다(뒤 스레드에서 부르는 용도). 이미 갱신 중이면 건너뛴다."""
-    lk = _lock(key)
-    if not lk.acquire(blocking=False):
-        return False
-    try:
-        _STORE[key] = (time.time(), builder(), None)
-        return True
-    except Exception:  # noqa: BLE001
-        return False
-    finally:
-        lk.release()
-
-
 def put(key: str, value: Any) -> None:
     """이미 계산된 값을 저장본으로 넣는다 (2026-11-18).
 
@@ -179,12 +165,6 @@ def put(key: str, value: Any) -> None:
     계산되는 키(기후·오지)는 그 보장이 없어서 `swr(usable=…)` 쪽을 쓴다 — 위 ★ 주석.
     """
     _STORE[key] = (time.time(), value, None)
-
-
-def invalidate(prefix: str) -> None:
-    """쓰기 직후 그 키 묶음의 저장본을 버린다(예: 예측을 새로 기록하면 'pred:' 묶음)."""
-    for k in [k for k in _STORE if k.startswith(prefix)]:
-        _STORE.pop(k, None)
 
 
 def clear() -> None:

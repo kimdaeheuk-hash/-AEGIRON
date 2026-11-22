@@ -1,651 +1,120 @@
-import Link from 'next/link';
-import { dashboardHref, getDictionary, localePath, isLocale, type Locale } from '@/i18n';
-import type { EngineDict, EngineMode } from '@/i18n/types';
-import { Section, SectionHeading, Card, Grid } from '@/components/site/Section';
-import { HeroBackdrop } from '@/components/site/HeroBackdrop';
-import { IntroVideo } from '@/components/site/IntroVideo';
-import { PhotoFigure } from '@/components/site/PhotoFigure';
-import { getSourceHealth, type SourceHealthSummary } from '@/lib/status';
-import { introVideo } from '@/lib/video';
-import { getOpsStatus, getRiskTop, getBaikal } from '@/lib/live';
-import { listBriefings } from '@/lib/briefings';
-import { OpsCounters, RiskTop, ScreenGallery } from '@/components/live/LiveWidgets';
-import { LayerDiagram, SystemStatusGrid, SYSTEM_TONE, systemByCode, systemTitle } from '@/components/live/BaikalWidgets';
+import { Card } from '@astryxdesign/core/Card';
+import { HStack } from '@astryxdesign/core/HStack';
+import { Link } from '@astryxdesign/core/Link';
+import { List, ListItem } from '@astryxdesign/core/List';
+import { Heading, Text } from '@astryxdesign/core/Text';
+import { Token } from '@astryxdesign/core/Token';
+import { VStack } from '@astryxdesign/core/VStack';
+import { AstryxProvider } from '@/components/AstryxProvider';
+import { dashboardHref, getDictionary, isLocale, localePath, type Locale } from '@/i18n';
+import type { StageDict } from '@/i18n/types';
+import { getSourceHealth } from '@/lib/status';
 
 /**
- * 홈.
+ * 홈 — 2026-11-22 개편. "전부 수정해! 끊을건 끊고 단순함에 집중하자"(캡틴).
  *
- * ## 2026-10-18 — 히어로·엔진 구성 재작성 (2026-08-06 캡틴 지시서 2단계)
- * 08-06 검수에서 '완전 공개' 히어로는 공개 정책이지 제품이 아니라는 판정을 받았다.
- * 원본 문구("경보를 넘어, 예측과 시뮬레이션까지")와 처음 홈의 배경을 되살리고, 첫 화면
- * 바로 아래에 **실제 엔진**을 둔다.
- *
- * 엔진마다 가동 방식(매시·매일·경보 시·요청 시)을 단다. 상시 도는 것과 부를 때만 도는
- * 것을 같은 무게로 적으면 그 자체로 과장이다. 지시서가 히어로에 넣으라던 '발원지 격자
- * 추론'(patient_zero)은 넣지 않았다 — 그 모듈은 난수로 숨긴 정답을 합성 신호로 되맞히는
- * 시연이라 실데이터 추론이라고 쓸 수 없다.
- *
- * 가동 배지는 고정 문구가 아니라 `/api/status` 실측값이다. 못 읽으면 초록 불을 켜지 않는다.
+ * 한 줄기만 보여 준다: 극지(감지) → 헤임달(식별) → 발할라(대응 판정).
+ * 각 고리 아래에는 지금 실제로 도는 것만 적는다. 수집 상태는 고정 문구가 아니라
+ * `/api/status` 실측값이고, 못 읽으면 '판정 안 함'으로 쓴다.
  *
  * ★ 절대 규칙 ★ 정확도·선행일수 주장 금지.
  */
 
+export const revalidate = 300;
+
+function stageHref(locale: Locale, s: StageDict): string {
+  // 극지는 사이트 페이지, 헤임달·발할라는 운영 화면 안의 구획이다.
+  return s.code === 'POLAR' ? localePath(locale, s.href) : `${dashboardHref(locale)}#${s.href}`;
+}
+
 export default async function HomePage(props: { params: Promise<{ locale: string }> }) {
   const { locale: raw } = await props.params;
   const locale = (isLocale(raw) ? raw : 'ko') as Locale;
-  const dict = getDictionary(locale);
-  const t = dict.home;
-  const [health, ops, risk, briefs, baikal] = await Promise.all([
-    getSourceHealth(), getOpsStatus(), getRiskTop(6, locale), listBriefings(locale), getBaikal(),
-  ]);
-  const video = introVideo();
-  const live = dict.extra.live;
-  const bx = dict.extra.baikal;
-  const systems = systemByCode(dict.extra.systems);
-  // 엔진 수는 문구에 박지 않고 실제로 그리는 수로 채운다 — '열여섯 개'라고 적어 두고
-  // 19개를 그리던 일이 있었다(극지·환경 묶음을 추가하면서 숫자가 안 바뀌었다).
-  const engineCount = t.engineGroups.reduce((n, g) => n + g.engines.length, 0);
-  const latestBrief = briefs?.[0] ?? null;
+  const t = getDictionary(locale).home;
+  const health = await getSourceHealth();
+  const [titleTop, titleBottom] = t.title.split('\n');
 
   return (
-    <>
-      {/* ── 히어로 ─────────────────────────────────────────── */}
-      {/* hero-band: 밝은 배색에서도 첫 화면만 어두운 띠로 둘 수 있게 토큰을 갈아 끼운다(globals.css). */}
-      <div className="hero-band">
-      <section
-        style={{
-          position: 'relative', maxWidth: 1320, margin: '0 auto', overflow: 'hidden',
-          padding: 'clamp(48px,8vw,110px) clamp(14px,2.4vw,26px) clamp(36px,5vw,60px)',
-        }}
-      >
-        <HeroBackdrop />
-        {/* keep-all: 한국어가 줄 끝에서 낱말 중간('경/보')에 끊기지 않게 한다. */}
-        <div style={{ position: 'relative', zIndex: 2, maxWidth: 860, wordBreak: 'keep-all' }}>
-          <LiveBadge health={health} okText={t.heroLiveOk} unknownText={t.heroLiveUnknown} />
-
-          <h1
-            style={{
-              fontFamily: 'var(--disp)', fontWeight: 800,
-              fontSize: 'clamp(34px,5.4vw,64px)', lineHeight: 1.08,
-              letterSpacing: '-.03em', whiteSpace: 'pre-line',
-            }}
-          >
-            {renderTitle(t.heroTitle)}
-          </h1>
-
-          <p
-            style={{
-              color: 'var(--muted)', fontSize: 'clamp(15px,1.3vw,18px)',
-              lineHeight: 1.8, marginTop: 24, maxWidth: 700,
-            }}
-          >
-            {t.heroLead}
-          </p>
-
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 32, alignItems: 'center' }}>
-            <Link
-              href={dashboardHref(locale)}
-              style={{
-                fontFamily: 'var(--mono)', fontSize: 13, textDecoration: 'none', fontWeight: 500,
-                background: 'linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 78%, #000))', color: 'var(--on-accent)',
-                borderRadius: 10, padding: '13px 22px', boxShadow: '0 8px 30px color-mix(in srgb, var(--accent) 28%, transparent)',
-              }}
-            >
-              {t.heroPrimaryCta} →
-            </Link>
-            <a
-              href="#engines"
-              style={{
-                fontFamily: 'var(--mono)', fontSize: 13, textDecoration: 'none',
-                border: '1px solid var(--line2)', color: 'var(--txt)',
-                borderRadius: 10, padding: '13px 22px', background: 'var(--panel)',
-              }}
-            >
-              {t.heroSecondaryCta}
-            </a>
-            <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)' }}>
-              {t.heroNoLogin}
-            </span>
-          </div>
-        </div>
-      </section>
-      </div>
-
-      {/* ── 메인 소개 영상(환경변수로 켜짐 · 없으면 아무것도 안 그림) ── */}
-      {video && (
-        <Section pad="sm">
-          <IntroVideo video={video} label={t.introVideoLabel} />
-        </Section>
-      )}
-
-      {/* ── 실측 수치 ──────────────────────────────────────── */}
-      <Section pad="sm">
-        <div
-          style={{
-            display: 'grid', gap: 1, background: 'var(--line)', border: '1px solid var(--line)',
-            borderRadius: 16, overflow: 'hidden', wordBreak: 'keep-all',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(min(150px, 100%), 1fr))',
-          }}
-        >
-          {t.stats.map((s) => (
-            <div key={s.label} style={{ background: 'var(--panel)', padding: 'clamp(20px,2.2vw,26px)' }}>
-              <div
-                style={{
-                  fontFamily: 'var(--mono)', fontWeight: 700,
-                  fontSize: 'clamp(28px,3.2vw,40px)', letterSpacing: '-.02em', lineHeight: 1,
-                }}
-              >
-                {s.value}
-              </div>
-              <div style={{ fontSize: 13, marginTop: 10, fontWeight: 600 }}>{s.label}</div>
-              <div style={{ color: 'var(--muted2)', fontSize: 12, marginTop: 6, lineHeight: 1.55 }}>
-                {s.note}
-              </div>
-            </div>
-          ))}
-        </div>
-        <p style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)', marginTop: 10 }}>
-          {t.statsAsOf}
-        </p>
-      </Section>
-
-      {/* ── ★ 대표 시스템 — 엔진 → YGGDRASIL → BAIKAL MOB ★ (2026-10-19 캡틴: "아이기론을 대표하는
-           시스템으로 명명하고 기록해") — 상태 카드는 운영 서버가 매시간 기록한 스냅숏 그대로다. ── */}
-      <div id="flagship" style={{ scrollMarginTop: 80, wordBreak: 'keep-all', overflowWrap: 'anywhere' }}>
-        <Section>
-          <Card accent>
-            <SectionHeading eyebrow={bx.flagshipEyebrow} title={bx.flagshipTitle} lead={bx.flagshipLead} />
-            <LayerDiagram labels={bx} />
-            <h3 style={{ fontFamily: 'var(--disp)', fontWeight: 800, fontSize: 19, margin: '34px 0 6px' }}>{bx.statusTitle}</h3>
-            <p style={{ color: 'var(--muted)', fontSize: 13.5, lineHeight: 1.7, margin: '0 0 14px', maxWidth: 780 }}>{bx.statusLead}</p>
-            <SystemStatusGrid data={baikal} systems={dict.extra.systems} labels={bx} compact />
-            <Link
-              href={localePath(locale, 'baikal')}
-              style={{
-                display: 'inline-block', marginTop: 22, fontFamily: 'var(--mono)', fontSize: 13, textDecoration: 'none',
-                fontWeight: 700, background: 'var(--accent)', color: 'var(--on-accent)', borderRadius: 10, padding: '12px 20px',
-              }}
-            >
-              {bx.openPage} →
-            </Link>
-          </Card>
-        </Section>
-      </div>
-
-      {/* ── 실가동 — 운영 API 실측 + 운영 화면 캡처 (2026-10-18 캡틴: "실가동되는 걸 보여줘야 해") ── */}
-      <div className="band-deep">
-        <Section>
-          <SectionHeading eyebrow="LIVE OPERATIONS" title={dict.extra.pages.live.title} lead={dict.extra.pages.live.lead} />
-          <OpsCounters ops={ops} labels={live} />
-          <div style={{ display: 'grid', gap: 36, marginTop: 40, gridTemplateColumns: 'repeat(auto-fit, minmax(min(420px, 100%), 1fr))', wordBreak: 'keep-all' }}>
-            <div>
-              <h3 style={{ fontFamily: 'var(--disp)', fontWeight: 800, fontSize: 19 }}>{live.riskTitle}</h3>
-              <p style={{ color: 'var(--muted)', fontSize: 13.5, lineHeight: 1.7, margin: '8px 0 18px' }}>{live.riskLead}</p>
-              <RiskTop rows={risk} labels={live} dashHref={dashboardHref(locale)} />
-            </div>
-            <div>
-              <h3 style={{ fontFamily: 'var(--disp)', fontWeight: 800, fontSize: 19 }}>{t.briefTitle}</h3>
-              <p style={{ color: 'var(--muted)', fontSize: 13.5, lineHeight: 1.7, margin: '8px 0 18px' }}>{t.briefLead}</p>
-              {latestBrief ? (
-                <Link
-                  href={localePath(locale, `briefings/${latestBrief.date}`)}
-                  style={{ display: 'block', textDecoration: 'none', color: 'var(--txt)', border: '1px solid var(--line2)', borderRadius: 13, padding: 18, background: 'var(--panel)' }}
-                >
-                  <span style={{ fontFamily: 'var(--mono)', fontSize: 11.5, color: 'var(--cyan)' }}>{latestBrief.date}</span>
-                  <strong style={{ display: 'block', fontSize: 16.5, lineHeight: 1.45, marginTop: 8 }}>{latestBrief.headline}</strong>
-                  <span style={{ display: 'inline-block', marginTop: 14, fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--accent)', fontWeight: 700 }}>
-                    {dict.common.readMore} →
-                  </span>
-                </Link>
-              ) : (
-                <p style={{ color: 'var(--muted)', fontSize: 13.5 }}>{briefs === null ? t.briefError : t.briefEmpty}</p>
+    <AstryxProvider mode="light">
+      <VStack as="main" hAlign="center" paddingInline={4} paddingBlock={8} width="100%">
+        <VStack gap={8} maxWidth={1100} width="100%">
+          {/* ── 머리말 ── */}
+          <VStack gap={3}>
+            <Text type="label" color="accent">
+              {t.eyebrow}
+            </Text>
+            <Heading level={1}>
+              {titleTop}
+              {titleBottom && (
+                <>
+                  <br />
+                  {titleBottom}
+                </>
               )}
-              <Link href={localePath(locale, 'briefings')} style={{ display: 'inline-block', marginTop: 12, fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--muted)', textDecoration: 'none' }}>
-                {t.briefCta} →
+            </Heading>
+            <Text type="large" color="secondary">
+              {t.lead}
+            </Text>
+            <HStack gap={4} wrap="wrap" vAlign="center">
+              <Link href={dashboardHref(locale)}>
+                <Text weight="semibold" color="inherit">
+                  {t.primaryCta} →
+                </Text>
               </Link>
-            </div>
-          </div>
-          <h3 style={{ fontFamily: 'var(--disp)', fontWeight: 800, fontSize: 19, margin: '44px 0 8px' }}>{live.screensTitle}</h3>
-          <p style={{ color: 'var(--muted)', fontSize: 13.5, lineHeight: 1.7, marginBottom: 18, maxWidth: 780 }}>{live.screensLead}</p>
-          <ScreenGallery labels={live} limit={3} />
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 26 }}>
-            <Link href={localePath(locale, 'live')} style={{ fontFamily: 'var(--mono)', fontSize: 13, textDecoration: 'none', fontWeight: 600, background: 'var(--accent)', color: 'var(--on-accent)', borderRadius: 10, padding: '12px 20px' }}>
-              {live.seeLive} →
-            </Link>
-            <Link href={localePath(locale, 'record')} style={{ fontFamily: 'var(--mono)', fontSize: 13, textDecoration: 'none', border: '1px solid var(--line2)', color: 'var(--txt)', borderRadius: 10, padding: '12px 20px' }}>
-              {live.seeRecord} →
-            </Link>
-          </div>
-        </Section>
-      </div>
+              <Link href={localePath(locale, 'solutions/government')}>
+                <Text color="inherit">{t.secondaryCta}</Text>
+              </Link>
+            </HStack>
+            <Text type="supporting">
+              {t.healthTitle}: {health ? t.healthOk.replace('{ok}', String(health.ok)).replace('{total}', String(health.total)) : t.healthUnknown}
+            </Text>
+          </VStack>
 
-      {/* ── 사진(퍼블릭 도메인, 출처 표기) ─────────────────── */}
-      <Section pad="sm">
-        <PhotoFigure photo={t.photo} />
-      </Section>
-
-      {/* ── 감시 현장 갤러리 ───────────────────────────────── */}
-      <Section>
-        <SectionHeading eyebrow="IN THE FIELD" title={t.galleryTitle} lead={t.galleryLead} />
-        <div
-          style={{
-            display: 'grid', gap: 16,
-            gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))',
-          }}
-        >
-          {t.gallery.map((p) => (
-            <PhotoFigure key={p.src} photo={p} aspect="4 / 3" />
-          ))}
-        </div>
-      </Section>
-
-      {/* ── 엔진 구성 ──────────────────────────────────────── */}
-      <div id="engines" style={{ scrollMarginTop: 80, wordBreak: 'keep-all', overflowWrap: 'anywhere' }}>
-        <Section>
-          <SectionHeading eyebrow="ENGINE SYSTEMS" title={t.engineTitle} lead={t.engineLead.replace('{n}', String(engineCount))} />
-          <ModeLegend modes={t.engineModes} />
-          <div style={{ display: 'grid', gap: 34, marginTop: 30 }}>
-            {t.engineGroups.map((group, gi) => {
-              const sys = systems[group.system];
-              return (
-              <div key={group.system}>
-                {/* 영문 코드명 · 현지 표기 — 역할. 고객이 이름만 보고도 무엇을 하는 시스템인지 알 수 있게. */}
-                <h3
-                  style={{
-                    display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap', marginBottom: 4,
-                    fontFamily: 'var(--disp)', fontWeight: 800, fontSize: 18, letterSpacing: '-.01em',
-                    borderLeft: `4px solid ${SYSTEM_TONE[group.system]}`, paddingLeft: 12,
-                  }}
-                >
-                  <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--accent)', fontWeight: 500 }}>
-                    {String(gi + 1).padStart(2, '0')}
-                  </span>
-                  <span style={{ fontFamily: 'var(--mono)', letterSpacing: '.03em' }}>{sys ? systemTitle(sys) : group.system}</span>
-                  {sys && <span style={{ color: 'var(--muted)', fontWeight: 700 }}>— {sys.role}</span>}
-                </h3>
-                {sys && (
-                  <p style={{ color: 'var(--muted2)', fontSize: 12.5, margin: '0 0 14px 16px', fontStyle: 'italic' }}>{sys.myth}</p>
-                )}
-                <Grid min={280}>
-                  {group.engines.map((e) => (
-                    <EngineCard
-                      key={e.id}
-                      engine={e}
-                      modeLabel={t.engineModes[e.mode]}
-                      caveatLabel={t.engineCaveatLabel}
-                    />
-                  ))}
-                </Grid>
-              </div>
-              );
-            })}
-          </div>
-          <Link
-            href={localePath(locale, 'engines')}
-            style={{
-              display: 'inline-block', marginTop: 26,
-              fontFamily: 'var(--mono)', fontSize: 12.5, color: 'var(--accent)', textDecoration: 'none', fontWeight: 700,
-            }}
-          >
-            {t.engineCatalogueCta} →
-          </Link>
-        </Section>
-      </div>
-
-      {/* ── 다른 조기경보와 무엇이 다른가 + 미래성 ───────────── */}
-      <Section>
-        <SectionHeading eyebrow={t.diffEyebrow} title={t.diffTitle} lead={t.diffLead} />
-        <Grid min={260}>
-          {t.diffItems.map((d, i) => (
-            <div
-              key={d.title}
-              data-tone={DIFF_TONES[i % DIFF_TONES.length]}
-              className="toned-card"
-              style={{ border: '1px solid var(--line)', borderRadius: 13, padding: 20, background: 'var(--panel)', wordBreak: 'keep-all' }}
-            >
-              <h3 style={{ fontFamily: 'var(--disp)', fontWeight: 800, fontSize: 16.5, marginBottom: 10, lineHeight: 1.3 }}>{d.title}</h3>
-              <p style={{ color: 'var(--muted)', fontSize: 13.5, lineHeight: 1.72 }}>{d.body}</p>
-            </div>
-          ))}
-        </Grid>
-      </Section>
-
-      <div className="band-deep">
-        <Section>
-          <SectionHeading eyebrow="FUTURE" title={t.futureTitle} lead={t.futureLead} />
-          <Grid min={250}>
-            {t.futureItems.map((f) => (
-              <div key={f.title} style={{ border: '1px solid var(--line2)', borderRadius: 13, padding: 20, background: 'var(--panel)', wordBreak: 'keep-all' }}>
-                <h3 style={{ fontFamily: 'var(--disp)', fontWeight: 800, fontSize: 16, marginBottom: 10, color: 'var(--cyan)' }}>{f.title}</h3>
-                <p style={{ color: 'var(--muted)', fontSize: 13.5, lineHeight: 1.72 }}>{f.body}</p>
-              </div>
+          {/* ── 세 고리 ── */}
+          <VStack gap={4}>
+            <VStack gap={1}>
+              <Heading level={2}>{t.chainTitle}</Heading>
+              <Text type="supporting">{t.chainLead}</Text>
+            </VStack>
+            {t.stages.map((s, i) => (
+              <Card key={s.code} padding={4}>
+                <VStack gap={2}>
+                  <HStack gap={2} vAlign="center" wrap="wrap">
+                    <Token size="sm" label={`${i + 1} · ${s.role}`} />
+                    <Text type="label" color="accent">
+                      {s.code}
+                    </Text>
+                  </HStack>
+                  <Heading level={3}>{s.name}</Heading>
+                  <Text>{s.body}</Text>
+                  <List density="compact" hasDividers edge="bleed">
+                    {s.facts.map((f) => (
+                      <ListItem key={f} label={<Text type="supporting">{f}</Text>} />
+                    ))}
+                  </List>
+                  <Link href={stageHref(locale, s)}>
+                    <Text weight="semibold" color="inherit">
+                      {s.linkLabel} →
+                    </Text>
+                  </Link>
+                </VStack>
+              </Card>
             ))}
-          </Grid>
-        </Section>
-      </div>
+          </VStack>
 
-      {/* ── 스페셜 프로그램 강조(헤임달·발할라) ─ 깊은 남청색 띠로 무게를 준다 ── */}
-      <div className="band-deep">
-      <Section>
-        <Card accent>
-          <div style={{ wordBreak: 'keep-all' }}>
-            <SectionHeading eyebrow={t.specialEyebrow} title={t.specialTitle} lead={t.specialLead} />
-            <Grid min={300}>
-              {t.specialCards.map((c) => (
-                <div
-                  key={c.code}
-                  style={{ border: '1px solid var(--line)', borderRadius: 12, padding: 20, background: 'var(--panel)' }}
-                >
-                  <div style={{ fontFamily: 'var(--mono)', fontSize: 12, letterSpacing: '.12em', color: 'var(--accent)', fontWeight: 700 }}>
-                    {c.code}
-                  </div>
-                  <h3 style={{ fontFamily: 'var(--disp)', fontWeight: 800, fontSize: 16, margin: '8px 0 10px' }}>{c.name}</h3>
-                  <p style={{ color: 'var(--muted)', fontSize: 13.5, lineHeight: 1.72 }}>{c.body}</p>
-                </div>
-              ))}
-            </Grid>
-            <Link
-              href={localePath(locale, 'programs')}
-              style={{
-                display: 'inline-block', marginTop: 20,
-                fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--accent)', textDecoration: 'none', fontWeight: 700,
-              }}
-            >
-              {t.specialCta} →
-            </Link>
-          </div>
-        </Card>
-      </Section>
-      </div>
-
-      {/* ── 우리가 공개하는 것 ─────────────────────────────── */}
-      <Section>
-        <SectionHeading eyebrow="OPEN BY DEFAULT" title={t.openTitle} lead={t.openLead} />
-        <Grid min={260}>
-          {t.openItems.map((item) => (
-            <Card key={item.title}>
-              <h3 style={{ fontFamily: 'var(--disp)', fontWeight: 800, fontSize: 17, marginBottom: 10 }}>
-                {item.title}
-              </h3>
-              <p style={{ color: 'var(--muted)', fontSize: 13.5, lineHeight: 1.7, marginBottom: 16 }}>
-                {item.body}
-              </p>
-              <Link
-                href={item.href === '/dashboard' ? dashboardHref(locale) : item.href.startsWith('/dashboard') ? item.href : localePath(locale, item.href)}
-                style={{
-                  fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--accent)', textDecoration: 'none',
-                }}
-              >
-                {item.linkLabel} →
-              </Link>
-            </Card>
-          ))}
-        </Grid>
-      </Section>
-
-      {/* ── ★ 검증되지 않은 것 ★ 이 사이트의 핵심 블록 ───── */}
-      <Section>
-        <Card accent>
-          <div style={{ maxWidth: 820 }}>
-            <p
-              style={{
-                fontFamily: 'var(--mono)', fontSize: 11, letterSpacing: '.12em',
-                textTransform: 'uppercase', color: 'var(--accent)', marginBottom: 12,
-              }}
-            >
-              VALIDATION
-            </p>
-            <h2
-              style={{
-                fontFamily: 'var(--disp)', fontWeight: 800,
-                fontSize: 'clamp(23px,2.8vw,34px)', lineHeight: 1.2, letterSpacing: '-.025em',
-              }}
-            >
-              {t.honestTitle}
-            </h2>
-            <p style={{ color: 'var(--muted)', fontSize: 15, lineHeight: 1.75, marginTop: 14 }}>
-              {t.honestLead}
-            </p>
-
-            <ul style={{ listStyle: 'none', display: 'grid', gap: 14, marginTop: 26 }}>
-              {t.honestPoints.map((point, i) => (
-                <li key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                  <span
-                    aria-hidden="true"
-                    style={{
-                      fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--accent)',
-                      paddingTop: 3, flexShrink: 0,
-                    }}
-                  >
-                    {String(i + 1).padStart(2, '0')}
-                  </span>
-                  <span
-                    style={{ color: 'var(--txt)', fontSize: 14, lineHeight: 1.72 }}
-                    dangerouslySetInnerHTML={{ __html: boldify(point) }}
-                  />
-                </li>
-              ))}
-            </ul>
-
-            <p
-              style={{
-                color: 'var(--muted)', fontSize: 14, lineHeight: 1.75, marginTop: 26,
-                paddingTop: 22, borderTop: '1px solid var(--line)',
-              }}
-            >
-              {t.honestClose}
-            </p>
-
-            <Link
-              href={localePath(locale, 'transparency')}
-              style={{
-                display: 'inline-block', marginTop: 20,
-                fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--accent)', textDecoration: 'none',
-              }}
-            >
-              {t.honestCta} →
-            </Link>
-          </div>
-        </Card>
-      </Section>
-
-      {/* ── 신호 → 경보 흐름 ──────────────────────────────── */}
-      <Section>
-        <SectionHeading eyebrow="PIPELINE" title={t.pipelineTitle} lead={t.pipelineLead} />
-        <Grid min={210}>
-          {t.pipelineSteps.map((step) => (
-            <Card key={step.step}>
-              <div style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--accent)', marginBottom: 10 }}>
-                {step.step}
-              </div>
-              <h3 style={{ fontFamily: 'var(--disp)', fontWeight: 800, fontSize: 16, marginBottom: 8 }}>
-                {step.title}
-              </h3>
-              <p style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.68 }}>{step.body}</p>
-            </Card>
-          ))}
-        </Grid>
-      </Section>
-
-      {/* ── 누구를 위한 것인가 ────────────────────────────── */}
-      <Section>
-        <SectionHeading eyebrow="USE CASES" title={t.audienceTitle} lead={t.audienceLead} />
-        <Grid min={280}>
-          {t.audiences.map((a) => (
-            <Card key={a.title}>
-              <h3 style={{ fontFamily: 'var(--disp)', fontWeight: 800, fontSize: 17, marginBottom: 10 }}>
-                {a.title}
-              </h3>
-              <p style={{ color: 'var(--muted)', fontSize: 13.5, lineHeight: 1.7, marginBottom: 16 }}>
-                {a.body}
-              </p>
-              <Link
-                href={localePath(locale, a.href)}
-                style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--accent)', textDecoration: 'none' }}
-              >
-                {dict.common.readMore} →
-              </Link>
-            </Card>
-          ))}
-        </Grid>
-      </Section>
-
-      {/* ── 마무리 CTA ────────────────────────────────────── */}
-      <Section pad="sm">
-        <Card>
-          <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ maxWidth: 560 }}>
-              <h2 style={{ fontFamily: 'var(--disp)', fontWeight: 800, fontSize: 'clamp(20px,2.2vw,27px)', letterSpacing: '-.02em' }}>
-                {t.ctaTitle}
-              </h2>
-              <p style={{ color: 'var(--muted)', fontSize: 14, lineHeight: 1.7, marginTop: 12 }}>
-                {t.ctaBody}
-              </p>
-            </div>
-            <Link
-              href={localePath(locale, 'contact')}
-              style={{
-                fontFamily: 'var(--mono)', fontSize: 13, textDecoration: 'none',
-                background: 'var(--accent)', color: 'var(--on-accent)', borderRadius: 10, padding: '13px 22px',
-              }}
-            >
-              {t.ctaButton} →
-            </Link>
-          </div>
-        </Card>
-      </Section>
-    </>
+          {/* ── 하지 않는 것 ── */}
+          <Card padding={4}>
+            <VStack gap={2}>
+              <Heading level={2}>{t.notTitle}</Heading>
+              <List density="compact" hasDividers edge="bleed">
+                {t.notPoints.map((p) => (
+                  <ListItem key={p} label={<Text type="supporting">{p}</Text>} />
+                ))}
+              </List>
+            </VStack>
+          </Card>
+        </VStack>
+      </VStack>
+    </AstryxProvider>
   );
-}
-
-/** [[낱말]] 을 강조색으로. 강조가 둘이면 붉은색·하늘색을 번갈아 쓴다(처음 홈의 배색). */
-function renderTitle(title: string) {
-  const parts = title.split(/(\[\[.+?\]\])/g);
-  let n = 0;
-  return parts.map((part, i) => {
-    const m = part.match(/^\[\[(.+)\]\]$/);
-    if (!m) return part;
-    const color = n++ % 2 === 0 ? 'var(--accent)' : 'var(--cyan)';
-    return <span key={i} style={{ color }}>{m[1]}</span>;
-  });
-}
-
-function LiveBadge({
-  health, okText, unknownText,
-}: { health: SourceHealthSummary | null; okText: string; unknownText: string }) {
-  // 전부 정상일 때만 초록. 일부가 빠졌으면 수를 그대로 보이되 호박색, 못 읽었으면 회색.
-  const color = !health ? 'var(--muted2)' : health.ok === health.total ? 'var(--ok)' : 'var(--amber)';
-  const text = health
-    ? okText.replace('{ok}', String(health.ok)).replace('{total}', String(health.total))
-    : unknownText;
-  return (
-    <p
-      style={{
-        display: 'inline-flex', alignItems: 'center', gap: 8,
-        fontFamily: 'var(--mono)', fontSize: 11, letterSpacing: '.08em', color,
-        border: `1px solid color-mix(in srgb, ${color} 35%, transparent)`,
-        background: `color-mix(in srgb, ${color} 7%, transparent)`,
-        borderRadius: 999, padding: '6px 14px', marginBottom: 24,
-      }}
-    >
-      <span
-        aria-hidden="true"
-        style={{
-          width: 6, height: 6, borderRadius: 999, background: color,
-          boxShadow: health ? `0 0 8px ${color}` : 'none',
-          animation: health ? 'blink 1.6s infinite' : 'none',
-        }}
-      />
-      {text}
-    </p>
-  );
-}
-
-/** 차별점 카드의 묶음 색 — 좌상단 띠로 구별만 준다. */
-const DIFF_TONES = ['teal', 'indigo', 'forest', 'violet', 'crimson'] as const;
-
-const MODE_COLOR: Record<EngineMode, string> = {
-  hourly: 'var(--ok)',
-  daily: 'var(--ok)',
-  onAlert: 'var(--amber)',
-  onRequest: 'var(--muted2)',
-};
-
-function ModeChip({ mode, label }: { mode: EngineMode; label: string }) {
-  const color = MODE_COLOR[mode];
-  return (
-    <span
-      style={{
-        display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
-        fontFamily: 'var(--mono)', fontSize: 10.5, color: mode === 'onRequest' ? 'var(--muted)' : color,
-        border: '1px solid var(--line2)', borderRadius: 999, padding: '3px 9px',
-      }}
-    >
-      <span
-        aria-hidden="true"
-        style={{
-          width: 5, height: 5, borderRadius: 999,
-          background: mode === 'onRequest' ? 'transparent' : color,
-          border: mode === 'onRequest' ? `1px solid ${color}` : 'none',
-        }}
-      />
-      {label}
-    </span>
-  );
-}
-
-function ModeLegend({ modes }: { modes: Record<EngineMode, string> }) {
-  return (
-    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-      {(Object.keys(modes) as EngineMode[]).map((m) => (
-        <ModeChip key={m} mode={m} label={modes[m]} />
-      ))}
-    </div>
-  );
-}
-
-function EngineCard({
-  engine, modeLabel, caveatLabel,
-}: { engine: EngineDict; modeLabel: string; caveatLabel: string }) {
-  return (
-    <Card>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-        <code style={{ fontFamily: 'var(--mono)', fontSize: 11.5, color: 'var(--cyan)', wordBreak: 'break-all' }}>
-          {engine.id}
-        </code>
-        <ModeChip mode={engine.mode} label={modeLabel} />
-      </div>
-      <h4 style={{ fontFamily: 'var(--disp)', fontWeight: 800, fontSize: 16, margin: '12px 0 8px', lineHeight: 1.35 }}>
-        {engine.name}
-      </h4>
-      <p style={{ color: 'var(--muted)', fontSize: 13.5, lineHeight: 1.72 }}>{engine.body}</p>
-      {engine.caveat && (
-        <p
-          style={{
-            marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--line)',
-            color: 'var(--muted)', fontSize: 12.5, lineHeight: 1.65,
-          }}
-        >
-          <span style={{ fontFamily: 'var(--mono)', fontSize: 10.5, color: 'var(--amber)', marginRight: 8 }}>
-            {caveatLabel}
-          </span>
-          {engine.caveat}
-        </p>
-      )}
-    </Card>
-  );
-}
-
-/**
- * 사전 문구의 **강조** 표기만 <strong>으로 바꾼다.
- * 마크다운 라이브러리를 끌어오지 않는 이유: 여기서 필요한 건 강조 하나뿐이고,
- * 사전은 우리가 직접 쓰는 파일이라 외부 입력이 아니다. 그래도 그 외 태그는
- * 만들지 않도록 굵게 표기만 치환한다.
- */
-function boldify(text: string): string {
-  const escaped = text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-  return escaped.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
 }

@@ -1,10 +1,13 @@
-import Command from '@/components/Command';
+import Console from '@/components/Console';
+import type { Locale } from '@/i18n';
+import { getPolarTrend } from '@/lib/polarTrend';
 
 type Props = { searchParams: Promise<{ lang?: string | string[] }> };
 
-/** ?lang=en|fr 이면 대시보드 틀·실측 패널을 그 언어로(2026-11-16). 없으면 한국어. */
+/** ?lang=en|fr 이면 그 언어로. 없으면 한국어. 극지 추이는 lib/polarTrend 의 15분 캐시를 쓴다. */
 export default async function DashboardPage({ searchParams }: Props) {
   const raw = (await searchParams).lang;
   const v = Array.isArray(raw) ? raw[0] : raw;
-  return <Command initialLang={v === 'en' || v === 'fr' ? v : 'ko'} />;
+  const locale: Locale = v === 'en' || v === 'fr' ? v : 'ko';
+  return <Console locale={locale} polar={await getPolarTrend(locale)} />;
 }

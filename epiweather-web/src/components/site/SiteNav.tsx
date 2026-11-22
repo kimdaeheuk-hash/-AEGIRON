@@ -8,12 +8,8 @@ import { MobileMenu } from './MobileMenu';
 /**
  * 사이트 공통 네비게이션.
  *
- * ★ 2026-10-18 재구성 ★ 캡틴 지시: "맨 위 페이지 제목들이 정리가 안 된 것처럼 보인다 —
- * 회사, 플랫폼, 기술 등을 순서대로 정리해라." 예전에는 링크 여덟 개를 한 줄에 늘어놓고
- * 넘치면 옆으로 밀었다. 휴대폰에서는 절반이 잘려 보였고, 무엇이 무엇의 하위인지도 안 보였다.
- *
- * 이제는 방문자가 읽는 순서대로 묶는다 —
- *   회사 → 플랫폼 → 실가동 → 기술 → 스페셜 프로그램 → 활용 분야 → 검증·데이터
+ * 2026-11-22 개편: 세 고리(극지 → 헤임달 → 발할라)를 맨 앞에 두고, 나머지는 '회사' 묶음 하나로 접는다.
+ * 헤임달·발할라는 운영 화면(/dashboard) 안의 구획이라 그 앵커로 보낸다.
  * 넓은 화면은 묶음마다 펼침 메뉴, 좁은 화면은 '메뉴' 버튼 하나로 접는다.
  */
 export type NavItem = { label: string; href: string };
@@ -21,41 +17,18 @@ export type NavGroup = { label: string; href?: string; items?: NavItem[]; emphas
 
 export function navGroups(locale: Locale, nav: Dictionary['nav']): NavGroup[] {
   const p = (path: string) => localePath(locale, path);
+  const dash = dashboardHref(locale);
   return [
+    { label: nav.heimdall, href: `${dash}#heimdall`, emphasis: true },
+    { label: nav.valhalla, href: `${dash}#valhalla`, emphasis: true },
+    { label: nav.polar, href: p('polar'), emphasis: true },
+    { label: nav.government, href: p('solutions/government') },
     { label: nav.company, items: [
       { label: nav.about, href: p('about') },
-      { label: nav.press, href: p('press') },
-      { label: nav.contact, href: p('contact') },
-    ] },
-    { label: nav.platform, href: p('platform') },
-    // 대표 시스템 — "엔진=>온톨로지=>바이칼몹 시스템을 아이기론을 대표하는 시스템으로"(캡틴 2026-10-19).
-    { label: nav.baikal, href: p('baikal'), emphasis: true },
-    // 실가동 — "진짜 아이기론이 뭘 하고 있는지 보여줘야 해"(캡틴 2026-10-18). 최상위에 둔다.
-    { label: nav.live, href: p('live'), emphasis: true },
-    { label: nav.technology, items: [
-      { label: nav.techSpec1, href: p('technology') },
-      { label: nav.techSpec2, href: p('technology-advanced') },
-      { label: nav.engines, href: p('engines') },
-      { label: nav.diseases, href: p('diseases') },
       { label: nav.methodology, href: p('methodology') },
       { label: nav.developers, href: p('developers') },
-    ] },
-    // 스페셜 프로그램(헤임달·발할라)은 강조색 — 캡틴이 "R&D처럼 중요하다"고 지목한 항목이다.
-    { label: nav.programs, href: p('programs'), emphasis: true },
-    { label: nav.solutions, items: [
-      { label: nav.korea, href: p('korea') },
-      { label: nav.solGovernment, href: p('solutions/government') },
-      { label: nav.solReinsurance, href: p('solutions/reinsurance') },
-      { label: nav.solNgo, href: p('solutions/ngo') },
-      { label: nav.pilot, href: p('pilot') },
-    ] },
-    { label: nav.trust, items: [
-      { label: nav.record, href: p('record') },
-      { label: nav.transparency, href: p('transparency') },
       { label: nav.security, href: p('security') },
-      { label: nav.dataSources, href: p('data-sources') },
-      { label: nav.briefings, href: p('briefings') },
-      { label: nav.dataShop, href: p('data') },
+      { label: nav.contact, href: p('contact') },
     ] },
   ];
 }

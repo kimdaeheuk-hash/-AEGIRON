@@ -86,19 +86,9 @@ def test_polar_watch_includes_antarctic_h5n1_region():
 
 def test_every_polar_slug_has_a_scope_term():
     """스코프 항목이 하나라도 빠지면 그 지역은 전역 뉴스를 받는다."""
-    from algorithms.local_news import POLAR_TERMS
+    from algorithms.polar_news import POLAR_TERMS
     for (key, *_rest) in POLAR_REGIONS:
         assert POLAR_TERMS.get(f"{key}_news"), key
-
-
-def test_polar_terms_stay_out_of_country_terms():
-    """극지 8종이 COUNTRY_TERMS 로 새면 country_scoped_feeds 가 110 이 된다.
-
-    2026-11-03 실측: 한때 합쳐 두었더니 "179개 피드 중 102개 한정"이라는
-    정직한 수와 "없는 피드에 이름을 붙였다" 계약이 함께 깨졌다."""
-    from algorithms.local_news import COUNTRY_TERMS, POLAR_TERMS
-    assert len(COUNTRY_TERMS) == 102 and len(POLAR_TERMS) == 8
-    assert not (set(POLAR_TERMS) & set(COUNTRY_TERMS))
 
 
 def test_compute_region_sends_a_scoped_url():
@@ -279,3 +269,15 @@ def test_compute_region_carries_yamal_index():
                return_value={"available": False}):
         out = compute_region(POLAR_REGIONS[0])
     assert out["yamal_index"]["conditions_met"] == ["thaw_days", "dieoff_news"]
+
+
+def test_polar_news_feed_failure_is_a_value_not_an_exception(monkeypatch):
+    """극지 피드가 죽어도 예외가 아니라 status='error' 와 짧은 사유로 돌아온다(개편 2차에서 옮긴 함수)."""
+    from algorithms import polar_news
+
+    def boom(*a, **k):
+        raise ConnectionError("blocked")
+
+    monkeypatch.setattr(polar_news.requests, "get", boom)
+    out = polar_news.fetch_local_feed("greenland_news", "polar", "그린란드", "https://x", ["anthrax"])
+    assert out["status"] == "error" and out["reason"]

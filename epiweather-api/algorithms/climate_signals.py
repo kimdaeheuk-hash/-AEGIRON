@@ -28,21 +28,6 @@ USER_AGENT = {"User-Agent": "EpiWeather-Climate/1.0 (epiweather.kr)"}
 TIMEOUT = 20
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
 
-# ★ Open-Meteo 무료 하루 한도 (2026-11-18) ★
-# 11-15~17 사흘 내리 극지·기후가 낮에 비고 UTC 자정 직후 풀렸다 — 하루 한도 소진의 모양.
-# 원인은 같은 자료를 여러 번 받는 것: 수집기(극지) + 매시 관측값 저장(극지·기후, 30분 캐시라
-# 매번 만료) + API 방문. 기후 값은 일 단위(일최고기온·일강수)라 6시간 캐시로도 낡지 않는다.
-CLIMATE_CACHE_KEY = "climate-signals"
-CLIMATE_CACHE_TTL_S = 6 * 3600
-
-# ★ 전부 조회 실패한 결과는 6시간을 살지 못한다 (2026-11-19) ★
-# 11-18 의 6시간 캐시가 **빈 결과까지** 저장해서, 하루 한도가 자정에 풀려도 기후 15개국이
-# 계속 '판정 안 함' 이었다(11-19 00:09 UTC 실측 — `기후 15(새 0·같음 15·판정 안 함 15)`).
-# Open-Meteo 를 다시 부르지 않으니 회복할 기회가 없었다.
-# 수집 주기(1시간)보다 **짧게** 잡아 다음 주기가 반드시 다시 계산하게 한다. 아주 끄지 않는
-# 이유는 한도 소진 구간에 방문자마다 재호출이 돌아오면 안 되기 때문이다(#132 가 막은 것).
-CLIMATE_UNUSABLE_TTL_S = 55 * 60
-
 # 실패 사유 — fetch_climate 는 계약상 실패를 None 하나로 돌려준다(호출부 셋이 그렇게 쓴다).
 # 그래서 '왜'가 어디에도 안 남았다(한도 429 인지 장애인지 갈리지 않음). 계약은 그대로 두고
 # 사유만 따로 센다. 수집기가 주기마다 비워 가며 로그에 찍는다.
@@ -53,6 +38,41 @@ _FAILURES_LOCK = threading.Lock()
 def _record_failure(reason: str) -> None:
     with _FAILURES_LOCK:
         _FAILURES[reason] += 1
+
+
+# ★ 429 는 한 종류가 아니다 — 본문에 어느 한도인지 적혀 온다 (2026-11-19) ★
+#
+# #132 는 `HTTP 429` 까지만 세고 **응답 본문을 버렸다.** 그래서 나흘째 "한도"라는 것만
+# 알고 **분·시간·일 중 무엇인지는 갈리지 않았다.** 2026-08-25 의 교훈
+# ("실패 이유를 버리면 고칠 수 없다")과 같은 자리, 한 겹 더 깊은 곳이다.
+#
+# 이게 중요한 이유: 우리 호출량은 하루 276회(극지 8×24 + 기후 15×4 + 오지 6×4)인데
+# 무료 티어는 그보다 한참 크다. 그러면 둘 중 하나다 —
+#   `Daily …`    → 우리 양으로 일 한도에 닿을 수 없다 ⇒ 송신 IP를 남과 나눠 쓴다(처방: 전용 키)
+#   `Minutely …` → 한 주기에 몰아 쏘는 모양이 문제다      ⇒ 간격만 벌리면 공짜로 해결된다
+# 처방이 정반대라서 **추측으로 결정하지 않는다.** 이 한 줄이 그걸 가른다.
+_REASON_MAX = 60
+
+
+def _http_failure_reason(resp: object) -> str:
+    """비200 응답의 실패 사유. 본문에 `reason` 이 있으면 붙인다.
+
+    Open-Meteo 는 비200 에 `{"error": true, "reason": "Daily API request limit exceeded…"}`
+    를 실어 보낸다. **사유가 없으면 `HTTP {코드}` 만** 돌려준다 — 집계 키가 쪼개지지 않게,
+    그리고 사유를 못 읽었을 때 못 읽었다고 말하게(없는 사유를 지어내지 않는다).
+
+    본문이 JSON 이 아닌 경우(프록시 HTML 등)도 코드만 남긴다. 아무 글자나 키로 쓰면
+    같은 고장이 여러 줄로 쪼개져 집계가 거짓말을 한다.
+    """
+    label = f"HTTP {getattr(resp, 'status_code', '?')}"
+    try:
+        body = resp.json()                      # type: ignore[attr-defined]
+    except Exception:                           # noqa: BLE001 — JSON 이 아니면 코드만
+        return label
+    if not isinstance(body, dict):
+        return label
+    detail = " ".join(str(body.get("reason") or "").split()).strip(" .")
+    return f"{label} · {detail[:_REASON_MAX]}" if detail else label
 
 
 def pop_failure_reasons() -> dict[str, int]:
@@ -122,7 +142,8 @@ def fetch_climate(lat: float, lng: float) -> dict | None:
             headers=USER_AGENT, timeout=TIMEOUT,
         )
         if resp.status_code != 200:
-            _record_failure(f"HTTP {resp.status_code}")
+            # 본문의 `reason` 까지 센다(2026-11-19) — 어느 한도인지가 처방을 가른다.
+            _record_failure(_http_failure_reason(resp))
             return None
         daily = resp.json().get("daily") or {}
         temps = [t for t in (daily.get("temperature_2m_max") or []) if t is not None]
@@ -183,25 +204,6 @@ def compute_country_climate(country_id: str) -> dict:
         "weights_calibrated": False,
         "method": "temp_vector_precip_v1",
     }
-
-
-def climate_result_usable(result: dict | None) -> bool:
-    """이 결과를 6시간 동안 답으로 써도 되는가 (2026-11-19).
-
-    **자료의 성질로만 판정한다** — 나라 하나라도 기상 자료가 들어왔으면 쓸 수 있다.
-    전부 `data_available: False` 면 이 주기엔 아무것도 못 받은 것이고, 그걸 6시간 쥐고
-    있으면 한도가 풀려도 회복하지 않는다(#124 의 `polar_weather_ok` 와 같은 원칙:
-    판정이 서식이나 문자열을 만드는 일에 의존하면 안 된다).
-
-    나라 목록이 비어 있으면 **쓸 수 없다고 본다** — 그건 자료가 아니라 배선 문제이고,
-    짧은 ttl 로 다음 주기에 다시 보는 쪽이 조용히 빈 답을 6시간 주는 것보다 낫다.
-    """
-    if not isinstance(result, dict):
-        return False
-    countries = result.get("countries")
-    if not isinstance(countries, list) or not countries:
-        return False
-    return any(isinstance(c, dict) and c.get("data_available") for c in countries)
 
 
 def climate_signals_all() -> dict:

@@ -41,9 +41,6 @@ import requests
 
 from . import nvidia as _nvidia
 
-# 기본 엔드포인트(NVIDIA 클라우드). 실제 호출 URL은 요청 시점에 nvidia.msa_url()로
-# 해석 — AEGIRON_NVIDIA_ONPREM_BASE 설정 시 온프렘 라우팅(완전 주권).
-MSA_URL = "https://health.api.nvidia.com/v1/biology/colabfold/msa-search/predict"
 TIMEOUT = 900          # 검색 1회에 약 40초. 여유를 크게 둔다.
 MIN_AA = 50            # 너무 짧으면 상동성 검색이 의미 없음
 
@@ -102,21 +99,6 @@ _REF = {
     "coverage_chimera_max": 0.748,  # 키메라 실측 최대(1차 포함)
     "coverage_low": 0.90,           # 이 미만이면 '전장 상동체 없음' 플래그
 }
-
-
-def _translate(nt: str) -> str:
-    """뉴클레오타이드 → 아미노산(표준 유전암호). 종결코돈에서 끊는다."""
-    from .genome_signals import _CODON_AA
-
-    aa = []
-    for i in range(0, len(nt) - 2, 3):
-        residue = _CODON_AA.get(nt[i:i + 3])
-        if residue is None:
-            break                  # 모호 염기 등 — 거기서 중단
-        if residue == "*":
-            break
-        aa.append(residue)
-    return "".join(aa)
 
 
 def longest_peptide_6frame(seq: str) -> dict | None:

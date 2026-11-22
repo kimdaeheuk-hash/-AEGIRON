@@ -1,112 +1,36 @@
-# EPIWeather (역병예보) + AEGIRON — Epidemic Early Warning on Meta Model API
+# AEGIRON — 극지 감지 → 헤임달 식별 → 발할라 대응 판정
 
-Infectious-disease early-warning system: a FastAPI inference engine
-(`epiweather-api`) plus a Next.js dashboard (`epiweather-web`). It fuses
-news, weather, mobility, genomic, and deforestation signals into outbreak
-alerts with honest provenance on every record.
+국가 바이오안보 기관을 첫 고객으로 둔 한 줄기 시스템.
 
-Submitted to the **Meta Global AI Developer Hackathon 2026**
-(Oct 26 – Nov 4, 2026).
+| 고리 | 하는 일 | 주기 |
+|---|---|---|
+| **극지(POLAR)** · 감지 | 8개 극지 지역의 기온·해빙일수(Open-Meteo)와 현지어 보도 관찰, 16년 재분석 대비 편차 계산 | 매시 |
+| **헤임달(HEIMDALL)** · 식별 | Nextstrain 공개 빌드의 우세 계통 전이를 원장에 기록 · 서열 스크리닝(방어 전용) | 매시 / 요청 시 |
+| **발할라(VALHALLA)** · 대응 판정 | 위협 × 등록 대응제 × 변이 대조 판정을 하루 한 행 원장에 기록 | 매시(무거운 조각은 주기마다) |
 
-- Track (proposed): **Indie Developer**
-- Theme (proposed): **Build for Your World** — Meta's models in the
-  public-health domain, solving an outbreak-detection problem firsthand.
-- Demo video (3 min): _link added before submission_
-- Live demo: run locally (see Quickstart) — no hosted demo claimed.
+2026-11-22 개편으로 나머지(전 세계 경보·예측 원장·BAIKAL 등)는 지웠다.
+복원 기준 커밋: `83406e4` (`git checkout 83406e4 -- <경로>`). 계획: `docs/아이기론_개편계획_2026-11.md`.
 
-## Built during the event (Oct 26 – Nov 4)
+## 구조
 
-Per the event rule that the demo shows event-window work, the submission
-centers on what changed in the window:
+- `epiweather-api/` — FastAPI + 매시 스케줄러 (Railway). `main.py` · `collector.py` · `db.py` · `algorithms/` · `tests/`
+- `epiweather-web/` — Next.js 16 · Astryx (Vercel). 홈 · `/polar` · `/dashboard`(세 고리 운영 화면) · 콘텐츠 페이지
+- `docs/` — 개편 계획, 소킹 일지
 
-1. **Meta Model API extraction path (Oct 28, this branch's headline work)**
-   - `epiweather-api/algorithms/meta_api.py` (new): single source of truth
-     for the Meta Model API convention — default `muse-spark-1.3` on
-     `https://api.meta.ai/v1` (OpenAI-compatible chat/completions).
-   - `epiweather-api/algorithms/aegiron_model.py`: extraction order is now
-     NIM → **Meta** → local → Claude fallback; `AEGIRON_META_FIRST=on`
-     forces Meta first for the demo.
-   - Every extracted signal is tagged `ai_provider=meta_model_api` (+
-     `data_sovereign` flag); calls are observed in the capability ledger
-     and surfaced on `/api/status`.
-   - `epiweather-api/tests/test_meta_api.py` (new): 17 tests, all mocked
-     (no outbound HTTP per repo policy).
-2. **WHO outbreak-declaration country evidence (#109, #111, Oct 26–27)**
-   - `who_don_declarations.py` + `country_resolve.py`: declaration
-     announcements now carry resolved country evidence with logged basis.
-
-## How Meta's AI is used (beyond a basic integration)
-
-- **Muse Spark does production extraction**, not a side demo: multilingual
-  news text → structured outbreak records (disease, country, signal type)
-  through the same prompt/schema as every other backend, so quality is
-  comparable across providers.
-- **Honest provider tagging**: each stored signal records which model made
-  the label (`extracted_signals.ai_provider`), and `/api/status` separates
-  "configured" from "recently observed working" — a claim this repo was
-  built around after real incidents.
-- **Sovereignty gating**: Meta-hosted inference is correctly marked
-  non-sovereign; with `AEGIRON_REQUIRE_LOCAL=on`, sensitive data is blocked
-  *before* leaving, and self-hosted OpenAI-compatible bases count as
-  sovereign automatically.
-- **Unguessable-parameter discipline**: the Meta path deliberately does
-  *not* send NVIDIA-only parameters the team never validated against Meta.
-
-## Quickstart
-
-Requirements: Python 3.11+, Node 20+, a Meta Model API key
-([dev.meta.ai](https://dev.meta.ai/) → API keys).
+## 실행
 
 ```bash
-# 1. API
 cd epiweather-api
 pip install -r requirements.txt
-cp .env.example .env   # then set META_MODEL_API_KEY (and data-source keys)
-uvicorn main:app --port 8000   # Swagger UI: http://localhost:8000/docs
+python3 -m pytest -q                                   # 365건, 외부 HTTP 차단
+EPIWEATHER_SCHEDULER=off uvicorn main:app --port 8000  # /docs 에 OpenAPI
 
-# 2. Web (new terminal)
-cd epiweather-web
-npm install
-cp .env.example .env.local   # NEXT_PUBLIC_API_URL=http://localhost:8000
-npm run dev                  # http://localhost:3000
+cd ../epiweather-web
+npm ci && npm run build                                # NEXT_PUBLIC_API_URL 로 API 주소 지정
 ```
 
-Key env vars (API `.env`):
+## 정직 원칙
 
-| Variable | Purpose |
-|---|---|
-| `META_MODEL_API_KEY` | Meta Model API key (`MODEL_API_KEY` also accepted) |
-| `META_MODEL_API_MODEL` | Override (default `muse-spark-1.3`) |
-| `AEGIRON_META_FIRST` | `on` = try Meta before NIM (demo forcing) |
-| `EPIWEATHER_API_KEY` | Required: protects POST endpoints (fail-closed 503) |
-
-## Verify the Meta path (1 minute, live)
-
-```bash
-cd epiweather-api
-META_MODEL_API_KEY=<key> python -c "
-import sys; sys.path.insert(0,'.')
-from algorithms import aegiron_model as am
-r, a = am.extract_signal_detailed('DRC 에볼라 신규발생', source='demo')
-print(r.get('ai_provider'), '|', r.get('disease'), '|', r.get('country_iso3'))"
-# expected: meta_model_api | 에볼라 | COD
-```
-
-Then open `http://localhost:8000/api/status` → `capability_health` →
-`meta_text` shows `verified: true` after a real call.
-
-## Layout
-
-- `epiweather-api/` — FastAPI service: `main.py`, `collector.py`, `db.py`,
-  `algorithms/` (inference layers), `tests/` (2389 tests, mocked HTTP).
-- `epiweather-web/` — Next.js 16 dashboard (i18n, Leaflet maps).
-- `epiweather-handoff/` — engine sources reused by the API.
-- `docs/` — ops notes. `DEMO.md` — 3-minute demo script.
-
-## Test status
-
-- New Meta path: 17/17 pass; affected area (AEGIRON/NIM/ledger/diagnostics):
-  220/220 pass.
-- Full API suite: 2389 tests collected. `test_main_endpoints.py` needs
-  localhost sockets, blocked in some sandboxes (fails identically without
-  this change — environmental, not a regression).
+- 측정 · 추정 · 대리값을 섞지 않는다.
+- 성공 / 실패 / 판정 안 함 — 못 본 것을 0 이나 정상으로 적지 않는다.
+- 예측 정확도 트랙레코드 없음. 관찰 등급은 경보가 아니다.
