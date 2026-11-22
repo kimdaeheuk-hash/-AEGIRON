@@ -10,10 +10,14 @@ import HeimdallPanel from '@/components/stages/HeimdallPanel';
 import ValhallaPanel from '@/components/stages/ValhallaPanel';
 import { getDictionary, localePath, type Locale } from '@/i18n';
 import type { PolarTrendRow } from '@/lib/polarTrend';
+import type { VariantLedger, VariantStateRow, VariantTransitionRow } from '@/lib/variantLedger';
 
 /**
  * 운영 화면(/dashboard) — 2026-11-22 개편. 예전 10단계 시뮬레이션(Command)을 지우고
- * 세 고리만 위에서 아래로 둔다: 극지(감지) → 헤임달(식별) → 발할라(대응 판정).
+ * 세 고리만 위에서 아래로 둔다: 헤임달(변이 추적) → 발할라(대응 판정) → 극지(감지).
+ *
+ * 캡틴 "변이추적으로 발할라를 앞세워"(2026-11-22): 헤임달 구획은 변이 원장(실제로 매시 도는 기록)을
+ * 앞에 두고, 서열 스크리너는 그 아래에 '개발 중(검증 진행)'으로 표시한다 — 민감도를 아직 재지 않았다.
  *
  * 헤임달·발할라 패널은 운영 API 를 브라우저에서 직접 부르는 기존 클라이언트 컴포넌트다
  * (문구는 아직 한국어 — en/fr 에서는 그 사실을 머리말에 밝힌다).
@@ -26,7 +30,15 @@ const KO_ONLY: Record<Locale, string | null> = {
   fr: 'Les panneaux Heimdall et Valhalla ci-dessous sont encore en coréen.',
 };
 
-export default function Console({ locale, polar }: { locale: Locale; polar: Polar }) {
+export default function Console({
+  locale,
+  polar,
+  variants,
+}: {
+  locale: Locale;
+  polar: Polar;
+  variants: VariantLedger;
+}) {
   const dict = getDictionary(locale);
   // 순서가 아니라 코드로 찾는다 — 홈 사전에서 고리 순서를 바꿔도 이 화면이 안 깨진다.
   const byCode = Object.fromEntries(dict.home.stages.map((s) => [s.code, s]));
@@ -34,6 +46,20 @@ export default function Console({ locale, polar }: { locale: Locale; polar: Pola
   const valhalla = byCode.VALHALLA;
   const polarStage = byCode.POLAR;
   const pt = dict.polar;
+  const vt = dict.variant;
+  const stateColumns: TableColumn<VariantStateRow>[] = [
+    { key: 'build', header: vt.cols.build, width: proportional(1.4, { minWidth: 150 }) },
+    { key: 'dominant', header: vt.cols.dominant, width: proportional(1.2, { minWidth: 120 }) },
+    { key: 'share', header: vt.cols.share, width: proportional(0.6, { minWidth: 80 }) },
+    { key: 'sequences', header: vt.cols.sequences, width: proportional(0.7, { minWidth: 100 }) },
+    { key: 'observed', header: vt.cols.observed, width: proportional(1.2, { minWidth: 150 }) },
+  ];
+  const transitionColumns: TableColumn<VariantTransitionRow>[] = [
+    { key: 'observed', header: vt.cols.observed, width: proportional(1.2, { minWidth: 150 }) },
+    { key: 'build', header: vt.cols.build, width: proportional(1.2, { minWidth: 140 }) },
+    { key: 'kind', header: vt.cols.kind, width: proportional(0.8, { minWidth: 110 }) },
+    { key: 'change', header: vt.cols.change, width: proportional(1.6, { minWidth: 160 }) },
+  ];
   const columns: TableColumn<PolarTrendRow>[] = [
     { key: 'region', header: pt.cols.region, width: proportional(1.2, { minWidth: 130 }) },
     { key: 'first', header: pt.cols.first, width: proportional(1.6, { minWidth: 170 }) },
@@ -67,6 +93,48 @@ export default function Console({ locale, polar }: { locale: Locale; polar: Pola
 
           <VStack gap={2} id="heimdall">
             {head(1, heimdall)}
+            <Card padding={4}>
+              <VStack gap={3}>
+                <VStack gap={1}>
+                  <Heading level={3}>{vt.title}</Heading>
+                  <Text type="supporting">{vt.lead}</Text>
+                </VStack>
+                {variants === null ? (
+                  <Text color="secondary">{vt.unavailable}</Text>
+                ) : variants.state.length === 0 ? (
+                  <Text color="secondary">{vt.empty}</Text>
+                ) : (
+                  <VStack gap={3}>
+                    <Text type="label">{vt.stateTitle}</Text>
+                    <Table<VariantStateRow>
+                      data={variants.state}
+                      columns={stateColumns}
+                      idKey="id"
+                      density="compact"
+                      textOverflow="wrap"
+                      verticalAlign="top"
+                    />
+                    <Text type="label">{vt.transitionsTitle}</Text>
+                    {variants.transitions.length === 0 ? (
+                      <Text color="secondary">{vt.noTransitions}</Text>
+                    ) : (
+                      <Table<VariantTransitionRow>
+                        data={variants.transitions}
+                        columns={transitionColumns}
+                        idKey="id"
+                        density="compact"
+                        textOverflow="wrap"
+                        verticalAlign="top"
+                      />
+                    )}
+                  </VStack>
+                )}
+              </VStack>
+            </Card>
+            <VStack gap={1}>
+              <Heading level={3}>{vt.screenerTitle}</Heading>
+              <Text type="supporting">{vt.screenerNote}</Text>
+            </VStack>
             <HeimdallPanel />
           </VStack>
 

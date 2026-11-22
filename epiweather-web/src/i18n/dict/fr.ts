@@ -1,6 +1,6 @@
 import type { Dictionary } from '../types';
 
-// 2026-11-22 개편 사전 — 극지 → 헤임달 → 발할라. 지운 페이지 사전은 커밋 83406e4 에 있음.
+// 2026-11-22 개편 사전 — 헤임달(변이 추적) → 발할라 → 극지. 지운 페이지 사전은 커밋 83406e4 에 있음.
 export const fr: Dictionary = {
   "nav": {
     "polar": "Veille polaire",
@@ -20,7 +20,7 @@ export const fr: Dictionary = {
     "language": "Langue"
   },
   "footer": {
-    "tagline": "Détecter → identifier → juger la réponse.",
+    "tagline": "Suivre le variant → juger la réponse.",
     "product": "Produit",
     "company": "Entreprise",
     "legal": "Mentions légales",
@@ -31,28 +31,28 @@ export const fr: Dictionary = {
     "disclaimer": "AEGIRON ne dispose pas encore d’un historique validé en matière de précision de détection précoce. Tous les chiffres de ce site mesurent l’échelle du système, et non sa performance prédictive."
   },
   "home": {
-    "metaTitle": "AEGIRON — Détection polaire · identification Heimdall · réponse Valhalla",
-    "metaDescription": "Détection horaire d’anomalies dans les régions de pergélisol polaire (Polar), identification des changements de lignée dans les génomes publics (Heimdall) et verdict sur la couverture des contre-mesures nationales (Valhalla). Pour les agences de biosécurité nationale.",
+    "metaTitle": "AEGIRON — Suivi des variants · Couverture des contre-mesures",
+    "metaDescription": "Consigne, chaque heure, le moment où la lignée dominante change dans les génomes publics de pathogènes (Heimdall), et évalue chaque jour si des vaccins et traitements existent face à cette menace (Valhalla). Pour les entreprises bio et du diagnostic et les agences nationales de biosécurité.",
     "eyebrow": "AEGIRON · Bio-santé",
-    "title": "Lire le génome du pathogène,\npuis voir si une réponse existe",
-    "lead": "Nous suivons chaque heure les lignées publiques de pathogènes, calculons des indicateurs d’anomalie défensifs pour une séquence soumise (Heimdall) et jugeons s’il existe un vaccin ou un traitement pour cette menace (Valhalla). Nos premiers clients sont les entreprises de biotechnologie et de diagnostic et les agences de biosécurité nationale.",
+    "title": "Suivre le variant,\npuis savoir si l'on peut riposter",
+    "lead": "Nous consignons, chaque heure, le moment où la lignée dominante change dans les génomes publics de pathogènes (suivi des variants Heimdall), et évaluons chaque jour si des vaccins et traitements existent face à cette menace (Valhalla). Le criblage de séquences est en développement (validation en cours). Nos premiers clients : entreprises bio et du diagnostic, agences nationales de biosécurité.",
     "primaryCta": "Ouvrir la vue opérationnelle",
     "secondaryCta": "Pour entreprises et agences",
     "chainTitle": "Trois maillons",
-    "chainLead": "Heimdall (identifier) est au centre ; Valhalla (juger la réponse) le soutient, et Polar (détecter) reste une recherche d’avenir. Seul ce qui fonctionne réellement aujourd’hui est indiqué.",
+    "chainLead": "Le suivi des variants (Heimdall) et la couverture des contre-mesures (Valhalla) passent devant ; la veille polaire reste un axe de recherche. Le criblage de séquences est signalé en développement jusqu'à la fin de sa validation. Seul ce qui fonctionne aujourd'hui est mentionné.",
     "stages": [
       {
         "code": "HEIMDALL",
         "name": "Heimdall",
-        "role": "Identifier",
-        "body": "Consigne les changements de lignée dominante dans les génomes publics (Nextstrain) et calcule des indicateurs d’anomalie pour une séquence soumise. Détection défensive uniquement.",
+        "role": "Suivi des variants",
+        "body": "Lorsque la lignée dominante d'un build génomique public (Nextstrain) change ou qu'une nouvelle lignée apparaît, l'instant est inscrit au registre. Un enregistrement, non un verdict.",
         "facts": [
-          "Build public SARS-CoV-2 vérifié chaque heure · seules les transitions de lignée dominante sont consignées",
-          "Criblage de séquences (usage des codons, CpG, entropie …) sur demande · clé API requise",
-          "Un signal de priorité, pas un verdict — aucune conception ni synthèse de séquences"
+          "Build public SARS-CoV-2 vérifié chaque heure · seuls les changements de lignée dominante et les nouvelles lignées sont consignés",
+          "Lignées et proportions citées de Nextstrain · la transition est établie par notre registre en comparant au cycle précédent",
+          "Criblage de séquences en développement (validation en cours) — faux positifs mesurés chaque semaine sur des séquences naturelles publiques · sensibilité non encore mesurée"
         ],
         "href": "heimdall",
-        "linkLabel": "Ouvrir la section Heimdall"
+        "linkLabel": "Ouvrir le registre des variants"
       },
       {
         "code": "VALHALLA",
@@ -107,6 +107,32 @@ export const fr: Dictionary = {
     "unavailable": "Historique polaire illisible (non déterminé)",
     "apiLabel": "API brute"
   },
+  "variant": {
+    "title": "Registre des variants (chaque heure)",
+    "lead": "Dernière lignée dominante par build et transitions récentes · lignées, proportions et nombres de séquences cités de Nextstrain ; les transitions sont établies par notre registre en comparant au cycle précédent",
+    "stateTitle": "État actuel",
+    "transitionsTitle": "Transitions récentes (10 au plus)",
+    "cols": {
+      "build": "Build",
+      "dominant": "Lignée dominante",
+      "share": "Proportion",
+      "sequences": "Séquences récentes",
+      "observed": "Vérifié le",
+      "kind": "Transition",
+      "change": "Changement"
+    },
+    "transitions": {
+      "first_seen": "Premier relevé",
+      "dominant_changed": "Changement de dominante",
+      "new_clade": "Nouvelle lignée",
+      "none": "Aucun changement"
+    },
+    "empty": "Aucun relevé au registre pour l'instant",
+    "noTransitions": "Aucune transition consignée",
+    "unavailable": "Registre des variants illisible (non déterminé)",
+    "screenerTitle": "Criblage de séquences — en développement (validation en cours)",
+    "screenerNote": "Mesure du 2026-11-22 : sur 7 séquences naturelles publiques, 6,4 % de faux positifs par fragment de 1 000 bases et 1 sur 7 par séquence entière. La sensibilité (détection des séquences dangereuses) n'est pas encore mesurée — les résultats aident à prioriser, ce ne sont pas des verdicts."
+  },
   "pages": {
     "polar": {
       "metaTitle": "Veille polaire",
@@ -118,14 +144,14 @@ export const fr: Dictionary = {
     },
     "about": {
       "metaTitle": "À propos",
-      "metaDescription": "AEGIRON — une entreprise de bio-santé qui lit le génome d’un pathogène pour identifier d’abord la menace, et détermine si les moyens d’y faire face existent déjà.",
+      "metaDescription": "AEGIRON — une entreprise de bio-santé qui suit, heure par heure, l’évolution du génome d’un pathogène, et détermine si les moyens d’y faire face existent déjà.",
       "eyebrow": "ABOUT",
       "title": "AEGIRON",
-      "lead": "Une entreprise technologique d’une seule personne, fondée à Busan. Nous lisons le génome d’un pathogène afin d’identifier une menace avant même qu’elle ne soit nommée, et nous déterminons si les moyens d’y faire face existent déjà dans le monde. À ce seul dessein nous consacrons nos efforts. Les entreprises de biotechnologie et de diagnostic ainsi que les agences de biosécurité nationale sont nos premiers partenaires.",
+      "lead": "Une entreprise technologique d’une seule personne, fondée à Busan. Nous suivons, heure par heure, l’évolution du génome d’un pathogène, et nous déterminons si les moyens de s’opposer à cette évolution existent déjà dans le monde. À ce seul dessein nous consacrons nos efforts. Les entreprises de biotechnologie et de diagnostic ainsi que les agences de biosécurité nationale sont nos premiers partenaires.",
       "blocks": [
         {
           "title": "Pourquoi nous nous consacrons à une seule chose",
-          "body": "Jusqu’en novembre 2026, AEGIRON recueillait des signaux de maladies du monde entier. Mais plus notre portée s’élargissait, plus notre expertise s’amenuisait — et les évaluations extérieures le disaient sans détour. Nous avons donc choisi de renoncer à l’ambition dispersée. Nous avons placé l’identification génomique des pathogènes (Heimdall) au centre, laissé derrière elle le jugement de l’existence d’une réponse (Valhalla), et conservé la surveillance polaire comme recherche d’avenir. Nous croyons qu’une seule chose approfondie va plus loin que cent éparpillées."
+          "body": "Jusqu’en novembre 2026, AEGIRON recueillait des signaux de maladies du monde entier. Mais plus notre portée s’élargissait, plus notre expertise s’amenuisait — et les évaluations extérieures le disaient sans détour. Nous avons donc choisi de renoncer à l’ambition dispersée. Nous avons placé le suivi des variants de pathogènes (Heimdall) au premier plan, laissé derrière elle le jugement de l’existence d’une réponse (Valhalla), et conservé la surveillance polaire comme recherche d’avenir. Nous croyons qu’une seule chose approfondie va plus loin que cent éparpillées."
         },
         {
           "title": "Les principes que nous tenons",
@@ -170,7 +196,7 @@ export const fr: Dictionary = {
             "Lit la lignée dominante et sa part sur 60 jours dans les builds publics Nextstrain",
             "Seuls les cycles où la lignée dominante change sont consignés · rien n’est écrit en l’absence de données",
             "Les indicateurs de criblage (CAI, CpG, entropie, anomalies locales) sont des **signaux de priorité**, pas des verdicts",
-            "La spécificité du criblage (taux de faux positifs sur des séquences naturelles) est mesurée chaque semaine sur des séquences de référence publiques — GitHub Actions `heimdall-validation`. La sensibilité et les verdicts ne sont pas mesurés."
+            "Le criblage est **en développement (validation en cours)** — sa spécificité (taux de faux positifs sur des séquences naturelles) est mesurée chaque semaine sur des séquences de référence publiques (GitHub Actions `heimdall-validation`). 2026-11-22 : 6,4 % par fragment de 1 000 bases, 1 sur 7 par séquence entière. La sensibilité et les verdicts ne sont pas mesurés."
           ],
           "note": "Limites : hérite des retards et biais de soumission des séquences publiques"
         },
@@ -189,7 +215,7 @@ export const fr: Dictionary = {
     },
     "government": {
       "metaTitle": "Biosécurité nationale",
-      "metaDescription": "Détection polaire, identification génomique et verdict sur les contre-mesures pour les agences de biosécurité nationale.",
+      "metaDescription": "Suivi des variants, verdict sur les contre-mesures et détection polaire pour les agences de biosécurité nationale.",
       "eyebrow": "GOVERNMENT",
       "title": "Pour les entreprises de biotech/diagnostic et les agences de biosécurité nationale",
       "lead": "Lire le génome du pathogène (Heimdall) et voir s’il existe une contre-mesure pour cette menace (Valhalla) dans une seule vue · les entreprises de biotechnologie et de diagnostic et les agences de biosécurité nationale sont les premiers clients",
