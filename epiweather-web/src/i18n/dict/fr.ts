@@ -169,7 +169,8 @@ export const fr: Dictionary = {
           "points": [
             "Lit la lignée dominante et sa part sur 60 jours dans les builds publics Nextstrain",
             "Seuls les cycles où la lignée dominante change sont consignés · rien n’est écrit en l’absence de données",
-            "Les indicateurs de criblage (CAI, CpG, entropie, anomalies locales) sont des **signaux de priorité**, pas des verdicts"
+            "Les indicateurs de criblage (CAI, CpG, entropie, anomalies locales) sont des **signaux de priorité**, pas des verdicts",
+            "La spécificité du criblage (taux de faux positifs sur des séquences naturelles) est mesurée chaque semaine sur des séquences de référence publiques — GitHub Actions `heimdall-validation`. La sensibilité et les verdicts ne sont pas mesurés."
           ],
           "note": "Limites : hérite des retards et biais de soumission des séquences publiques"
         },

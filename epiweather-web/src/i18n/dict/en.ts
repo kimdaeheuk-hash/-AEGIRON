@@ -169,7 +169,8 @@ export const en: Dictionary = {
           "points": [
             "Reads the dominant lineage and its share over the last 60 days from public Nextstrain builds",
             "Only cycles where the dominant lineage changed are recorded as transitions · nothing is written when data is missing",
-            "Screening indicators (CAI, CpG, entropy, local anomalies) are **priority signals**, not verdicts"
+            "Screening indicators (CAI, CpG, entropy, local anomalies) are **priority signals**, not verdicts",
+            "Screener specificity (false-positive rate on natural sequences) is measured weekly against public reference sequences — GitHub Actions `heimdall-validation`. Sensitivity and verdicts are not measured."
           ],
           "note": "Limits: inherits the delays and biases of public sequence submission"
         },
