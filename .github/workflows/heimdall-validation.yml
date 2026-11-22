@@ -1,0 +1,70 @@
+name: Heimdall validation
+
+# 헤임달 스크리너 특이도 측정 — 공개 자연 서열에서 거짓 양성이 얼마나 나오나.
+#
+# 왜: 헤임달 스크리너는 판정이 아니라 우선순위 신호다. 제품으로 쓰려면 "자연 서열을
+# 괜히 올리지 않는가"(특이도)가 수치로 있어야 한다. 이 작업이 그 한 가지를 잰다.
+#
+# 역할 분리: 서열은 **러너가 공개 데이터베이스(ENA)에서 접근번호로 받는다.** 샌드박스는
+# 외부 서열 DB 접속이 막혀 있어 여기(GitHub Actions)에서 받는다. 집계·판정 로직은
+# epiweather-api/scripts/heimdall_specificity.py 가 하고, 그 파일의 배선은
+# tests/test_heimdall_specificity.py 가 네트워크 없이 고정한다.
+#
+# 측정하는 것: 자연 서열 묶음의 거짓 양성 비율(특이도) + 지표 분포.
+# 측정하지 않는 것: 민감도, '안전/위험' 판정. (스크립트 docstring 참고)
+#
+# ACCESSIONS: 표준 분자생물학 참조 서열의 ENA 접근번호. 바꾸려면 이 목록만 고친다.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "41 4 * * 1"   # 매주 월 04:41 UTC — 참고 분포가 바뀌는지 주간 점검
+
+permissions:
+  contents: read
+
+concurrency:
+  group: heimdall-validation
+  cancel-in-progress: false
+
+jobs:
+  specificity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: epiweather-api
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Fetch public reference sequences (ENA, by accession)
+        run: |
+          set -euo pipefail
+          # 표준 참조 서열의 접근번호만 나열한다 — 서열 내용은 러너가 받아 온다.
+          ACCESSIONS="J01415 V00662 X14848 M10098 U00096 J02459 NC_001422"
+          : > natural_references.fasta
+          for acc in $ACCESSIONS; do
+            echo "fetching $acc"
+            curl -sS --fail --retry 3 --retry-delay 10 -m 120 \
+              "https://www.ebi.ac.uk/ena/browser/api/fasta/${acc}" \
+              >> natural_references.fasta || echo "::warning::$acc 를 받지 못함 — 건너뜀"
+          done
+          grep -c "^>" natural_references.fasta || true
+
+      - name: Measure specificity
+        run: |
+          python3 scripts/heimdall_specificity.py natural_references.fasta \
+            --report heimdall_specificity_report.json \
+            --max-false-positive-rate 0.5
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: heimdall-specificity-report
+          path: epiweather-api/heimdall_specificity_report.json
+          if-no-files-found: warn
