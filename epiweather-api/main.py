@@ -137,6 +137,32 @@ def health():
     return {"status": "ok", "version": "0.1.0", "engine": "역병예보 추론 엔진 v1"}
 
 
+@app.get("/api/baikal", tags=["BAIKAL MOB"])
+def baikal_state():
+    """BAIKAL MOB — 상태변화 엔진(온톨로지 위층). 엔진별 최신 상태·언제부터·영향·최근 전이.
+
+    스냅숏은 매시 수집 주기 끝에서 쌓인다. 스냅숏이 없거나 130분보다 낡으면
+    `fresh=false` 와 `freshness_note` 로 그렇게 말한다(지금 상태로 읽지 말 것).
+    """
+    from algorithms.baikal import api_payload
+    try:
+        return api_payload()
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"BAIKAL 조회 실패({type(e).__name__}): {e}"
+        ) from e
+
+
+@app.get("/api/baikal/transitions", tags=["BAIKAL MOB"])
+def baikal_transitions(node: Optional[str] = None, limit: int = 50):
+    """BAIKAL 전이 기록 — 상태가 바뀐 순간만(최신순). from_status=null 은 관측 시작."""
+    from algorithms.ontology import NODES
+    if node is not None and node not in NODES:
+        raise HTTPException(status_code=400, detail=f"알 수 없는 node: {node}")
+    entries = db.list_baikal_transitions(limit=limit, node=node)
+    return {"entries": entries, "count": len(entries)}
+
+
 @app.get("/api/variant-ledger", tags=["후향 검증"])
 def variant_ledger(build: Optional[str] = None,
                    transitions_only: bool = False, limit: int = 100):
@@ -479,7 +505,7 @@ def _status_payload() -> dict:
     except Exception as e:  # noqa: BLE001 — 상태 한 칸이 전체를 죽이지 않게
         snapshots = {"error": f"{type(e).__name__}: {str(e)[:150]}"}
     return {
-        "scope": "극지 → 헤임달 → 발할라",
+        "scope": "극지 → 헤임달 → 발할라 (+ BAIKAL MOB 상태변화 엔진)",
         "scheduler_enabled": os.environ.get("EPIWEATHER_SCHEDULER", "on").lower() != "off",
         "last_weekly_job_at": last_weekly.isoformat() if last_weekly else None,
         "files": {"signals_log": _file_status(data_dir / "signals_log.jsonl")},

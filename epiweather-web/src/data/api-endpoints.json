@@ -7,6 +7,18 @@
  },
  {
   "method": "GET",
+  "path": "/api/baikal",
+  "tag": "BAIKAL MOB",
+  "auth": false
+ },
+ {
+  "method": "GET",
+  "path": "/api/baikal/transitions",
+  "tag": "BAIKAL MOB",
+  "auth": false
+ },
+ {
+  "method": "GET",
   "path": "/api/variant-ledger",
   "tag": "후향 검증",
   "auth": false

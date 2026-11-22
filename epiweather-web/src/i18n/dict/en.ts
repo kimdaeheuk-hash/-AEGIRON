@@ -39,7 +39,7 @@ export const en: Dictionary = {
     "primaryCta": "Open the operations view",
     "secondaryCta": "For companies and agencies",
     "chainTitle": "Three links",
-    "chainLead": "Variant tracking (Heimdall) and countermeasure coverage (Valhalla) lead; polar sensing remains a research line. Sequence screening is labelled in development until validation is complete. Only what actually runs today is listed.",
+    "chainLead": "Variant tracking (Heimdall) and countermeasure coverage (Valhalla) lead; polar sensing remains a research line. Sequence screening is labelled in development until validation is complete. Only what actually runs today is listed. State changes across the three links are judged and recorded hourly by BAIKAL MOB, the state-change engine.",
     "stages": [
       {
         "code": "HEIMDALL",
@@ -132,6 +132,35 @@ export const en: Dictionary = {
     "unavailable": "Could not read the variant ledger (undetermined)",
     "screenerTitle": "Sequence screening — in development (validation under way)",
     "screenerNote": "Measured 2026-11-22: on 7 public natural sequences, false positives were 6.4% per 1,000-base fragment and 1 of 7 per whole sequence. Sensitivity (whether hazardous sequences are caught) has not been measured — results are a prioritisation aid, not a verdict."
+  },
+  "baikal": {
+    "title": "BAIKAL MOB",
+    "layer": "State-change engine · above the ontology",
+    "lead": "On top of the ontology (the engines and how they connect), BAIKAL judges each engine's state every hour and records only the moments a state changes. There are four states — OK, degraded, down, undetermined — and anything not observed is never counted as OK. When an upstream engine stops, it notes which downstream inputs may be stale, following the connections (downstream states are not altered).",
+    "observedAt": "Last judged {t}",
+    "stale": "Last judgement was {m} min ago — collection may have stopped. Do not read the table below as the current state",
+    "empty": "No judgement yet — the first one appears after the next collection cycle (on the hour)",
+    "unavailable": "Could not read BAIKAL state (undetermined)",
+    "cols": {
+      "engine": "Engine",
+      "status": "State",
+      "since": "Since",
+      "reason": "Evidence",
+      "observed": "Time",
+      "change": "Change"
+    },
+    "statuses": {
+      "ok": "🟢 OK",
+      "degraded": "🟡 Degraded",
+      "down": "🔴 Down",
+      "undetermined": "⚪ Undetermined"
+    },
+    "observationStart": "Observation start",
+    "impactsTitle": "Impact — where an upstream fault spreads",
+    "noImpacts": "No fault spreading",
+    "transitionsTitle": "Recent state transitions",
+    "noTransitions": "No transitions recorded",
+    "apiLabel": "Raw API"
   },
   "pages": {
     "polar": {
@@ -508,7 +537,8 @@ export const en: Dictionary = {
       "후향 검증": "Heimdall · variant ledger",
       "Stage 0: 합성위협 탐지": "Heimdall · synthetic-threat detection and sequence screening",
       "Stage 8: 바이오방어": "Valhalla · countermeasure verdicts",
-      "시스템": "System · operations status"
+      "시스템": "System · operations status",
+      "BAIKAL MOB": "BAIKAL MOB · state-change engine"
     }
   },
   "common": {

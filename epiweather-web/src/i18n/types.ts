@@ -108,6 +108,28 @@ export type VariantDict = {
   screenerNote: string;
 };
 
+/** BAIKAL MOB 상태변화 엔진 구획(운영 화면 맨 위). */
+export type BaikalDict = {
+  title: string;
+  layer: string;
+  lead: string;
+  /** {t} 치환 */
+  observedAt: string;
+  /** {m} 치환 */
+  stale: string;
+  empty: string;
+  unavailable: string;
+  cols: { engine: string; status: string; since: string; reason: string; observed: string; change: string };
+  /** ok · degraded · down · undetermined → 표시명(아이콘 포함) */
+  statuses: Record<string, string>;
+  observationStart: string;
+  impactsTitle: string;
+  noImpacts: string;
+  transitionsTitle: string;
+  noTransitions: string;
+  apiLabel: string;
+};
+
 /** 묶음 색 — globals.css 의 [data-tone] 과 짝. */
 export type BlockTone = 'teal' | 'indigo' | 'amber' | 'crimson' | 'forest' | 'violet' | 'sky';
 
@@ -172,6 +194,7 @@ export type Dictionary = {
   home: HomeDict;
   polar: PolarDict;
   variant: VariantDict;
+  baikal: BaikalDict;
   pages: PagesDict;
   api: { tableTitle: string; tableLead: string; authYes: string; authNo: string; tags: Record<string, string> };
   common: { siteName: string };
