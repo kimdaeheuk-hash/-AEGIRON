@@ -3,7 +3,7 @@ import { getDictionary, isLocale, localeUrl, alternateLanguages, type Locale } f
 import { ContentPageView } from '@/components/site/ContentPageView';
 
 /** 활용 — 정부·공공보건 */
-const KEY = 'solutionsGovernment' as const;
+const KEY = 'government' as const;
 const PATH = 'solutions/government';
 
 export async function generateMetadata(props: {

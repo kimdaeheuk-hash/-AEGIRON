@@ -1,561 +1,491 @@
 import type { Dictionary } from '../types';
-import { pagesFr } from './pages.fr';
-import { extraFr } from './extra.fr';
 
-/**
- * Dictionnaire français — choisi parce que les régions que le système couvre
- * réellement sont francophones (RDC, Guinée, Tchad, République centrafricaine).
- * Les langues de travail de l’OMS AFRO sont l’anglais et le français, et MSF
- * est basé à Genève et Paris.
- *
- * ★ RÈGLE ABSOLUE ★ Aucune affirmation de précision ni de délai d’avance.
- * « détecté N jours plus tôt », « précision de N % », « N épidémies prédites »
- * sont interdits : nous n’avons pas d’historique validé, et une due diligence
- * le mettrait immédiatement en évidence. Uniquement des faits mesurables :
- * l’échelle de l’infrastructure, ce que nous publions, et ce que nous ignorons.
- */
+// 2026-11-22 개편 사전 — 극지 → 헤임달 → 발할라. 지운 페이지 사전은 커밋 83406e4 에 있음.
 export const fr: Dictionary = {
-  pages: pagesFr,
-  extra: extraFr,
-
-  briefings: {
-    archiveTitle: 'Bulletins précédents',
-    count: '{n} bulletins',
-    quietDay: 'Journée calme',
-    openBrief: 'Lire',
-    empty: 'Aucun bulletin n’a encore été archivé.',
-    error: 'Les bulletins n’ont pas pu être chargés. Le système, lui, fonctionne toujours.',
-    backToList: 'Tous les bulletins',
-    summary: 'Résumé',
-    segments: 'Rubriques',
-    ticker: 'Fil d’actualité',
-    disclosure: 'Avertissement',
-    notFound: 'Aucun bulletin pour cette date.',
-    langNoticeTitle: 'Remarque sur la langue',
-    langNoticeMismatch:
-      'Ce bulletin a été généré dans une langue différente de celle demandée. Nous l’affichons tel quel plutôt que de masquer cet écart.',
+  "nav": {
+    "polar": "Veille polaire",
+    "heimdall": "Heimdall",
+    "valhalla": "Valhalla",
+    "methodology": "Méthodologie",
+    "government": "Biosécurité nationale",
+    "developers": "Développeurs · API",
+    "security": "Sécurité",
+    "about": "À propos",
+    "contact": "Contact",
+    "product": "Produit",
+    "company": "Entreprise",
+    "dashboard": "Vue opérationnelle",
+    "openMenu": "Ouvrir le menu",
+    "closeMenu": "Fermer le menu",
+    "language": "Langue"
   },
-
-  common: {
-    siteName: 'AEGIRON',
-    siteTagline: 'Veille et alerte précoce des maladies infectieuses',
-    readMore: 'En savoir plus',
-    backToHome: 'Retour à l’accueil',
-    lastUpdated: 'Dernière mise à jour',
-    liveNow: 'En direct',
+  "footer": {
+    "tagline": "Détecter → identifier → juger la réponse.",
+    "product": "Produit",
+    "company": "Entreprise",
+    "legal": "Mentions légales",
+    "privacy": "Politique de confidentialité",
+    "terms": "Conditions d’utilisation",
+    "rights": "Tous droits réservés.",
+    "location": "Busan, Corée du Sud",
+    "disclaimer": "AEGIRON ne dispose pas encore d’un historique validé en matière de précision de détection précoce. Tous les chiffres de ce site mesurent l’échelle du système, et non sa performance prédictive."
   },
-
-  nav: {
-    live: 'En exploitation',
-    baikal: 'BAIKAL MOB',
-    record: 'Registre des prévisions',
-    korea: 'Pour la Corée',
-    security: 'Sécurité et gouvernance',
-    press: 'Kit média',
-    pilot: 'Modalités',
-    developers: 'Développeurs · API',
-    diseases: 'Veille par maladie',
-    solNgo: 'Organisations internationales et humanitaires',
-    solReinsurance: 'Réassurance et assurance',
-    solGovernment: 'Gouvernements et santé publique',
-    engines: 'Catalogue des moteurs',
-    techSpec2: 'Spécifications II · Analyse et réponse',
-    techSpec1: 'Spécifications I · Veille et collecte',
-    trust: 'Preuves et données',
-    company: 'Société',
-    platform: 'Plateforme',
-    technology: 'Technologie',
-    programs: 'Programmes spéciaux',
-    methodology: 'Méthodologie',
-    transparency: 'Cadre de validation',
-    dataSources: 'Sources de données',
-    solutions: 'Cas d’usage',
-    briefings: 'Briefings quotidiens',
-    dataShop: 'Produits de données',
-    about: 'À propos d’AEGIRON',
-    contact: 'Contact',
-    dashboard: 'Tableau de bord en direct',
-    openMenu: 'Ouvrir le menu',
-    closeMenu: 'Fermer le menu',
-    language: 'Langue',
-  },
-
-  footer: {
-    tagline: 'Avant qu’une épidémie ne devienne une actualité internationale.',
-    product: 'Produit',
-    company: 'Entreprise',
-    legal: 'Mentions légales',
-    privacy: 'Politique de confidentialité',
-    terms: 'Conditions d’utilisation',
-    rights: 'Tous droits réservés.',
-    location: 'Busan, Corée du Sud',
-    disclaimer:
-      'AEGIRON ne dispose pas encore d’un historique validé en matière de précision de détection précoce. Tous les chiffres de ce site mesurent l’échelle du système, et non sa performance prédictive.',
-  },
-
-  home: {
-    metaTitle: 'AEGIRON — Alerte précoce, prévision et simulation de la propagation des maladies infectieuses',
-    metaDescription:
-      'Un système de renseignement épidémiologique qui détecte les anomalies dans la presse en langue locale de 179 pays et dans les données officielles de surveillance, joint des scénarios d’intervention à chaque alerte et évalue chacune de ses prévisions au regard des déclarations officielles qui suivent.',
-
-    heroLiveOk: 'Sources de données : {ok}/{total} en fonctionnement normal',
-    heroLiveUnknown: 'L’état de la collecte n’a pas pu être vérifié pour l’instant',
-    heroTitle: 'Au-delà de l’alerte :\n[[prévision]] et [[simulation]]',
-    heroLead:
-      'AEGIRON détecte les anomalies dans la presse en langue locale de 179 pays et dans les données officielles de surveillance, et calcule, dès qu’une alerte est émise, des scénarios de propagation pour chaque niveau d’intervention. Chaque prévision est évaluée automatiquement au regard des déclarations officielles qui suivent ; une prévision sans élément de comparaison n’est comptée ni comme un succès ni comme un échec.',
-    heroPrimaryCta: 'Tableau de bord',
-    heroSecondaryCta: 'Architecture des moteurs',
-    heroNoLogin: 'Accès immédiat — sans inscription ni connexion',
-
-    stats: [
-      { value: '118', label: 'Modules algorithmiques', note: '116 moteurs · 2 pour l’ontologie (YGGDRASIL) et la couche d’état (BAIKAL MOB)' },
-      { value: '128', label: 'Points d’accès API', note: 'Collecte · analyse · simulation · évaluation' },
-      { value: '2 263', label: 'Tests automatisés', note: 'Tous doivent réussir avant toute mise en production' },
-      { value: '179', label: 'Flux d’actualité en langue locale', note: 'Agrégés par pays et par langue, collectés toutes les heures' },
+  "home": {
+    "metaTitle": "AEGIRON — Détection polaire · identification Heimdall · réponse Valhalla",
+    "metaDescription": "Détection horaire d’anomalies dans les régions de pergélisol polaire (Polar), identification des changements de lignée dans les génomes publics (Heimdall) et verdict sur la couverture des contre-mesures nationales (Valhalla). Pour les agences de biosécurité nationale.",
+    "eyebrow": "AEGIRON · Biosécurité nationale",
+    "title": "Détecter → identifier → juger la réponse\nUne seule chaîne",
+    "lead": "Nous ne cherchons plus à surveiller toutes les maladies du monde. Nous exploitons une seule chaîne : détecter chaque heure les anomalies du pergélisol polaire, identifier les changements de lignée des pathogènes et juger si nos contre-mesures couvrent la menace.",
+    "primaryCta": "Ouvrir la vue opérationnelle",
+    "secondaryCta": "Pour les agences publiques",
+    "chainTitle": "Trois maillons",
+    "chainLead": "Chaque maillon reçoit la sortie du précédent. Seul ce qui fonctionne réellement aujourd’hui est indiqué.",
+    "stages": [
+      {
+        "code": "POLAR",
+        "name": "Veille polaire",
+        "role": "Détecter",
+        "body": "Le pergélisol qui dégèle peut faire réapparaître des pathogènes longtemps enfouis, comme l’anthrax. Nous observons chaque heure la météo et la presse locale de 8 régions polaires.",
+        "facts": [
+          "8 régions (Yamal, Alaska, Arctique canadien, Groenland, Svalbard, péninsule Antarctique, etc.) observées chaque heure",
+          "Température et jours de dégel = observations Open-Meteo · écart à la normale calculé sur une réanalyse de 16 ans",
+          "Un niveau de veille, pas une alerte — les heures illisibles restent « non déterminé »"
+        ],
+        "href": "polar",
+        "linkLabel": "Voir l’évolution polaire"
+      },
+      {
+        "code": "HEIMDALL",
+        "name": "Heimdall",
+        "role": "Identifier",
+        "body": "Consigne les changements de lignée dominante dans les génomes publics (Nextstrain) et calcule des indicateurs d’anomalie pour une séquence soumise. Détection défensive uniquement.",
+        "facts": [
+          "Builds publics SARS-CoV-2, mpox et RSV-A vérifiés chaque heure · seules les transitions de lignée dominante sont consignées",
+          "Criblage de séquences (usage des codons, CpG, entropie …) sur demande · clé API requise",
+          "Un signal de priorité, pas un verdict — aucune conception ni synthèse de séquences"
+        ],
+        "href": "heimdall",
+        "linkLabel": "Ouvrir la section Heimdall"
+      },
+      {
+        "code": "VALHALLA",
+        "name": "Valhalla",
+        "role": "Juger la réponse",
+        "body": "Pour chaque menace listée, consigne chaque jour une ligne indiquant si les contre-mesures enregistrées (stocks, produits autorisés) la couvrent et si les changements de lignée ébranlent ce verdict.",
+        "facts": [
+          "Verdict menace × stock × variant consigné chaque jour",
+          "Fondé sur des données publiques (vaccins préqualifiés OMS, produits autorisés, appels d’offres) · les niveaux de stock nationaux ne sont pas observés",
+          "Enregistrez vos stocks pour calculer avec eux · sinon le résultat est signalé comme illustratif"
+        ],
+        "href": "valhalla",
+        "linkLabel": "Ouvrir la section Valhalla"
+      }
     ],
-    statsAsOf: 'Mesuré le 2026-10-19 à partir du dépôt et des journaux de production',
-    introVideoLabel: 'AEGIRON — présentation',
-    photo: {
-      src: '/media/photos/earth-eastern-hemisphere.jpg',
-      alt: 'Hémisphère oriental de la Terre — Afrique, Europe et Asie (composite satellitaire)',
-      caption: 'Hémisphère oriental de la Terre (Blue Marble). Un composite d’observations satellitaires.',
-      credit: 'NASA · Domaine public',
-      sourceUrl: 'https://commons.wikimedia.org/wiki/File:Blue_Marble_Eastern_Hemisphere.jpg',
-      position: 'center 45%',
+    "healthTitle": "État de la collecte",
+    "healthOk": "{ok}/{total} sources des trois couches saines (mesuré sur le serveur de production)",
+    "healthUnknown": "État du serveur de production illisible (non déterminé)",
+    "notTitle": "Ce que nous ne faisons pas",
+    "notPoints": [
+      "Alertes mondiales ou classements de risque par pays — retirés lors de la refonte de novembre 2026",
+      "Prétendre à une précision de prévision — aucun historique validé",
+      "Concevoir, synthétiser ou optimiser des séquences de pathogènes — jamais"
+    ]
+  },
+  "polar": {
+    "title": "Évolution polaire (enregistrée chaque heure)",
+    "lead": "Première valeur enregistrée → valeur la plus récente par région · température (moyenne des maxima) et jours de dégel = observations météo ; Δ (par rapport à la moyenne décennale du même mois) = calcul · un enregistrement n’est ajouté que si la valeur change",
+    "span": "Environ {days} jour(s) enregistré(s) — 30 jours pas encore atteints (enregistré depuis le 15/11/2026)",
+    "undetermined": "{n} enregistrement(s) illisible(s) à leur heure exclu(s) de l’évolution (non déterminé)",
+    "cols": {
+      "region": "Région",
+      "first": "Première valeur",
+      "latest": "Plus récente",
+      "change": "Variation",
+      "records": "Enregistrements"
     },
-
-    galleryTitle: 'Là où naissent les signaux',
-    galleryLead:
-      'Le monde qu’AEGIRON surveille est au-dehors, pas au laboratoire. Laboratoires, réponse de terrain, réseau aérien international, eaux usées, lits d’hôpital : les lieux où naît réellement le signal d’une épidémie. Chaque image ci-dessous est un document public (domaine public ou licence libre) et montre ce que nous surveillons, non une installation d’AEGIRON.',
-    gallery: [
-      {
-        src: '/media/photos/emergency-operations-center.jpg',
-        alt: 'Intérieur d’un centre d’opérations d’urgence avec de nombreux écrans',
-        caption: 'Un centre d’opérations d’urgence : là où une alerte atteint les gens et devient une réponse.',
-        credit: 'Présidence de la République de Chine (Taïwan) · CC BY 2.0',
-        sourceUrl: 'https://commons.wikimedia.org/wiki/File:Central_Emergency_Operation_Center_2024-10-31.jpg',
-      },
-      {
-        src: '/media/photos/ebola-field-response.jpg',
-        alt: 'Soignants en tenue de protection lors d’une réponse à Ebola',
-        caption: 'Réponse à Ebola sur le terrain (Afrique de l’Ouest, 2014). Avant la traduction de la presse locale, le signal naît d’abord dans de tels lieux.',
-        credit: 'Sgt. 1re classe Nathan Hoskins, U.S. Army · Domaine public',
-        sourceUrl: 'https://commons.wikimedia.org/wiki/File:United_Assistance_141105-A-CH600-043.jpg',
-      },
-      {
-        src: '/media/photos/world-air-routes.jpg',
-        alt: 'Carte du monde des routes aériennes mondiales',
-        caption: 'Le réseau aérien international : la forme réelle des 1 671 paires de pays que le jumeau numérique relie à travers 159 pays.',
-        credit: 'aomd88 · CC BY 1.0',
-        sourceUrl: 'https://commons.wikimedia.org/wiki/File:EK_emirates_2011_routes_world_map.jpg',
-      },
-      {
-        src: '/media/photos/dna-sequencer.jpg',
-        alt: 'Un séquenceur de génome',
-        caption: 'Un séquenceur de génome. Le signal d’un variant apparaît dans la séquence avant d’apparaître dans le nombre de cas.',
-        credit: 'Scotted400 · CC BY 4.0',
-        sourceUrl: 'https://commons.wikimedia.org/wiki/File:Revolocity_DNA_sequencer.jpg',
-      },
-      {
-        src: '/media/photos/wastewater-plant.jpg',
-        alt: 'Vue aérienne d’une station d’épuration des eaux usées',
-        caption: 'Une station d’épuration. La surveillance des eaux usées capte un signal de pathogène avant l’apparition des symptômes.',
-        credit: 'Sdkb · CC BY-SA 4.0',
-        sourceUrl: 'https://commons.wikimedia.org/wiki/File:Blue_Plains_Advanced_Wastewater_Treatment_Plant_aerial_view,_2025.jpg',
-      },
-      {
-        src: '/media/photos/sars-cov-2-niaid.jpg',
-        alt: 'Micrographie électronique de particules du SARS-CoV-2 (colorisée)',
-        caption: 'Particules du SARS-CoV-2 (colorisées). Document public du NIAID (États-Unis).',
-        credit: 'NIAID · CC BY 2.0',
-        sourceUrl: 'https://commons.wikimedia.org/wiki/File:Novel_Coronavirus_SARS-CoV-2_(49597020648).jpg',
-      },
-      {
-        src: '/media/photos/hospital-icu.jpg',
-        alt: 'Un lit de soins intensifs',
-        caption: 'Un lit de soins intensifs. Les « jours de dépassement hospitalier » qu’estiment les scénarios d’intervention se jouent ici.',
-        credit: 'Ismael Olea · CC BY 4.0',
-        sourceUrl: 'https://commons.wikimedia.org/wiki/File:20250808_Intensive_care_unit_bed.jpg',
-      },
-      {
-        src: '/media/photos/data-center.jpg',
-        alt: 'Salle de serveurs d’un centre de données',
-        caption: 'Un centre de données. Le calcul horaire des 118 modules s’exécute dans de tels lieux.',
-        credit: 'BalticServers.com · CC BY-SA 3.0',
-        sourceUrl: 'https://commons.wikimedia.org/wiki/File:BalticServers_data_center.jpg',
-      },
-      {
-        src: '/media/photos/arctic-permafrost.jpg',
-        alt: 'Mares de dégel arctiques formées par la fonte du pergélisol',
-        caption: 'Dégel du pergélisol (Arctique). Les nouvelles conditions d’épidémie que surveille la veille du territoire polaire.',
-        credit: 'NPS Climate Change Response · Domaine public',
-        sourceUrl: 'https://commons.wikimedia.org/wiki/File:Permafrost_Thaw_(14413865677).jpg',
-      },
-    ],
-
-    engineTitle: 'Les sept systèmes moteurs',
-    engineLead:
-      'Les {n} moteurs essentiels parmi les 116 modules, organisés en sept systèmes (HUGINN · MIMIR · FORSETI · SKULD · HEIMDALL · VALHALLA · VAR). Chacun indique son mode de fonctionnement réel, afin qu’un moteur exécuté toutes les heures ne soit jamais présenté avec le même poids qu’un moteur qui ne calcule qu’à la demande.',
-    engineModes: {
-      hourly: 'Toutes les heures',
-      daily: 'Quotidien',
-      onAlert: 'À chaque alerte',
-      onRequest: 'À la demande',
-    },
-    engineCaveatLabel: 'Limites',
-    engineGroups: [
-      {
-        system: 'HUGINN',
-        engines: [
-          {
-            id: 'local_news',
-            name: 'Veille de la presse en langue locale',
-            body: 'Mesure la densité du vocabulaire épidémiologique dans l’actualité agrégée par pays et par langue, et reclasse les flux ambigus à l’aide d’un modèle de langage. La cible est le premier article local, avant toute couverture en anglais.',
-            mode: 'hourly',
-          },
-          {
-            id: 'gai',
-            name: 'Indice d’anomalie à six couches',
-            body: 'Convertit les signaux de six couches — officielle, officieuse, comportementale, environnementale, animale et inexpliquée — en scores d’anomalie par rapport à la ligne de base propre à chaque signal, les pondère par la fiabilité de la source et les combine en un indice unique. La référence est le niveau habituel de chaque indicateur, non son volume absolu.',
-            mode: 'hourly',
-          },
-          {
-            id: 'negative_space',
-            name: 'Veille des silences de déclaration',
-            body: 'Suit les canaux de déclaration qui tombent sous la moitié de leur ligne de base. Elle vise des situations comme Ebola en Guinée en 2014, où l’effondrement de la déclaration a précédé la propagation, et ne juge que les indicateurs dotés d’une règle de décision déclarée.',
-            mode: 'hourly',
-          },
-          {
-            id: 'unexplained',
-            name: 'Foyers inexpliqués',
-            body: 'Comptabilise à part les foyers extraits de la presse qui ne correspondent à aucun profil de maladie connu. La pneumonie d’origine inconnue de Wuhan, en décembre 2019, en est l’archétype.',
-            mode: 'hourly',
-          },
-          {
-            id: 'polar_signals',
-            name: 'Veille du territoire polaire',
-            body: 'Observe l’Arctique, l’Antarctique et 27 régions montagneuses glaciaires avec ligne de base et tendance. À mesure que le pergélisol fond — révélant des pathogènes et la grippe aviaire polaire —, elle surveille, à l’échelle du territoire, les nouvelles conditions d’épidémie qu’ouvre le changement climatique.',
-            mode: 'hourly',
-            caveat: 'Un objet d’observation, non une alerte. Un signal polaire ne signifie pas en soi une épidémie.',
-          },
-          {
-            id: 'disaster_watch',
-            name: 'Fenêtre de veille post-catastrophe',
-            body: 'Après inondations, séismes et tempêtes, le pays est surveillé à un seuil plus bas pendant la fenêtre où le risque hydrique et vectoriel monte. Elle vise le temps entre une catastrophe et l’épidémie qui suit.',
-            mode: 'hourly',
-          },
-          {
-            id: 'comtrade_signals',
-            name: 'Veille du commerce de fournitures médicales',
-            body: 'Détecte par pays les flambées d’importation de masques, d’EPI et de tests via UN Comtrade — un signal de comportement de préparation qui peut apparaître avant une annonce officielle.',
-            mode: 'daily',
-            caveat: 'Les déclarations commerciales accusent un retard d’environ deux mois et ne sont pas un indicateur en temps réel.',
-          },
-        ],
-      },
-      {
-        system: 'MIMIR',
-        engines: [
-          {
-            id: 'nlp_extract',
-            name: 'Extraction de signaux structurés',
-            body: 'Transforme le texte des articles en signaux structurés — maladie, pays, cas, décès et type de signal —, attribue la fiabilité de la source et met à part les valeurs non confirmées.',
-            mode: 'daily',
-            caveat: 'Fonctionne une fois par jour dans le créneau IA (21 h UTC), actuellement via un modèle de langage externe.',
-          },
-          {
-            id: 'pdf_table_extract',
-            name: 'Extraction des tableaux des rapports de l’OMS',
-            body: 'Reconstitue en lignes et colonnes les tableaux PDF des rapports de situation hebdomadaires des bureaux régionaux de l’OMS et compte séparément « nouveaux sur 7 jours », « cumul », « suspects » et « confirmés ».',
-            mode: 'daily',
-            caveat: 'N’analyse qu’en présence d’un nouveau numéro — les rapports paraissent chaque semaine.',
-          },
-        ],
-      },
-      {
-        system: 'FORSETI',
-        engines: [
-          {
-            id: 'country_risk',
-            name: 'Indice de risque par pays',
-            body: 'Multiplie le risque brut (issu des signaux) par la vulnérabilité nationale — infrastructures de santé, densité de population, connectivité aérienne — pour obtenir le risque final de chaque pays, et l’enregistre comme prévision au-delà du seuil.',
-            mode: 'hourly',
-            caveat: 'Un indicateur relatif entre pays, pas une probabilité de survenue.',
-          },
-          {
-            id: 'alerts',
-            name: 'Tri des alertes et maîtrise de la fatigue',
-            body: 'Applique niveaux (Critical · High · Medium · Low) et plafonds journaliers par niveau pour ne transmettre que les alertes qui méritent l’attention. Critical et High partent aussitôt sur Telegram ; les familles non évaluables sont maintenues avec une marque d’ancienneté au lieu d’être retirées.',
-            mode: 'hourly',
-          },
-        ],
-      },
-      {
-        system: 'SKULD',
-        engines: [
-          {
-            id: 'forecast_engine',
-            name: 'Tendance à 7 et 14 jours',
-            body: 'Extrapole à 7 et 14 jours la série temporelle de chaque indicateur à l’aide d’un ensemble régression linéaire et lissage exponentiel, et publie le résultat dans le bulletin quotidien.',
-            mode: 'daily',
-            caveat: 'Une extrapolation de séries de signaux, et non un nombre de cas mesuré.',
-          },
-          {
-            id: 'digital_twin',
-            name: 'Simulation de la propagation entre pays',
-            body: 'Un modèle SEIR métapopulationnel dont les nœuds sont 159 pays et les arêtes 1 671 paires de pays reliées par avion et 314 frontières terrestres. Il distingue les pays non atteints pendant la période de ceux pour lesquels aucune voie n’est connue.',
-            mode: 'onRequest',
-            caveat: 'Le réseau aérien repose sur des données de liaisons de 2014 ; le trafic terrestre est une estimation fondée sur la population.',
-          },
-          {
-            id: 'global_inflow',
-            name: 'Estimation de la date d’importation',
-            body: 'Estime le nombre de jours avant un premier cas importé en Corée, ainsi que le risque par point d’entrée, à partir du trafic international de la ville d’origine, de la durée de vol et de la croissance exponentielle initiale.',
-            mode: 'onRequest',
-            caveat: 'Une estimation de modèle, et non une date d’importation observée.',
-          },
-          {
-            id: 'alert_intervention',
-            name: 'Scénarios d’intervention par alerte',
-            body: 'Pour chaque nouvelle alerte critique ou élevée, exécute une simulation SEIR de défense avec des paramètres propres à la maladie et joint l’écart entre absence de réponse et intervention. L’alerte ne s’arrête plus à « ce qui arrive » : elle répond aussi à « quelle mesure change quoi ».',
-            mode: 'onAlert',
-            caveat: 'Un scénario de modèle fondé sur des paramètres de la littérature, et non une prévision. Aucun chiffre n’est produit lorsque la maladie ne peut être identifiée.',
-          },
-          {
-            id: 'defense',
-            name: 'Comparaison d’interventions dans le temps',
-            body: 'Fait varier la date de début et l’intensité de l’isolement, de la distanciation et de la vaccination pour comparer l’évolution du nombre de reproduction effectif et des jours de saturation hospitalière.',
-            mode: 'onRequest',
-          },
-        ],
-      },
-      {
-        system: 'HEIMDALL',
-        engines: [
-          {
-            id: 'genomic_variants',
-            name: 'Suivi de la composition des clades',
-            body: 'Lit, dans la réanalyse des séquences publiques par Nextstrain, l’évolution de la part du clade dominant et l’apparition de nouveaux clades — des changements de transmissibilité ou d’échappement immunitaire qui précèdent les nombres de cas. Les jeux de données qui ne sont plus mis à jour ne servent pas de signal.',
-            mode: 'hourly',
-          },
-          {
-            id: 'evo2_naturalness',
-            name: 'Mesure du naturel de l’ordre des séquences',
-            body: 'Fournit au modèle génomique de fondation Evo2 le seul début d’une séquence, lui fait prédire les bases suivantes et mesure la concordance avec la séquence réelle. Il vise les segments assemblés ou recombinés que les statistiques de composition ne révèlent pas.',
-            mode: 'onRequest',
-            caveat: 'Evo2 a exclu de son entraînement les virus à hôte eucaryote ; il n’est donc pas appliqué aux séquences de coronavirus, de grippe ou d’Ebola.',
-          },
-          {
-            id: 'msa_homology',
-            name: 'Détection de chimères par homologie',
-            body: 'Interroge des bases d’homologie publiques pour vérifier si une protéine naturelle couvre toute la longueur de la séquence. S’agissant d’une recherche et non d’un modèle entraîné, la méthode s’applique aussi aux pathogènes qu’Evo2 ne traite pas.',
-            mode: 'onRequest',
-          },
-        ],
-      },
-      {
-        system: 'VALHALLA',
-        engines: [
-          {
-            id: 'valhalla_watch',
-            name: 'Veille de préparation aux contre-mesures',
-            body: 'Compile stocks internationaux, produits autorisés, préqualification de l’OMS, pipeline clinique et avis de marchés publics coréens en lacunes de couverture par menace et de souveraineté de production.',
-            mode: 'hourly',
-            caveat: 'Les parties marchés et pipeline se mettent à jour selon leur propre cadence ; les informations non publiques comme les volumes des stocks nationaux ne sont pas traitées.',
-          },
-        ],
-      },
-      {
-        system: 'VAR',
-        engines: [
-          {
-            id: 'prediction_resolver',
-            name: 'Évaluation automatique des prévisions',
-            body: 'Confronte chaque jour les prévisions enregistrées aux déclarations officielles qui suivent et les classe en succès, échec ou indéterminé. Les pics de consultation et les mises à jour du nombre de cas ne servent jamais de vérité terrain : ce serait évaluer nos signaux avec nos propres signaux.',
-            mode: 'daily',
-          },
-          {
-            id: 'lead_time_ledger',
-            name: 'Registre d’antériorité',
-            body: 'Enregistre le moment où un signal a été vu pour la première fois, avant toute déclaration officielle. Une antériorité reconstituée a posteriori, après la déclaration, n’est pas acceptée comme mesure.',
-            mode: 'hourly',
-          },
-          {
-            id: 'prediction_timestamp',
-            name: 'Scellement des prévisions',
-            body: 'Ancre l’empreinte SHA-256 d’une prévision dans la blockchain Bitcoin via OpenTimestamps, afin qu’un tiers puisse vérifier lui-même que la prévision n’a pas été réécrite après coup.',
-            mode: 'hourly',
-          },
-          {
-            id: 'source_health',
-            name: 'Veille des défaillances silencieuses',
-            body: 'Vérifie séparément, à chaque cycle, si chaque source a réellement livré des valeurs et si la méthode qui les produit tient toujours. Une source dont la collecte a tourné sans rien renvoyer n’est pas comptée comme saine.',
-            mode: 'hourly',
-          },
-        ],
-      },
-    ],
-
-    engineCatalogueCta: 'Voir le rôle des 116 modules dans le catalogue des moteurs',
-
-    diffEyebrow: 'WHAT MAKES US DIFFERENT',
-    diffTitle: 'Ce qui nous distingue des autres systèmes d’alerte',
-    diffLead:
-      'L’alerte précoce en maladies infectieuses n’est pas nouvelle — des services comme BlueDot, EIOS et Metabiota existent déjà. Là où AEGIRON diffère, c’est qu’il ne s’arrête pas à la détection, mais met vérification, réponse et souveraineté dans un seul système. Nous l’énonçons par la structure, sans exagération.',
-    diffItems: [
-      {
-        title: 'Il ne s’arrête pas à la détection',
-        body: 'La plupart des systèmes d’alerte s’arrêtent à « quelque chose se passe, quelque part ». AEGIRON y joint simulation de propagation, scénarios d’intervention et préparation en contre-mesures, pour répondre à « et alors, à quelle intensité ».',
-      },
-      {
-        title: 'Il évalue ses propres chiffres',
-        body: 'Chaque prévision est scellée à sa création et confrontée chaque jour aux déclarations officielles, consignant elle-même succès et échec. Bâtir un historique comme un enregistrement vérifiable plutôt qu’une affirmation est rare.',
-      },
-      {
-        title: 'Les lacunes de veille incluses dès le départ',
-        body: 'Il surveille, au même standard, 178 pays et 52 langues que les services commerciaux couvrent rarement — Afrique, Asie centrale, États insulaires du Pacifique, et le territoire polaire aussi.',
-      },
-      {
-        title: 'Un axe de biosécurité nationale',
-        body: 'Le criblage génomique défensif (HEIMDALL) et l’analyse de couverture et de souveraineté de production des contre-mesures (VALHALLA) sont un axe national que les services commerciaux d’alerte n’ont pas.',
-      },
-      {
-        title: 'Tout est ouvert',
-        body: 'Le système, la méthodologie, les données et les limites sont ouverts dès le départ — ce qu’un service plus grand, lié par des contrats clients, aurait du mal à faire, et une base de confiance que la diligence peut vérifier directement.',
-      },
-    ],
-    futureTitle: 'Où nous allons',
-    futureLead: 'C’est un point de départ. Conçu pour se renforcer à mesure que l’exploitation s’accumule.',
-    futureItems: [
-      {
-        title: 'Un modèle d’extraction propriétaire',
-        body: 'L’extraction passe aujourd’hui par des API externes, mais le chemin est câblé pour basculer, en un seul endroit, vers un modèle auto-hébergé (NVIDIA NIM), vers une conception où les données sensibles ne partent pas vers des API étrangères.',
-      },
-      {
-        title: 'Un fossé de données',
-        body: '« Quel signal a mené à un vrai foyer » est assemblé en jeu d’apprentissage chaque jour. À mesure que l’exploitation continue, ce jeu grandit et les heuristiques peuvent être remplacées par un modèle appris mesuré.',
-      },
-      {
-        title: 'Un historique scellé',
-        body: 'À mesure que les prévisions scellées s’accumulent, « nous l’avons su en premier » devient un enregistrement qu’un tiers peut vérifier sur la blockchain — l’enregistrement vérifiable s’enrichit avec le temps.',
-      },
-      {
-        title: 'Des liens de terrain',
-        body: 'L’étape suivante est de nous connecter à des réseaux de surveillance et des organisations de terrain réels pour nous rapprocher de la source du signal — la voie pour devenir une infrastructure mondiale d’alerte précoce.',
-      },
-    ],
-
-    specialEyebrow: 'SPECIAL PROGRAMS',
-    specialTitle: 'Deux axes qu’aucun concurrent n’a — HEIMDALL · VALHALLA',
-    specialLead: 'La plupart des couches de veille opèrent à découvert. Mais deux programmes de R&D internes, de nature différente, portent l’axe de biosécurité nationale. Nous énonçons seulement ce qu’ils font et ne font pas, sans rien surévaluer.',
-    specialCards: [
-      { code: 'HEIMDALL', name: 'Criblage génomique défensif', body: 'Détecte et signale si une séquence s’écarte des statistiques de l’évolution naturelle. Aucune fonction de conception ou de synthèse — une priorité d’examen, non un verdict.' },
-      { code: 'VALHALLA', name: 'Préparation en contre-mesures', body: 'Au lieu d’imiter une prédiction moléculaire, il agrège les écarts de couverture des stocks et de souveraineté de production à partir de données publiques. Il ne touche pas aux informations non publiques comme les quantités des stocks nationaux.' },
-    ],
-    specialCta: 'Voir les programmes spéciaux',
-
-    openTitle: 'Ouvert, pour pouvoir être vérifié',
-    openLead:
-      'L’échec le plus courant en veille épidémiologique n’est pas une prévision fausse, mais une prévision invérifiable. Le système, la méthodologie, les données et les limites qui fondent chaque jugement sont donc ouverts dès le départ.',
-    openItems: [
-      {
-        title: 'Le système en direct',
-        body: 'Le tableau de bord montre les données opérationnelles de collecte et d’alerte telles qu’elles tournent. Dans la console de simulation, les valeurs supposées et modélisées sont signalées comme telles à l’écran.',
-        href: '/dashboard?lang=fr',
-        linkLabel: 'Ouvrir le tableau de bord',
-      },
-      {
-        title: 'Méthodologie',
-        body: 'Comment les signaux sont collectés, les anomalies jugées et les prévisions établies, en quatre couches — avec le standard que suit chacune.',
-        href: '/methodology',
-        linkLabel: 'Lire la méthodologie',
-      },
-      {
-        title: 'Sources de données',
-        body: 'Toutes les sources opérationnelles, sans exception, avec ce que chacune ne peut pas voir et son état en ce moment.',
-        href: '/data-sources',
-        linkLabel: 'Voir les sources',
-      },
-      {
-        title: 'Validation et limites',
-        body: 'Ce qui n’est pas encore validé, les limites et lacunes de données connues, et la façon dont le système vérifie ses propres chiffres.',
-        href: '/transparency',
-        linkLabel: 'Voir l’état de validation',
-      },
-    ],
-
-    honestTitle: 'Nous vérifions nos chiffres en premier',
-    honestLead:
-      'La confiance dans un système d’alerte précoce vient de son processus de vérification, non de l’ampleur de ses affirmations. Voici ce que nous n’avons pas encore — et les mécanismes déjà en place pour combler cet écart.',
-    honestPoints: [
-      'Il n’existe **pas encore d’historique validé** de précision en détection précoce. C’est pourquoi nous ne prétendons jamais avoir « détecté plusieurs jours plus tôt ».',
-      'En revanche, chaque prévision est **scellée au moment où elle est faite** et évaluée chaque jour au regard des déclarations officielles qui suivent. L’historique se constitue à partir de ce registre, non d’affirmations.',
-      'Les chiffres de scénario sont présentés comme des **estimations de modèle sous hypothèses explicites** et confrontés automatiquement aux plus grandes épidémies connues — un avertissement accompagne toute valeur hors de cet intervalle.',
-      'Les lacunes de données ne sont jamais masquées. Le système signale lui-même les pays et périodes vides, et les sources interrompues.',
-    ],
-    honestClose:
-      'Quand une épidémie est manquée, nous distinguons « le modèle l’a manquée » de « il n’y avait pas de données pour la voir ». Confondre les deux inverse le diagnostic.',
-    honestCta: 'Voir l’état de validation complet',
-
-    pipelineTitle: 'Du signal à l’alerte',
-    pipelineLead: 'Cinq étapes. À chacune, ce que nous laissons de côté compte autant que ce que nous utilisons.',
-    pipelineSteps: [
-      {
-        step: '01',
-        title: 'Collecter',
-        body: 'Données officielles des bureaux régionaux de l’OMS et des autorités sanitaires nationales, presse en langue locale de 179 pays, sources académiques, surveillance des eaux usées et données de lignées génomiques — toutes les heures.',
-      },
-      {
-        step: '02',
-        title: 'Extraire',
-        body: 'Maladie, pays, cas et décès sont structurés à partir des tableaux PDF et du texte des articles. Ce qui ne peut être lu reste vide et n’est jamais comblé par supposition.',
-      },
-      {
-        step: '03',
-        title: 'Juger',
-        body: 'Les anomalies sont mesurées par rapport au niveau habituel de chaque indicateur, non en valeur absolue — les mêmes cinq cas n’ont pas le même sens d’un pays à l’autre.',
-      },
-      {
-        step: '04',
-        title: 'Prévoir',
-        body: 'Des modèles de transmission estiment les voies de propagation et le risque d’importation, et chaque valeur porte ses hypothèses et ses limites.',
-      },
-      {
-        step: '05',
-        title: 'Répondre',
-        body: 'Les scénarios sans réponse et avec intervention sont comparés pour montrer quelles mesures, à quelle intensité, interrompent la transmission.',
-      },
-    ],
-
-    briefTitle: 'Bulletin du jour',
-    briefLead: 'Généré automatiquement chaque jour. Les jours calmes, il le dit.',
-    briefCta: 'Consulter les bulletins précédents',
-    briefEmpty: 'Le bulletin du jour n’a pas encore été généré.',
-    briefError: 'Le bulletin n’a pas pu être chargé. Le système, lui, fonctionne toujours.',
-
-    audienceTitle: 'À qui cela s’adresse',
-    audienceLead: 'Un même signal doit prendre une forme différente selon qui le lit.',
-    audiences: [
-      {
-        title: 'Réassurance et assurance',
-        body: 'Indices d’exposition par pays et comparaison de portefeuille. Chaque réponse précise qu’il s’agit d’indices relatifs et non de probabilités absolues.',
-        href: '/solutions/reinsurance',
-      },
-      {
-        title: 'Gouvernements et santé publique',
-        body: 'Traçage des voies d’importation et comparaison des interventions, avec l’effet modélisé de chaque mesure.',
-        href: '/solutions/government',
-      },
-      {
-        title: 'Organisations internationales et humanitaires',
-        body: 'Signaux précoces dans les zones à surveillance faible — y compris des pays trop peu rentables pour que d’autres s’y intéressent.',
-        href: '/solutions/ngo',
-      },
-    ],
-
-    ctaTitle: 'Tout ce qu’il faut pour une évaluation est déjà ouvert',
-    ctaBody:
-      'Vous pouvez examiner l’ensemble du système sans réserver de démonstration. Pour un pilote ou un partenariat, contactez-nous via la page dédiée.',
-    ctaButton: 'Nous contacter',
+    "empty": "Aucune valeur polaire enregistrée pour l’instant",
+    "unavailable": "Historique polaire illisible (non déterminé)",
+    "apiLabel": "API brute"
   },
+  "pages": {
+    "polar": {
+      "metaTitle": "Veille polaire",
+      "metaDescription": "Évolution enregistrée chaque heure de la température, des jours de dégel et de l’écart à la normale dans 8 régions polaires.",
+      "eyebrow": "POLAR · Détecter",
+      "title": "Veille polaire",
+      "lead": "Anomalies météo des régions de pergélisol, observées et enregistrées chaque heure · niveau de veille, pas une alerte",
+      "blocks": []
+    },
+    "about": {
+      "metaTitle": "À propos",
+      "metaDescription": "AEGIRON — technologie de biosécurité nationale centrée sur la détection polaire, l’identification génomique et le verdict sur les contre-mesures.",
+      "eyebrow": "ABOUT",
+      "title": "AEGIRON",
+      "lead": "Une start-up technologique d’une personne à Busan · les agences de biosécurité nationale sont le premier client",
+      "blocks": [
+        {
+          "title": "Pourquoi nous avons resserré",
+          "body": "Jusqu’en novembre 2026, AEGIRON collectait des signaux de maladies partout. Plus le périmètre était large, plus l’expertise s’amincissait, et les évaluations externes étaient faibles. Nous avons gardé une seule chaîne — détecter (Polar) → identifier (Heimdall) → juger la réponse (Valhalla) — et supprimé le reste."
+        },
+        {
+          "title": "Principes",
+          "points": [
+            "**Valeurs mesurées, estimées et indirectes jamais mélangées** — chaque vue indique laquelle",
+            "**Trois états** — succès / échec / non déterminé. Ce que nous n’avons pas vu n’est jamais écrit zéro ou normal",
+            "**Défensif uniquement** — aucune fonction qui crée ou modifie des pathogènes"
+          ]
+        }
+      ],
+      "cta": {
+        "title": "Adoption et partenariat",
+        "body": "Les agences de biosécurité nationales et régionales sont les bienvenues",
+        "label": "Nous contacter",
+        "href": "contact"
+      }
+    },
+    "methodology": {
+      "metaTitle": "Méthodologie",
+      "metaDescription": "Calcul du score de veille polaire, du registre des variants Heimdall et du verdict Valhalla, et leurs limites.",
+      "eyebrow": "METHODOLOGY",
+      "title": "Méthodologie",
+      "lead": "Ce que chaque maillon mesure, et ce qu’il ne mesure pas",
+      "blocks": [
+        {
+          "title": "Veille polaire",
+          "kicker": "POLAR",
+          "tone": "sky",
+          "points": [
+            "Température (moyenne des maxima) et jours de dégel = observations Open-Meteo",
+            "Écart à la normale = **calcul** par rapport à la moyenne de réanalyse sur 16 ans du même mois",
+            "Part des mots-clés de presse locale (ru/en/no) = **indicateur indirect** · pas une confirmation",
+            "Le score de veille est un niveau, pas une alerte · les heures sans données météo sont « non déterminé »"
+          ],
+          "note": "Limites : chacune des 8 régions est un point représentatif unique · le lien causal dégel → exposition aux pathogènes reste une hypothèse"
+        },
+        {
+          "title": "Heimdall",
+          "kicker": "HEIMDALL",
+          "tone": "violet",
+          "points": [
+            "Lit la lignée dominante et sa part sur 60 jours dans les builds publics Nextstrain",
+            "Seuls les cycles où la lignée dominante change sont consignés · rien n’est écrit en l’absence de données",
+            "Les indicateurs de criblage (CAI, CpG, entropie, anomalies locales) sont des **signaux de priorité**, pas des verdicts"
+          ],
+          "note": "Limites : hérite des retards et biais de soumission des séquences publiques"
+        },
+        {
+          "title": "Valhalla",
+          "kicker": "VALHALLA",
+          "tone": "forest",
+          "points": [
+            "Pour chaque menace, la couverture est jugée d’après les pathogènes cibles et l’efficacité déclarée des contre-mesures enregistrées",
+            "Les signalements du registre des variants sont notés à côté du verdict",
+            "Les niveaux de stock nationaux et l’efficacité par variant ne sont pas publics et ne sont pas observés"
+          ],
+          "note": "Limites : sans stocks enregistrés, le calcul utilise des données illustratives, et la réponse l’indique"
+        }
+      ]
+    },
+    "government": {
+      "metaTitle": "Biosécurité nationale",
+      "metaDescription": "Détection polaire, identification génomique et verdict sur les contre-mesures pour les agences de biosécurité nationale.",
+      "eyebrow": "GOVERNMENT",
+      "title": "Pour les agences de biosécurité nationale",
+      "lead": "Les agences de biosécurité nationale sont notre premier client · détecter → identifier → juger la réponse dans une seule vue",
+      "blocks": [
+        {
+          "title": "Ce qu’obtient une agence",
+          "items": [
+            {
+              "title": "Observation polaire précoce",
+              "body": "Un relevé horaire des anomalies météo dans 8 régions de pergélisol",
+              "meta": "Polar"
+            },
+            {
+              "title": "Registre des transitions de lignée",
+              "body": "Le registre des moments où la lignée dominante a changé dans les génomes publics",
+              "meta": "Heimdall"
+            },
+            {
+              "title": "Verdict sur les lacunes de contre-mesures",
+              "body": "Une ligne par jour et par menace sur la couverture par les contre-mesures enregistrées",
+              "meta": "Valhalla"
+            }
+          ]
+        },
+        {
+          "title": "Modalités",
+          "points": [
+            "Examen immédiat via l’API publique",
+            "Enregistrez le stock de l’agence pour calculer les verdicts avec lui (clé requise)",
+            "Une configuration qui n’envoie jamais de données sensibles à des API externes est possible"
+          ]
+        },
+        {
+          "title": "Avertissement",
+          "accent": true,
+          "points": [
+            "Aucun historique de précision de prévision",
+            "Un niveau de veille n’est pas une alerte · les décisions de réponse restent à l’agence"
+          ]
+        }
+      ],
+      "cta": {
+        "title": "Étude pilote",
+        "body": "Documentation et démonstration pour les agences",
+        "label": "Nous contacter",
+        "href": "contact"
+      }
+    },
+    "security": {
+      "metaTitle": "Sécurité et gouvernance des données",
+      "metaDescription": "Contrôle d’accès, contrôle des programmes à haut risque, confidentialité, souveraineté des données et gestion des secrets.",
+      "eyebrow": "SECURITY & GOVERNANCE",
+      "title": "Sécurité et gouvernance des données",
+      "lead": "Qui peut modifier quoi, comment les fonctions sensibles sont contrôlées, où vont les données — publié tel qu’implémenté",
+      "blocks": [
+        {
+          "title": "Contrôle d’accès",
+          "kicker": "ACCESS CONTROL",
+          "tone": "indigo",
+          "specs": [
+            {
+              "label": "API au total",
+              "value": "25 points d’accès"
+            },
+            {
+              "label": "Authentification requise",
+              "value": "7 — fonctions modifiant l’état, coûteuses ou à haut risque"
+            },
+            {
+              "label": "Méthode",
+              "value": "En-tête X-API-Key · plusieurs clés étiquetées · comparaison à temps constant"
+            },
+            {
+              "label": "Sans clé configurée",
+              "value": "Toutes les API d’écriture désactivées — jamais laissées ouvertes"
+            }
+          ]
+        },
+        {
+          "title": "Contrôle des programmes à haut risque",
+          "kicker": "HEIMDALL · VALHALLA",
+          "tone": "violet",
+          "points": [
+            "Le criblage de séquences et l’enregistrement des stocks exigent une authentification · chaque appel est journalisé par étiquette de clé",
+            "HEIMDALL est **réservé à la détection défensive** · aucune fonction de conception, de synthèse, d’optimisation ou de contournement"
+          ]
+        },
+        {
+          "title": "Principes de confidentialité",
+          "kicker": "PRIVACY",
+          "tone": "teal",
+          "points": [
+            "Données collectées : météo, génomes et marchés publics · aucune donnée individuelle de patient",
+            "Le site et la vue opérationnelle fonctionnent sans connexion, publicité ni suivi des visiteurs"
+          ]
+        },
+        {
+          "title": "Secrets et intégrité opérationnelle",
+          "kicker": "INTEGRITY",
+          "tone": "sky",
+          "items": [
+            {
+              "title": "Secrets",
+              "body": "Clés API et identifiants uniquement dans les variables d’environnement de production · jamais dans le dépôt ni les documents"
+            },
+            {
+              "title": "Barrière de déploiement",
+              "body": "Seul le code qui passe les 614 tests automatisés atteint la production"
+            },
+            {
+              "title": "Veille des défaillances silencieuses",
+              "body": "Santé des sources consignée à chaque cycle · disponibilité vérifiée chaque heure de l’extérieur (GitHub Actions)"
+            }
+          ]
+        }
+      ],
+      "cta": {
+        "title": "Documentation pour audit de sécurité",
+        "body": "Description de la configuration et des contrôles pour l’audit d’une agence",
+        "label": "Nous contacter",
+        "href": "contact"
+      }
+    },
+    "developers": {
+      "metaTitle": "Développeurs · API",
+      "metaDescription": "API REST AEGIRON — 25 points d’accès, réponses JSON, authentification X-API-Key, documentation OpenAPI.",
+      "eyebrow": "DEVELOPERS",
+      "title": "Développeurs · API",
+      "lead": "La source unique de chaque chiffre de la vue opérationnelle est l’API REST",
+      "blocks": [
+        {
+          "title": "Bases",
+          "kicker": "BASICS",
+          "tone": "sky",
+          "specs": [
+            {
+              "label": "URL de base",
+              "value": "https://epiweather-api-production.up.railway.app"
+            },
+            {
+              "label": "Format",
+              "value": "REST · JSON"
+            },
+            {
+              "label": "Authentification",
+              "value": "Lecture publique · écriture/haut risque X-API-Key"
+            },
+            {
+              "label": "Documentation interactive",
+              "value": "/docs (OpenAPI)"
+            }
+          ]
+        },
+        {
+          "title": "Points d’accès principaux",
+          "kicker": "QUICK START",
+          "tone": "teal",
+          "items": [
+            {
+              "title": "Veille polaire",
+              "body": "Score de veille, référence et tendance pour 8 régions",
+              "meta": "GET /api/polar-watch"
+            },
+            {
+              "title": "Historique polaire",
+              "body": "Série d’observations enregistrée chaque heure",
+              "meta": "GET /api/observations/history?layer=polar"
+            },
+            {
+              "title": "Registre des variants",
+              "body": "Transitions de lignée dominante dans les génomes publics",
+              "meta": "GET /api/variant-ledger"
+            },
+            {
+              "title": "Registre des verdicts",
+              "body": "Verdicts quotidiens menace × stock × variant",
+              "meta": "GET /api/valhalla/match-ledger"
+            },
+            {
+              "title": "État opérationnel",
+              "body": "Santé des sources, planificateur et instantanés de référence",
+              "meta": "GET /api/status"
+            }
+          ]
+        }
+      ],
+      "cta": {
+        "title": "Clés d’intégration",
+        "body": "Clés API par agence pour les fonctions d’écriture et à haut risque",
+        "label": "Nous contacter",
+        "href": "contact"
+      }
+    },
+    "contact": {
+      "metaTitle": "Contact",
+      "metaDescription": "Comment joindre AEGIRON.",
+      "eyebrow": "CONTACT",
+      "title": "Contact",
+      "lead": "Vous pouvez examiner l’ensemble du système sans réserver de démonstration. Si, après cet examen, vous avez des questions ou une proposition de collaboration, écrivez-nous ci-dessous.",
+      "blocks": [
+        {
+          "title": "Coordonnées",
+          "items": [
+            {
+              "title": "Courriel",
+              "body": "kimdaeheuk@gmail.com",
+              "meta": "La voie la plus rapide"
+            },
+            {
+              "title": "Localisation",
+              "body": "Busan, Corée du Sud",
+              "meta": "KST (UTC+9)"
+            }
+          ]
+        },
+        {
+          "title": "Particulièrement bienvenus",
+          "points": [
+            "**Corrections** — signalez-nous les erreurs de méthodologie ou de chiffres ; nous les vérifierons et en tiendrons compte.",
+            "**Mise en relation avec des organisations de terrain** — un accès aux réseaux de surveillance réels est notre prochaine étape la plus importante.",
+            "**Discussions de pilote** — réassureurs, gouvernements, organismes internationaux et organisations de terrain sont tous les bienvenus."
+          ]
+        }
+      ]
+    },
+    "privacy": {
+      "metaTitle": "Politique de confidentialité",
+      "metaDescription": "Politique de confidentialité du site AEGIRON.",
+      "eyebrow": "LEGAL",
+      "title": "Politique de confidentialité",
+      "lead": "Ce site n’exige aucune connexion de ses visiteurs et ne collecte aucune donnée personnelle.",
+      "blocks": [
+        {
+          "title": "Ce que nous ne collectons pas",
+          "points": [
+            "Il n’y a ni inscription ni connexion : aucune information de compte n’est collectée.",
+            "Ce site n’utilise aucun outil de suivi publicitaire ni de mesure d’audience.",
+            "La consultation du tableau de bord ne requiert aucune information d’identification personnelle."
+          ]
+        },
+        {
+          "title": "Services externes",
+          "body": "La vidéo de présentation de la page d’accueil est intégrée en mode de confidentialité renforcée de YouTube ; les règles de YouTube s’appliquent dès sa lecture. Les polices sont chargées depuis Google Fonts et jsDelivr, qui peuvent enregistrer des données d’accès telles que l’adresse IP."
+        },
+        {
+          "title": "Lorsque vous nous écrivez",
+          "body": "Si vous nous écrivez, le contenu et votre adresse ne servent qu’à vous répondre et ne sont jamais communiqués à des tiers."
+        },
+        {
+          "title": "Modifications",
+          "body": "Si cette politique change, cette page sera mise à jour."
+        }
+      ]
+    },
+    "terms": {
+      "metaTitle": "Conditions d’utilisation",
+      "metaDescription": "Conditions d’utilisation du site AEGIRON et de ses données publiques.",
+      "eyebrow": "LEGAL",
+      "title": "Conditions d’utilisation",
+      "lead": "Les conditions qui s’appliquent lorsque vous utilisez ce site et le tableau de bord public.",
+      "blocks": [
+        {
+          "title": "Nature des informations fournies",
+          "accent": true,
+          "points": [
+            "Les informations de ce site sont fournies **à titre indicatif** et ne constituent pas un fondement de décision médicale, sanitaire ou d’investissement.",
+            "Les chiffres de prévision et de scénario sont des **estimations sous hypothèses de modèle** — ni des mesures, ni des garanties.",
+            "AEGIRON ne dispose pas encore d’un historique validé de précision en détection précoce.",
+            "AEGIRON décline toute responsabilité quant aux conséquences de décisions fondées sur ces informations."
+          ]
+        },
+        {
+          "title": "Sources des données",
+          "body": "Ce système collecte et traite des documents publics d’organismes tels que l’OMS et les CDC. Les droits d’auteur et conditions d’utilisation des documents d’origine restent ceux de chaque organisme. Les chiffres traités pouvant différer des originaux, consultez toujours les documents de l’organisme d’origine lorsqu’une citation officielle est nécessaire."
+        },
+        {
+          "title": "Disponibilité",
+          "body": "Le tableau de bord public peut être interrompu ou modifié sans préavis."
+        }
+      ]
+    }
+  },
+  "api": {
+    "tableTitle": "Tous les points d’accès",
+    "tableLead": "Tous les points d’accès de l’API de production, regroupés par fonction. Le cadenas indique ceux qui exigent une X-API-Key.",
+    "authYes": "Clé requise",
+    "authNo": "Public",
+    "tags": {
+      "GAI": "Veille polaire",
+      "Phase2": "Heimdall · lignées génomiques",
+      "후향 검증": "Heimdall · registre des variants",
+      "Stage 0: 합성위협 탐지": "Heimdall · détection de menaces synthétiques et criblage",
+      "Stage 8: 바이오방어": "Valhalla · verdicts de contre-mesures",
+      "시스템": "Système · état opérationnel"
+    }
+  },
+  "common": {
+    "siteName": "AEGIRON"
+  }
 };

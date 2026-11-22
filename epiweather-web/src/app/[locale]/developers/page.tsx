@@ -7,7 +7,7 @@ import endpoints from '@/data/api-endpoints.json';
 
 /**
  * 개발자 · API. 엔드포인트 표는 epiweather-api/main.py 의 라우트 데코레이터에서 뽑은
- * src/data/api-endpoints.json(126개 · 인증 37개, 2026-10-19)을 그대로 그린다.
+ * src/data/api-endpoints.json(25개 · 인증 7개, 2026-11-22 개편)을 그대로 그린다.
  */
 const PATH = 'developers';
 
@@ -16,14 +16,14 @@ type Endpoint = { method: string; path: string; tag: string; auth: boolean };
 export async function generateMetadata(props: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await props.params;
   if (!isLocale(locale)) return {};
-  return pageMetadata(getDictionary(locale).extra.pages.developers, locale, PATH);
+  return pageMetadata(getDictionary(locale).pages.developers, locale, PATH);
 }
 
 export default async function DevelopersPage(props: { params: Promise<{ locale: string }> }) {
   const { locale: raw } = await props.params;
   const locale = (isLocale(raw) ? raw : 'ko') as Locale;
-  const x = getDictionary(locale).extra;
-  const { cta, ...pageNoCta } = x.pages.developers;
+  const dict = getDictionary(locale);
+  const { cta, ...pageNoCta } = dict.pages.developers;
 
   const groups = new Map<string, Endpoint[]>();
   for (const e of endpoints as Endpoint[]) {
@@ -35,12 +35,12 @@ export default async function DevelopersPage(props: { params: Promise<{ locale: 
     <>
       <ContentPageView page={pageNoCta} locale={locale} />
       <Section>
-        <SectionHeading eyebrow="ENDPOINTS" title={x.api.tableTitle} lead={x.api.tableLead} />
+        <SectionHeading eyebrow="ENDPOINTS" title={dict.api.tableTitle} lead={dict.api.tableLead} />
         <div style={{ display: 'grid', gap: 22 }}>
           {ordered.map(([tag, list]) => (
             <div key={tag} style={{ border: '1px solid var(--line)', borderRadius: 13, background: 'var(--panel)', overflow: 'hidden' }}>
               <h3 style={{ fontSize: 14.5, fontWeight: 800, padding: '12px 16px', borderBottom: '1px solid var(--line)', background: 'var(--panel2)' }}>
-                {x.apiTags[tag] ?? tag} <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)', fontWeight: 500 }}>· {list.length}</span>
+                {dict.api.tags[tag] ?? tag} <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)', fontWeight: 500 }}>· {list.length}</span>
               </h3>
               <ul style={{ listStyle: 'none' }}>
                 {list.map((e) => (
@@ -48,7 +48,7 @@ export default async function DevelopersPage(props: { params: Promise<{ locale: 
                     <span style={{ width: 48, flexShrink: 0, fontWeight: 700, color: e.method === 'GET' ? 'var(--cyan)' : 'var(--amber)' }}>{e.method}</span>
                     <span style={{ flex: 1, minWidth: 0, wordBreak: 'break-all' }}>{e.path}</span>
                     <span style={{ fontSize: 11, color: e.auth ? 'var(--accent)' : 'var(--muted2)', whiteSpace: 'nowrap' }}>
-                      {e.auth ? `🔒 ${x.api.authYes}` : x.api.authNo}
+                      {e.auth ? `🔒 ${dict.api.authYes}` : dict.api.authNo}
                     </span>
                   </li>
                 ))}

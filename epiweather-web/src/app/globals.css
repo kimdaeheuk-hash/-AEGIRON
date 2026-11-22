@@ -289,3 +289,7 @@ body[data-theme="lab"] ::selection { background: color-mix(in srgb, var(--accent
   .record-row { grid-template-columns: 52px 1fr !important; }
   .record-row > span:nth-child(n+3) { grid-column: 2; }
 }
+
+/* 운영 화면(/dashboard)의 헤임달·발할라 패널 카드 — 예전 Command.tsx 의 인라인 <style> 에서 옮김(2026-11-22). */
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: clamp(14px,2vw,20px); backdrop-filter: blur(14px); }
+.lbl { font-family: var(--mono); font-size: 10px; letter-spacing: .18em; color: var(--muted); text-transform: uppercase; }
