@@ -118,27 +118,27 @@ export const en: Dictionary = {
     },
     "about": {
       "metaTitle": "About",
-      "metaDescription": "AEGIRON — bio-health technology centred on pathogen genome identification (Heimdall), backed by response judgement and polar detection.",
+      "metaDescription": "AEGIRON — a bio-health company that reads a pathogen’s genome to identify a threat first, and judges whether the means to meet it already exist.",
       "eyebrow": "ABOUT",
       "title": "AEGIRON",
-      "lead": "A one-person technology start-up in Busan · pathogen genome analysis is the core product; bio and diagnostics companies and national biosecurity agencies are the first customers",
+      "lead": "A one-person technology company, founded in Busan. We read the genome of a pathogen to identify a threat before it is named, and judge whether the means to meet that threat already exist in the world. To this single purpose we commit our effort. Bio and diagnostics companies and national biosecurity agencies are our first partners.",
       "blocks": [
         {
-          "title": "Why we narrowed",
-          "body": "Until November 2026 AEGIRON collected disease signals from everywhere. The wider the scope, the thinner the expertise, and external reviews were poor. We made pathogen genome identification (Heimdall) the core product, with response judgement (Valhalla) behind it and polar detection kept as future research — focusing on one bio-health field."
+          "title": "Why we commit to one thing",
+          "body": "Until November 2026, AEGIRON gathered disease signals from across the world. Yet the wider our reach, the thinner our expertise grew — and outside reviews said as much, plainly. So we chose to set scattered ambition aside. We placed pathogen genome identification (Heimdall) at the centre, let the judgement of whether a response exists (Valhalla) stand behind it, and kept polar surveillance as research for the future. We believe one thing pursued deeply travels farther than a hundred spread thin."
         },
         {
-          "title": "Principles",
+          "title": "The principles we hold",
           "points": [
-            "**Measured, estimated and proxy values are never mixed** — every view says which is which",
-            "**Three states** — success / failure / undetermined. What we did not see is never written as zero or normal",
-            "**Defensive only** — no function that creates or modifies pathogens"
+            "**We never blur the measured, the estimated, and the proxy.** On every screen we make plain which numbers come from observation and which from interpretation.",
+            "**We keep three states — success, failure, and undetermined.** What we did not see is never dressed up as zero or as ‘normal’.",
+            "**Our purpose is defence.** We hold no function that designs, synthesises, or makes a pathogen more dangerous."
           ]
         }
       ],
       "cta": {
-        "title": "Adoption and partnership",
-        "body": "Reviews by bio and diagnostics companies, labs, and national and regional biosecurity agencies are welcome",
+        "title": "We welcome adoption and partnership",
+        "body": "Bio and diagnostics companies, research institutions, and national and regional biosecurity agencies — all who wish to put us to the test are welcome.",
         "label": "Contact",
         "href": "contact"
       }

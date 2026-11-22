@@ -118,27 +118,27 @@ export const fr: Dictionary = {
     },
     "about": {
       "metaTitle": "À propos",
-      "metaDescription": "AEGIRON — technologie de bio-santé centrée sur l’identification génomique des pathogènes (Heimdall), soutenue par le jugement de réponse et la détection polaire.",
+      "metaDescription": "AEGIRON — une entreprise de bio-santé qui lit le génome d’un pathogène pour identifier d’abord la menace, et détermine si les moyens d’y faire face existent déjà.",
       "eyebrow": "ABOUT",
       "title": "AEGIRON",
-      "lead": "Une start-up technologique d’une personne à Busan · l’analyse génomique des pathogènes est le produit central ; les entreprises de biotechnologie et de diagnostic et les agences de biosécurité nationale sont les premiers clients",
+      "lead": "Une entreprise technologique d’une seule personne, fondée à Busan. Nous lisons le génome d’un pathogène afin d’identifier une menace avant même qu’elle ne soit nommée, et nous déterminons si les moyens d’y faire face existent déjà dans le monde. À ce seul dessein nous consacrons nos efforts. Les entreprises de biotechnologie et de diagnostic ainsi que les agences de biosécurité nationale sont nos premiers partenaires.",
       "blocks": [
         {
-          "title": "Pourquoi nous avons resserré",
-          "body": "Jusqu’en novembre 2026, AEGIRON collectait des signaux de maladies partout. Plus le périmètre était large, plus l’expertise s’amincissait, et les évaluations externes étaient faibles. Nous avons fait de l’identification génomique des pathogènes (Heimdall) le produit central, avec le jugement de réponse (Valhalla) derrière lui et la détection polaire comme recherche d’avenir — en nous concentrant sur un seul domaine de bio-santé."
+          "title": "Pourquoi nous nous consacrons à une seule chose",
+          "body": "Jusqu’en novembre 2026, AEGIRON recueillait des signaux de maladies du monde entier. Mais plus notre portée s’élargissait, plus notre expertise s’amenuisait — et les évaluations extérieures le disaient sans détour. Nous avons donc choisi de renoncer à l’ambition dispersée. Nous avons placé l’identification génomique des pathogènes (Heimdall) au centre, laissé derrière elle le jugement de l’existence d’une réponse (Valhalla), et conservé la surveillance polaire comme recherche d’avenir. Nous croyons qu’une seule chose approfondie va plus loin que cent éparpillées."
         },
         {
-          "title": "Principes",
+          "title": "Les principes que nous tenons",
           "points": [
-            "**Valeurs mesurées, estimées et indirectes jamais mélangées** — chaque vue indique laquelle",
-            "**Trois états** — succès / échec / non déterminé. Ce que nous n’avons pas vu n’est jamais écrit zéro ou normal",
-            "**Défensif uniquement** — aucune fonction qui crée ou modifie des pathogènes"
+            "**Nous ne confondons jamais le mesuré, l’estimé et l’indirect.** Sur chaque écran, nous indiquons clairement quels chiffres viennent de l’observation et lesquels de l’interprétation.",
+            "**Nous tenons trois états — succès, échec et non déterminé.** Ce que nous n’avons pas vu n’est jamais déguisé en zéro ni en « normal ».",
+            "**Notre finalité est la défense.** Nous ne détenons aucune fonction qui conçoit, synthétise ou rend un pathogène plus dangereux."
           ]
         }
       ],
       "cta": {
-        "title": "Adoption et partenariat",
-        "body": "Les entreprises de biotechnologie et de diagnostic, les laboratoires et les agences de biosécurité nationales et régionales sont les bienvenus",
+        "title": "Nous accueillons l’adoption et le partenariat",
+        "body": "Entreprises de biotechnologie et de diagnostic, institutions de recherche, et agences de biosécurité nationales et régionales — tous ceux qui souhaitent nous mettre à l’épreuve sont les bienvenus.",
         "label": "Nous contacter",
         "href": "contact"
       }
