@@ -30,10 +30,6 @@ FAILING_STREAK = 3
 # 마지막 성공이 이 시간(h)을 넘으면 "stale"(신선하지 않음). 무료 소스가
 # 1시간 주기 수집이므로 넉넉히 6시간(6회 연속 놓침) 기준.
 STALE_HOURS = 6.0
-# 아직 죽어있는 소스를 다시 알리는 주기(h). 한 번 울리고 마는 알림은 스크롤에
-# 묻혀 사라진다 — 2026-08-13 KDCA 장애 때 실제로 3회째에 딱 한 번 울리고
-# 그 뒤 90회 실패는 완전히 침묵해서, 나흘간 국내 데이터 공백을 아무도 몰랐다.
-RENOTIFY_HOURS = 24.0
 
 # 값없음(no_data)이 이만큼 이어지면 "아는 조건"이 아니라 **그냥 죽은 것**으로 본다.
 # no_data 는 원래 경보에서 뺐다 — 위키 404 지연·OpenSky 차단처럼 정상이거나
@@ -340,13 +336,6 @@ def source_health_report() -> dict:
     }
 
 
-# ── 지속 통보 (㉔-b) ────────────────────────────────────────────────
-# record_cycle의 newly_failing은 '경계를 넘는 순간' 딱 1회만 잡는다. 그건 중복
-# 알림을 막으려던 의도였지만, 실제로는 반대 방향으로 실패했다 — 소스가 나흘을
-# 죽어 있어도 알림은 나흘 전 1건뿐이라 대화창에 묻혀 사라졌다(KDCA, 2026-08-13).
-# 그래서 "아직 죽어있음"을 RENOTIFY_HOURS마다 다시 알리고, 살아나면 복구도 알린다.
-# 복구 통보가 있어야 캡틴이 '조치가 먹혔는지'를 알림만 보고 판단할 수 있다.
-
 def _parse_iso(value: str | None) -> dt.datetime | None:
     if not value:
         return None
@@ -354,78 +343,6 @@ def _parse_iso(value: str | None) -> dt.datetime | None:
         return dt.datetime.fromisoformat(value)
     except ValueError:
         return None
-
-
-def pending_notifications() -> dict:
-    """지금 사람에게 알려야 할 것 — {"degraded": [...], "recovered": [...]}.
-
-    degraded 항목: {"source", "status", "staleness_hours", "consecutive_failures"}
-    - 처음 degraded가 됐거나, 마지막 통보 후 RENOTIFY_HOURS가 지났으면 포함.
-    recovered 항목: 직전에 degraded로 통보했는데 지금 ok로 돌아온 소스 이름.
-    """
-    data = _load_raw()
-    now = _now()
-    degraded, recovered, recovering = [], [], []
-    for source, entry in sorted(data.items()):
-        status, staleness = _status_for(entry)
-        notified = entry.get("notified_status")
-        # no_data는 텔레그램으로 울리지 않는다. 위키 404 지연·OpenSky 차단처럼
-        # '정상이거나 이미 아는 조건'이 대부분이라 매일 울리면 경보 피로만 쌓인다.
-        # 대신 /api/status의 no_data_sources에 그대로 노출되고, 매일 아침 점검
-        # 루틴이 읽는다 — 안 보이게 숨기는 게 아니라, 밀도를 낮춰 보이게 한다.
-        # flaky 도 degraded 다 — 이걸 빼면 '보이기는 하는데 안 울리는' 상태가 되고,
-        # 그건 지금까지와 똑같이 아무도 모르는 것이다.
-        is_degraded = status in ("failing", "stale", "flaky")
-        # 값없음이 사흘을 넘기면 그것도 울린다. 짧은 no_data 는 여전히 조용하다 —
-        # 경보 피로를 피하면서, 조용히 죽은 소스는 놓치지 않기 위한 선이다.
-        long_no_data = (
-            status == "no_data"
-            and staleness is not None
-            and staleness >= NO_DATA_ALARM_HOURS
-        )
-        if is_degraded or long_no_data:
-            last_notified = _parse_iso(entry.get("last_notified_at"))
-            state_changed = (
-                notified not in ("failing", "stale", "flaky") if is_degraded
-                else notified != "no_data"
-            )
-            due = (
-                state_changed                                # 새로 죽음
-                or last_notified is None
-                or (now - last_notified).total_seconds() / 3600 >= RENOTIFY_HOURS
-            )
-            if due:
-                rate, samples = _recent_success_rate(entry)
-                degraded.append({
-                    "source": source,
-                    "status": status,
-                    "staleness_hours": staleness,
-                    "consecutive_failures": entry.get("consecutive_failures", 0),
-                    # 간헐 성공은 '데이터 없음 N시간'이 아니라 성공률로 말해야 한다.
-                    "recent_success_rate": round(rate, 3) if rate is not None else None,
-                    "window": samples,
-                })
-        elif (status in ("ok", "recovering")
-              and notified in ("failing", "stale", "no_data", "flaky")):
-            recovered.append(source)
-            if status == "recovering":
-                recovering.append(source)
-    return {"degraded": degraded, "recovered": recovered, "recovering": recovering}
-
-
-def mark_notified(sources: list[str]) -> None:
-    """통보한 소스에 현재 상태·시각을 도장 찍는다. 통보 '성공' 후에만 호출할 것 —
-    전송이 실패했는데 도장을 찍으면 다음 주기에 조용해져서 알림을 잃는다."""
-    if not sources:
-        return
-    data = _load_raw()
-    now = _now().isoformat()
-    for source in sources:
-        entry = data.get(source)
-        if entry is None:
-            continue
-        entry["notified_status"], entry["last_notified_at"] = _status_for(entry)[0], now
-    _save_raw(data)
 
 
 def collector_silent_hours() -> float | None:

@@ -5,22 +5,21 @@ description: 아이기론 로컬 개발 환경 — 백엔드(FastAPI)·웹(Next.
 
 # dev-setup
 
-저장소는 셋으로 갈린다. **일은 거의 `epiweather-api/` 와 `epiweather-web/` 에서 한다.**
+**일은 `epiweather-api/` 와 `epiweather-web/` 에서 한다.** 2026-11-22 개편으로 극지 → 헤임달 → 발할라만 남겼다(복원 기준 커밋 `83406e4`).
 
 | 폴더 | 무엇 | 비고 |
 |---|---|---|
 | `epiweather-api/` | FastAPI + 스케줄러 + 수집기 + 알고리즘(`algorithms/`) | Python 3.11, 프로덕션은 Railway |
-| `epiweather-web/` | Next.js 16.2 · React 19 · zustand · leaflet | Vercel(루트 디렉터리 `epiweather-web`) |
-| `epiweather-handoff/` | 초기 인수인계 프로토타입·엔진 v1 | **참고용 — 프로덕션 코드가 아니다** |
-| `docs/` | 소킹 일지, 매일 점검 절차 | 절차는 `docs/매일_수집점검_절차.md` |
+| `epiweather-web/` | Next.js 16.2 · React 19 · Astryx | Vercel(루트 디렉터리 `epiweather-web`) |
+| `docs/` | 소킹 일지, 개편 계획 | `docs/아이기론_개편계획_2026-11.md` |
 
 ## 백엔드
 
 ```bash
 cd epiweather-api
 pip install -r requirements.txt            # pytest 포함
-python3 -m pytest -q                        # 전체 — 마지막 기준 2,145건, 약 1분
-python3 -m pytest tests/test_alerts.py -q   # 하나만
+python3 -m pytest -q                        # 전체 — 마지막 기준 602건, 약 5초
+python3 -m pytest tests/test_polar_signals.py -q   # 하나만
 EPIWEATHER_SCHEDULER=off uvicorn main:app --port 8000   # 로컬 서버 (프로덕션: Procfile 참고)
 ```
 
@@ -52,10 +51,8 @@ npm run test:e2e   # playwright
 
 ## 환경변수 (이름만 — 값은 절대 커밋하지 않는다)
 
-`KDCA_API_KEY` `NAVER_CLIENT_ID/SECRET` `COMTRADE_API_KEY` `ANTHROPIC_API_KEY` `NVIDIA_API_KEY`
-`CEREBRAS_API_KEY` `GROQ_API_KEY` `PERPLEXITY_API_KEY` `TAVILY_API_KEY` `TELEGRAM_BOT_TOKEN/CHAT_ID`
-`OPENSKY_CLIENT_ID/SECRET` `FIRMS_MAP_KEY` `GFW_API_KEY` `HIRA_API_KEY` `SEOUL_OPEN_DATA_KEY`
-`WAHIS_API_KEY` `EPIWEATHER_API_KEY(S)` `ALLOWED_ORIGINS`(그리고 스케줄러 스위치 `EPIWEATHER_SCHEDULER`).
+`EPIWEATHER_API_KEY(S)` `ALLOWED_ORIGINS` `ANTHROPIC_API_KEY` `NVIDIA_API_KEY` `AEGIRON_VARIANT_BUILDS`
+`EPIWEATHER_SCHEDULER` `EPIWEATHER_OBSERVATION_STORE` · GitHub 시크릿 `TELEGRAM_BOT_TOKEN/OPS_CHAT_ID`(liveness 전용).
 키가 없는 소스는 **'값 없음'으로 표시하고 사유를 로그에 남긴다** — 조용히 0 으로 읽지 않는다(`collector-source` 참고).
 
 ## 샌드박스 제약

@@ -68,27 +68,20 @@ def test_short_no_data_stays_quiet(health_file):
     _write(health_file, {"Wikipedia_Ebola": _no_data_entry(5)})
 
     report = sh.source_health_report()
-    pending = sh.pending_notifications()
 
     assert report["no_data_sources"] == ["Wikipedia_Ebola"]
     assert report["long_no_data_sources"] == []     # 아직 아니다
-    assert pending["degraded"] == []                # 조용하다
 
 
 def test_multi_day_no_data_raises_the_alarm(health_file):
     """★핵심★ 사흘을 넘기면 '아는 조건'이 아니라 죽은 것이다 — 울려야 한다."""
-    # 이 결함을 드러낸 실측 사례는 Mobility(190.1시간)였다. Mobility 는
-    # 2026-08-28 에 추적에서 정식 제외됐으므로(RETIRED_SOURCES), 예시는 살아있는
-    # 소스로 바꾼다 — 은퇴한 이름을 쓰면 필터에 걸려 **아무것도 검사하지 않는다.**
+    # 이 결함을 드러낸 실측 사례는 Mobility(190.1시간)였다.
     _write(health_file, {"NewsWatch": _no_data_entry(190.1)})
 
     report = sh.source_health_report()
-    pending = sh.pending_notifications()
 
     assert report["no_data_sources"] == ["NewsWatch"]
     assert [x["source"] for x in report["long_no_data_sources"]] == ["NewsWatch"]
-    # 예전에는 여기가 비어 있어서 8일 동안 아무도 몰랐다
-    assert [x["source"] for x in pending["degraded"]] == ["NewsWatch"]
 
 
 def test_threshold_boundary(health_file):
@@ -101,63 +94,3 @@ def test_threshold_boundary(health_file):
     assert "B" in long_names
 
 
-def test_alarm_does_not_repeat_within_renotify_window(health_file):
-    """★경보 피로 방지★ 이미 알린 건 24시간 안에 다시 울리지 않는다."""
-    # ⚠️ 여기에 은퇴한 소스명을 쓰면 degraded 가 무조건 비어서 **테스트가 통과하되
-    # 아무것도 검사하지 않는다**(2026-08-28 에 실제로 그럴 뻔했다). 살아있는 소스로.
-    _write(health_file, {"NewsWatch": _no_data_entry(190, notified="no_data")})
-
-    pending = sh.pending_notifications()
-
-    assert pending["degraded"] == []   # 방금 알렸으니 조용
-
-
-def test_recovery_is_announced_after_long_no_data(health_file):
-    """죽었다고 알린 소스가 살아나면 살아났다고도 말해야 한다."""
-    _write(health_file, {
-        "NewsWatch": {
-            "last_outcome": "ok",
-            "last_success_at": _hours_ago(0.5),
-            "consecutive_failures": 0,
-            "notified_status": "no_data",
-            "last_notified_at": _hours_ago(2),
-        }
-    })
-
-    pending = sh.pending_notifications()
-
-    assert pending["recovered"] == ["NewsWatch"]
-
-
-def test_failing_sources_still_behave_as_before(health_file):
-    """고치면서 원래 경보(연속 실패)를 깨지 않았는지."""
-    _write(health_file, {
-        "NewsWatch": {
-            "last_outcome": "failure",
-            "last_success_at": _hours_ago(3),
-            "consecutive_failures": 3,
-        }
-    })
-
-    report = sh.source_health_report()
-    pending = sh.pending_notifications()
-
-    assert report["degraded_sources"] == ["NewsWatch"]
-    assert [x["source"] for x in pending["degraded"]] == ["NewsWatch"]
-
-
-def test_healthy_source_is_not_dragged_in(health_file):
-    """정상 소스가 새 규칙에 걸려들지 않는지."""
-    _write(health_file, {
-        "KDCA": {
-            "last_outcome": "ok",
-            "last_success_at": _hours_ago(0.5),
-            "consecutive_failures": 0,
-        }
-    })
-
-    report = sh.source_health_report()
-
-    assert report["healthy_count"] == 1
-    assert report["long_no_data_sources"] == []
-    assert sh.pending_notifications()["degraded"] == []

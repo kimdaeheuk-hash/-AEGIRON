@@ -97,55 +97,6 @@ def _fail_until_failing(source="KDCA"):
         sh.record_source_result(source, ok=False)
 
 
-def test_degraded_source_is_reported_until_notified():
-    _fail_until_failing()
-    pending = sh.pending_notifications()
-    assert [d["source"] for d in pending["degraded"]] == ["KDCA"]
-    assert pending["degraded"][0]["status"] == "failing"
-    assert pending["degraded"][0]["consecutive_failures"] == sh.FAILING_STREAK
-
-
-def test_no_duplicate_notification_within_renotify_window():
-    """방금 알렸으면 다음 주기엔 조용해야 한다(매시간 스팸 방지)."""
-    _fail_until_failing()
-    sh.mark_notified(["KDCA"])
-    sh.record_source_result("KDCA", ok=False)      # 계속 실패 중
-    assert sh.pending_notifications()["degraded"] == []
-
-
-def test_renotifies_after_window_elapses():
-    """★핵심★ 아직 죽어있으면 RENOTIFY_HOURS 뒤에 다시 울려야 한다.
-    이게 없어서 나흘간 아무도 몰랐다."""
-    _fail_until_failing()
-    sh.mark_notified(["KDCA"])
-    raw = sh._load_raw()
-    stale_stamp = sh._now() - dt.timedelta(hours=sh.RENOTIFY_HOURS + 1)
-    raw["KDCA"]["last_notified_at"] = stale_stamp.isoformat()
-    sh._save_raw(raw)
-
-    sh.record_source_result("KDCA", ok=False)
-    assert [d["source"] for d in sh.pending_notifications()["degraded"]] == ["KDCA"]
-
-
-def test_recovery_is_notified_once_then_quiet():
-    _fail_until_failing()
-    sh.mark_notified(["KDCA"])
-    sh.record_source_result("KDCA", ok=True)
-
-    pending = sh.pending_notifications()
-    assert pending["recovered"] == ["KDCA"]
-    assert pending["degraded"] == []
-
-    sh.mark_notified(["KDCA"])                      # 복구 통보 완료
-    assert sh.pending_notifications()["recovered"] == []
-
-
-def test_healthy_source_never_notified():
-    sh.record_source_result("CIDRAP", ok=True)
-    pending = sh.pending_notifications()
-    assert pending["degraded"] == [] and pending["recovered"] == []
-
-
 def test_collector_silent_hours_is_none_when_nothing_recorded():
     assert sh.collector_silent_hours() is None
 
@@ -179,14 +130,6 @@ def test_no_data_is_not_a_failure():
     assert row["consecutive_failures"] == 0          # 실패 카운터가 리셋됨
     assert "Wikipedia_Ebola" not in report["degraded_sources"]
     assert report["no_data_sources"] == ["Wikipedia_Ebola"]
-
-
-def test_no_data_never_triggers_telegram():
-    """★핵심★ 정상 지연으로 매일 알림이 울리면 캡틴이 알림을 무시하게 된다."""
-    for _ in range(10):
-        sh.record_source_result("Wikipedia_Ebola", ok=False, no_data=True)
-    pending = sh.pending_notifications()
-    assert pending["degraded"] == [] and pending["recovered"] == []
 
 
 def test_no_data_excluded_from_healthy_count():
