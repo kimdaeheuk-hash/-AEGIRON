@@ -548,6 +548,22 @@ def status():
 # API 프로세스 안에서 매시 수집을 돌린다. EPIWEATHER_SCHEDULER=off 로 끈다.
 _WEEKLY_INTERVAL_SEC = 7 * 24 * 3600  # 발할라 기준 스냅샷(백신 공급·국가 역량)은 느리게 바뀐다
 _WEEKLY_STATE_FILE = Path(__file__).parent / "data" / "last_weekly_run.json"
+# 승인 제품 스냅숏이 검색어 표의 위협을 다 조회하지 않았으면(새 병원체 추가 · 일부 조회 실패) 일주일을 안 기다리고
+# 이 간격마다 다시 돈다 (2026-11-23 — 공백 지도 FDA 칸이 일주일 '판정 안 함'으로 남는 걸 막는다).
+_MISSING_THREAT_RETRY_SEC = 6 * 3600
+
+
+def _weekly_job_due(last_weekly: dt.datetime | None, now: dt.datetime) -> bool:
+    """주간 작업을 지금 돌릴까 — 일주일이 지났거나, 빠진 위협이 있고 마지막 시도에서 6시간이 지났으면."""
+    if last_weekly is None:
+        return True
+    elapsed = (now - last_weekly).total_seconds()
+    if elapsed >= _WEEKLY_INTERVAL_SEC:
+        return True
+    if elapsed < _MISSING_THREAT_RETRY_SEC:
+        return False
+    from algorithms.reference_snapshots import any_missing_threats
+    return any_missing_threats()
 
 
 def _load_last_weekly_run() -> dt.datetime | None:
@@ -625,9 +641,7 @@ async def _run_with_timeout(step: str, coro, timeout: float) -> None:
 async def _scheduler_loop() -> None:
     while True:
         await _run_with_timeout("수집", _run_collection(), timeout=3300)
-        last_weekly = _load_last_weekly_run()
-        now = dt.datetime.now(dt.timezone.utc)
-        if last_weekly is None or (now - last_weekly).total_seconds() >= _WEEKLY_INTERVAL_SEC:
+        if _weekly_job_due(_load_last_weekly_run(), dt.datetime.now(dt.timezone.utc)):
             await _run_with_timeout("주간 작업", _run_weekly_job(), timeout=3600)
         # 다음 정시까지만 잔다 — 수집 시간이 매 주기 누적돼 슬롯이 밀리지 않게.
         now = dt.datetime.now(dt.timezone.utc)

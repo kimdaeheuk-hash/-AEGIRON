@@ -340,6 +340,11 @@ def _missing_threats(name: str) -> bool:
         return False
 
 
+def any_missing_threats() -> bool:
+    """스케줄러가 주간 작업을 앞당길지 묻는다 — 빠진 위협이 있는 스냅숏이 하나라도 있나."""
+    return any(_missing_threats(name) for name in SNAPSHOTS)
+
+
 def refresh_due(now=None) -> dict:
     """묵은 것만 새로 받는다. 주간작업이 부른다.
 
