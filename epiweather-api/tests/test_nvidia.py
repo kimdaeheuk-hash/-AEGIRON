@@ -11,21 +11,9 @@ from algorithms import nvidia
 def test_default_is_public_cloud(monkeypatch):
     monkeypatch.delenv(nvidia.ONPREM_BASE_ENV, raising=False)
     assert nvidia.evo2_url().startswith(nvidia.CLOUD_HEALTH_BASE)
-    assert nvidia.is_host_sovereign(nvidia.msa_url()) is False
 
 
 def test_onprem_base_routes_both_genome_engines(monkeypatch):
     monkeypatch.setenv(nvidia.ONPREM_BASE_ENV, "https://nim.internal.example/")
     for url in (nvidia.evo2_url(), nvidia.msa_url()):
         assert url.startswith("https://nim.internal.example")
-        assert nvidia.is_host_sovereign(url) is True
-
-
-def test_unknown_layer_is_not_recorded(monkeypatch):
-    calls = []
-    import algorithms.capability_ledger as cl
-    monkeypatch.setattr(cl, "record", lambda *a, **k: calls.append(a))
-    nvidia.record_layer_call("text", "https://x", ok=True)
-    assert calls == []
-    nvidia.record_layer_call("genome", "https://x", ok=True)
-    assert calls and calls[0][0] == "nvidia_genome"

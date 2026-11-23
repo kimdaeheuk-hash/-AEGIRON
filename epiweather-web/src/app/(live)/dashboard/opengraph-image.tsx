@@ -1,6 +1,6 @@
 import { ImageResponse } from 'next/og';
 import { OgFrame, OG_SIZE, OG_CONTENT_TYPE } from '@/components/og/OgFrame';
-import { ogFonts, OG_FONT_FAMILY } from '@/components/og/font';
+import { ogFonts } from '@/components/og/font';
 
 /** 운영 화면 전용 카드 — 세 고리를 한 화면에서 본다는 것과 '로그인 없음'을 앞세운다. */
 export const size = OG_SIZE;

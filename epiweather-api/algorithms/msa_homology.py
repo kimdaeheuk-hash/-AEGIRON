@@ -174,28 +174,15 @@ def _search(protein: str, api_key: str) -> dict:
         except requests.HTTPError as e:
             status = e.response.status_code if e.response is not None else None
             if not _retryable(status):
-                _nvidia.record_layer_call("genome", url, ok=False,
-                                          error=f"{type(e).__name__}: {e}",
-                                          capability="nvidia_genome_msa")
                 raise
             last = e
         except (requests.Timeout, requests.ConnectionError) as e:
             last = e
-        except Exception:
-            _nvidia.record_layer_call("genome", url, ok=False,
-                                      error="non_http_error",
-                                      capability="nvidia_genome_msa")
-            raise
         else:
-            _nvidia.record_layer_call("genome", url, ok=True,
-                                      capability="nvidia_genome_msa")
             return payload
         if attempt < max(0, RETRIES):
             _sleep(RETRY_BACKOFF_S * (attempt + 1))
     assert last is not None
-    _nvidia.record_layer_call("genome", url, ok=False,
-                              error=f"{type(last).__name__}: {last}",
-                              capability="nvidia_genome_msa")
     raise last
 
 

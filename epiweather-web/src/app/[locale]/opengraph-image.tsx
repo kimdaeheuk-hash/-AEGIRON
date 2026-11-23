@@ -1,7 +1,7 @@
 import { ImageResponse } from 'next/og';
 import { getDictionary, isLocale } from '@/i18n';
 import { OgFrame, OG_SIZE, OG_CONTENT_TYPE, clampTitle } from '@/components/og/OgFrame';
-import { ogFonts, OG_FONT_FAMILY } from '@/components/og/font';
+import { ogFonts } from '@/components/og/font';
 
 /**
  * 로케일 홈의 공유 카드. 하위 페이지도 더 구체적인 이미지가 없으면 이걸 물려받는다.

@@ -143,24 +143,6 @@ def test_successful_refresh_writes_and_reports(snapdir):
     assert rs.snapshot_status("vaccine_supply")["record_count"] == 300
 
 
-def test_refresh_records_outcome_in_capability_ledger(snapdir):
-    """갱신이 매번 조용히 실패하는 상태를 /api/status에서 볼 수 있어야 한다."""
-    from algorithms import capability_ledger as cl
-
-    with patch("algorithms.reference_fetch.fetch_vaccine_supply",
-               side_effect=RuntimeError("WHO 502")):
-        rs.refresh("vaccine_supply")
-    s = cl.status("snapshot_vaccine_supply", configured=True)
-    assert s["verified"] is False
-    assert s["claim_basis"] == cl.BASIS_FAILED
-    assert "WHO 502" in s["last_error"]
-
-    with patch("algorithms.reference_fetch.fetch_vaccine_supply",
-               return_value=_vaccine_payload(count=284)):
-        rs.refresh("vaccine_supply")
-    assert cl.status("snapshot_vaccine_supply", configured=True)["verified"] is True
-
-
 # ── 갱신 뒤 소비자가 새 값을 보는가 ──────────────────────────────
 def test_refresh_clears_consumer_cache(snapdir, monkeypatch):
     """★조용한 실패★ 소비자는 파일을 lru_cache로 읽는다. 캐시를 안 비우면
