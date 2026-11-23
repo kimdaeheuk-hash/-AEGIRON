@@ -103,6 +103,12 @@ export type VariantDict = {
   empty: string;
   noTransitions: string;
   unavailable: string;
+  /** 성장 신호(커지고 있는 계통) — 추정값. */
+  growthTitle: string;
+  growthLead: string;
+  growthCols: { clade: string; share: string; weekly: string; doubling: string; count: string };
+  growthNone: string;
+  growthUnavailable: string;
   /** 서열 스크리너 — 검증이 끝날 때까지 '개발 중'으로 표시한다. */
   screenerTitle: string;
   screenerNote: string;

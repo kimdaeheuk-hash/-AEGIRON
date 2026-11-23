@@ -167,6 +167,13 @@ def put(key: str, value: Any) -> None:
     _STORE[key] = (time.time(), value, None)
 
 
+def peek(key: str) -> tuple[float, Any] | None:
+    """저장본을 계산 없이 들여다본다 — (넣은 시각 epoch, 값) 또는 None. 수집기가 put 한 값을
+    API 가 읽을 때 쓴다(없다고 무거운 계산을 대신 돌리지 않는다)."""
+    hit = _STORE.get(key)
+    return (hit[0], hit[1]) if hit is not None else None
+
+
 def clear() -> None:
     """시험·재배포용 — 저장본을 모두 비운다."""
     _STORE.clear()

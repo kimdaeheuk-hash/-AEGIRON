@@ -131,7 +131,18 @@ export const fr: Dictionary = {
     "noTransitions": "Aucune transition consignée",
     "unavailable": "Registre des variants illisible (non déterminé)",
     "screenerTitle": "Criblage de séquences — en développement (validation en cours)",
-    "screenerNote": "Mesure du 2026-11-22 : sur 7 séquences naturelles publiques, 6,4 % de faux positifs par fragment de 1 000 bases et 1 sur 7 par séquence entière. La sensibilité (détection des séquences dangereuses) n'est pas encore mesurée — les résultats aident à prioriser, ce ne sont pas des verdicts."
+    "screenerNote": "Mesure du 2026-11-22 : sur 7 séquences naturelles publiques, 6,4 % de faux positifs par fragment de 1 000 bases et 1 sur 7 par séquence entière. La sensibilité (détection des séquences dangereuses) n'est pas encore mesurée — les résultats aident à prioriser, ce ne sont pas des verdicts.",
+    "growthTitle": "Variants en progression (signal de croissance · estimation)",
+    "growthLead": "Croissance hebdomadaire de la part de chaque lignée, en comparant les quatre dernières semaines aux quatre précédentes. Il vise à montrer les lignées qui progressent avant de devenir dominantes. C'est une estimation sensible à la taille des échantillons et aux délais de dépôt ; avec trop peu de séquences, elle n'est pas déterminée.",
+    "growthCols": {
+      "clade": "Lignée",
+      "share": "Part (avant → récente)",
+      "weekly": "Croissance hebdo.",
+      "doubling": "Jours pour doubler la part",
+      "count": "Séquences (avant → récentes)"
+    },
+    "growthNone": "Aucune lignée en progression",
+    "growthUnavailable": "Signal de croissance illisible (non déterminé)"
   },
   "baikal": {
     "title": "BAIKAL MOB",

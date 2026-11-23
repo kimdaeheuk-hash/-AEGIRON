@@ -131,7 +131,18 @@ export const en: Dictionary = {
     "noTransitions": "No transitions recorded",
     "unavailable": "Could not read the variant ledger (undetermined)",
     "screenerTitle": "Sequence screening — in development (validation under way)",
-    "screenerNote": "Measured 2026-11-22: on 7 public natural sequences, false positives were 6.4% per 1,000-base fragment and 1 of 7 per whole sequence. Sensitivity (whether hazardous sequences are caught) has not been measured — results are a prioritisation aid, not a verdict."
+    "screenerNote": "Measured 2026-11-22: on 7 public natural sequences, false positives were 6.4% per 1,000-base fragment and 1 of 7 per whole sequence. Sensitivity (whether hazardous sequences are caught) has not been measured — results are a prioritisation aid, not a verdict.",
+    "growthTitle": "Variants on the rise (growth signal · estimate)",
+    "growthLead": "Weekly growth in lineage share, comparing the last four weeks with the four before. It aims to show lineages that are rising before they take over. It is an estimate that moves with sample size and reporting delays; with too few sequences it is not determined.",
+    "growthCols": {
+      "clade": "Lineage",
+      "share": "Share (prior → recent)",
+      "weekly": "Weekly growth",
+      "doubling": "Days to double share",
+      "count": "Sequences (prior → recent)"
+    },
+    "growthNone": "No rising lineages",
+    "growthUnavailable": "Could not read the growth signal (undetermined)"
   },
   "baikal": {
     "title": "BAIKAL MOB",

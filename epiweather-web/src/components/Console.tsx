@@ -11,7 +11,7 @@ import ValhallaPanel from '@/components/stages/ValhallaPanel';
 import { getDictionary, localePath, type Locale } from '@/i18n';
 import type { Baikal, BaikalNodeRow, BaikalTransitionRow } from '@/lib/baikal';
 import type { PolarTrendRow } from '@/lib/polarTrend';
-import type { VariantLedger, VariantStateRow, VariantTransitionRow } from '@/lib/variantLedger';
+import type { GrowthRow, VariantGrowth, VariantLedger, VariantStateRow, VariantTransitionRow } from '@/lib/variantLedger';
 
 /**
  * 운영 화면(/dashboard) — 2026-11-22 개편. 예전 10단계 시뮬레이션(Command)을 지우고
@@ -36,11 +36,13 @@ export default function Console({
   locale,
   polar,
   variants,
+  growth,
   baikal,
 }: {
   locale: Locale;
   polar: Polar;
   variants: VariantLedger;
+  growth: VariantGrowth;
   baikal: Baikal;
 }) {
   const dict = getDictionary(locale);
@@ -81,6 +83,13 @@ export default function Console({
     { key: 'share', header: vt.cols.share, width: proportional(0.6, { minWidth: 80 }) },
     { key: 'sequences', header: vt.cols.sequences, width: proportional(0.7, { minWidth: 100 }) },
     { key: 'observed', header: vt.cols.observed, width: proportional(1.2, { minWidth: 150 }) },
+  ];
+  const growthColumns: TableColumn<GrowthRow>[] = [
+    { key: 'clade', header: vt.growthCols.clade, width: proportional(1, { minWidth: 120 }) },
+    { key: 'share', header: vt.growthCols.share, width: proportional(1, { minWidth: 130 }) },
+    { key: 'weekly', header: vt.growthCols.weekly, width: proportional(0.7, { minWidth: 100 }) },
+    { key: 'doubling', header: vt.growthCols.doubling, width: proportional(0.8, { minWidth: 110 }) },
+    { key: 'count', header: vt.growthCols.count, width: proportional(1, { minWidth: 130 }) },
   ];
   const transitionColumns: TableColumn<VariantTransitionRow>[] = [
     { key: 'observed', header: vt.cols.observed, width: proportional(1.2, { minWidth: 150 }) },
@@ -214,6 +223,39 @@ export default function Console({
                       />
                     )}
                   </VStack>
+                )}
+              </VStack>
+            </Card>
+            <Card padding={4}>
+              <VStack gap={3}>
+                <VStack gap={1}>
+                  <Heading level={3}>{vt.growthTitle}</Heading>
+                  <Text type="supporting">{vt.growthLead}</Text>
+                </VStack>
+                {growth === null ? (
+                  <Text color="secondary">{vt.growthUnavailable}</Text>
+                ) : !growth.determined ? (
+                  <Text color="secondary">{growth.reason ?? vt.growthUnavailable}</Text>
+                ) : (
+                  growth.builds.map((b) => (
+                    <VStack gap={2} key={b.label}>
+                      <Text type="label">{b.label}</Text>
+                      {!b.determined ? (
+                        <Text color="secondary">{b.reason ?? vt.growthUnavailable}</Text>
+                      ) : b.rows.length === 0 ? (
+                        <Text type="supporting">{vt.growthNone}</Text>
+                      ) : (
+                        <Table<GrowthRow>
+                          data={b.rows}
+                          columns={growthColumns}
+                          idKey="id"
+                          density="compact"
+                          textOverflow="wrap"
+                          verticalAlign="top"
+                        />
+                      )}
+                    </VStack>
+                  ))
                 )}
               </VStack>
             </Card>
