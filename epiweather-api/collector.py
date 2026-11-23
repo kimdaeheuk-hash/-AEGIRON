@@ -170,7 +170,7 @@ def collect_free_sources() -> dict:
 
     # ── 헤임달: 공개 시퀀스 계통 추적 ─────────────────────────────────
     try:
-        from algorithms.genomic_variants import get_genomic_variant_signals
+        from algorithms.genomic_variants import get_genomic_variant_signals, growth_line
         result["genomic_variants"] = get_genomic_variant_signals()
         for slug, v in result["genomic_variants"].items():
             if not v.get("available"):
@@ -182,10 +182,20 @@ def collect_free_sources() -> dict:
             new_tag = f" 🆕신규계통{v['new_clade_count']}건" if v.get("new_clade_count") else ""
             log(f"  Nextstrain {v['label']}: 우세계통 {v['dominant_clade']}"
                 f"({v['dominant_share']*100:.0f}%, n={v['n_recent_sequences']}){new_tag}")
+            log(f"  {growth_line(v)}")
     except Exception as e:
         result["genomic_variants"] = None
         result["genomic_variants_error"] = f"{type(e).__name__}: {str(e)[:120]}"  # BAIKAL 판정용
         log_error("GenomicVariants", e)
+
+    # ★ 성장 신호 (2026-11-23) ★ API(/api/variant-growth)가 Nextstrain 을 다시 받지 않게 저장본으로 넣는다.
+    if result.get("genomic_variants"):
+        try:
+            from algorithms import response_cache
+            from algorithms.genomic_variants import GROWTH_CACHE_KEY, growth_snapshot
+            response_cache.put(GROWTH_CACHE_KEY, growth_snapshot(result["genomic_variants"]))
+        except Exception as e:
+            log(f"  ⚠ 성장 신호 저장 실패(수집은 유지): {type(e).__name__}: {e}")
 
     # ★ 변이원장 (2026-11-03) ★ 이번 주기 변이 스냅샷을 원장에 적고 전이만
     # 로그에 남긴다. 원장 실패가 수집을 깨면 안 되므로 별도 try.

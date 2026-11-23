@@ -163,6 +163,21 @@ def baikal_transitions(node: Optional[str] = None, limit: int = 50):
     return {"entries": entries, "count": len(entries)}
 
 
+@app.get("/api/variant-growth", tags=["후향 검증"])
+def variant_growth():
+    """헤임달 성장 신호 — 공개 빌드에서 '커지고 있는 계통'(최근 4주 vs 직전 4주 구성비 로그 변화).
+
+    추정값이다. 매시 수집이 계산해 둔 저장본을 준다 — 아직 없으면(재시작 직후 등) 판정 안 함.
+    """
+    from algorithms import response_cache
+    from algorithms.genomic_variants import GROWTH_CACHE_KEY
+    hit = response_cache.peek(GROWTH_CACHE_KEY)
+    if hit is None:
+        return {"determined": False, "reason": "아직 계산된 성장 신호 없음(다음 수집 주기 뒤)", "builds": []}
+    _, value = hit
+    return {"determined": True, **value}
+
+
 @app.get("/api/variant-ledger", tags=["후향 검증"])
 def variant_ledger(build: Optional[str] = None,
                    transitions_only: bool = False, limit: int = 100):

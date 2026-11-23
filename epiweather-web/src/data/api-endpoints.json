@@ -19,6 +19,12 @@
  },
  {
   "method": "GET",
+  "path": "/api/variant-growth",
+  "tag": "후향 검증",
+  "auth": false
+ },
+ {
+  "method": "GET",
   "path": "/api/variant-ledger",
   "tag": "후향 검증",
   "auth": false

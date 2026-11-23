@@ -129,3 +129,62 @@ export async function getVariantLedger(
 
   return { state, transitions: rows };
 }
+
+// ── 성장 신호 (2026-11-23) ─────────────────────────────────────────
+// /api/variant-growth — 최근 4주 vs 직전 4주 구성비 로그 변화로 '커지고 있는 계통'(추정값).
+// 조회 실패 null(판정 안 함) · 저장본 없음/표본 부족은 reason 으로 · 커지는 계통 0 은 빈 배열로 가른다.
+export type GrowthRow = {
+  id: string;
+  clade: string;
+  share: string;
+  weekly: string;
+  doubling: string;
+  count: string;
+};
+
+export type VariantGrowth = {
+  determined: boolean;
+  reason: string | null;
+  builds: { label: string; determined: boolean; reason: string | null; rows: GrowthRow[] }[];
+} | null;
+
+export async function getVariantGrowth(locale: Locale): Promise<VariantGrowth> {
+  let body: J;
+  try {
+    const res = await fetch(`${API_BASE}/api/variant-growth`, {
+      next: { revalidate: 900 },
+      headers: { accept: 'application/json' },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) return null;
+    const parsed: unknown = await res.json();
+    if (!parsed || typeof parsed !== 'object') return null;
+    body = parsed as J;
+  } catch {
+    return null;
+  }
+  const pct = (v: unknown) => (num(v) === null ? '—' : `${((num(v) as number) * 100).toFixed(0)}%`);
+  const builds = (Array.isArray(body.builds) ? (body.builds as J[]) : []).map((b, bi) => {
+    const rows: GrowthRow[] = (Array.isArray(b.growing) ? (b.growing as J[]) : []).map((r, i) => {
+      const w = num(r.weekly_growth);
+      const d = num(r.share_doubling_days);
+      const rc = num(r.recent_count);
+      const pc = num(r.prior_count);
+      return {
+        id: `${bi}-${str(r.clade) ?? i}`,
+        clade: `${str(r.clade) ?? '—'}${r.new_in_window === true ? ' 🆕' : ''}`,
+        share: `${pct(r.share_prior)} → ${pct(r.share_recent)}`,
+        weekly: w === null ? '—' : `+${w.toFixed(2)}`,
+        doubling: d === null ? '—' : `${d.toLocaleString(LOCALE_TAG[locale])}`,
+        count: rc === null ? '—' : `${pc ?? 0} → ${rc}`,
+      };
+    });
+    return {
+      label: str(b.label) ?? str(b.build) ?? '—',
+      determined: b.determined === true,
+      reason: str(b.reason),
+      rows,
+    };
+  });
+  return { determined: body.determined === true, reason: str(body.reason), builds };
+}

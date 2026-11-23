@@ -69,6 +69,18 @@ def _watchlist() -> list[tuple[str, str]]:
     return items or WATCHLIST
 
 STALE_DAYS = 30           # 이보다 오래 안 갱신되면 빌드 정지로 간주
+
+# ── 성장 신호 (2026-11-23) ─────────────────────────────────────────
+# "우세가 바뀐 뒤 기록"(후행)이 아니라 "커지고 있는 계통"(선행)을 본다. 연구 근거: 계통별
+# 개수만 쓰는 단순 증가율 모델(다항 로지스틱)도 단기 예측에 쓸모 있었고(6개국 비교, PMC10705624),
+# 성장률 차이 신호가 우세 43~65일 전에 잡혔다는 보고가 있다(arXiv 2605.30382, 심사 전).
+# 여기서는 가장 단순한 형태만 쓴다: 직전 4주 대비 최근 4주 구성비의 로그 변화를 주당 성장률로.
+# 측정이 아니라 **추정**이다 — 표본 수·제출 지연에 따라 흔들린다(그래서 문턱 미달은 판정 안 함).
+GROWTH_WINDOW_DAYS = 28        # 최근 구간 = 지난 28일, 비교 구간 = 그 앞 28일
+GROWTH_MIN_TOTAL = 50          # 두 구간 각각 전체 시퀀스가 이보다 적으면 판정 안 함
+GROWTH_MIN_CLADE_RECENT = 10   # 최근 구간에서 이보다 적은 계통은 목록에 안 올린다(소표본 튐)
+GROWTH_PSEUDOCOUNT = 0.5       # 비교 구간에 0건인 계통의 로그 발산 방지
+GROWTH_TOP_N = 5
 RECENT_WINDOW_DAYS = 60   # "최근" 구간
 PRIOR_WINDOW_DAYS = 60    # 그 직전 비교 구간
 
@@ -160,7 +172,91 @@ def analyze_build(prefix: str, label: str) -> dict:
         "new_clades": new_clades[:5],
         "new_clade_count": new_clade_count,
         "note": None if recent else "최근 구간 시퀀스 없음(제출 지연 가능)",
+        "growth": growth_signal(tips),
     }
+
+
+def growth_signal(tips: list[tuple[str, float]], today: dt.date | None = None) -> dict:
+    """계통별 주당 상대 성장률(구성비 로그 변화 / 4주). 커지는 계통을 성장률 순으로.
+
+    성장률 g 는 '전체 중 그 계통의 비율'이 한 주에 몇 배가 되는가의 로그다. 비율이 두 배가
+    되는 데 걸리는 날 수(ln2/g×7)를 함께 낸다. 두 구간 중 하나라도 표본이 문턱보다 적으면
+    목록을 만들지 않고 이유를 적는다 — '커지는 계통 없음'과 '못 봄'을 섞지 않는다."""
+    import math
+    today = today or dt.date.today()
+
+    def frac(days_ago: float) -> float:
+        target = today - dt.timedelta(days=days_ago)
+        y0 = dt.date(target.year, 1, 1)
+        return target.year + (target - y0).days / (dt.date(target.year + 1, 1, 1) - y0).days
+
+    recent_cut, prior_cut = frac(GROWTH_WINDOW_DAYS), frac(2 * GROWTH_WINDOW_DAYS)
+    recent: dict[str, int] = {}
+    prior: dict[str, int] = {}
+    for clade, d in tips:
+        if d >= recent_cut:
+            recent[clade] = recent.get(clade, 0) + 1
+        elif d >= prior_cut:
+            prior[clade] = prior.get(clade, 0) + 1
+    n_recent, n_prior = sum(recent.values()), sum(prior.values())
+    base = {"method": "구성비 로그 변화(최근 4주 vs 직전 4주) — 추정",
+            "window_days": GROWTH_WINDOW_DAYS, "n_recent": n_recent, "n_prior": n_prior}
+    if n_recent < GROWTH_MIN_TOTAL or n_prior < GROWTH_MIN_TOTAL:
+        return {**base, "determined": False, "growing": [],
+                "reason": f"표본 부족(최근 {n_recent} · 직전 {n_prior}, 각 {GROWTH_MIN_TOTAL} 이상 필요)"}
+    weeks = GROWTH_WINDOW_DAYS / 7
+    rows = []
+    for clade, rc in recent.items():
+        if rc < GROWTH_MIN_CLADE_RECENT:
+            continue
+        pc = prior.get(clade, 0)
+        s_r = rc / n_recent
+        s_p = (pc + GROWTH_PSEUDOCOUNT) / (n_prior + GROWTH_PSEUDOCOUNT)
+        g = math.log(s_r / s_p) / weeks
+        if g <= 0:
+            continue
+        rows.append({
+            "clade": clade, "recent_count": rc, "prior_count": pc,
+            "share_recent": round(s_r, 3), "share_prior": round(pc / n_prior, 3),
+            "weekly_growth": round(g, 3),
+            "share_doubling_days": round(math.log(2) / g * 7, 1),
+            "new_in_window": pc == 0,
+        })
+    rows.sort(key=lambda r: -r["weekly_growth"])
+    return {**base, "determined": True, "growing": rows[:GROWTH_TOP_N], "reason": None}
+
+
+GROWTH_CACHE_KEY = "variant_growth"
+
+
+def growth_snapshot(signals: dict) -> dict:
+    """수집 결과 → API 용 성장 신호 묶음(빌드별). 빌드를 못 읽었으면 그 이유를 그대로."""
+    builds = []
+    for slug, v in (signals or {}).items():
+        if not v.get("available"):
+            builds.append({"build": slug, "label": v.get("label"), "determined": False,
+                           "reason": v.get("reason") or "빌드 조회 실패", "growing": []})
+            continue
+        g = v.get("growth") or {}
+        builds.append({"build": slug, "label": v.get("label"), "build_updated": v.get("build_updated"),
+                       **g})
+    return {"computed_at": dt.datetime.now(dt.timezone.utc).isoformat(), "builds": builds}
+
+
+def growth_line(v: dict) -> str:
+    """로그 한 줄: 📈 성장 신호 SARS-CoV-2: XFG.3 주당 +0.21(비율 2배 23일, 12%←4%) · …"""
+    g = v.get("growth") or {}
+    label = v.get("label")
+    if not g:
+        return f"📈 성장 신호 {label}: 계산 안 됨"
+    if not g.get("determined"):
+        return f"📈 성장 신호 {label}: 판정 안 함 — {g.get('reason')}"
+    rows = g.get("growing") or []
+    if not rows:
+        return f"📈 성장 신호 {label}: 커지는 계통 없음(최근 {g['n_recent']} · 직전 {g['n_prior']})"
+    parts = [f"{r['clade']} 주당 +{r['weekly_growth']}(비율 2배 {r['share_doubling_days']}일, "
+             f"{r['share_recent']*100:.0f}%←{r['share_prior']*100:.0f}%)" for r in rows[:3]]
+    return f"📈 성장 신호 {label}: " + " · ".join(parts)
 
 
 def _safe_analyze(prefix: str, label: str) -> dict:
