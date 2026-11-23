@@ -266,37 +266,30 @@ def validate(name: str, payload: dict) -> tuple[bool, str | None]:
 def refresh(name: str, now=None) -> dict:
     """원본에서 새로 받아 검증 후 저장. 실패해도 기존 파일은 그대로 둔다.
 
-    성공·실패를 능력 장부에 남긴다 — 갱신이 매번 조용히 실패하는 상태를
-    /api/status에서 볼 수 있게."""
+    성공·실패는 돌려주는 dict 의 reason 과 주간 작업 로그로 남는다(능력 장부는 2026-11-23 지움)."""
     from . import reference_fetch
-    from .capability_ledger import record
 
-    capability = f"snapshot_{name}"
     cfg = SNAPSHOTS[name]
     try:
         payload = getattr(reference_fetch, cfg["fetch"])()
     except Exception as exc:                            # noqa: BLE001
         detail = f"{type(exc).__name__}: {exc}"
-        record(capability, ok=False, detail=detail)
         return {"name": name, "refreshed": False, "reason": f"수집 실패 — {detail}"}
 
     ok, why = validate(name, payload)
     if not ok:
         # 받아오긴 했는데 못 믿을 값이다. 이건 성공이 아니다.
-        record(capability, ok=False, detail=why)
         return {"name": name, "refreshed": False, "reason": f"검증 거부 — {why}"}
 
     try:
         _write_atomic(write_path_for(name), payload)
     except Exception as exc:                            # noqa: BLE001
         detail = f"저장 실패 {type(exc).__name__}: {exc}"
-        record(capability, ok=False, detail=detail)
         return {"name": name, "refreshed": False, "reason": detail}
 
     # 읽기 캐시를 비운다 — 안 비우면 갱신해놓고 옛 값을 계속 본다.
     _clear_consumer_caches(name)
     count = cfg["count"](payload)
-    record(capability, ok=True, detail=f"{count}건", endpoint=payload.get("source_url"))
     return {"name": name, "refreshed": True, "record_count": count,
             "snapshot_date": payload.get("snapshot_date"), "reason": None}
 

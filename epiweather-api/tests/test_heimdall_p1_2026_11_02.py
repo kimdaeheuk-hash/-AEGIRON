@@ -29,11 +29,6 @@ def no_sleep(monkeypatch):
     monkeypatch.setattr(mh, "_sleep", lambda s: None)
 
 
-@pytest.fixture
-def no_ledger(monkeypatch):
-    monkeypatch.setattr(mh._nvidia, "record_layer_call", lambda *a, **k: None)
-
-
 class _Resp:
     def __init__(self, status, payload=None):
         self.status_code = status
@@ -65,7 +60,7 @@ def _payload_full():
 
 
 # ── MSA 재시도 ────────────────────────────────────────────────────
-def test_retry_then_success(monkeypatch, breaker_reset, no_sleep, no_ledger):
+def test_retry_then_success(monkeypatch, breaker_reset, no_sleep):
     """5xx 두 번 후 성공 — 3회 호출되고 ok."""
     monkeypatch.setenv("NVIDIA_API_KEY", "k")
     calls: list = []
@@ -76,7 +71,7 @@ def test_retry_then_success(monkeypatch, breaker_reset, no_sleep, no_ledger):
     assert out["ok"] is True and out["best_coverage"] > 0.99
 
 
-def test_retry_exhausted_still_not_ok(monkeypatch, breaker_reset, no_sleep, no_ledger):
+def test_retry_exhausted_still_not_ok(monkeypatch, breaker_reset, no_sleep):
     """계속 5xx면 RETRIES+1회만 보내고 실패 반환."""
     monkeypatch.setenv("NVIDIA_API_KEY", "k")
     calls: list = []
@@ -87,7 +82,7 @@ def test_retry_exhausted_still_not_ok(monkeypatch, breaker_reset, no_sleep, no_l
     assert out["ok"] is False and "MSA 검색 실패" in out["reason"]
 
 
-def test_401_does_not_retry(monkeypatch, breaker_reset, no_sleep, no_ledger):
+def test_401_does_not_retry(monkeypatch, breaker_reset, no_sleep):
     """4xx(인증)는 재시도 없이 1회만."""
     monkeypatch.setenv("NVIDIA_API_KEY", "k")
     calls: list = []
@@ -97,7 +92,7 @@ def test_401_does_not_retry(monkeypatch, breaker_reset, no_sleep, no_ledger):
     assert out["ok"] is False
 
 
-def test_429_quota_does_not_retry(monkeypatch, breaker_reset, no_sleep, no_ledger):
+def test_429_quota_does_not_retry(monkeypatch, breaker_reset, no_sleep):
     """429(쿼터)는 더 태우지 말고 1회만."""
     monkeypatch.setenv("NVIDIA_API_KEY", "k")
     calls: list = []
@@ -107,7 +102,7 @@ def test_429_quota_does_not_retry(monkeypatch, breaker_reset, no_sleep, no_ledge
     assert out["ok"] is False
 
 
-def test_timeout_is_retried(monkeypatch, breaker_reset, no_sleep, no_ledger):
+def test_timeout_is_retried(monkeypatch, breaker_reset, no_sleep):
     """연결 타임아웃은 재시도 대상."""
     monkeypatch.setenv("NVIDIA_API_KEY", "k")
     calls: list = []
@@ -117,7 +112,7 @@ def test_timeout_is_retried(monkeypatch, breaker_reset, no_sleep, no_ledger):
     assert len(calls) == 2 and out["ok"] is True
 
 
-def test_connect_read_timeout_split(monkeypatch, breaker_reset, no_sleep, no_ledger):
+def test_connect_read_timeout_split(monkeypatch, breaker_reset, no_sleep):
     """연결(짧게)·읽기(길게) 분리 전달."""
     monkeypatch.setenv("NVIDIA_API_KEY", "k")
     calls: list = []
@@ -128,7 +123,7 @@ def test_connect_read_timeout_split(monkeypatch, breaker_reset, no_sleep, no_led
 
 
 # ── MSA 서킷브레이커 ──────────────────────────────────────────────
-def test_breaker_opens_after_threshold(monkeypatch, breaker_reset, no_sleep, no_ledger):
+def test_breaker_opens_after_threshold(monkeypatch, breaker_reset, no_sleep):
     """연속 실패가 임계 도달 — 이후 호출은 HTTP 없이 즉시 실패."""
     monkeypatch.setenv("NVIDIA_API_KEY", "k")
     calls: list = []
@@ -143,7 +138,7 @@ def test_breaker_opens_after_threshold(monkeypatch, breaker_reset, no_sleep, no_
     assert len(calls) == before  # HTTP 안 나감
 
 
-def test_breaker_resets_on_success(monkeypatch, breaker_reset, no_sleep, no_ledger):
+def test_breaker_resets_on_success(monkeypatch, breaker_reset, no_sleep):
     """성공 한 번이면 연속 실패 카운터 초기화."""
     monkeypatch.setenv("NVIDIA_API_KEY", "k")
     calls: list = []
