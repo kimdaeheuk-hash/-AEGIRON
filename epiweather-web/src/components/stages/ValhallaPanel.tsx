@@ -6,7 +6,6 @@ import {
   fetchMatchLedger, MatchVerdict,
   fetchCountryPosture, CountryPosture,
 } from '@/lib/api';
-import ClassifiedBadge from './ClassifiedBadge';
 
 // VALHALLA 실측 패널 — 백엔드 대응제 준비태세(biodefense_readiness) 호출·렌더.
 // 커버리지·생산주권·단일故障점·비축 물류를 실제 집계로 표시.
@@ -34,7 +33,6 @@ export default function ValhallaPanel() {
 
   return (
     <div className="card" style={{ marginTop: 14 }}>
-      <ClassifiedBadge c={r?.classification} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
         <span style={{ fontFamily: 'var(--mono)', fontSize: 11, letterSpacing: '.14em', color: '#34d399' }}>
           VALHALLA · 국가 대응제 준비태세(실측)
