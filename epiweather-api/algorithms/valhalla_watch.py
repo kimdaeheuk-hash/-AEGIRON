@@ -307,14 +307,16 @@ def _readiness_scopes(pipeline_part: dict | None) -> dict:
         # 승인 제품은 기준 스냅샷(주간 갱신)에서 읽는다 — 매 주기 openFDA 를
         # 때리지 않는다. 파일이 없으면 approved_scope 가 available=False 로
         # 정직하게 답한다(0%로 내지 않는다).
-        # 국내 허가(식약처)는 API 승인이 없어 매시 실패만 하던 축이라 개편 2차에서 뺐다 — domestic=unknown.
+        # 국내 허가(식약처)도 기준 스냅샷(domestic_products, 2026-11-23)에서 읽는다 — 키가 없어
+        # 파일이 없으면 None → domestic=unknown(판정 안 함). 매시 식약처를 부르지 않는다.
         approved = None
         domestic = None
         try:
             from .reference_snapshots import _load
             approved = _load("approved_products")
+            domestic = _load("domestic_products")
         except Exception:                                 # noqa: BLE001
-            approved = None
+            pass
 
         return readiness_by_scope(
             _db.list_countermeasures(), DEFAULT_THREATS,

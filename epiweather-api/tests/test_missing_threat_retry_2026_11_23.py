@@ -35,10 +35,14 @@ def test_missing_threats_pull_the_job_forward_after_six_hours(monkeypatch):
 def test_any_missing_threats_reads_the_snapshot(monkeypatch):
     from algorithms import approved_products as ap
     full = {k: {"product_count": 0} for k, v in ap.THREAT_SEARCH_TERMS.items() if v}
-    monkeypatch.setattr(rs, "_load", lambda name: {"by_threat": full} if name == "approved_products" else {})
+    monkeypatch.setattr(rs, "_load", lambda name: {"by_threat": full})
     assert rs.any_missing_threats() is False
     partial = dict(list(full.items())[:8])
-    monkeypatch.setattr(rs, "_load", lambda name: {"by_threat": partial} if name == "approved_products" else {})
+    monkeypatch.setattr(rs, "_load", lambda name: {"by_threat": partial} if name == "approved_products"
+                        else {"by_threat": full})
+    assert rs.any_missing_threats() is True
+    # 국내 허가 스냅숏이 없어도(키 미설정) 앞당긴다 — 키를 넣으면 6시간 안에 붙는다.
+    monkeypatch.setattr(rs, "_load", lambda name: {"by_threat": full} if name == "approved_products" else None)
     assert rs.any_missing_threats() is True
 
 

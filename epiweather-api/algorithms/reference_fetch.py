@@ -308,6 +308,145 @@ def fetch_approved_products() -> dict:
 
 
 # ══════════════════════════════════════════════
+# 국내 허가 품목 (식약처 · 공공데이터포털) — 2026-11-23
+# ══════════════════════════════════════════════
+# '식품의약품안전처_의약품 제품 허가정보'(data.go.kr 15095677). 활용신청한 인증키를 Railway 변수
+# MFDS_API_KEY 에 둔다(값은 코드·로그·커밋에 남기지 않는다).
+# ★ 이 샌드박스에서 엔드포인트도 응답 항목 표도 직접 보지 못했다 ★ (data.go.kr 접속 불가)
+# 그래서 버전 두 개(08 → 07)를 차례로 묻고, 응답 모양을 넓게 받으며, 못 읽으면 실패로 올린다.
+# 첫 응답의 항목 이름(fields_seen)을 스냅숏에 남겨 운영에서 실제 형식을 확인할 수 있게 한다.
+MFDS_URLS = (
+    "https://apis.data.go.kr/1471000/DrugPrdtPrmsnInfoService08/getDrugPrdtPrmsnInq08",
+    "https://apis.data.go.kr/1471000/DrugPrdtPrmsnInfoService07/getDrugPrdtPrmsnInq07",
+)
+MFDS_ROWS = 20
+MFDS_SLEEP = 0.3
+MFDS_NAME_KEYS = ("ITEM_NAME", "item_name", "itemName")
+
+
+def _mfds_key() -> str:
+    import os
+    from urllib.parse import unquote
+    key = (os.environ.get("MFDS_API_KEY") or "").strip()
+    if not key:
+        raise RuntimeError("MFDS_API_KEY 없음 — 공공데이터포털 '식품의약품안전처_의약품 제품 허가정보' "
+                           "활용신청 뒤 Railway 변수로 넣어야 한다")
+    return unquote(key) if "%" in key else key      # Encoding 키를 넣어도 이중 인코딩되지 않게
+
+
+def _mfds_parse(body) -> tuple[int, list[dict]]:
+    """(총건수, 항목들). 공공데이터포털 JSON 두 모양({header, body} / {response:{header, body}})을 받는다."""
+    if not isinstance(body, dict):
+        raise RuntimeError("식약처 응답이 JSON 객체가 아님")
+    root = body.get("response") if isinstance(body.get("response"), dict) else body
+    header = root.get("header") or {}
+    code = str(header.get("resultCode") or "")
+    if code and code not in ("00", "0", "000"):
+        raise RuntimeError(f"식약처 오류 {code}: {str(header.get('resultMsg') or '')[:80]}")
+    b = root.get("body")
+    if not isinstance(b, dict):
+        raise RuntimeError("식약처 응답에 body 가 없음(형식 변경 의심)")
+    items = b.get("items")
+    if isinstance(items, dict):                     # {"item": [...]} 또는 {"item": {...}}
+        items = items.get("item")
+    if isinstance(items, dict):
+        items = [items]
+    items = [i for i in (items or []) if isinstance(i, dict)]
+    total = b.get("totalCount")
+    try:
+        total = int(total)
+    except (TypeError, ValueError):
+        total = len(items)
+    return total, items
+
+
+def _mfds_products(term: str, key: str, timeout: int = 20) -> tuple[int, list[str], list[str], str]:
+    """품목명에 그 낱말이 든 허가 품목 수 · 이름 몇 개 · 첫 항목의 키 · 쓴 주소."""
+    last: Exception | None = None
+    for url in MFDS_URLS:
+        try:
+            resp = requests.get(url, params={"serviceKey": key, "type": "json", "item_name": term,
+                                             "pageNo": 1, "numOfRows": MFDS_ROWS},
+                                timeout=timeout, headers={"User-Agent": "AEGIRON/1.0"})
+            if resp.status_code == 404:
+                raise RuntimeError("HTTP 404")
+            resp.raise_for_status()
+            try:
+                body = resp.json()
+            except ValueError:
+                snippet = resp.text[:100].replace(key, "***")
+                raise RuntimeError(f"JSON 아님: {snippet}") from None
+            total, items = _mfds_parse(body)
+        except Exception as exc:                    # noqa: BLE001
+            last = exc
+            continue
+        names: list[str] = []
+        for it in items:
+            name = next((it[k] for k in MFDS_NAME_KEYS if it.get(k)), None)
+            if name and name not in names:
+                names.append(str(name))
+        fields = sorted(items[0].keys())[:30] if items else []
+        return total, names[:5], fields, url
+    msg = f"{type(last).__name__}: {last}" if last else "알 수 없음"
+    raise RuntimeError(msg.replace(key, "***"))
+
+
+def fetch_domestic_products() -> dict:
+    """위협별 국내 허가 품목(식약처 품목명 검색) payload — openFDA 스냅숏과 같은 by_threat 모양.
+
+    ★ 조회 실패를 '없음'으로 접지 않는다 ★ 실패한 위협은 by_threat 에 넣지 않는다(→ 판정 안 함)."""
+    from .approved_products import DOMESTIC_THREAT_TERMS
+
+    key = _mfds_key()
+    by_threat: dict[str, dict] = {}
+    failed: dict[str, str] = {}
+    fields_seen: list[str] = []
+    used_url = None
+    for pathogen, terms in DOMESTIC_THREAT_TERMS.items():
+        if not terms:
+            continue
+        total, examples, ok, err = 0, [], False, ""
+        for term in terms:
+            try:
+                count, names, fields, url = _mfds_products(term, key)
+            except Exception as exc:                # noqa: BLE001
+                err = str(exc)[:120]
+                continue
+            ok = True
+            used_url = used_url or url
+            fields_seen = fields_seen or fields
+            total = max(total, count)
+            for n in names:
+                if n not in examples:
+                    examples.append(n)
+            time.sleep(MFDS_SLEEP)
+        if not ok:
+            failed[pathogen] = err
+            continue
+        by_threat[pathogen] = {"product_count": total, "examples": examples[:5], "terms": terms}
+
+    if not by_threat:
+        first = next(iter(failed.values()), "")
+        raise RuntimeError(f"모든 위협 조회 실패 — 스냅샷을 만들지 않는다 ({first})")
+
+    return {
+        "source": "식품의약품안전처 의약품 제품 허가정보(공공데이터포털, 품목명 검색)",
+        "source_url": used_url,
+        "snapshot_date": dt.date.today().isoformat(),
+        "by_threat": by_threat,
+        "threat_count": len(by_threat),
+        "lookup_failed": sorted(failed),
+        "fields_seen": fields_seen,
+        "limits": [
+            "국내 허가 품목이다. 국산(국내 제조)인지 수입인지는 가르지 않는다.",
+            "품목명 낱말 검색이라 품목명에 질병명이 없는 제품(상품명만 있는 백신 등)은 안 걸린다. "
+            "0건은 '국내 허가 없음'이 아니라 '이 검색에 안 걸림'이다.",
+            "취소·취하된 허가가 섞여 있을 수 있다. 허가가 있다는 것이지 물량이 있다는 뜻이 아니다.",
+        ],
+    }
+
+
+# ══════════════════════════════════════════════
 # 한국 국제선 국가별 운송 실적(공공데이터포털 파일 데이터) — 2026-10-19 ⑦
 # ══════════════════════════════════════════════
 

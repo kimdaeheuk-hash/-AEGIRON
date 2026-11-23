@@ -95,6 +95,16 @@ SNAPSHOTS: dict[str, dict] = {
         "fetch": "fetch_approved_products",
         "owner": "VALHALLA",
     },
+    "domestic_products": {
+        "label": "국내 허가 품목(식약처)",
+        "filename": "domestic_products.json",
+        "max_age_days": 60,
+        # 키가 없으면 수집 자체가 실패해 파일이 안 생긴다 — 읽는 쪽은 '판정 안 함'.
+        "min_records": 3,
+        "count": _approved_count,
+        "fetch": "fetch_domestic_products",
+        "owner": "VALHALLA",
+    },
 }
 
 
@@ -326,15 +336,16 @@ def _clear_consumer_caches(name: str) -> None:
 
 
 def _missing_threats(name: str) -> bool:
-    """승인 제품 스냅숏이 지금 검색어 표의 위협을 다 조회했는가(2026-11-23 공백 지도로 위협이 늘었다).
+    """승인 제품(openFDA)·국내 허가(식약처) 스냅숏이 지금 검색어 표의 위협을 다 조회했는가(2026-11-23 공백 지도로 위협이 늘었다).
     빠진 위협이 있으면 신선해도 다시 받는다 — 안 그러면 새 병원체가 일주일 동안 '판정 안 함'."""
-    if name != "approved_products":
+    if name not in ("approved_products", "domestic_products"):
         return False
     try:
-        from .approved_products import THREAT_SEARCH_TERMS
+        from .approved_products import DOMESTIC_THREAT_TERMS, THREAT_SEARCH_TERMS
+        terms = THREAT_SEARCH_TERMS if name == "approved_products" else DOMESTIC_THREAT_TERMS
         snap = _load(name) or {}
         have = set((snap.get("by_threat") or {}).keys())
-        want = {k for k, v in THREAT_SEARCH_TERMS.items() if v}
+        want = {k for k, v in terms.items() if v}
         return bool(want - have)
     except Exception:                                     # noqa: BLE001
         return False

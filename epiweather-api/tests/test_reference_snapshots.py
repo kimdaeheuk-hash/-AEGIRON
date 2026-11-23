@@ -32,6 +32,14 @@ def _write(snapdir, name, payload):
         json.dumps(payload, ensure_ascii=False), encoding="utf-8")
 
 
+def _fresh_domestic(snapdir):
+    """식약처 국내 허가 스냅숏(2026-11-23)을 신선하게 깔아 둔다 — 다른 스냅숏 시험이 그 갱신을 안 섞게."""
+    from algorithms.approved_products import DOMESTIC_THREAT_TERMS
+    _write(snapdir, "domestic_products",
+           {"snapshot_date": dt.date.today().isoformat(),
+            "by_threat": {k: {} for k, v in DOMESTIC_THREAT_TERMS.items() if v}})
+
+
 def _vaccine_payload(count=284, date=None):
     return {
         "source": "WHO Prequalified Vaccines (사전적격성 목록)",
@@ -168,6 +176,7 @@ def test_refresh_clears_consumer_cache(snapdir, monkeypatch):
 # ── 묵은 것만 받는다 ─────────────────────────────────────────────
 def test_refresh_due_skips_fresh_and_refreshes_stale(snapdir):
     """안 바뀐 걸 매주 긁을 이유가 없다. 신선한 것은 원본을 부르지도 않는다."""
+    _fresh_domestic(snapdir)
     _write(snapdir, "vaccine_supply", _vaccine_payload(count=284))       # 오늘자
     old = (dt.date.today() - dt.timedelta(days=400)).isoformat()
     _write(snapdir, "ihr_capacity",
@@ -189,7 +198,7 @@ def test_refresh_due_skips_fresh_and_refreshes_stale(snapdir):
     fda.assert_not_called()                      # 이것도 신선하다
     gho.assert_called_once()                     # 묵어서 부름
     assert sorted(s["name"] for s in out["skipped_fresh"]) == [
-        "approved_products", "vaccine_supply"]
+        "approved_products", "domestic_products", "vaccine_supply"]
     assert [r["name"] for r in out["refreshed"]] == ["ihr_capacity"]
     assert out["refreshed"][0]["refreshed"] is True
 
@@ -197,6 +206,7 @@ def test_refresh_due_skips_fresh_and_refreshes_stale(snapdir):
 def test_fresh_approved_snapshot_missing_new_threats_is_refetched(snapdir):
     """공백 지도(2026-11-23)로 위협이 늘었다 — 신선해도 새 위협을 안 물어본 스냅숏은 다시 받는다.
     안 그러면 새 병원체의 FDA 칸이 최대 일주일 '판정 안 함'으로 남는다."""
+    _fresh_domestic(snapdir)
     _write(snapdir, "vaccine_supply", _vaccine_payload(count=284))
     _write(snapdir, "ihr_capacity", {"snapshot_date": dt.date.today().isoformat(),
                                      "scores": {f"C{i}": {} for i in range(194)}})
@@ -213,6 +223,7 @@ def test_fresh_approved_snapshot_missing_new_threats_is_refetched(snapdir):
 def test_missing_approved_snapshot_is_stale_and_gets_fetched(snapdir):
     """★A-2★ 승인 제품 파일은 아직 존재하지 않는다. 없으면 stale 로 잡혀
     주간작업이 처음 받아온다 — 사람이 스크립트를 돌려주길 기다리지 않는다."""
+    _fresh_domestic(snapdir)
     _write(snapdir, "vaccine_supply", _vaccine_payload(count=284))
     _write(snapdir, "ihr_capacity",
            {"snapshot_date": dt.date.today().isoformat(),

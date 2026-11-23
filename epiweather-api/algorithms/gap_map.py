@@ -1,4 +1,4 @@
-"""발할라 대응제 공백 지도 — 우선 병원체 × (백신 · 치료제 · FDA 승인 · 진단 · 국산) (2026-11-23).
+"""발할라 대응제 공백 지도 — 우선 병원체 × (백신 · 치료제 · FDA 승인 · 진단 · 국내 허가) (2026-11-23).
 
 캡틴: "치료제나 백신 같은 게 없는 항목들이 많을 거야" → 그 빈칸이 상품이다.
 국제 100일 미션 보고(2025)는 코로나 외 우선 병원체 치료제 임상 후보가 11종에 27개뿐이고 진단이
@@ -21,7 +21,8 @@ undetermined(판정 안 함) · unsearchable(정의상 검색 불가, 병원체 
   어딘가에서 쓰이는 약이 있다는 뜻이라 approved 로 센다.
 - FDA 승인: openFDA 라벨 적응증 검색(백신·치료제 섞임 — 종류 미구분). 주간 스냅숏.
 - 진단: 손으로 든 표(DIAGNOSTICS) — 출처가 있는 것만. 나머지는 판정 안 함.
-- 국산 생산: 식약처 자료가 연결돼 있지 않다 — 전부 판정 안 함.
+- 국내 허가: 식약처 의약품 제품 허가정보 품목명 검색(주간 스냅숏, 2026-11-23 연결). 국산·수입은 가르지
+  않는다. 키(MFDS_API_KEY)가 없거나 수집 전이면 판정 안 함.
 '없음'은 '그 등록부에 없다'이지 '세상에 없다'가 아니다(군사·기밀 프로그램은 미등재).
 """
 from __future__ import annotations
@@ -114,7 +115,7 @@ FDA_TERMS: dict[str, list[str]] = {
     "Klebsiella": ["klebsiella pneumoniae"], "Salmonella": ["salmonella"],
 }
 
-# 식약처 품목명 검색어(국내 분기 — 지금은 미연결이지만 키 집합은 openFDA 표와 같아야 한다).
+# 식약처 품목명 검색어(국내 허가 분기 — 키 집합은 openFDA 표와 같아야 한다).
 DOMESTIC_TERMS: dict[str, list[str]] = {
     "Marburg": ["마버그"], "Lassa": ["라싸"], "CCHF": ["크리미안콩고"], "SFTS": ["중증열성혈소판감소"],
     "Rift Valley fever": ["리프트밸리"], "Hantavirus": ["한타", "신증후군출혈열"], "Nipah": ["니파"],
@@ -232,6 +233,22 @@ def _fda_cell(entry: dict, approved_snapshot: dict | None) -> dict:
     return _cell("undetermined", res.get("reason") or "모름")
 
 
+def _domestic_cell(entry: dict, domestic_snapshot: dict | None) -> dict:
+    if domestic_snapshot is None:
+        return _cell("undetermined", "식약처 자료 없음(키 미설정 또는 수집 전)")
+    from .approved_products import domestic_products_for
+    res = domestic_products_for(entry["fda"], domestic_snapshot)
+    st = res.get("status")
+    if st == "approved":
+        return _cell("approved", f"국내 허가 {res.get('product_count')}품목",
+                     products=res.get("examples") or [])
+    if st == "none":
+        return _cell("none", "품목명 검색 0건(허가 없음 단정 아님)")
+    if st == "unsearchable":
+        return _cell("unsearchable", res.get("reason") or "검색 불가")
+    return _cell("undetermined", res.get("reason") or "모름")
+
+
 def _diag_cell(entry: dict) -> dict:
     d = DIAGNOSTICS.get(entry["key"])
     if not d:
@@ -241,7 +258,7 @@ def _diag_cell(entry: dict) -> dict:
 
 
 def build(pq_snapshot: dict | None, approved_snapshot: dict | None, trials: dict | None,
-          trials_age_hours: float | None = None) -> dict:
+          trials_age_hours: float | None = None, domestic_snapshot: dict | None = None) -> dict:
     """공백 지도 한 장. 네트워크를 쓰지 않는다(스냅숏·저장본만 읽는다)."""
     by = (trials or {}).get("by_pathogen") or {}
     rows = []
@@ -259,7 +276,8 @@ def build(pq_snapshot: dict | None, approved_snapshot: dict | None, trials: dict
                 "fda": _fda_cell(e, approved_snapshot),
                 "diagnostic": _diag_cell(e),
             }
-        cells["domestic"] = _cell("undetermined", "식약처 자료 미연결")
+        cells["domestic"] = (_cell("unsearchable", "정의상 검색 불가 — 아직 이름이 없는 병원체")
+                             if e["key"] == "pathogen_x" else _domestic_cell(e, domestic_snapshot))
         no_countermeasure = all(cells[k]["status"] in ("none", "clinical")
                                 for k in ("vaccine", "therapeutic", "fda"))
         rows.append({"key": e["key"], "ko": e["ko"], "en": e["en"], "family": e["family"],
@@ -279,7 +297,9 @@ def build(pq_snapshot: dict | None, approved_snapshot: dict | None, trials: dict
             "therapeutic": "ClinicalTrials.gov 치료제(항바이러스·항체·항생제·항독소) 연구, 하루 1회",
             "fda": "openFDA 라벨 적응증 검색(백신·치료제 섞임), 주간 스냅숏",
             "diagnostic": f"손으로 든 표 — 출처 있는 항목만({DIAGNOSTICS_CHECKED} 확인)",
-            "domestic": "식약처 자료 미연결 — 전부 판정 안 함",
+            "domestic": ("식약처 의약품 제품 허가정보 품목명 검색(주간 스냅숏) — 국산·수입 미구분, "
+                         "품목명에 질병명이 없으면 안 걸림" if domestic_snapshot is not None
+                         else "식약처 자료 없음(키 미설정 또는 수집 전) — 전부 판정 안 함"),
             "registry": "WHO 2024 병원체 우선순위 체계 — 2차 문헌 기반(원문 표 미대조)",
         },
         "rows": rows,
@@ -296,7 +316,11 @@ def current() -> dict:
         approved = _load("approved_products")
     except Exception:                                     # noqa: BLE001
         approved = None
-    return build(vaccine_supply._snapshot(), approved, state.get("value"), age)
+    try:
+        domestic = _load("domestic_products")
+    except Exception:                                     # noqa: BLE001
+        domestic = None
+    return build(vaccine_supply._snapshot(), approved, state.get("value"), age, domestic)
 
 
 def summary_line(m: dict) -> str:

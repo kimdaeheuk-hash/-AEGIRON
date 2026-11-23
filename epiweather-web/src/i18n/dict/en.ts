@@ -175,7 +175,7 @@ export const en: Dictionary = {
   },
   "gap": {
     "title": "Countermeasure gap map",
-    "lead": "For each pathogen in WHO's 2024 prioritisation framework (based on secondary literature), one table shows whether a vaccine, a therapeutic, a US FDA-approved product, a diagnostic and domestic production exist. The blanks are where preparedness is needed.",
+    "lead": "For each pathogen in WHO's 2024 prioritisation framework (based on secondary literature), one table shows whether a vaccine, a therapeutic, a US FDA-approved product, a diagnostic and a Korean (MFDS) authorisation exist. The blanks are where preparedness is needed.",
     "summary": "{gap} of {total} pathogens have a countermeasure gap (no vaccine, therapeutic or FDA-approved product, or only in trials)",
     "noGap": "No pathogen judged as a gap (rows with undetermined cells are not counted)",
     "unavailable": "Could not read the gap map (undetermined)",
@@ -185,7 +185,7 @@ export const en: Dictionary = {
       "therapeutic": "Therapeutic",
       "fda": "FDA-approved",
       "diagnostic": "Diagnostic",
-      "domestic": "Domestic production"
+      "domestic": "Korean authorisation (MFDS)"
     },
     "statuses": {
       "approved": "🟢 Yes",
@@ -196,7 +196,7 @@ export const en: Dictionary = {
     },
     "gapMark": "Gap",
     "legend": "🟢 approved/prequalified · 🟡 in trials or limited · 🔴 absent from that registry · ⚪ not observed (undetermined)",
-    "caveat": "'None' means absent from that registry (WHO prequalification, ClinicalTrials.gov, openFDA), not absent from the world. The pathogen list has not yet been checked line by line against WHO's 2024 tables. Domestic production is undetermined for all rows because Korean regulator data is not connected."
+    "caveat": "'None' means absent from that registry (WHO prequalification, ClinicalTrials.gov, openFDA, MFDS product-name search), not absent from the world. The pathogen list has not yet been checked line by line against WHO's 2024 tables. The Korean column is an MFDS product-name search: it does not separate domestic manufacture from imports and misses products whose names omit the disease. Without an MFDS key every row is undetermined."
   },
   "pages": {
     "polar": {

@@ -175,7 +175,7 @@ export const fr: Dictionary = {
   },
   "gap": {
     "title": "Carte des lacunes en contre-mesures",
-    "lead": "Pour chaque pathogène du cadre de priorisation OMS 2024 (d'après la littérature secondaire), un tableau indique s'il existe un vaccin, un traitement, un produit approuvé par la FDA américaine, un diagnostic et une production nationale. Les cases vides sont les besoins de préparation.",
+    "lead": "Pour chaque pathogène du cadre de priorisation OMS 2024 (d'après la littérature secondaire), un tableau indique s'il existe un vaccin, un traitement, un produit approuvé par la FDA américaine, un diagnostic et une autorisation coréenne (MFDS). Les cases vides sont les besoins de préparation.",
     "summary": "{gap} pathogènes sur {total} présentent une lacune (ni vaccin, ni traitement, ni produit approuvé FDA, ou seulement en essais)",
     "noGap": "Aucun pathogène jugé en lacune (les lignes avec cases non déterminées ne sont pas comptées)",
     "unavailable": "Carte des lacunes illisible (non déterminée)",
@@ -185,7 +185,7 @@ export const fr: Dictionary = {
       "therapeutic": "Traitement",
       "fda": "Approuvé FDA",
       "diagnostic": "Diagnostic",
-      "domestic": "Production nationale"
+      "domestic": "Autorisation coréenne (MFDS)"
     },
     "statuses": {
       "approved": "🟢 Oui",
@@ -196,7 +196,7 @@ export const fr: Dictionary = {
     },
     "gapMark": "Lacune",
     "legend": "🟢 approuvé/préqualifié · 🟡 en essais ou limité · 🔴 absent de ce registre · ⚪ non observé (non déterminé)",
-    "caveat": "« Aucun » signifie absent de ce registre (préqualification OMS, ClinicalTrials.gov, openFDA), pas absent du monde. La liste des pathogènes n'a pas encore été vérifiée ligne par ligne avec les tableaux OMS 2024. La production nationale est non déterminée pour toutes les lignes faute de données du régulateur coréen."
+    "caveat": "« Aucun » signifie absent de ce registre (préqualification OMS, ClinicalTrials.gov, openFDA, recherche par nom de produit MFDS), pas absent du monde. La liste des pathogènes n'a pas encore été vérifiée ligne par ligne avec les tableaux OMS 2024. La colonne coréenne est une recherche par nom de produit MFDS : elle ne distingue pas fabrication nationale et importation et manque les produits dont le nom omet la maladie. Sans clé MFDS, toutes les lignes sont non déterminées."
   },
   "pages": {
     "polar": {
