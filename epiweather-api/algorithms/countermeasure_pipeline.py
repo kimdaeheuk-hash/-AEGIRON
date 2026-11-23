@@ -73,14 +73,17 @@ def _phase_rank(phases: list[str]) -> int:
     return max((_PHASE_RANK.get(p, 0) for p in phases), default=0)
 
 
-def fetch_pipeline(query: str, timeout: int = TIMEOUT) -> dict:
+DEFAULT_INTR = "vaccine OR antiviral OR monoclonal antibody"
+
+
+def fetch_pipeline(query: str, timeout: int = TIMEOUT, intr: str = DEFAULT_INTR) -> dict:
     """한 병원체의 대응제 임상 현황. 실패하면 **사유를 들고 온다.**"""
     try:
         resp = requests.get(
             CTGOV_URL,
             params={
                 "query.cond": query,
-                "query.intr": "vaccine OR antiviral OR monoclonal antibody",
+                "query.intr": intr,
                 "filter.overallStatus": "RECRUITING,ACTIVE_NOT_RECRUITING,COMPLETED",
                 "pageSize": 100, "countTotal": "true",
             },

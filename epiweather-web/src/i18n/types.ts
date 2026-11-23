@@ -114,6 +114,22 @@ export type VariantDict = {
   screenerNote: string;
 };
 
+/** 발할라 대응제 공백 지도. */
+export type GapDict = {
+  title: string;
+  lead: string;
+  /** {gap} · {total} 치환 */
+  summary: string;
+  noGap: string;
+  unavailable: string;
+  cols: { pathogen: string; vaccine: string; therapeutic: string; fda: string; diagnostic: string; domestic: string };
+  /** approved · clinical · none · undetermined · unsearchable → 아이콘+짧은 말 */
+  statuses: Record<string, string>;
+  gapMark: string;
+  legend: string;
+  caveat: string;
+};
+
 /** BAIKAL MOB 상태변화 엔진 구획(운영 화면 맨 위). */
 export type BaikalDict = {
   title: string;
@@ -201,6 +217,7 @@ export type Dictionary = {
   polar: PolarDict;
   variant: VariantDict;
   baikal: BaikalDict;
+  gap: GapDict;
   pages: PagesDict;
   api: { tableTitle: string; tableLead: string; authYes: string; authNo: string; tags: Record<string, string> };
   common: { siteName: string };

@@ -1,6 +1,7 @@
 import Console from '@/components/Console';
 import { getDictionary, type Locale } from '@/i18n';
 import { getBaikal } from '@/lib/baikal';
+import { getGapMap } from '@/lib/gapMap';
 import { getPolarTrend } from '@/lib/polarTrend';
 import { getVariantGrowth, getVariantLedger } from '@/lib/variantLedger';
 
@@ -11,11 +12,12 @@ export default async function DashboardPage({ searchParams }: Props) {
   const raw = (await searchParams).lang;
   const v = Array.isArray(raw) ? raw[0] : raw;
   const locale: Locale = v === 'en' || v === 'fr' ? v : 'ko';
-  const [polar, variants, growth, baikal] = await Promise.all([
+  const [polar, variants, growth, gap, baikal] = await Promise.all([
     getPolarTrend(locale),
     getVariantLedger(locale, getDictionary(locale).variant.transitions),
     getVariantGrowth(locale),
+    getGapMap(locale),
     getBaikal(locale),
   ]);
-  return <Console locale={locale} polar={polar} variants={variants} growth={growth} baikal={baikal} />;
+  return <Console locale={locale} polar={polar} variants={variants} growth={growth} gap={gap} baikal={baikal} />;
 }

@@ -66,6 +66,13 @@ THREAT_SEARCH_TERMS: dict[str, list[str]] = {
     "Novel": [],
 }
 
+# 공백 지도(gap_map, 2026-11-23)의 우선 병원체 검색어를 합친다 — 주간 스냅숏이 함께 조회한다.
+# 기존 키는 덮어쓰지 않는다(준비태세 판정과 같은 검색어를 유지).
+from .gap_map import FDA_TERMS as _GAP_FDA_TERMS  # noqa: E402
+
+for _k, _v in _GAP_FDA_TERMS.items():
+    THREAT_SEARCH_TERMS.setdefault(_k, _v)
+
 # 검색어가 비어 있는 위협의 사유. 값 옆에 실어 보낸다.
 UNSEARCHABLE_REASON = {
     "Novel": "정의상 검색 불가 — 아직 이름이 없는 병원체에는 적응증 낱말이 없다",
@@ -85,6 +92,12 @@ DOMESTIC_THREAT_TERMS: dict[str, list[str]] = {
     "MERS": ["메르스"],
     "Novel": [],
 }
+
+
+from .gap_map import DOMESTIC_TERMS as _GAP_DOMESTIC_TERMS  # noqa: E402
+
+for _k, _v in _GAP_DOMESTIC_TERMS.items():
+    DOMESTIC_THREAT_TERMS.setdefault(_k, _v)
 
 
 def _norm(text: str) -> str:

@@ -10,6 +10,7 @@ import HeimdallPanel from '@/components/stages/HeimdallPanel';
 import ValhallaPanel from '@/components/stages/ValhallaPanel';
 import { getDictionary, localePath, type Locale } from '@/i18n';
 import type { Baikal, BaikalNodeRow, BaikalTransitionRow } from '@/lib/baikal';
+import type { GapCell, GapMap } from '@/lib/gapMap';
 import type { PolarTrendRow } from '@/lib/polarTrend';
 import type { GrowthRow, VariantGrowth, VariantLedger, VariantStateRow, VariantTransitionRow } from '@/lib/variantLedger';
 
@@ -37,12 +38,14 @@ export default function Console({
   polar,
   variants,
   growth,
+  gap,
   baikal,
 }: {
   locale: Locale;
   polar: Polar;
   variants: VariantLedger;
   growth: VariantGrowth;
+  gap: GapMap;
   baikal: Baikal;
 }) {
   const dict = getDictionary(locale);
@@ -54,6 +57,29 @@ export default function Console({
   const pt = dict.polar;
   const vt = dict.variant;
   const bk = dict.baikal;
+  const gp = dict.gap;
+  type GapView = { id: string; pathogen: string; vaccine: string; therapeutic: string; fda: string; diagnostic: string; domestic: string };
+  const ICON: Record<string, string> = { approved: '🟢', clinical: '🟡', none: '🔴', undetermined: '⚪', unsearchable: '—' };
+  // 한국어 화면은 백엔드 근거 문구까지, en/fr 은 상태 낱말만(근거 문구는 한국어라서).
+  const gapCell = (c: GapCell) =>
+    locale === 'ko' ? `${ICON[c.status] ?? '⚪'} ${c.label}` : (gp.statuses[c.status] ?? c.status);
+  const gapColumns: TableColumn<GapView>[] = [
+    { key: 'pathogen', header: gp.cols.pathogen, width: proportional(1.3, { minWidth: 150 }) },
+    { key: 'vaccine', header: gp.cols.vaccine, width: proportional(1, { minWidth: 110 }) },
+    { key: 'therapeutic', header: gp.cols.therapeutic, width: proportional(1, { minWidth: 110 }) },
+    { key: 'fda', header: gp.cols.fda, width: proportional(1, { minWidth: 110 }) },
+    { key: 'diagnostic', header: gp.cols.diagnostic, width: proportional(1.2, { minWidth: 130 }) },
+    { key: 'domestic', header: gp.cols.domestic, width: proportional(0.8, { minWidth: 100 }) },
+  ];
+  const gapRows: GapView[] = (gap?.rows ?? []).map((r) => ({
+    id: r.id,
+    pathogen: r.gap ? `⚠ ${r.name} · ${gp.gapMark}` : r.name,
+    vaccine: gapCell(r.vaccine),
+    therapeutic: gapCell(r.therapeutic),
+    fda: gapCell(r.fda),
+    diagnostic: gapCell(r.diagnostic),
+    domestic: gapCell(r.domestic),
+  }));
   type NodeView = Omit<BaikalNodeRow, 'status'> & { status: string };
   type TransitionView = { id: string; observed: string; engine: string; change: string; reason: string };
   const nodeColumns: TableColumn<NodeView>[] = [
@@ -268,6 +294,35 @@ export default function Console({
 
           <VStack gap={2} id="valhalla">
             {head(2, valhalla)}
+            <Card padding={4}>
+              <VStack gap={3} id="gap-map">
+                <VStack gap={1}>
+                  <Heading level={3}>{gp.title}</Heading>
+                  <Text type="supporting">{gp.lead}</Text>
+                </VStack>
+                {gap === null ? (
+                  <Text color="secondary">{gp.unavailable}</Text>
+                ) : (
+                  <VStack gap={3}>
+                    <Text weight="semibold">
+                      {gap.gapCount > 0
+                        ? gp.summary.replace('{gap}', String(gap.gapCount)).replace('{total}', String(gap.pathogenCount))
+                        : gp.noGap}
+                    </Text>
+                    <Text type="supporting">{gp.legend}</Text>
+                    <Table<GapView>
+                      data={gapRows}
+                      columns={gapColumns}
+                      idKey="id"
+                      density="compact"
+                      textOverflow="wrap"
+                      verticalAlign="top"
+                    />
+                    <Text type="supporting">{gp.caveat}</Text>
+                  </VStack>
+                )}
+              </VStack>
+            </Card>
             <ValhallaPanel />
           </VStack>
 
