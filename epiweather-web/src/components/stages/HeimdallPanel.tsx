@@ -1,7 +1,6 @@
 'use client';
 import { useState } from 'react';
 import { fetchGenomeScreen, GenomeScreen } from '@/lib/api';
-import ClassifiedBadge from './ClassifiedBadge';
 
 // HEIMDALL 실측 패널 — 백엔드 유전체 스크리너(genome_signals) 호출·렌더.
 // 서열 하나를 넣으면 CAI·CpG·엔트로피·국소이상·조립시그니처를 서버에서 실제 계산.
@@ -31,7 +30,6 @@ export default function HeimdallPanel() {
 
   return (
     <div className="card" style={{ marginTop: 14 }}>
-      <ClassifiedBadge c={r?.classification} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
         <span style={{ fontFamily: 'var(--mono)', fontSize: 11, letterSpacing: '.14em', color: 'var(--violet)' }}>
           HEIMDALL · 유전체 실측 스크리닝

@@ -8,13 +8,6 @@ export const API_BASE = BASE;
 // EPIWEATHER_API_KEY에만 둔다. 프록시 본체는 src/lib/server-api.ts + 각
 // src/app/api/**/route.ts. 클라이언트 코드에서 X-API-Key를 직접 다루지 말 것.
 
-export interface Classification {
-  program_code: string; program_name_ko: string; stage: number;
-  owning_center_ko: string; designation_ko: string;
-  classification_ko: string; is_classified: boolean;
-  access_control: string; audit_logged: boolean; access_note: string;
-}
-
 export interface ReferenceComparisonMetric {
   value: number; reference_mean: number; reference_stdev: number;
   z_score: number; percentile: number;
@@ -45,7 +38,6 @@ export interface GenomeScreen {
   reference_comparison?: ReferenceComparison | null;
   evo2_naturalness?: Evo2Naturalness | null;
   msa_homology?: MsaHomology | null;
-  classification?: Classification;
 }
 
 // Evo2(유전체 파운데이션 모델) 순서 자연스러움. 진핵숙주 감염 바이러스는 학습에서
@@ -130,7 +122,7 @@ export interface BiodefenseReadiness {
   international_reference_systems?: {
     region: string; name: string; established: number | null; summary: string; source: string;
   }[];
-  is_illustrative?: boolean; note?: string; disclaimer: string; classification?: Classification;
+  is_illustrative?: boolean; note?: string; disclaimer: string;
 }
 
 export async function fetchBiodefenseReadiness(): Promise<BiodefenseReadiness> {

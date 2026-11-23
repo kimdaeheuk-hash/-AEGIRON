@@ -372,11 +372,9 @@ def synthetic_threat_genome_screen(req: GenomeScreenRequest):
     판정이 아니라 추가검토 우선순위 도구(is_screening_only=True) — 최종 판단은
     전문가·계통발생·습식실험 확인 필요. 서열 설계·합성·회피는 제공하지 않음.
     리딩프레임이 안 맞아도 6-frame 최장 ORF를 자동탐지해 CAI를 계산하고,
-    모호 염기(N 등)는 조용히 삭제·이어붙이지 않고 가장 긴 연속 구간만 분석함.
-    [사내 R&D 프로그램] HEIMDALL — 아이기론 R&D 연구센터, 사내 최고 보안등급."""
+    모호 염기(N 등)는 조용히 삭제·이어붙이지 않고 가장 긴 연속 구간만 분석함. 인증 필수."""
     _check_genome_screen_limits(req)
     from algorithms.genome_signals import screen_sequence
-    from algorithms.classified_programs import classification
     result = screen_sequence(req.sequence, reference_sequences=req.reference_sequences)
     if req.use_evo2:
         # 점통계(조성)가 못 보는 '순서의 자연스러움'을 Evo2로 추가 실측.
@@ -395,7 +393,6 @@ def synthetic_threat_genome_screen(req: GenomeScreenRequest):
         if msa.get("ok"):
             result.setdefault("flags", []).extend(msa.get("flags") or [])
             result["flag_count"] = len(result["flags"])
-    result["classification"] = classification("stage0")
     return result
 
 
@@ -411,10 +408,8 @@ def biodefense_readiness(req: BiodefenseReadinessRequest):
     생산이 안 되는 게 뭔가(주권 격차). 요청 바디가 없으면: ①등록된 실제 비축
     데이터(`/api/biodefense/stockpile`)가 있으면 그걸 사용, ②없으면 시연용
     예시(is_illustrative)로 폴백. 변이별 분자 중화 예측은 Phase 2(BioNeMo·CEPI)
-    통합 — 지어내지 않음.
-    [사내 R&D 프로그램] VALHALLA — 아이기론 R&D 연구센터, 사내 최고 보안등급(인증 필수)."""
+    통합 — 지어내지 않음. 인증 필수."""
     from algorithms.biodefense_readiness import compute_readiness, illustrative_readiness, DEFAULT_THREATS
-    from algorithms.classified_programs import classification
     if req.countermeasures and req.threats:
         result = compute_readiness(req.countermeasures, req.threats)
     else:
@@ -429,7 +424,6 @@ def biodefense_readiness(req: BiodefenseReadinessRequest):
             )
         else:
             result = illustrative_readiness()
-    result["classification"] = classification("stage8")
     return result
 
 
