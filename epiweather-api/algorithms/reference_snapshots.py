@@ -325,6 +325,21 @@ def _clear_consumer_caches(name: str) -> None:
         pass        # 캐시 비우기 실패가 갱신 자체를 실패로 만들진 않는다
 
 
+def _missing_threats(name: str) -> bool:
+    """승인 제품 스냅숏이 지금 검색어 표의 위협을 다 조회했는가(2026-11-23 공백 지도로 위협이 늘었다).
+    빠진 위협이 있으면 신선해도 다시 받는다 — 안 그러면 새 병원체가 일주일 동안 '판정 안 함'."""
+    if name != "approved_products":
+        return False
+    try:
+        from .approved_products import THREAT_SEARCH_TERMS
+        snap = _load(name) or {}
+        have = set((snap.get("by_threat") or {}).keys())
+        want = {k for k, v in THREAT_SEARCH_TERMS.items() if v}
+        return bool(want - have)
+    except Exception:                                     # noqa: BLE001
+        return False
+
+
 def refresh_due(now=None) -> dict:
     """묵은 것만 새로 받는다. 주간작업이 부른다.
 
@@ -332,7 +347,7 @@ def refresh_due(now=None) -> dict:
     results, skipped = [], []
     for name in sorted(SNAPSHOTS):
         status = snapshot_status(name, now)
-        if not status["stale"]:
+        if not status["stale"] and not _missing_threats(name):
             skipped.append({"name": name, "age_days": status["age_days"]})
             continue
         results.append(refresh(name, now))

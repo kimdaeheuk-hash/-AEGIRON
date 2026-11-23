@@ -45,6 +45,7 @@ STATE_FILE = Path(__file__).resolve().parent.parent / "data" / "valhalla_state.j
 
 # 무거운 조각의 갱신 주기. 값이 바뀌는 속도에 맞춘다.
 PIPELINE_EVERY_HOURS = 24        # 임상 단계는 달 단위로 바뀐다
+GAP_TRIALS_EVERY_HOURS = 24      # 공백 지도의 병원체별 백신·치료제 임상(2026-11-23)
 
 
 def _now() -> dt.datetime:
@@ -286,7 +287,7 @@ def stale_parts(snapshot: dict) -> list[tuple[str, dict]]:
     가 났고, 발할라 층 전체가 실패로 기록됐다. 판정을 한 곳에 모으고 시험한다.
     """
     out = []
-    for name in ("pipeline",):
+    for name in ("pipeline", "gap_trials"):
         part = snapshot.get(name)
         if not isinstance(part, dict):
             continue
@@ -340,6 +341,12 @@ def valhalla_snapshot(now=None) -> dict:
     # **이미 매일 받아오면서도** 준비태세 판정에는 한 번도 안 넣고 있었다.
     # compute_readiness 가 db.list_countermeasures()(수기 5건)만 보기 때문이다.
     out["readiness_by_scope"] = _readiness_scopes(out.get("pipeline"))
+
+    # ★ 공백 지도(2026-11-23) ★ 우선 병원체마다 백신·치료제 임상 최고 단계. 하루 한 번.
+    # 지도 자체는 /api/valhalla/gap-map 이 이 저장본·스냅숏으로 만든다(요청 때 네트워크 없음).
+    from .gap_map import fetch_trials
+    gap = _refresh_heavy("gap_trials", GAP_TRIALS_EVERY_HOURS, fetch_trials, state, now)
+    out["gap_trials"] = {k: v for k, v in gap.items() if k != "value"}
 
     _save_state(state)
     out["collected_at"] = now.isoformat()

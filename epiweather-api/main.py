@@ -218,6 +218,19 @@ def valhalla_match_ledger(days: int = 30, pathogen: Optional[str] = None,
         ) from e
 
 
+@app.get("/api/valhalla/gap-map", tags=["Stage 8: 바이오방어"])
+def valhalla_gap_map():
+    """발할라 대응제 공백 지도 — WHO 2024 우선 병원체(2차 문헌 기반) × 백신·치료제·FDA 승인·진단·국산.
+
+    칸마다 승인/임상/없음/판정 안 함/검색 불가. '없음'은 그 등록부에 없다는 뜻이다. 10분 캐시.
+    """
+    from algorithms.gap_map import current
+    try:
+        return response_cache.swr("valhalla_gap_map", 600, current)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"공백 지도 실패({type(e).__name__}): {e}") from e
+
+
 @app.get("/api/valhalla/country-posture", tags=["Stage 8: 바이오방어"])
 def valhalla_country_posture(iso3: str = "KOR"):
     """국가별 대비 현황판(목연결) — WHO SPAR 신고 역량 + 매칭원장 최신 판정.

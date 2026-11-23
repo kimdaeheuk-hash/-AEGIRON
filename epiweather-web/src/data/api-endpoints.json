@@ -37,6 +37,12 @@
  },
  {
   "method": "GET",
+  "path": "/api/valhalla/gap-map",
+  "tag": "Stage 8: 바이오방어",
+  "auth": false
+ },
+ {
+  "method": "GET",
   "path": "/api/valhalla/country-posture",
   "tag": "Stage 8: 바이오방어",
   "auth": false

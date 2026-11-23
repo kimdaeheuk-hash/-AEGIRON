@@ -173,6 +173,31 @@ export const ko: Dictionary = {
     "noTransitions": "기록된 전이 없음",
     "apiLabel": "원자료 API"
   },
+  "gap": {
+    "title": "대응제 공백 지도",
+    "lead": "WHO 2024 우선 병원체 체계(2차 문헌 기반)의 병원체마다 백신·치료제·미국 FDA 승인 제품·진단·국산 생산이 있는지 한 장으로 봄. 빈칸이 곧 대비가 필요한 곳임.",
+    "summary": "{total}개 병원체 중 {gap}개가 대응제 공백(백신·치료제·FDA 승인이 모두 없거나 임상 중)",
+    "noGap": "공백으로 판정된 병원체 없음(판정 안 함 칸이 있으면 공백으로 세지 않음)",
+    "unavailable": "공백 지도를 읽지 못함(판정 안 함)",
+    "cols": {
+      "pathogen": "병원체",
+      "vaccine": "백신",
+      "therapeutic": "치료제",
+      "fda": "FDA 승인",
+      "diagnostic": "진단",
+      "domestic": "국산 생산"
+    },
+    "statuses": {
+      "approved": "🟢 있음",
+      "clinical": "🟡 임상·제한",
+      "none": "🔴 없음",
+      "undetermined": "⚪ 판정 안 함",
+      "unsearchable": "— 검색 불가"
+    },
+    "gapMark": "공백",
+    "legend": "🟢 승인·사전적격 · 🟡 임상 중이거나 제한적 · 🔴 그 등록부에 없음 · ⚪ 못 봄(판정 안 함)",
+    "caveat": "'없음'은 세상에 없다는 뜻이 아니라 그 등록부(WHO 사전적격·ClinicalTrials.gov·openFDA)에 없다는 뜻임. 병원체 목록은 WHO 2024 원문 표와 아직 한 줄씩 대조하지 못했음. 국산 생산은 식약처 자료가 연결되지 않아 전부 판정 안 함임."
+  },
   "pages": {
     "polar": {
       "metaTitle": "극지 감시",

@@ -10,11 +10,17 @@ description: epiweather-api 코드 규약 — 파일 구조, 스케줄러, 라�
 
 ## 구조
 
-- `main.py` — FastAPI 라우트(16개 · 인증 5개) + **스케줄러**(`asyncio` 루프). 라우트는 얇게, 계산은 `algorithms/` 로.
+- `main.py` — FastAPI 라우트(17개 · 인증 5개) + **스케줄러**(`asyncio` 루프). 라우트는 얇게, 계산은 `algorithms/` 로.
 - `collector.py` — `collect_free_sources()` 가 극지 → 헤임달(변이·대조 원장) → 발할라 → 소스 건강 → **BAIKAL MOB** 순으로 돈다. `log()`/`log_error()`.
 - **헤임달 성장 신호**(`genomic_variants.growth_signal`, 2026-11-23) — 최근 4주 vs 직전 4주 계통 구성비 로그 변화/주(추정).
   두 구간 각 50건 미만이면 판정 안 함, 최근 10건 미만 계통은 안 올린다. 수집이 `response_cache.put("variant_growth")` →
   `/api/variant-growth` 가 `peek` 으로 읽는다(없으면 판정 안 함 — Nextstrain 을 대신 받지 않는다). 로그 `📈 성장 신호 …`.
+- **발할라 공백 지도**(`algorithms/gap_map.py`, 2026-11-23) — WHO 2024 체계 기반 27개 병원체 × 백신·치료제·FDA 승인·진단·국산.
+  등록부 `REGISTRY` 는 2차 문헌 기반(원문 표 미대조 — `basis` 로 근거 수준 표기). 백신 = WHO PQ → 없으면 CT.gov 백신 연구,
+  치료제 = CT.gov 치료제 연구(4상=approved), FDA = openFDA 주간 스냅숏(검색어는 `FDA_TERMS` 를 approved_products 에 합침),
+  진단 = 출처 있는 손 표 `DIAGNOSTICS` 만, 국산 = 판정 안 함. 임상은 발할라 무거운 조각 `gap_trials`(24h, 병렬 6).
+  `/api/valhalla/gap-map`(10분 캐시)·로그 `🗺 공백 지도 …` 는 `gap_map.current()` 로 저장본만 읽는다.
+  승인 제품 스냅숏이 새 위협을 안 물어봤으면 신선해도 다시 받는다(`reference_snapshots._missing_threats`).
 - **BAIKAL MOB**(`algorithms/baikal.py`, 2026-11-22 재구현) — 상태변화 엔진. **온톨로지(`algorithms/ontology.py`) 위층.**
   수집 주기 끝에서 엔진 5개(수집 주기·헤임달 변이·헤임달 스크리너·발할라·극지)를 정상/저하/중단/판정 안 함으로 판정하고,
   바뀐 순간만 전이로 남긴다(`baikal_mob_*` 표). 상류가 중단·판정 안 함이면 온톨로지 간선을 따라 하류 입력이 낡았다고 **주석만** 단다(하류 상태는 안 바꾼다).

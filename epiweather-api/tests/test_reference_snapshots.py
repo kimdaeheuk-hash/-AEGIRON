@@ -173,9 +173,10 @@ def test_refresh_due_skips_fresh_and_refreshes_stale(snapdir):
     _write(snapdir, "ihr_capacity",
            {"snapshot_date": old, "scores": {f"C{i}": {} for i in range(194)}})
     # 승인 제품(A-2)도 등록부에 있다. 파일이 없으면 stale 이라 갱신 대상이 된다.
+    from algorithms.approved_products import THREAT_SEARCH_TERMS
     _write(snapdir, "approved_products",
            {"snapshot_date": dt.date.today().isoformat(),
-            "by_threat": {"Anthrax": {}, "Ebola": {}, "Plague": {}}})
+            "by_threat": {k: {} for k, v in THREAT_SEARCH_TERMS.items() if v}})
 
     with patch("algorithms.reference_fetch.fetch_vaccine_supply") as pq, \
             patch("algorithms.reference_fetch.fetch_approved_products") as fda, \
@@ -191,6 +192,22 @@ def test_refresh_due_skips_fresh_and_refreshes_stale(snapdir):
         "approved_products", "vaccine_supply"]
     assert [r["name"] for r in out["refreshed"]] == ["ihr_capacity"]
     assert out["refreshed"][0]["refreshed"] is True
+
+
+def test_fresh_approved_snapshot_missing_new_threats_is_refetched(snapdir):
+    """공백 지도(2026-11-23)로 위협이 늘었다 — 신선해도 새 위협을 안 물어본 스냅숏은 다시 받는다.
+    안 그러면 새 병원체의 FDA 칸이 최대 일주일 '판정 안 함'으로 남는다."""
+    _write(snapdir, "vaccine_supply", _vaccine_payload(count=284))
+    _write(snapdir, "ihr_capacity", {"snapshot_date": dt.date.today().isoformat(),
+                                     "scores": {f"C{i}": {} for i in range(194)}})
+    _write(snapdir, "approved_products",
+           {"snapshot_date": dt.date.today().isoformat(),
+            "by_threat": {"Anthrax": {}, "Ebola": {}, "Plague": {}}})
+    with patch("algorithms.reference_fetch.fetch_approved_products",
+               side_effect=RuntimeError("openFDA 502")) as fda:
+        out = rs.refresh_due()
+    fda.assert_called_once()
+    assert [r["name"] for r in out["refreshed"]] == ["approved_products"]
 
 
 def test_missing_approved_snapshot_is_stale_and_gets_fetched(snapdir):

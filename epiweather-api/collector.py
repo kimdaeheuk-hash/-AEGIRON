@@ -286,8 +286,15 @@ def collect_free_sources() -> dict:
                 log("    ⚠ 임상 조회 실패 %d종: %s — '등록 연구 없음'과 다른 상태다"
                     % (len(failed), "·".join(failed)))
 
+        # 공백 지도 요약(2026-11-23) — 저장본·스냅숏만 읽는다(네트워크 없음).
+        try:
+            from algorithms.gap_map import current as _gap_current, summary_line as _gap_line
+            log(f"  {_gap_line(_gap_current())}")
+        except Exception as e:
+            log(f"  ⚠ 공백 지도 요약 실패(수집은 유지): {type(e).__name__}: {e}")
+
         from algorithms.valhalla_watch import stale_parts
-        _KO = {"pipeline": "파이프라인"}
+        _KO = {"pipeline": "파이프라인", "gap_trials": "공백 지도 임상"}
         for key, part in stale_parts(v):
             log("  ⚠ 발할라 %s %s (%s시간 전 값 사용)"
                 % (_KO.get(key, key), part["reason"], part.get("age_hours")))
